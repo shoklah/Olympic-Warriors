@@ -1,0 +1,9 @@
+django
+django-bootstrap-v5>=1.0.1
+psycopg2-binary
+pydantic-settings
+pydantic
+django-crispy-forms
+crispy-bootstrap5
+dj_database_url
+whitenoise[brotli]
