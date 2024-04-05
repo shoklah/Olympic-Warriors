@@ -1,0 +1,16 @@
+{% extends "base_generic.html" %}
+{% load i18n %}
+
+{% block content %}
+    <div class="alert alert-danger" role="alert">
+        <h4 class="alert-heading">{% trans "Internal Server Error" %}</h4>
+        <p>{{ error_message }}</p>
+        <hr>
+        <p class="mb-2">{% trans "Please try again later or contact support." %}</p>
+        {% if machine_id %}
+            <a href="{% url 'machine' machine_id=machine_id %}" class="btn btn-secondary">{% trans "Go Back" %}</a>
+        {% else %}
+            <a href="{% url 'home' %}" class="btn btn-secondary">{% trans "Go Back" %}</a>
+        {% endif %}
+    </div>
+{% endblock %}
