@@ -44,11 +44,65 @@ class Command(BaseCommand):
         "Strategy and Game Vision",
     ]
 
+    rating_coefs = {
+        "Cohesion and Team Spirit": 2,
+        "Observation and Orientation": 1,
+        "Mobility": 3,
+        "Accuracy and Aiming": 2,
+        "Running and Speed": 4,
+        "Endurance and Cardio": 4,
+        "Cultural Knowledge": 1,
+        "Strength": 3,
+        "Explosiveness": 4,
+        "Strategy and Game Vision": 2,
+    }
+
     def handle(self, *args, **options):
         df = pd.read_csv(
             "/Users/shoklah/Work/Playground/Olympic-Warriors/Inscription-aux-Olympic-Warriors-2024.csv"
         )
         df.rename(columns=self.header_mapping, inplace=True)
+
+        # process weighted average rating for each player
+        df["Rating_Weighted"] = df.apply(
+            lambda x: sum([x[rating] * self.rating_coefs[rating] for rating in self.ratings])
+            / sum([self.rating_coefs[rating] for rating in self.ratings]),
+            axis=1,
+        )
+        df["Rating_Weighted"] = df["Rating_Weighted"].apply(lambda x: 1 if x < 1 else x)
+        df["Rating_Weighted"] = df["Rating_Weighted"].apply(lambda x: 10 if x > 10 else x)
+
+        # multiply rating by 2.5 if rating is below 4 and global level estimation is above 5
+        df["Rating_Weighted"] = df.apply(
+            lambda x: (
+                x["Rating_Weighted"] * 2.5
+                if x["Rating_Weighted"] < 4
+                and x["Global Level Estimation for Olympic Warriors 2024"] > 4
+                else x["Rating_Weighted"]
+            ),
+            axis=1,
+        )
+
+        weighted_ratings = df.groupby("Name")["Rating_Weighted"].mean()
+        # print(weighted_ratings)
+
+        # calculate ajusted rating, including global level estimation
+        df["Adjusted Weighted Rating"] = df.apply(
+            lambda x: (
+                (x["Rating_Weighted"] + x["Global Level Estimation for Olympic Warriors 2024"] * 4)
+                / 5
+            ),
+            axis=1,
+        )
+        df["Adjusted Weighted Rating"] = df["Adjusted Weighted Rating"].apply(
+            lambda x: 1 if x < 1 else x
+        )
+        df["Adjusted Weighted Rating"] = df["Adjusted Weighted Rating"].apply(
+            lambda x: 10 if x > 10 else x
+        )
+        # df["Adjusted Rating"] = df["Adjusted Rating"].astype(int)
+        adjusted_average_rating = df.groupby("Name")["Adjusted Weighted Rating"].mean()
+        print(adjusted_average_rating)
 
         df["Rating"] = df[self.ratings].mean(axis=1)
         df["Rating"] = df["Rating"].apply(lambda x: 1 if x < 1 else x)
@@ -64,20 +118,24 @@ class Command(BaseCommand):
             axis=1,
         )
 
-        # average_rating = df.groupby("Name")["Rating"].mean()
+        average_rating = df.groupby("Name")["Rating"].mean()
         # print(average_rating)
 
         # calculate ajusted rating, including global level estimation
         df["Adjusted Rating"] = df.apply(
-            lambda x: ((x["Rating"] + x["Global Level Estimation for Olympic Warriors 2024"]) / 2),
+            lambda x: (
+                (x["Rating"] + x["Global Level Estimation for Olympic Warriors 2024"] * 4) / 5
+            ),
             axis=1,
         )
         df["Adjusted Rating"] = df["Adjusted Rating"].apply(lambda x: 1 if x < 1 else x)
         df["Adjusted Rating"] = df["Adjusted Rating"].apply(lambda x: 10 if x > 10 else x)
-        df["Adjusted Rating"] = df["Adjusted Rating"].astype(int)
+        # df["Adjusted Rating"] = df["Adjusted Rating"].astype(int)
         adjusted_average_rating = df.groupby("Name")["Adjusted Rating"].mean()
         print(adjusted_average_rating)
 
         # print all ratings
-        # ratings = df.groupby("Name")[self.ratings].mean()
-        # print(ratings)
+        ratings = df.groupby("Name")[
+            self.ratings + ["Global Level Estimation for Olympic Warriors 2024"]
+        ].mean()
+        print(ratings)
