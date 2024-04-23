@@ -45,6 +45,16 @@ class Command(BaseCommand):
         "Strategy and Game Vision": {"id": "STRAT", "coef": 2},
     }
 
+    def process_weighted_rating(self, df, ratings):
+        df["Rating_Weighted"] = df.apply(
+            lambda x: sum([x[rating] * ratings[rating]["coef"] for rating in ratings])
+            / sum([ratings[rating]["coef"] for rating in ratings]),
+            axis=1,
+        )
+        df["Rating_Weighted"] = df["Rating_Weighted"].apply(lambda x: 1 if x < 1 else x)
+        df["Rating_Weighted"] = df["Rating_Weighted"].apply(lambda x: 10 if x > 10 else x)
+        return df
+
     def handle(self, *args, **options):
         df = pd.read_csv(
             "/Users/shoklah/Work/Playground/Olympic-Warriors/Inscription-aux-Olympic-Warriors-2024.csv"
