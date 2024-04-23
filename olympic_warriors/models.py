@@ -71,43 +71,17 @@ class Edition(models.Model):
             "J'ai payé mon inscription et je confirme que je serai là.": "Paid Registration Confirmation",
         }
 
-        rating_columns = [
-            "Cohesion and Team Spirit",
-            "Observation and Orientation",
-            "Mobility",
-            "Accuracy and Aiming",
-            "Running and Speed",
-            "Endurance and Cardio",
-            "Cultural Knowledge",
-            "Strength",
-            "Explosiveness",
-            "Strategy and Game Vision",
-        ]
-
-        rating_identifiers = {
-            "Cohesion and Team Spirit": "TEAM",
-            "Observation and Orientation": "OBS",
-            "Mobility": "MOB",
-            "Accuracy and Aiming": "ACC",
-            "Running and Speed": "SPD",
-            "Endurance and Cardio": "STMN",
-            "Cultural Knowledge": "CULT",
-            "Strength": "STR",
-            "Explosiveness": "EXPL",
-            "Strategy and Game Vision": "STRAT",
-        }
-
-        rating_coefs = {
-            "Cohesion and Team Spirit": 2,
-            "Observation and Orientation": 1,
-            "Mobility": 3,
-            "Accuracy and Aiming": 2,
-            "Running and Speed": 4,
-            "Endurance and Cardio": 4,
-            "Cultural Knowledge": 1,
-            "Strength": 3,
-            "Explosiveness": 4,
-            "Strategy and Game Vision": 2,
+        ratings = {
+            "Cohesion and Team Spirit": {"id": "TEAM", "coef": 2},
+            "Observation and Orientation": {"id": "OBS", "coef": 1},
+            "Mobility": {"id": "MOB", "coef": 3},
+            "Accuracy and Aiming": {"id": "ACC", "coef": 2},
+            "Running and Speed": {"id": "SPD", "coef": 4},
+            "Endurance and Cardio": {"id": "STMN", "coef": 4},
+            "Cultural Knowledge": {"id": "CULT", "coef": 1},
+            "Strength": {"id": "STR", "coef": 3},
+            "Explosiveness": {"id": "EXPL", "coef": 4},
+            "Strategy and Game Vision": {"id": "STRAT", "coef": 2},
         }
 
         df = pd.read_csv(registration_form)
@@ -115,8 +89,8 @@ class Edition(models.Model):
 
         # process weighted average rating for each player
         df["Rating_Weighted"] = df.apply(
-            lambda x: sum([x[rating] * rating_coefs[rating] for rating in rating_columns])
-            / sum([rating_coefs[rating] for rating in rating_columns]),
+            lambda x: sum([x[rating] * ratings[rating]["coef"] for rating in ratings])
+            / sum([ratings[rating]["coef"] for rating in ratings]),
             axis=1,
         )
 
@@ -145,7 +119,7 @@ class Edition(models.Model):
         df["Adjusted Rating"] = df["Adjusted Rating"].round(2)
 
         ## Create players from the registration form
-        for index, row in df.iterrows():
+        for _, row in df.iterrows():
             player = Player.objects.create(
                 user=User.objects.create_user(
                     username=row["Name"].replace(" ", "").lower(),
@@ -165,6 +139,9 @@ class Edition(models.Model):
                 )
 
     def save(self, *args, **kwargs):
+        """
+        Override the save method to create players from the registration form of the edition.
+        """
         # Check if the object is already in the database
         if self.pk is not None:
             # Get the original object from the database
