@@ -16,7 +16,7 @@ RUN pip install -r /requirements.txt
 # Remove dependencies
 RUN apk del .tmp-build-deps
 
-WORKDIR /app
+WORKDIR /server
 
 # [Security] Limit the scope of user who run the docker image
 RUN adduser -D user
