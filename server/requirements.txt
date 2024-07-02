@@ -9,3 +9,4 @@ crispy-bootstrap5
 dj_database_url
 whitenoise[brotli]
 pandas
+gunicorn
