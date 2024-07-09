@@ -52,6 +52,9 @@ class BaseConfig(BaseSettings):
 
     BASE_URL: str = "localhost"
 
+    ALLOWED_HOSTS: list = ["*"]
+    CSRF_TRUSTED_ORIGINS: list = ["https://*", "http://*"]
+
     @model_validator(mode="after")
     def validate_log_level(self):
         """
