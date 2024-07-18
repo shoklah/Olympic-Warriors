@@ -12,7 +12,7 @@ class Player(models.Model):
 
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     rating = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(10)])
-    team = models.ForeignKey("Team", on_delete=models.CASCADE)
+    team = models.ForeignKey("Team", on_delete=models.CASCADE, null=True, blank=True)
     is_active = models.BooleanField(default=True)
 
 
@@ -23,7 +23,7 @@ class PlayerRating(models.Model):
 
     player = models.ForeignKey(Player, on_delete=models.CASCADE)
     name = models.CharField(max_length=100)
-    identifier = models.CharField(max_length=4)
+    identifier = models.CharField(max_length=5)
     rating = models.FloatField(validators=[MinValueValidator(1), MaxValueValidator(10)])
     is_active = models.BooleanField(default=True)
 
@@ -156,7 +156,7 @@ class Edition(models.Model):
                 PlayerRating.objects.create(
                     player=player,
                     name=rating,
-                    identifier=rating["id"],
+                    identifier=self.ratings[rating]["id"],
                     rating=row[rating],
                 )
 
@@ -173,7 +173,7 @@ class Edition(models.Model):
             if new_registration_form != getattr(original_obj, "registration_form"):
                 self.create_players_from_registration_form(new_registration_form)
         elif self.registration_form:
-            self.create_players_from_registration_form(new_registration_form)
+            self.create_players_from_registration_form(self.registration_form)
 
         # Call the original save method to save the object
         super().save(*args, **kwargs)
