@@ -23,8 +23,8 @@ class PlayerInline(TabularInline):
 
 
 class PlayerAdmin(ModelAdmin):
-    list_display = ["user", "rating", "team"]
-    search_fields = ["name", "team", "user"]
+    list_display = ["user", "rating", "team", "edition"]
+    search_fields = ["name", "team", "user", "edition"]
     inlines = [PlayerRatingInline]
 
     def changelist_view(self, request, extra_context=None):
@@ -42,8 +42,8 @@ class PlayerRatingAdmin(ModelAdmin):
 
 
 class TeamAdmin(ModelAdmin):
-    list_display = ["name"]
-    search_fields = ["name"]
+    list_display = ["name", "edition"]
+    search_fields = ["name", "edition"]
     inlines = [PlayerInline]
 
     def changelist_view(self, request, extra_context=None):
