@@ -10,6 +10,9 @@ class Player(models.Model):
     A player is a user that has a rating and is part of a team.
     """
 
+    def __str__(self):
+        return self.user.username
+
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     rating = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(10)])
     team = models.ForeignKey("Team", on_delete=models.CASCADE, null=True, blank=True)
@@ -184,7 +187,6 @@ class Team(models.Model):
     A team is a group of players that participate in an edition of the Olympic Warriors.
     """
 
-    captain = models.ForeignKey(Player, on_delete=models.CASCADE, related_name="captain")
     name = models.CharField(max_length=100)
     edition = models.ForeignKey(Edition, on_delete=models.CASCADE)
     is_active = models.BooleanField(default=True)
