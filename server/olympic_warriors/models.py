@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.utils.crypto import get_random_string
 
 import pandas as pd
 
@@ -13,9 +14,10 @@ class Player(models.Model):
     def __str__(self):
         return self.user.username
 
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
     rating = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(10)])
     team = models.ForeignKey("Team", on_delete=models.CASCADE, null=True, blank=True)
+    edition = models.ForeignKey("Edition", on_delete=models.CASCADE)
     is_active = models.BooleanField(default=True)
 
 
@@ -151,15 +153,23 @@ class Edition(models.Model):
 
         ## Create players from the registration form
         for _, row in df.iterrows():
-            player = Player.objects.create(
-                user=User.objects.create_user(
+            try:
+                user = User.objects.get(username=row["Name"].replace(" ", "").lower())
+            except User.DoesNotExist:
+                user = User.objects.create_user(
                     username=row["Name"].replace(" ", "").lower(),
-                    password="password",
+                    password=get_random_string(length=8),
                     email=f"{row['Name'].replace(' ', '').lower()}@olympicwarriors.com",
-                ),
-                rating=row["Global_Rating"],
-                team=None,
-            )
+                )
+
+            try:
+                player = Player.objects.get(user=user, edition=self)
+            except Player.DoesNotExist:
+                player = Player.objects.create(
+                    user=user,
+                    rating=row["Global_Rating"],
+                    edition=self,
+                )
 
             for rating in self.ratings:
                 PlayerRating.objects.create(
@@ -180,8 +190,10 @@ class Edition(models.Model):
             # Compare registration from to see if it has been updated
             new_registration_form = getattr(self, "registration_form")
             if new_registration_form != getattr(original_obj, "registration_form"):
+                super().save(*args, **kwargs)
                 self.create_players_from_registration_form(new_registration_form)
         elif self.registration_form:
+            super().save(*args, **kwargs)
             self.create_players_from_registration_form(self.registration_form)
 
         # Call the original save method to save the object
