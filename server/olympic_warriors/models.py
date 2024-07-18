@@ -24,6 +24,9 @@ class PlayerRating(models.Model):
     A player rating on a specific area, with its name and identifier.
     """
 
+    def __str__(self):
+        return f"{self.player.user.username} - {self.name}"
+
     player = models.ForeignKey(Player, on_delete=models.CASCADE)
     name = models.CharField(max_length=100)
     identifier = models.CharField(max_length=5)
@@ -35,6 +38,9 @@ class Edition(models.Model):
     """
     An edition is a year in which the Olympic Warriors take place.
     """
+
+    def __str__(self):
+        return str(self.year)
 
     year = models.IntegerField(validators=[MinValueValidator(2020), MaxValueValidator(2030)])
     host = models.CharField(max_length=100)
@@ -187,6 +193,9 @@ class Team(models.Model):
     A team is a group of players that participate in an edition of the Olympic Warriors.
     """
 
+    def __str__(self):
+        return self.name
+
     name = models.CharField(max_length=100)
     edition = models.ForeignKey(Edition, on_delete=models.CASCADE)
     is_active = models.BooleanField(default=True)
@@ -197,6 +206,9 @@ class Registration(models.Model):
     A registration is a link between a Player and an Edition. It is used to keep track of
     the teams that participate in an edition.
     """
+
+    def __str__(self):
+        return f"{self.player.user.username} - {self.edition.year}"
 
     player = models.ForeignKey(Player, on_delete=models.CASCADE)
     edition = models.ForeignKey(Edition, on_delete=models.CASCADE)
