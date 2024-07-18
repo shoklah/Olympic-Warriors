@@ -1,6 +1,4 @@
-from django.contrib.admin import site, ModelAdmin
-from django.contrib.auth.models import User
-from django.contrib.auth.admin import UserAdmin
+from django.contrib.admin import site, ModelAdmin, TabularInline
 from django.http import HttpRequest
 from .models import Player, Team, Edition, Registration, PlayerRating
 
@@ -14,9 +12,20 @@ def request_only_active(request: HttpRequest) -> HttpRequest:
     return request
 
 
+class PlayerRatingInline(TabularInline):
+    model = PlayerRating
+    extra = 1
+
+
+class PlayerInline(TabularInline):
+    model = Player
+    extra = 1
+
+
 class PlayerAdmin(ModelAdmin):
     list_display = ["user", "rating", "team"]
     search_fields = ["name", "team", "user"]
+    inlines = [PlayerRatingInline]
 
     def changelist_view(self, request, extra_context=None):
         request = request_only_active(request)
@@ -35,6 +44,16 @@ class PlayerRatingAdmin(ModelAdmin):
 class TeamAdmin(ModelAdmin):
     list_display = ["name"]
     search_fields = ["name"]
+    inlines = [PlayerInline]
+
+    def changelist_view(self, request, extra_context=None):
+        request = request_only_active(request)
+        return super().changelist_view(request, extra_context)
+
+
+class EditionAdmin(ModelAdmin):
+    list_display = ["year"]
+    search_fields = ["year"]
 
     def changelist_view(self, request, extra_context=None):
         request = request_only_active(request)
@@ -43,6 +62,6 @@ class TeamAdmin(ModelAdmin):
 
 site.register(Player, PlayerAdmin)
 site.register(Team, TeamAdmin)
-site.register(Edition)
+site.register(Edition, EditionAdmin)
 site.register(Registration)
 site.register(PlayerRating, PlayerRatingAdmin)
