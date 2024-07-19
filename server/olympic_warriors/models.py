@@ -164,6 +164,8 @@ class Edition(models.Model):
 
             try:
                 player = Player.objects.get(user=user, edition=self)
+                player.rating = row["Global_Rating"]
+                player.save()
             except Player.DoesNotExist:
                 player = Player.objects.create(
                     user=user,
@@ -191,7 +193,7 @@ class Edition(models.Model):
             new_registration_form = getattr(self, "registration_form")
             if new_registration_form != getattr(original_obj, "registration_form"):
                 super().save(*args, **kwargs)
-                self.create_players_from_registration_form(new_registration_form)
+                self.create_players_from_registration_form(self.registration_form)
         elif self.registration_form:
             super().save(*args, **kwargs)
             self.create_players_from_registration_form(self.registration_form)
