@@ -417,3 +417,11 @@ class BlindtestGuess(models.Model):
     team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='team')
     answer = models.CharField(max_length=100)
     is_valid = models.BooleanField(default=False)
+
+
+class Crossfit(Event):
+    """
+    Crossfit is a type of event that takes place in an edition of the Olympic Warriors.
+    """
+
+    teams = models.ManyToManyField(Team)
