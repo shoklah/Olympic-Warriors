@@ -199,6 +199,17 @@ class Event(models.Model):
     name = models.CharField(max_length=100)
     edition = models.ForeignKey(Edition, on_delete=models.CASCADE)
     is_active = models.BooleanField(default=True)
+    teams = models.ManyToManyField(Team, through='TeamResult')
+
+
+class TeamResult(models.Model):
+    """
+    Team's score for an Event.
+    """
+
+    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='team')
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='event')
+    score = models.IntegerField()
 
 
 class Rugby(Event):
@@ -388,3 +399,21 @@ class DodgeballEvent(GameEvent):
                     game.save()
         # Call the original save method to save the object
         super().save(*args, **kwargs)
+
+
+class Blindtest(Event):
+    """
+    Blindtest is a type of event that takes place in an edition of the Olympic Warriors.
+    """
+
+    teams = models.ManyToManyField(Team)
+
+
+class BlindtestGuess(models.Model):
+    """
+    A team guessing a song name and artist
+    """
+
+    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='team')
+    answer = models.CharField(max_length=100)
+    is_valid = models.BooleanField(default=False)
