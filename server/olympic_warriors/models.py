@@ -1,8 +1,9 @@
+import pandas as pd
+from datetime import datetime
+
 from django.db import models
 from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator, MaxValueValidator
-
-import pandas as pd
 
 
 class Player(models.Model):
@@ -190,31 +191,6 @@ class Team(models.Model):
     is_active = models.BooleanField(default=True)
 
 
-class Registration(models.Model):
-    """
-    A registration is a link between a Player and an Edition. It is used to keep track of
-    the teams that participate in an edition.
-    """
-
-    player = models.ForeignKey(Player, on_delete=models.CASCADE)
-    edition = models.ForeignKey(Edition, on_delete=models.CASCADE)
-    confirmed = models.BooleanField(default=False)
-    is_active = models.BooleanField(default=True)
-
-
-class Game(models.Model):
-    """
-    A game is a competition between two teams that takes place in an edition of the Olympic Warriors.
-    """
-
-    team1 = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="team1")
-    team2 = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="team2")
-    referees = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="referees")
-    edition = models.ForeignKey(Edition, on_delete=models.CASCADE)
-    date = models.DateField()
-    is_active = models.BooleanField(default=True)
-
-
 class Event(models.Model):
     """
     An event is a competition that takes place in an edition of the Olympic Warriors.
@@ -230,5 +206,89 @@ class Rugby(Event):
     Rugby is a type of event that takes place in an edition of the Olympic Warriors.
     """
 
-    team = models.ForeignKey(Team, on_delete=models.CASCADE)
-    score = models.IntegerField(validators=[MinValueValidator(0)])
+    teams = models.ManyToManyField(Team)
+
+
+class Game(models.Model):
+    """
+    A game is a competition between two teams that takes place in an edition of the Olympic Warriors.
+    """
+
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="event")
+    team1 = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="team1")
+    score1 = models.IntegerField(MinValueValidator(0))
+    team2 = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="team2")
+    score2 = models.IntegerField(MinValueValidator(0))
+    referees = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="referees")
+    edition = models.ForeignKey(Edition, on_delete=models.CASCADE)
+    date = models.DateField()
+    is_active = models.BooleanField(default=True)
+
+
+class GameEvent(models.Model):
+    """
+    A game event is something happening in a game that we need to log to process score and stats.
+    """
+
+    game = models.ForeignKey(Game, on_delete=models.CASCADE, related_name="game")
+    player1 = models.ForeignKey(Player, on_delete=models.CASCADE, related_name="player1")
+    player2 = models.ForeignKey(
+        Player, on_delete=models.CASCADE, related_name="player2", null=True, blank=True
+    )
+    time = models.DateTimeField(default=datetime.now, blank=True)
+
+
+class RugbyEvent(GameEvent):
+    """
+    Events for Rugby games
+    """
+
+    class RugbyEventTypes(models.TextChoices):
+        """
+        Enum for Rugby Game Events Types
+        """
+
+        TRY = 'TRY', 'Try'
+        TACKLE = 'TKL', 'Tackle'
+        FOUL = 'FOL', 'Foul'
+        OUTBOUNDS = 'OUT', 'Outbounds'
+
+    event_type = models.CharField(max_length=3, choices=RugbyEventTypes.choices)
+
+    def process_try_points(self) -> int:
+        """
+        Check previous events to grant the right number of points for a try according to tackles
+        """
+        points = 3
+        previous_events = RugbyEvent.objects.filter(game=self.game).order_by('-time').values()
+        for event in previous_events:
+            match event.event_type:
+                case self.RugbyEventTypes.TRY | self.RugbyEventTypes.OUTBOUNDS:
+                    return points
+                case self.RugbyEventTypes.TACKLE:
+                    if self.player1.team == event.player1.team:
+                        return points
+                    points -= 1
+                case self.RugbyEventTypes.FOUL:
+                    if self.player1.team == event.player1.team:
+                        return points
+                case _:
+                    continue
+
+        return points
+
+    def save(self, *args, **kwargs):
+        """
+        Override the save method to update score and raise alerts if needed.
+        """
+        match self.event_type:
+            case self.RugbyEventTypes.TRY:
+                points = self.process_try_points()
+                game = Game.objects.get(id=self.game.id)
+                if game.team1.id == self.player1.team.id:
+                    game.score1 += points
+                else:
+                    game.score2 += points
+
+        # Call the original save method to save the object
+        super().save(*args, **kwargs)
