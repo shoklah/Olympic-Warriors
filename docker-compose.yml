@@ -48,5 +48,16 @@ services:
       db:
         condition: service_healthy
 
+  front:
+    image: front
+    build:
+      context: ./front
+      dockerfile: Dockerfile.dev
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./front/:/usr/src/app
+      - /usr/src/app/node_modules
+
 volumes:
   data:
