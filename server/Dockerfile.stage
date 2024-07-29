@@ -34,4 +34,5 @@ RUN chown -R stage:stage $APP_HOME
 USER stage
 
 RUN python manage.py collectstatic --no-input
+RUN python manage.py migrate
 

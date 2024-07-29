@@ -22,3 +22,5 @@ WORKDIR /server
 RUN adduser -D user
 
 USER user
+
+RUN python manage.py migrate
