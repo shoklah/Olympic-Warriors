@@ -433,3 +433,11 @@ class Orienteering(Event):
     """
 
     teams = models.ManyToManyField(Team)
+
+
+class HideAndSeek(Event):
+    """
+    Hide and seek is a type of event that takes place in an edition of the Olympic Warriors.
+    """
+
+    teams = models.ManyToManyField(Team)
