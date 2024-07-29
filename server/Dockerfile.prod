@@ -1,5 +1,5 @@
 # First stage: build the Python app
-FROM python:3.9-alpine
+FROM python:3.11-alpine
 
 # set environment variables
 ENV PYTHONDONTWRITEBYTECODE 1
