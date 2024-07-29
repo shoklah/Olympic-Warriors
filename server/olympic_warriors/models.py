@@ -3,7 +3,7 @@ from datetime import datetime
 
 from django.db import models
 from django.contrib.auth.models import User
-from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.validators import MinValueValidator, MaxValueValidator, FileExtensionValidator
 
 
 class Player(models.Model):
@@ -191,30 +191,37 @@ class Team(models.Model):
     is_active = models.BooleanField(default=True)
 
 
-class Event(models.Model):
+class Discipline(models.Model):
     """
-    An event is a competition that takes place in an edition of the Olympic Warriors.
+    A Discipline is a competition that takes place in an edition of the Olympic Warriors.
     """
 
     name = models.CharField(max_length=100)
     edition = models.ForeignKey(Edition, on_delete=models.CASCADE)
     is_active = models.BooleanField(default=True)
     teams = models.ManyToManyField(Team, through='TeamResult')
+    rules = models.FileField(
+        upload_to="manuals/",
+        blank=True,
+        null=True,
+        validators=[FileExtensionValidator(allowed_extensions=["pdf"])],
+        verbose_name="rules",
+    )
 
 
 class TeamResult(models.Model):
     """
-    Team's score for an Event.
+    Team's score for an Discipline.
     """
 
     team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='team')
-    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='event')
+    discipline = models.ForeignKey(Discipline, on_delete=models.CASCADE, related_name='discipline')
     score = models.IntegerField()
 
 
-class Rugby(Event):
+class Rugby(Discipline):
     """
-    Rugby is a type of event that takes place in an edition of the Olympic Warriors.
+    Rugby is a type of discipline that takes place in an edition of the Olympic Warriors.
     """
 
     teams = models.ManyToManyField(Team)
@@ -225,7 +232,7 @@ class Game(models.Model):
     A game is a competition between two teams that takes place in an edition of the Olympic Warriors.
     """
 
-    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="event")
+    discipline = models.ForeignKey(Discipline, on_delete=models.CASCADE, related_name="discipline")
     team1 = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="team1")
     score1 = models.IntegerField(MinValueValidator(0))
     team2 = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="team2")
@@ -305,9 +312,9 @@ class RugbyEvent(GameEvent):
         super().save(*args, **kwargs)
 
 
-class Dodgeball(Event):
+class Dodgeball(Discipline):
     """
-    Dodgeball is a type of event that takes place in an edition of the Olympic Warriors.
+    Dodgeball is a type of discipline that takes place in an edition of the Olympic Warriors.
     """
 
     teams = models.ManyToManyField(Team)
@@ -401,9 +408,9 @@ class DodgeballEvent(GameEvent):
         super().save(*args, **kwargs)
 
 
-class Blindtest(Event):
+class Blindtest(Discipline):
     """
-    Blindtest is a type of event that takes place in an edition of the Olympic Warriors.
+    Blindtest is a type of discipline that takes place in an edition of the Olympic Warriors.
     """
 
     teams = models.ManyToManyField(Team)
@@ -419,15 +426,15 @@ class BlindtestGuess(models.Model):
     is_valid = models.BooleanField(default=False)
 
 
-class Crossfit(Event):
+class Crossfit(Discipline):
     """
-    Crossfit is a type of event that takes place in an edition of the Olympic Warriors.
+    Crossfit is a type of discipline that takes place in an edition of the Olympic Warriors.
     """
 
     teams = models.ManyToManyField(Team)
 
 
-class Orienteering(Event):
+class Orienteering(Discipline):
     """
     Orienteering is a type of event that takes place in an edition of the Olympic Warriors.
     """
@@ -435,9 +442,9 @@ class Orienteering(Event):
     teams = models.ManyToManyField(Team)
 
 
-class HideAndSeek(Event):
+class HideAndSeek(Discipline):
     """
-    Hide and seek is a type of event that takes place in an edition of the Olympic Warriors.
+    Hide and seek is a type of Discipline that takes place in an edition of the Olympic Warriors.
     """
 
     teams = models.ManyToManyField(Team)
