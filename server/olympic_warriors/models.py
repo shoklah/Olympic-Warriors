@@ -110,7 +110,8 @@ class Edition(models.Model):
 
     def process_global_rating(self, df):
         """
-        Process global level estimation for each player from weighted rating and global level estimation.
+        Process global level estimation for each player from weighted rating
+        and global level estimation.
 
         :param df: The DataFrame with the player data.
         :return: The DataFrame with the global rating.
@@ -214,8 +215,10 @@ class TeamResult(models.Model):
     Team's score for an Discipline.
     """
 
-    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='team')
-    discipline = models.ForeignKey(Discipline, on_delete=models.CASCADE, related_name='discipline')
+    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='registered_team')
+    discipline = models.ForeignKey(
+        Discipline, on_delete=models.CASCADE, related_name='registered_to'
+    )
     score = models.IntegerField()
 
 
