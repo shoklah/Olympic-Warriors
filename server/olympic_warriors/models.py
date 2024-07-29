@@ -221,10 +221,15 @@ class TeamResult(models.Model):
 
 class Rugby(Discipline):
     """
-    Rugby is a type of discipline that takes place in an edition of the Olympic Warriors.
+    Rugby is a discipline that takes place in an edition of the Olympic Warriors.
     """
 
-    teams = models.ManyToManyField(Team)
+    def save(self, *args, **kwargs):
+        """
+        Override save method to set discipline name to rugby
+        """
+        self.name = 'Rugby'
+        super().save(*args, **kwargs)
 
 
 class Game(models.Model):
@@ -314,10 +319,15 @@ class RugbyEvent(GameEvent):
 
 class Dodgeball(Discipline):
     """
-    Dodgeball is a type of discipline that takes place in an edition of the Olympic Warriors.
+    Dodgeball is a discipline that takes place in an edition of the Olympic Warriors.
     """
 
-    teams = models.ManyToManyField(Team)
+    def save(self, *args, **kwargs):
+        """
+        Override save method to set discipline name to dodgeball
+        """
+        self.name = 'Dodgeball'
+        super().save(*args, **kwargs)
 
 
 class DodgeballEvent(GameEvent):
@@ -410,10 +420,15 @@ class DodgeballEvent(GameEvent):
 
 class Blindtest(Discipline):
     """
-    Blindtest is a type of discipline that takes place in an edition of the Olympic Warriors.
+    Blindtest is a discipline that takes place in an edition of the Olympic Warriors.
     """
 
-    teams = models.ManyToManyField(Team)
+    def save(self, *args, **kwargs):
+        """
+        Override save method to set discipline name to Blindtest
+        """
+        self.name = 'Blindtest'
+        super().save(*args, **kwargs)
 
 
 class BlindtestGuess(models.Model):
@@ -428,23 +443,38 @@ class BlindtestGuess(models.Model):
 
 class Crossfit(Discipline):
     """
-    Crossfit is a type of discipline that takes place in an edition of the Olympic Warriors.
+    Crossfit is a discipline that takes place in an edition of the Olympic Warriors.
     """
 
-    teams = models.ManyToManyField(Team)
+    def save(self, *args, **kwargs):
+        """
+        Override save method to set discipline name to crossfit
+        """
+        self.name = 'Crossfit'
+        super().save(*args, **kwargs)
 
 
 class Orienteering(Discipline):
     """
-    Orienteering is a type of event that takes place in an edition of the Olympic Warriors.
+    Orienteering is a event that takes place in an edition of the Olympic Warriors.
     """
 
-    teams = models.ManyToManyField(Team)
+    def save(self, *args, **kwargs):
+        """
+        Override save method to set discipline name to Orienteering
+        """
+        self.name = 'Orienteering'
+        super().save(*args, **kwargs)
 
 
 class HideAndSeek(Discipline):
     """
-    Hide and seek is a type of Discipline that takes place in an edition of the Olympic Warriors.
+    Hide and seek is a Discipline that takes place in an edition of the Olympic Warriors.
     """
 
-    teams = models.ManyToManyField(Team)
+    def save(self, *args, **kwargs):
+        """
+        Override save method to set discipline name to hide and seek
+        """
+        self.name = 'Hide and Seek'
+        super().save(*args, **kwargs)
