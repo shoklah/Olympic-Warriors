@@ -1,4 +1,4 @@
-FROM python:3.9-alpine
+FROM python:3.11-alpine
 
 ENV PYTHONUNBUFFERED 1
 
@@ -22,3 +22,5 @@ WORKDIR /server
 RUN adduser -D user
 
 USER user
+
+RUN python manage.py migrate
