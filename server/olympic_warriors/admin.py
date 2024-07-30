@@ -1,7 +1,6 @@
-from django.contrib.admin import site, ModelAdmin, TabularInline
+from django.contrib.admin import site
 from django.http import HttpRequest
-from .models import Player, Team, Edition, Registration, PlayerRating
-
+from .models import Player, Team, Edition, Discipline, Rugby, RugbyEvent, Game, GameEvent, Crossfit
 
 def request_only_active(request: HttpRequest) -> HttpRequest:
     if not request.GET.get("is_active__exact"):
@@ -67,5 +66,10 @@ class EditionAdmin(ModelAdmin):
 site.register(Player, PlayerAdmin)
 site.register(Team, TeamAdmin)
 site.register(Edition, EditionAdmin)
-site.register(Registration)
 site.register(PlayerRating, PlayerRatingAdmin)
+site.register(Discipline)
+site.register(Crossfit)
+site.register(Rugby)
+site.register(RugbyEvent)
+site.register(Game)
+site.register(GameEvent)
