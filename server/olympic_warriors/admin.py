@@ -1,6 +1,18 @@
-from django.contrib.admin import site
+from django.contrib.admin import site, ModelAdmin, TabularInline
 from django.http import HttpRequest
-from .models import Player, Team, Edition, Discipline, Rugby, RugbyEvent, Game, GameEvent, Crossfit
+from .models import (
+    Player,
+    Team,
+    Edition,
+    Discipline,
+    Rugby,
+    RugbyEvent,
+    Game,
+    GameEvent,
+    Crossfit,
+    PlayerRating,
+)
+
 
 def request_only_active(request: HttpRequest) -> HttpRequest:
     if not request.GET.get("is_active__exact"):

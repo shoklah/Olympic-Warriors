@@ -8,6 +8,7 @@ class Player(models.Model):
     A player is a user that has a rating and is part of a team.
     """
 
+    edition = models.ForeignKey("Edition", on_delete=models.CASCADE)
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     rating = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(10)])
     team = models.ForeignKey("Team", on_delete=models.CASCADE)
