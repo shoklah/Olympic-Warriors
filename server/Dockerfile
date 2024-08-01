@@ -1,4 +1,4 @@
-FROM python:3.9-alpine
+FROM python:3.11-alpine
 
 ENV PYTHONUNBUFFERED 1
 
@@ -18,7 +18,11 @@ RUN apk del .tmp-build-deps
 
 WORKDIR /server
 
+COPY . .
+
 # [Security] Limit the scope of user who run the docker image
 RUN adduser -D user
+
+RUN chown -R user:user /server
 
 USER user

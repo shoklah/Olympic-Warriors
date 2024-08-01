@@ -1,6 +1,17 @@
 from django.contrib.admin import site, ModelAdmin, TabularInline
 from django.http import HttpRequest
-from .models import Player, Team, Edition, Registration, PlayerRating
+from .models import (
+    Player,
+    Team,
+    Edition,
+    Discipline,
+    Rugby,
+    RugbyEvent,
+    Game,
+    GameEvent,
+    Crossfit,
+    PlayerRating,
+)
 
 
 def request_only_active(request: HttpRequest) -> HttpRequest:
@@ -24,6 +35,7 @@ class PlayerInline(TabularInline):
 
 class PlayerAdmin(ModelAdmin):
     list_display = ["user", "rating", "team", "edition"]
+    list_filter = ["team", "edition", "is_active"]
     search_fields = ["name", "team", "user", "edition"]
     inlines = [PlayerRatingInline]
 
@@ -34,6 +46,7 @@ class PlayerAdmin(ModelAdmin):
 
 class PlayerRatingAdmin(ModelAdmin):
     list_display = ["player", "name", "identifier", "rating"]
+    list_filter = ["player__user", "name", "identifier", "player__edition", "is_active"]
     search_fields = ["player", "name", "identifier"]
 
     def changelist_view(self, request, extra_context=None):
@@ -43,6 +56,7 @@ class PlayerRatingAdmin(ModelAdmin):
 
 class TeamAdmin(ModelAdmin):
     list_display = ["name", "edition"]
+    list_filter = ["edition", "is_active"]
     search_fields = ["name", "edition"]
     inlines = [PlayerInline]
 
@@ -53,6 +67,7 @@ class TeamAdmin(ModelAdmin):
 
 class EditionAdmin(ModelAdmin):
     list_display = ["year"]
+    list_filter = ["is_active"]
     search_fields = ["year"]
 
     def changelist_view(self, request, extra_context=None):
@@ -63,5 +78,10 @@ class EditionAdmin(ModelAdmin):
 site.register(Player, PlayerAdmin)
 site.register(Team, TeamAdmin)
 site.register(Edition, EditionAdmin)
-site.register(Registration)
 site.register(PlayerRating, PlayerRatingAdmin)
+site.register(Discipline)
+site.register(Crossfit)
+site.register(Rugby)
+site.register(RugbyEvent)
+site.register(Game)
+site.register(GameEvent)
