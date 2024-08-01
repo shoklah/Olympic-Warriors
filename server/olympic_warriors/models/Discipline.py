@@ -54,6 +54,7 @@ class GameEvent(models.Model):
         Player, on_delete=models.CASCADE, related_name="player2", null=True, blank=True
     )
     time = models.DateTimeField(default=datetime.now, blank=True)
+    is_active = models.BooleanField(default=True)
 
 
 class TeamResult(models.Model):
@@ -66,3 +67,4 @@ class TeamResult(models.Model):
         Discipline, on_delete=models.CASCADE, related_name='registered_to'
     )
     score = models.IntegerField()
+    is_active = models.BooleanField(default=True)
