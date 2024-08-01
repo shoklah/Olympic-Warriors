@@ -12,3 +12,6 @@ class Team(models.Model):
     name = models.CharField(max_length=100)
     edition = models.ForeignKey(Edition, on_delete=models.CASCADE)
     is_active = models.BooleanField(default=True)
+
+    def __str__(self) -> str:
+        return self.name + " - " + str(self.edition.year)

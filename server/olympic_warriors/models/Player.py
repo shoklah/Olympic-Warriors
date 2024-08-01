@@ -14,6 +14,9 @@ class Player(models.Model):
     team = models.ForeignKey("Team", on_delete=models.CASCADE)
     is_active = models.BooleanField(default=True)
 
+    def __str__(self) -> str:
+        return self.user.first_name + " " + self.user.last_name
+
 
 class PlayerRating(models.Model):
     """
