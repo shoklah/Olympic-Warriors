@@ -63,7 +63,9 @@ class GameEvent(models.Model):
     is_active = models.BooleanField(default=True)
 
     def __str__(self) -> str:
-        return self.game.discipline.name + ": " + self.player1.user.first_name + " - " + self.time
+        return (
+            self.game.discipline.name + ": " + self.player1.user.first_name + " - " + str(self.time)
+        )
 
 
 class TeamResult(models.Model):

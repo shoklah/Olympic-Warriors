@@ -14,4 +14,4 @@ class Team(models.Model):
     is_active = models.BooleanField(default=True)
 
     def __str__(self) -> str:
-        return self.name + " - " + str(self.edition.year)
+        return self.name
