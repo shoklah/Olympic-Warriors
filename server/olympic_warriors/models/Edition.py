@@ -57,6 +57,9 @@ class Edition(models.Model):
         "Strategy and Game Vision": {"id": "STRAT", "coef": 2},
     }
 
+    def __str__(self) -> str:
+        return f"{self.year} - {self.host}"
+
     def process_weighted_rating(self, df):
         """
         Process weighted average rating for each player.

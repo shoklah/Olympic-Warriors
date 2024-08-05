@@ -25,6 +25,9 @@ class Discipline(models.Model):
         verbose_name="rules",
     )
 
+    def __str__(self) -> str:
+        return self.name + " - " + str(self.edition.year)
+
 
 class Game(models.Model):
     """
@@ -42,6 +45,9 @@ class Game(models.Model):
     date = models.DateField()
     is_active = models.BooleanField(default=True)
 
+    def __str__(self) -> str:
+        return self.discipline.name + ": " + self.team1.name + " vs " + self.team2.name
+
 
 class GameEvent(models.Model):
     """
@@ -54,6 +60,12 @@ class GameEvent(models.Model):
         Player, on_delete=models.CASCADE, related_name="player2", null=True, blank=True
     )
     time = models.DateTimeField(default=datetime.now, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    def __str__(self) -> str:
+        return (
+            self.game.discipline.name + ": " + self.player1.user.first_name + " - " + str(self.time)
+        )
 
 
 class TeamResult(models.Model):
@@ -66,3 +78,7 @@ class TeamResult(models.Model):
         Discipline, on_delete=models.CASCADE, related_name='registered_to'
     )
     score = models.IntegerField()
+    is_active = models.BooleanField(default=True)
+
+    def __str__(self) -> str:
+        return self.team.name + " - " + self.discipline

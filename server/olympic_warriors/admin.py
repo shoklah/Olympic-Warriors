@@ -2,15 +2,20 @@ from django.contrib.admin import site, ModelAdmin, TabularInline
 from django.http import HttpRequest
 from .models import (
     Player,
+    PlayerRating,
     Team,
     Edition,
     Discipline,
-    Rugby,
-    RugbyEvent,
     Game,
     GameEvent,
+    Rugby,
+    RugbyEvent,
+    Dodgeball,
+    DodgeballEvent,
     Crossfit,
-    PlayerRating,
+    HideAndSeek,
+    Orienteering,
+    Blindtest,
 )
 
 
@@ -75,13 +80,77 @@ class EditionAdmin(ModelAdmin):
         return super().changelist_view(request, extra_context)
 
 
+class DisciplineAdmin(ModelAdmin):
+    list_display = ["name", "edition"]
+    list_filter = ["is_active", "edition", "name"]
+    search_fields = ["name", "edition"]
+
+    def changelist_view(self, request, extra_context=None):
+        request = request_only_active(request)
+        return super().changelist_view(request, extra_context)
+
+
+class GameAdmin(ModelAdmin):
+    list_display = [
+        "discipline",
+        "team1",
+        "score1",
+        "score2",
+        "team2",
+        "referees",
+        "edition",
+        "date",
+    ]
+    list_filter = ["discipline", "team1", "team2", "edition", "is_active"]
+    search_fields = ["discipline", "team1", "team2", "edition"]
+
+    def changelist_view(self, request, extra_context=None):
+        request = request_only_active(request)
+        return super().changelist_view(request, extra_context)
+
+
+class GameEventAdmin(ModelAdmin):
+    list_display = ["game", "player1", "player2", "time"]
+    list_filter = ["game", "player1", "player2", "is_active"]
+    search_fields = ["game", "player1", "player2"]
+
+    def changelist_view(self, request, extra_context=None):
+        request = request_only_active(request)
+        return super().changelist_view(request, extra_context)
+
+
+class RugbyEventAdmin(GameEventAdmin):
+    list_display = ["game", "player1", "player2", "time", "event_type"]
+    list_filter = ["game", "player1", "player2", "event_type", "is_active"]
+    search_fields = ["game", "player1", "player2", "event_type"]
+
+    def changelist_view(self, request, extra_context=None):
+        request = request_only_active(request)
+        return super().changelist_view(request, extra_context)
+
+
+class DodgeballEventAdmin(GameEventAdmin):
+    list_display = ["game", "player1", "player2", "time", "event_type"]
+    list_filter = ["game", "player1", "player2", "event_type", "is_active"]
+    search_fields = ["game", "player1", "player2", "event_type"]
+
+    def changelist_view(self, request, extra_context=None):
+        request = request_only_active(request)
+        return super().changelist_view(request, extra_context)
+
+
 site.register(Player, PlayerAdmin)
 site.register(Team, TeamAdmin)
 site.register(Edition, EditionAdmin)
 site.register(PlayerRating, PlayerRatingAdmin)
-site.register(Discipline)
-site.register(Crossfit)
-site.register(Rugby)
-site.register(RugbyEvent)
-site.register(Game)
-site.register(GameEvent)
+site.register(Discipline, DisciplineAdmin)
+site.register(Game, GameAdmin)
+site.register(GameEvent, GameEventAdmin)
+site.register(Crossfit, DisciplineAdmin)
+site.register(Rugby, DisciplineAdmin)
+site.register(RugbyEvent, RugbyEventAdmin)
+site.register(Dodgeball, DisciplineAdmin)
+site.register(DodgeballEvent, DodgeballEventAdmin)
+site.register(HideAndSeek, DisciplineAdmin)
+site.register(Orienteering, DisciplineAdmin)
+site.register(Blindtest, DisciplineAdmin)
