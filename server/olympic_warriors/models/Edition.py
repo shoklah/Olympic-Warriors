@@ -3,6 +3,7 @@ import pandas as pd
 from django.db import models
 from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.utils.crypto import get_random_string
 
 from .Player import Player, PlayerRating
 
@@ -125,16 +126,25 @@ class Edition(models.Model):
 
         ## Create players from the registration form
         for _, row in df.iterrows():
-            player = Player.objects.create(
-                user=User.objects.create_user(
+            try:
+                user = User.objects.get(username=row["Name"].replace(" ", "").lower())
+            except User.DoesNotExist:
+                user = User.objects.create_user(
                     username=row["Name"].replace(" ", "").lower(),
-                    password="password",
+                    first_name=row["Name"].split(" ")[0],
+                    last_name=row["Name"].split(" ")[1],
+                    password=get_random_string(length=8),
                     email=f"{row['Name'].replace(' ', '').lower()}@olympicwarriors.com",
-                ),
-                rating=row["Global_Rating"],
-                edition=self,
-                team=None,
-            )
+                )
+
+            try:
+                player = Player.objects.get(user=user, edition=self)
+            except Player.DoesNotExist:
+                player = Player.objects.create(
+                    user=user,
+                    rating=row["Global_Rating"],
+                    edition=self,
+                )
 
             for rating in self.ratings:
                 PlayerRating.objects.create(
@@ -155,9 +165,11 @@ class Edition(models.Model):
             # Compare registration from to see if it has been updated
             new_registration_form = getattr(self, "registration_form")
             if new_registration_form != getattr(original_obj, "registration_form"):
+                super().save(*args, **kwargs)
                 self.create_players_from_registration_form(new_registration_form)
         elif self.registration_form:
-            self.create_players_from_registration_form(new_registration_form)
+            super().save(*args, **kwargs)
+            self.create_players_from_registration_form(self.registration_form)
 
         # Call the original save method to save the object
         super().save(*args, **kwargs)
