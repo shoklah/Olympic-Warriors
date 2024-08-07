@@ -54,7 +54,7 @@ class Edition(models.Model):
         "Cultural Knowledge": {"id": "CULT", "coef": 1},
         "Strength": {"id": "STR", "coef": 3},
         "Explosiveness": {"id": "EXPL", "coef": 4},
-        "Strategy and Game Vision": {"id": "STRAT", "coef": 2},
+        "Strategy and Game Vision": {"id": "STRT", "coef": 2},
     }
 
     def __str__(self) -> str:
@@ -132,6 +132,7 @@ class Edition(models.Model):
                     email=f"{row['Name'].replace(' ', '').lower()}@olympicwarriors.com",
                 ),
                 rating=row["Global_Rating"],
+                edition=self,
                 team=None,
             )
 
@@ -139,7 +140,7 @@ class Edition(models.Model):
                 PlayerRating.objects.create(
                     player=player,
                     name=rating,
-                    identifier=rating["id"],
+                    identifier=self.ratings[rating]["id"],
                     rating=row[rating],
                 )
 
