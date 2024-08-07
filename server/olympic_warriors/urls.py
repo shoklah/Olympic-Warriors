@@ -25,10 +25,16 @@ from django.conf.urls.static import static
 from . import views
 
 urlpatterns = [
+    # admin
     path("admin/", admin.site.urls),
-    path("accounts/", include("django.contrib.auth.urls")),
-    path("", views.home, name="home"),
-    path("profile/", views.profile, name="profile"),
+    # players
+    path("players/", views.getPlayers),
+    path("players/edition/<int:edition_id>/", views.getPlayersByEdition),
+    path("players/team/<int:team_id>/", views.getPlayersByTeam),
+    # editions
+    path("editions/", views.getEditions),
+    # teams
+    path("teams/", views.getTeams),
 ]
 
 env = os.environ.get("ENV", "dev").lower()

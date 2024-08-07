@@ -3,9 +3,20 @@ from olympic_warriors.models import Player, Edition, Team
 
 
 class PlayerSerializer(serializers.ModelSerializer):
+    first_name = serializers.CharField(source="user.first_name")
+    last_name = serializers.CharField(source="user.last_name")
+
     class Meta:
         model = Player
-        fields = "__all__"
+        fields = (
+            "id",
+            "edition",
+            "rating",
+            "first_name",
+            "last_name",
+            "team",
+            "is_active",
+        )
 
 
 class EditionSerializer(serializers.ModelSerializer):
