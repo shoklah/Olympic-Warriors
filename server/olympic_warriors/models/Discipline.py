@@ -18,7 +18,7 @@ class Discipline(models.Model):
     is_active = models.BooleanField(default=True)
     teams = models.ManyToManyField(Team, through='TeamResult')
     rules = models.FileField(
-        upload_to="manuals/",
+        upload_to="rules/",
         blank=True,
         null=True,
         validators=[FileExtensionValidator(allowed_extensions=["pdf"])],
