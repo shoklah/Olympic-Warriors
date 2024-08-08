@@ -16,6 +16,7 @@ Including another URLconf
 """
 
 import os
+from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 
 from django.contrib import admin
 from django.urls import path, include
@@ -25,10 +26,33 @@ from django.conf.urls.static import static
 from . import views
 
 urlpatterns = [
+    # API Documentation
+    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
+    path(
+        "api/schema/swagger/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"
+    ),
+    path("api/schema/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
+    # admin
     path("admin/", admin.site.urls),
-    path("accounts/", include("django.contrib.auth.urls")),
-    path("", views.home, name="home"),
-    path("profile/", views.profile, name="profile"),
+    # players
+    path("players/<int:player_id>/", views.getPlayer),
+    path("players/", views.getPlayers),
+    path("players/edition/<int:edition_id>/", views.getPlayersByEdition),
+    path("players/team/<int:team_id>/", views.getPlayersByTeam),
+    # editions
+    path("editions/<int:edition_id>/", views.getEdition),
+    path("editions/", views.getEditions),
+    # teams
+    path("teams/<int:team_id>/", views.getTeam),
+    path("teams/", views.getTeams),
+    # disciplines
+    path("disciplines/<int:discipline_id>/", views.getDiscipline),
+    path("disciplines/", views.getDisciplines),
+    path("disciplines/<int:edition_id>/", views.getDisciplinesByEdition),
+    # player ratings
+    path("ratings/<int:rating_id>/", views.getPlayerRating),
+    path("ratings/", views.getPlayerRatings),
+    path("ratings/player/<int:player_id>/", views.getPlayerRatingsByPlayer),
 ]
 
 env = os.environ.get("ENV", "dev").lower()
