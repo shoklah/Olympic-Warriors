@@ -1,3 +1,7 @@
+"""
+Creates a superuser for dev environment.
+"""
+
 from django.contrib.auth.models import User
 from django.core.management.base import BaseCommand
 
@@ -5,6 +9,10 @@ from olympic_warriors.settings import settings
 
 
 class Command(BaseCommand):
+    """
+    Creates a superuser for dev environment.
+    """
+
     help = "Creates a superuser."
 
     def handle(self, *args, **options):

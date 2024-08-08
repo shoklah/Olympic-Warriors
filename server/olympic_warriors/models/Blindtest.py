@@ -1,3 +1,7 @@
+"""
+Models for Blindtest discipline
+"""
+
 from django.db import models
 
 from .Discipline import Discipline
@@ -25,3 +29,4 @@ class BlindtestGuess(models.Model):
     team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='team')
     answer = models.CharField(max_length=100)
     is_valid = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)

@@ -9,10 +9,13 @@ class Player(models.Model):
     """
 
     edition = models.ForeignKey("Edition", on_delete=models.CASCADE)
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
     rating = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(10)])
-    team = models.ForeignKey("Team", on_delete=models.CASCADE)
+    team = models.ForeignKey("Team", on_delete=models.CASCADE, null=True, blank=True)
     is_active = models.BooleanField(default=True)
+
+    def __str__(self) -> str:
+        return self.user.first_name + " " + self.user.last_name
 
 
 class PlayerRating(models.Model):

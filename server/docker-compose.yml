@@ -1,13 +1,14 @@
 version: "3"
 
 services:
-  app:
+  server:
     build:
-      context: .
+      context: ./server
     ports:
       - "3003:3003"
     volumes:
-      - ./:/server
+      - ./server/:/server
+    working_dir: /server
     command: >
       sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:3003"
     environment:
@@ -17,7 +18,7 @@ services:
         condition: service_healthy
 
   db:
-    image: postgres:13-alpine
+    image: postgres:16-alpine
     restart: always
     user: postgres
     environment:

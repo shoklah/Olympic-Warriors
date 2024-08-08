@@ -1,3 +1,7 @@
+"""
+Configuration module.
+"""
+
 import os
 from functools import lru_cache
 from enum import Enum
@@ -83,6 +87,10 @@ class BaseConfig(BaseSettings):
         return self
 
     class Config:
+        """
+        Pydantic configuration.
+        """
+
         env_file = ".env.example"
         env_file_encoding = "utf-8"
         case_sensitive = False
@@ -94,6 +102,10 @@ class DevConfig(BaseConfig):
     """
 
     class Config:
+        """
+        Pydantic configuration.
+        """
+
         env_file = "dev.env"
         env_file_encoding = "utf-8"
         case_sensitive = False
@@ -105,6 +117,10 @@ class ProdConfig(BaseConfig):
     """
 
     class Config:
+        """
+        Pydantic configuration.
+        """
+
         env_file = "prod.env"
         env_file_encoding = "utf-8"
         case_sensitive = False
