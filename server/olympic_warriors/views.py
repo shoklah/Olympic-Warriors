@@ -35,6 +35,13 @@ def profile(request):
 
 
 @api_view(["GET"])
+def getPlayer(request, player_id):
+    player = Player.objects.get(id=player_id)
+    serializer = PlayerSerializer(player)
+    return Response(serializer.data)
+
+
+@api_view(["GET"])
 def getPlayers(request):
     players = Player.objects.filter(is_active=True)
     serializer = PlayerSerializer(players, many=True)
@@ -59,6 +66,13 @@ def getPlayersByTeam(request, team_id):
 
 
 @api_view(["GET"])
+def getEdition(request, edition_id):
+    edition = Edition.objects.get(id=edition_id)
+    serializer = EditionSerializer(edition)
+    return Response(serializer.data)
+
+
+@api_view(["GET"])
 def getEditions(request):
     editions = Edition.objects.filter(is_active=True)
     serializer = EditionSerializer(editions, many=True)
@@ -69,6 +83,13 @@ def getEditions(request):
 
 
 @api_view(["GET"])
+def getTeam(request, team_id):
+    team = Team.objects.get(id=team_id)
+    serializer = TeamSerializer(team)
+    return Response(serializer.data)
+
+
+@api_view(["GET"])
 def getTeams(request):
     teams = Team.objects.filter(is_active=True)
     serializer = TeamSerializer(teams, many=True)
@@ -76,6 +97,13 @@ def getTeams(request):
 
 
 # Disciplines
+
+
+@api_view(["GET"])
+def getDiscipline(request, discipline_id):
+    discipline = Discipline.objects.get(id=discipline_id)
+    serializer = DisciplineSerializer(discipline)
+    return Response(serializer.data)
 
 
 @api_view(["GET"])
@@ -93,6 +121,13 @@ def getDisciplinesByEdition(request, edition_id):
 
 
 # Player Ratings
+
+
+@api_view(["GET"])
+def getPlayerRating(request, rating_id):
+    player_rating = PlayerRating.objects.get(id=rating_id)
+    serializer = PlayerRatingSerializer(player_rating)
+    return Response(serializer.data)
 
 
 @api_view(["GET"])
