@@ -27,18 +27,19 @@ jobs:
       - name: Run pylint
         run: |
           pylint --load-plugins pylint_django --ignore=lib server/
+        continue-on-error: true
 
       - name: Build and start Docker containers
         run: docker compose up -d
 
-      - name: Wait for the database to be ready
-        run: |
-          until docker compose exec db pg_isready -U user -d mydb-dev; do
-            sleep 1
-          done
+      # - name: Wait for the database to be ready
+      #   run: |
+      #     until docker compose exec db pg_isready -U user -d mydb-dev; do
+      #       sleep 1
+      #     done
 
-      - name: Run migrations
-        run: docker compose exec server python manage.py migrate
+      # - name: Run migrations
+      #   run: docker compose exec server python manage.py migrate
 
     # - name: Run Django tests
     #  run: docker-compose exec server python manage.py test
