@@ -1,5 +1,9 @@
+"""
+Models module
+"""
+
 from models.Player import Player, PlayerRating
-from models.Team import Team, TeamResult
+from models.Team import Team
 from models.Edition import Edition
 from models.Discipline import Game, GameEvent, Discipline
 from models.Blindtest import Blindtest, BlindtestGuess

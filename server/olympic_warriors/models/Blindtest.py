@@ -1,3 +1,7 @@
+"""
+Models for Blindtest discipline
+"""
+
 from django.db import models
 
 from .Discipline import Discipline

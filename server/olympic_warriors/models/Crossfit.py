@@ -1,3 +1,7 @@
+"""
+Model for Crossfit discipline.
+"""
+
 from .Discipline import Discipline
 
 
