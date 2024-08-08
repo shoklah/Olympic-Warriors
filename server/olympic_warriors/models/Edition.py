@@ -82,7 +82,7 @@ class Edition(models.Model):
             lambda x: (
                 x["Weighted_Rating"] * 2.5
                 if x["Weighted_Rating"] < 4
-                and x["Global Level Estimation for Olympic Warriors 2024"] > 4
+                and int(x["Global Level Estimation for Olympic Warriors 2024"] > 4)
                 else x["Weighted_Rating"]
             ),
             axis=1,
