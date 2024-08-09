@@ -52,9 +52,9 @@ services:
     image: front
     build:
       context: ./front
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile.stage
     ports:
-      - "5173:5173"
+      - "4000:4000"
     volumes:
       - ./front/:/usr/src/app
       - /usr/src/app/node_modules
