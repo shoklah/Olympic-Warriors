@@ -80,6 +80,17 @@ services:
     image: front
     build:
       context: ./front
+      dockerfile: Dockerfile.stage
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./front/:/usr/src/app
+      - /usr/src/app/node_modules
+
+  front:
+    image: front
+    build:
+      context: ./front
       dockerfile: Dockerfile.prod
     ports:
       - "3000:3000"
