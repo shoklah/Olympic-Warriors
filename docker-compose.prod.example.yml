@@ -76,6 +76,17 @@ services:
     volumes:
       - data_stage:/var/lib/postgresql/data
 
+  front-stage:
+    image: front
+    build:
+      context: ./front
+      dockerfile: Dockerfile.prod
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./front/:/usr/src/app
+      - /usr/src/app/node_modules
+
   nginx:
     image: jonasal/nginx-certbot:5.2.1-alpine
     restart: unless-stopped
