@@ -8,6 +8,41 @@ from .Edition import Edition
 from .Player import Player
 
 
+class TeamSportRound(models.Model):
+    """
+    A team sport round is a round of a team sport discipline, used to schedule games.
+    """
+
+    discipline = models.ForeignKey("Discipline", on_delete=models.CASCADE)
+    order = models.IntegerField()
+    is_active = models.BooleanField(default=True)
+
+    def __str__(self) -> str:
+        return self.discipline.name + " - Round " + str(self.order)
+
+
+class Game(models.Model):
+    """
+    A game is a competition between two teams that takes place
+    in an edition of the Olympic Warriors.
+    """
+
+    discipline = models.ForeignKey(
+        "Discipline", on_delete=models.CASCADE, related_name="discipline"
+    )
+    round = models.ForeignKey(TeamSportRound, on_delete=models.CASCADE, related_name="round")
+    team1 = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="team1")
+    score1 = models.IntegerField(MinValueValidator(0), default=0)
+    team2 = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="team2")
+    score2 = models.IntegerField(MinValueValidator(0), default=0)
+    referees = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="referees")
+    edition = models.ForeignKey(Edition, on_delete=models.CASCADE)
+    is_active = models.BooleanField(default=True)
+
+    def __str__(self) -> str:
+        return self.discipline.name + ": " + self.team1.name + " vs " + self.team2.name
+
+
 class Discipline(models.Model):
     """
     A Discipline is a competition that takes place in an edition of the Olympic Warriors.
@@ -28,25 +63,34 @@ class Discipline(models.Model):
     def __str__(self) -> str:
         return self.name + " - " + str(self.edition.year)
 
+    def schedule_games(self):
+        """
+        Schedule round-robin games for the discipline including teams refereeing,
+        if that's a team sport.
+        """
+        teams = Team.objects.filter(edition=self.edition, is_active=True)
+        simultaneous_games = len(teams) // 3
+        games_per_round = len(teams) // 2
+        iteration_per_round = (len(teams) // 2) // simultaneous_games
+        max_rounds = len(teams) - 1
 
-class Game(models.Model):
-    """
-    A game is a competition between two teams that takes place
-    in an edition of the Olympic Warriors.
-    """
-
-    discipline = models.ForeignKey(Discipline, on_delete=models.CASCADE, related_name="discipline")
-    team1 = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="team1")
-    score1 = models.IntegerField(MinValueValidator(0), default=0)
-    team2 = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="team2")
-    score2 = models.IntegerField(MinValueValidator(0), default=0)
-    referees = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="referees")
-    edition = models.ForeignKey(Edition, on_delete=models.CASCADE)
-    date = models.DateField()
-    is_active = models.BooleanField(default=True)
-
-    def __str__(self) -> str:
-        return self.discipline.name + ": " + self.team1.name + " vs " + self.team2.name
+        l1 = teams[0 : len(teams) // 2]
+        l2 = teams[len(teams) // 2 :]
+        l2.reverse()
+        for i in range(max_rounds):
+            game_round = TeamSportRound.objects.create(discipline=self, order=i)
+            for j in range(games_per_round):
+                game = Game.objects.create(
+                    discipline=self,
+                    round=game_round,
+                    team1=l1[j],
+                    team2=l2[j],
+                    referees=teams[j],
+                    edition=self.edition,
+                )
+                game.save()
+            l2.append(l1.pop())
+            l1.insert(1, l2.pop(0))
 
 
 class GameEvent(models.Model):
