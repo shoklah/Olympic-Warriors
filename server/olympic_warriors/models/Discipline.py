@@ -1,7 +1,7 @@
 from copy import deepcopy
-from django.db import models
 from datetime import datetime
 
+from django.db import models
 from django.core.validators import FileExtensionValidator, MinValueValidator
 
 from .Team import Team
@@ -70,7 +70,7 @@ class Discipline(models.Model):
 
         @param team_id: id of the team to search for
 
-        @return: order of the last round in which the team was a referee
+        @return: order of the last round in which the team was a referee, -1 if never
         """
         last_game_refereed = (
             Game.objects.filter(referees__id=team_id, is_active=True)
@@ -99,12 +99,14 @@ class Discipline(models.Model):
                 referee_score = Game.objects.filter(
                     referees__id=team_id, discipline=self, is_active=True
                 ).count()
-                if not best_referee_id:
+
+                # Assign the first team as the best referee, or the one with the refereed games
+                if not best_referee_id or referee_score < best_referee_score:
                     best_referee_id = team_id
                     best_referee_score = referee_score
-                elif referee_score < best_referee_score:
-                    best_referee_id = team_id
-                    best_referee_score = referee_score
+
+                # If the team has refereed the same number of games,
+                # pick the one that didn't referee for longer
                 elif referee_score == best_referee_score:
                     if not last_round_best_referee:
                         last_round_best_referee = self._get_last_round_as_referee(best_referee_id)
@@ -142,6 +144,7 @@ class Discipline(models.Model):
         """
         games_without_referees = []
 
+        # Create games for this iteration, hence the number of simultaneous games for a round
         while game_index < simultaneous_games * (iteration_index + 1):
             games_without_referees.append(
                 Game.objects.create(
@@ -172,6 +175,7 @@ class Discipline(models.Model):
         max_rounds = len(teams) - 1
         team_ids = {team.id for team in teams}
 
+        # Split teams in two halves for round-robin
         l1 = teams[: len(teams) // 2]
         l2 = teams[len(teams) // 2 :]
         l2.reverse()
@@ -191,6 +195,7 @@ class Discipline(models.Model):
                     simultaneous_games,
                 )
 
+            # Rotate teams for next round
             l2.append(l1.pop())
             l1.insert(1, l2.pop(0))
 
