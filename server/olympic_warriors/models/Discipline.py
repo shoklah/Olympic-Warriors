@@ -49,7 +49,7 @@ class Discipline(models.Model):
     A Discipline is a competition that takes place in an edition of the Olympic Warriors.
     """
 
-    name = models.CharField(max_length=100)
+    name = models.CharField(max_length=100, blank=True)
     edition = models.ForeignKey(Edition, on_delete=models.CASCADE)
     is_active = models.BooleanField(default=True)
     teams = models.ManyToManyField(Team, through='TeamResult')
