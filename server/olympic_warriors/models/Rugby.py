@@ -10,10 +10,11 @@ class Rugby(Discipline):
 
     def save(self, *args, **kwargs):
         """
-        Override save method to set discipline name to rugby
+        Override save method to set discipline name to rugby and schedule games.
         """
         self.name = 'Rugby'
         super().save(*args, **kwargs)
+        self.schedule_games()
 
 
 class RugbyEvent(GameEvent):
