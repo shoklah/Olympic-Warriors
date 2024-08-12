@@ -64,6 +64,24 @@ class Discipline(models.Model):
     def __str__(self) -> str:
         return self.name + " - " + str(self.edition.year)
 
+    def _get_last_round_as_referee(self, team_id: int) -> int:
+        """
+        Get the last round order in which a team was a referee.
+
+        @param team_id: id of the team to search for
+
+        @return: order of the last round in which the team was a referee
+        """
+        last_game_refereed = (
+            Game.objects.filter(referees__id=team_id, is_active=True)
+            .order_by("-round__order")
+            .first()
+        )
+        if not last_game_refereed:
+            return -1
+        else:
+            return last_game_refereed.round.order
+
     def _assign_referees(
         self, game_without_referees: list[Game], leftover_team_ids: set[int]
     ) -> None:
@@ -74,8 +92,9 @@ class Discipline(models.Model):
         @param leftover_team_ids: set of team ids that can be referees for this round iteration
         """
         for game in game_without_referees:
-            best_referee_id = None
-            best_referee_score = None
+            best_referee_id: int = None
+            best_referee_score: int = None
+            last_round_best_referee: int = None
             for team_id in leftover_team_ids:
                 referee_score = Game.objects.filter(
                     referees__id=team_id, discipline=self, is_active=True
@@ -86,6 +105,14 @@ class Discipline(models.Model):
                 elif referee_score < best_referee_score:
                     best_referee_id = team_id
                     best_referee_score = referee_score
+                elif referee_score == best_referee_score:
+                    if not last_round_best_referee:
+                        last_round_best_referee = self._get_last_round_as_referee(best_referee_id)
+
+                    if self._get_last_round_as_referee(team_id) < last_round_best_referee:
+                        best_referee_id = team_id
+                        best_referee_score = referee_score
+
             game.referees = Team.objects.get(id=best_referee_id)
             game.save()
             leftover_team_ids.remove(best_referee_id)
