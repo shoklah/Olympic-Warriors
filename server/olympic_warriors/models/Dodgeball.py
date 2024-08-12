@@ -14,6 +14,7 @@ class Dodgeball(Discipline):
         """
         self.name = 'Dodgeball'
         super().save(*args, **kwargs)
+        self.schedule_games()
 
 
 class DodgeballEvent(GameEvent):
