@@ -10,6 +10,7 @@ from .models import (
     Team,
     Edition,
     Discipline,
+    TeamResult,
     TeamSportRound,
     Game,
     GameEvent,
@@ -142,6 +143,23 @@ class DisciplineAdmin(ModelAdmin):
         return super().changelist_view(request, extra_context)
 
 
+class TeamResultAdmin(ModelAdmin):
+    """
+    Admin dashboard configuration for the TeamResult model.
+    """
+
+    list_display = ["team", "discipline", "result_type", "points", "time"]
+    list_filter = ["team", "discipline", "result_type", "is_active"]
+    search_fields = ["team", "discipline", "result_type"]
+
+    def changelist_view(self, request, extra_context=None):
+        """
+        Filter the request to only show active items.
+        """
+        request = request_only_active(request)
+        return super().changelist_view(request, extra_context)
+
+
 class TeamSportRoundAdmin(ModelAdmin):
     """
     Admin dashboard configuration for the TeamSportRound model.
@@ -241,6 +259,7 @@ site.register(Team, TeamAdmin)
 site.register(Edition, EditionAdmin)
 site.register(PlayerRating, PlayerRatingAdmin)
 site.register(Discipline, DisciplineAdmin)
+site.register(TeamResult, TeamResultAdmin)
 site.register(TeamSportRound, TeamSportRoundAdmin)
 site.register(Game, GameAdmin)
 site.register(GameEvent, GameEventAdmin)

@@ -2,11 +2,40 @@ from copy import deepcopy
 from datetime import datetime
 
 from django.db import models
+from django.db.models import F
 from django.core.validators import FileExtensionValidator, MinValueValidator
 
 from .Team import Team
 from .Edition import Edition
 from .Player import Player
+
+
+class TeamResult(models.Model):
+    """
+    Team's score for an Discipline.
+    """
+
+    class TeamResultTypes(models.TextChoices):
+        """
+        Enum for Team Result Types
+        """
+
+        POINTS = 'PTS', 'Points'
+        TIME = 'TIM', 'Time'
+
+    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='registered_team')
+    discipline = models.ForeignKey(
+        "Discipline", on_delete=models.CASCADE, related_name='registered_to'
+    )
+    points = models.IntegerField(null=True, blank=True)
+    time = models.TimeField(null=True, blank=True)
+    result_type = models.CharField(max_length=3, choices=TeamResultTypes.choices)
+    is_active = models.BooleanField(default=True)
+
+    def __str__(self) -> str:
+        return (
+            self.team.name + " - " + self.discipline.name + ' ' + str(self.discipline.edition.year)
+        )
 
 
 class TeamSportRound(models.Model):
@@ -43,6 +72,60 @@ class Game(models.Model):
     def __str__(self) -> str:
         return self.discipline.name + ": " + self.team1.name + " vs " + self.team2.name
 
+    def _update_points(self, team1_points=None, team2_points=None):
+        team1_result = TeamResult.objects.get(team=self.team1, discipline=self.discipline)
+        team2_result = TeamResult.objects.get(team=self.team2, discipline=self.discipline)
+        team1_result.points += team1_points
+        print(f'team1_points: {team1_points}')
+        team2_result.points += team2_points
+        print(f'team2_points: {team2_points}')
+        team1_result.save()
+        team2_result.save()
+
+    def save(self, *args, **kwargs):
+        """
+        Override save method to update team result if score is updated.
+        """
+        if self.pk:
+            old_game = Game.objects.get(pk=self.pk)
+            new_score1 = getattr(self, "score1")
+            new_score2 = getattr(self, "score2")
+            score_changed = self.score1 != old_game.score1 or self.score2 != old_game.score2
+            print(score_changed)
+            print(new_score1)
+            print(old_game.score1)
+            print(self.score1)
+            print(new_score2)
+            print(self.score2)
+            print(old_game.score2)
+
+            if score_changed:
+                if new_score1 > new_score2:
+                    if old_game.score1 == old_game.score2:
+                        self._update_points(team1_points=+2, team2_points=-1)
+                    elif old_game.score1 < old_game.score2:
+                        self._update_points(team1_points=+3, team2_points=-3)
+                elif new_score1 < new_score2:
+                    if old_game.score1 == old_game.score2:
+                        self._update_points(team2_points=+2, team1_points=-1)
+                    elif old_game.score1 > old_game.score2:
+                        self._update_points(team2_points=+3, team1_points=-3)
+                else:  # new_score1 == new_score2
+                    if old_game.score1 > old_game.score2:
+                        self._update_points(team1_points=-2, team2_points=+1)
+                    elif old_game.score1 < old_game.score2:
+                        self._update_points(team2_points=-2, team1_points=+1)
+
+        else:
+            if self.score1 > self.score2:
+                self._update_points(team1_points=+3, team2_points=0)
+            elif self.score1 < self.score2:
+                self._update_points(team2_points=+3, team1_points=0)
+            else:  # self.score1 == self.score2
+                self._update_points(team1_points=+1, team2_points=+1)
+
+        super().save(*args, **kwargs)
+
 
 class Discipline(models.Model):
     """
@@ -63,6 +146,16 @@ class Discipline(models.Model):
 
     def __str__(self) -> str:
         return self.name + " - " + str(self.edition.year)
+
+    def get_ranking(self, team_id: int) -> int:
+        """
+        Get the ranking of a team in the discipline.
+
+        @param team_id: id of the team to search for
+
+        @return: ranking of the team in the discipline
+        """
+        pass
 
     def _get_last_round_as_referee(self, team_id: int) -> int:
         """
@@ -217,19 +310,3 @@ class GameEvent(models.Model):
         return (
             self.game.discipline.name + ": " + self.player1.user.first_name + " - " + str(self.time)
         )
-
-
-class TeamResult(models.Model):
-    """
-    Team's score for an Discipline.
-    """
-
-    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='registered_team')
-    discipline = models.ForeignKey(
-        Discipline, on_delete=models.CASCADE, related_name='registered_to'
-    )
-    score = models.IntegerField()
-    is_active = models.BooleanField(default=True)
-
-    def __str__(self) -> str:
-        return self.team.name + " - " + self.discipline

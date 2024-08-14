@@ -1,6 +1,7 @@
 from django.db import models
 
-from .Discipline import Discipline, Game, GameEvent
+from .Discipline import Discipline, Game, GameEvent, TeamResult
+from .Team import Team
 
 
 class Rugby(Discipline):
@@ -10,10 +11,15 @@ class Rugby(Discipline):
 
     def save(self, *args, **kwargs):
         """
-        Override save method to set discipline name to rugby and schedule games.
+        Override save method to set discipline name to rugby, schedule games and initialize team results.
         """
         self.name = 'Rugby'
         super().save(*args, **kwargs)
+        teams = Team.objects.filter(edition=self.edition, is_active=True)
+        for team in teams:
+            TeamResult.objects.create(
+                team=team, discipline=self, result_type=TeamResult.TeamResultTypes.POINTS, points=0
+            )
         self.schedule_games()
 
 
