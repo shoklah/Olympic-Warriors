@@ -1,4 +1,5 @@
-from .Discipline import Discipline
+from .Discipline import Discipline, TeamResult
+from .Team import Team
 
 
 class Orienteering(Discipline):
@@ -12,3 +13,8 @@ class Orienteering(Discipline):
         """
         self.name = 'Orienteering'
         super().save(*args, **kwargs)
+        teams = Team.objects.filter(edition=self.edition, is_active=True)
+        for team in teams:
+            TeamResult.objects.create(
+                team=team, discipline=self, result_type=TeamResult.TeamResultTypes.TIME, time=0
+            )
