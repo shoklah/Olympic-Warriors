@@ -2,7 +2,8 @@
 Model for Crossfit discipline.
 """
 
-from .Discipline import Discipline
+from .Discipline import Discipline, TeamResult
+from .Team import Team
 
 
 class Crossfit(Discipline):
@@ -16,3 +17,8 @@ class Crossfit(Discipline):
         """
         self.name = 'Crossfit'
         super().save(*args, **kwargs)
+        teams = Team.objects.filter(edition=self.edition, is_active=True)
+        for team in teams:
+            TeamResult.objects.create(
+                team=team, discipline=self, result_type=TeamResult.TeamResultTypes.TIME, time=0
+            )
