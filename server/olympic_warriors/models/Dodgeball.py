@@ -1,6 +1,7 @@
 from django.db import models
 
-from .Discipline import Discipline, Game, GameEvent
+from .Discipline import Discipline, Game, GameEvent, TeamResult
+from .Team import Team
 
 
 class Dodgeball(Discipline):
@@ -14,6 +15,11 @@ class Dodgeball(Discipline):
         """
         self.name = 'Dodgeball'
         super().save(*args, **kwargs)
+        teams = Team.objects.filter(edition=self.edition, is_active=True)
+        for team in teams:
+            TeamResult.objects.create(
+                team=team, discipline=self, result_type=TeamResult.TeamResultTypes.POINTS, points=0
+            )
         self.schedule_games()
 
 
