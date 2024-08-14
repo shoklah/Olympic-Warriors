@@ -22,6 +22,7 @@ from .models import (
     HideAndSeek,
     Orienteering,
     Blindtest,
+    BlindtestGuess,
 )
 
 
@@ -35,6 +36,15 @@ def request_only_active(request: HttpRequest) -> HttpRequest:
         request.GET = q
         request.META["QUERY_STRING"] = request.GET.urlencode()
     return request
+
+
+class BlindtestGuessInline(TabularInline):
+    """
+    Inline for the BlindtestGuess model to be accessed from the Blindtest model.
+    """
+
+    model = BlindtestGuess
+    extra = 1
 
 
 class PlayerRatingInline(TabularInline):
@@ -134,6 +144,31 @@ class DisciplineAdmin(ModelAdmin):
     list_display = ["name", "edition"]
     list_filter = ["is_active", "edition", "name"]
     search_fields = ["name", "edition"]
+
+    def changelist_view(self, request, extra_context=None):
+        """
+        Filter the request to only show active items.
+        """
+        request = request_only_active(request)
+        return super().changelist_view(request, extra_context)
+
+
+class BlindtestAdmin(DisciplineAdmin):
+    """
+    Admin dashboard configuration for the Blindtest model.
+    """
+
+    inlines = [BlindtestGuessInline]
+
+
+class BlindtestGuessAdmin(ModelAdmin):
+    """
+    Admin dashboard configuration for the BlindtestGuess model.
+    """
+
+    list_display = ["team", "blindtest", "answer", "is_valid"]
+    list_filter = ["team", "blindtest", "is_valid", "is_active"]
+    search_fields = ["team", "blindtest", "answer", "is_valid"]
 
     def changelist_view(self, request, extra_context=None):
         """
@@ -270,4 +305,5 @@ site.register(Dodgeball, DisciplineAdmin)
 site.register(DodgeballEvent, DodgeballEventAdmin)
 site.register(HideAndSeek, DisciplineAdmin)
 site.register(Orienteering, DisciplineAdmin)
-site.register(Blindtest, DisciplineAdmin)
+site.register(Blindtest, BlindtestAdmin)
+site.register(BlindtestGuess, BlindtestGuessAdmin)

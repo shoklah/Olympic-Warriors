@@ -73,6 +73,9 @@ class Game(models.Model):
         return self.discipline.name + ": " + self.team1.name + " vs " + self.team2.name
 
     def _update_points(self, team1_points=None, team2_points=None):
+        """
+        Update team results with the points of the game.
+        """
         team1_result = TeamResult.objects.get(team=self.team1, discipline=self.discipline)
         team2_result = TeamResult.objects.get(team=self.team2, discipline=self.discipline)
         team1_result.points += team1_points
