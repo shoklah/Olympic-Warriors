@@ -105,7 +105,7 @@ class TeamAdmin(ModelAdmin):
     Admin dashboard configuration for the Team model.
     """
 
-    list_display = ["name", "edition"]
+    list_display = ["name", "edition", "total_points", "ranking"]
     list_filter = ["edition", "is_active"]
     search_fields = ["name", "edition"]
     inlines = [PlayerInline]
@@ -183,7 +183,15 @@ class TeamResultAdmin(ModelAdmin):
     Admin dashboard configuration for the TeamResult model.
     """
 
-    list_display = ["team", "discipline", "result_type", "points", "time", "ranking"]
+    list_display = [
+        "team",
+        "discipline",
+        "result_type",
+        "points",
+        "time",
+        "ranking",
+        "global_points",
+    ]
     list_filter = ["team", "discipline", "result_type", "is_active"]
     search_fields = ["team", "discipline", "result_type"]
 

@@ -1,7 +1,7 @@
 from django.db import models
 
-from .Discipline import Discipline, Game, GameEvent, TeamResult
-from .Team import Team
+from .Discipline import Discipline, Game, GameEvent
+from .Team import Team, TeamResult
 
 
 class Dodgeball(Discipline):

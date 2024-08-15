@@ -2,62 +2,11 @@ from copy import deepcopy
 from datetime import datetime
 
 from django.db import models
-from django.db.models import F
 from django.core.validators import FileExtensionValidator, MinValueValidator
 
-from .Team import Team
+from .Team import Team, TeamResult
 from .Edition import Edition
 from .Player import Player
-
-
-class TeamResult(models.Model):
-    """
-    Team's score for an Discipline.
-    """
-
-    class TeamResultTypes(models.TextChoices):
-        """
-        Enum for Team Result Types
-        """
-
-        POINTS = 'PTS', 'Points'
-        TIME = 'TIM', 'Time'
-
-    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='registered_team')
-    discipline = models.ForeignKey(
-        "Discipline", on_delete=models.CASCADE, related_name='registered_to'
-    )
-    points = models.IntegerField(null=True, blank=True)
-    time = models.TimeField(null=True, blank=True)
-    result_type = models.CharField(max_length=3, choices=TeamResultTypes.choices)
-    is_active = models.BooleanField(default=True)
-
-    def __str__(self) -> str:
-        return (
-            self.team.name + " - " + self.discipline.name + ' ' + str(self.discipline.edition.year)
-        )
-
-    @property
-    def ranking(self) -> int:
-        """
-        Get the ranking of the team in the discipline.
-
-        @return: ranking of the team in the discipline
-        """
-        if self.result_type == TeamResult.TeamResultTypes.TIME:
-            return (
-                TeamResult.objects.filter(discipline=self.discipline, time__lt=self.time).count()
-                + 1
-            )
-        elif self.result_type == TeamResult.TeamResultTypes.POINTS:
-            return (
-                TeamResult.objects.filter(
-                    discipline=self.discipline, points__gt=self.points
-                ).count()
-                + 1
-            )
-        else:
-            return 0
 
 
 class TeamSportRound(models.Model):

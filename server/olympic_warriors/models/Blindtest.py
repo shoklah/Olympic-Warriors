@@ -4,8 +4,8 @@ Models for Blindtest discipline
 
 from django.db import models
 
-from .Discipline import Discipline, TeamResult
-from .Team import Team
+from .Discipline import Discipline
+from .Team import Team, TeamResult
 
 
 class Blindtest(Discipline):
