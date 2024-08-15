@@ -183,7 +183,7 @@ class TeamResultAdmin(ModelAdmin):
     Admin dashboard configuration for the TeamResult model.
     """
 
-    list_display = ["team", "discipline", "result_type", "points", "time"]
+    list_display = ["team", "discipline", "result_type", "points", "time", "ranking"]
     list_filter = ["team", "discipline", "result_type", "is_active"]
     search_fields = ["team", "discipline", "result_type"]
 

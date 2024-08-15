@@ -37,6 +37,28 @@ class TeamResult(models.Model):
             self.team.name + " - " + self.discipline.name + ' ' + str(self.discipline.edition.year)
         )
 
+    @property
+    def ranking(self) -> int:
+        """
+        Get the ranking of the team in the discipline.
+
+        @return: ranking of the team in the discipline
+        """
+        if self.result_type == TeamResult.TeamResultTypes.TIME:
+            return (
+                TeamResult.objects.filter(discipline=self.discipline, time__lt=self.time).count()
+                + 1
+            )
+        elif self.result_type == TeamResult.TeamResultTypes.POINTS:
+            return (
+                TeamResult.objects.filter(
+                    discipline=self.discipline, points__gt=self.points
+                ).count()
+                + 1
+            )
+        else:
+            return 0
+
 
 class TeamSportRound(models.Model):
     """
