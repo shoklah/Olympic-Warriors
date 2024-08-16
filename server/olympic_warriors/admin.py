@@ -10,6 +10,7 @@ from .models import (
     Team,
     Edition,
     Discipline,
+    TeamResult,
     TeamSportRound,
     Game,
     GameEvent,
@@ -21,6 +22,7 @@ from .models import (
     HideAndSeek,
     Orienteering,
     Blindtest,
+    BlindtestGuess,
 )
 
 
@@ -34,6 +36,15 @@ def request_only_active(request: HttpRequest) -> HttpRequest:
         request.GET = q
         request.META["QUERY_STRING"] = request.GET.urlencode()
     return request
+
+
+class BlindtestGuessInline(TabularInline):
+    """
+    Inline for the BlindtestGuess model to be accessed from the Blindtest model.
+    """
+
+    model = BlindtestGuess
+    extra = 1
 
 
 class PlayerRatingInline(TabularInline):
@@ -94,7 +105,7 @@ class TeamAdmin(ModelAdmin):
     Admin dashboard configuration for the Team model.
     """
 
-    list_display = ["name", "edition"]
+    list_display = ["name", "edition", "total_points", "ranking"]
     list_filter = ["edition", "is_active"]
     search_fields = ["name", "edition"]
     inlines = [PlayerInline]
@@ -133,6 +144,56 @@ class DisciplineAdmin(ModelAdmin):
     list_display = ["name", "edition"]
     list_filter = ["is_active", "edition", "name"]
     search_fields = ["name", "edition"]
+
+    def changelist_view(self, request, extra_context=None):
+        """
+        Filter the request to only show active items.
+        """
+        request = request_only_active(request)
+        return super().changelist_view(request, extra_context)
+
+
+class BlindtestAdmin(DisciplineAdmin):
+    """
+    Admin dashboard configuration for the Blindtest model.
+    """
+
+    inlines = [BlindtestGuessInline]
+
+
+class BlindtestGuessAdmin(ModelAdmin):
+    """
+    Admin dashboard configuration for the BlindtestGuess model.
+    """
+
+    list_display = ["team", "blindtest", "answer", "is_valid"]
+    list_filter = ["team", "blindtest", "is_valid", "is_active"]
+    search_fields = ["team", "blindtest", "answer", "is_valid"]
+
+    def changelist_view(self, request, extra_context=None):
+        """
+        Filter the request to only show active items.
+        """
+        request = request_only_active(request)
+        return super().changelist_view(request, extra_context)
+
+
+class TeamResultAdmin(ModelAdmin):
+    """
+    Admin dashboard configuration for the TeamResult model.
+    """
+
+    list_display = [
+        "team",
+        "discipline",
+        "result_type",
+        "points",
+        "time",
+        "ranking",
+        "global_points",
+    ]
+    list_filter = ["team", "discipline", "result_type", "is_active"]
+    search_fields = ["team", "discipline", "result_type"]
 
     def changelist_view(self, request, extra_context=None):
         """
@@ -241,6 +302,7 @@ site.register(Team, TeamAdmin)
 site.register(Edition, EditionAdmin)
 site.register(PlayerRating, PlayerRatingAdmin)
 site.register(Discipline, DisciplineAdmin)
+site.register(TeamResult, TeamResultAdmin)
 site.register(TeamSportRound, TeamSportRoundAdmin)
 site.register(Game, GameAdmin)
 site.register(GameEvent, GameEventAdmin)
@@ -251,4 +313,5 @@ site.register(Dodgeball, DisciplineAdmin)
 site.register(DodgeballEvent, DodgeballEventAdmin)
 site.register(HideAndSeek, DisciplineAdmin)
 site.register(Orienteering, DisciplineAdmin)
-site.register(Blindtest, DisciplineAdmin)
+site.register(Blindtest, BlindtestAdmin)
+site.register(BlindtestGuess, BlindtestGuessAdmin)
