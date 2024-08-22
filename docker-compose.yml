@@ -25,8 +25,9 @@ services:
       - POSTGRES_DB=mydb-dev
       - POSTGRES_USER=user
       - POSTGRES_PASSWORD=password
+      - PGPORT=5433
     ports:
-      - "5432:5432"
+      - "5433:5433"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U user -d mydb-dev"]
       interval: 10s
@@ -52,9 +53,9 @@ services:
     image: front
     build:
       context: ./front
-      dockerfile: Dockerfile.stage
+      dockerfile: Dockerfile.dev
     ports:
-      - "4000:4000"
+      - "5173:5173"
     volumes:
       - ./front/:/usr/src/app
       - /usr/src/app/node_modules
