@@ -20,11 +20,12 @@ from .models import Player, Edition, Team, Discipline, PlayerRating
 
 
 @extend_schema(
+    summary="Get a player by ID",
     responses={
         200: PlayerSerializer,
         404: OpenApiResponse(description="Player not found"),
         500: OpenApiResponse(description="Internal server error"),
-    }
+    },
 )
 @api_view(["GET"])
 def getPlayer(request, player_id):
@@ -37,10 +38,11 @@ def getPlayer(request, player_id):
 
 
 @extend_schema(
+    summary="Get all active players",
     responses={
         "200": PlayerSerializer(many=True),
         "500": OpenApiResponse(description="Internal server error"),
-    }
+    },
 )
 @api_view(["GET"])
 def getPlayers(request):
@@ -53,10 +55,11 @@ def getPlayers(request):
 
 
 @extend_schema(
+    summary="Get all active players for an edition",
     responses={
         "200": PlayerSerializer(many=True),
         "500": OpenApiResponse(description="Internal server error"),
-    }
+    },
 )
 @api_view(["GET"])
 def getPlayersByEdition(request, edition_id):
@@ -66,10 +69,11 @@ def getPlayersByEdition(request, edition_id):
 
 
 @extend_schema(
+    summary="Get all active players for a team",
     responses={
         "200": PlayerSerializer(many=True),
         "500": OpenApiResponse(description="Internal server error"),
-    }
+    },
 )
 @api_view(["GET"])
 def getPlayersByTeam(request, team_id):
@@ -81,7 +85,14 @@ def getPlayersByTeam(request, team_id):
 # Editions
 
 
-@extend_schema(responses=EditionSerializer)
+@extend_schema(
+    summary="Get an edition by ID",
+    responses={
+        200: EditionSerializer,
+        404: OpenApiResponse(description="Edition not found"),
+        500: OpenApiResponse(description="Internal server error"),
+    },
+)
 @api_view(["GET"])
 def getEdition(request, edition_id):
     try:
@@ -93,10 +104,11 @@ def getEdition(request, edition_id):
 
 
 @extend_schema(
+    summary="Get all active editions",
     responses={
         "200": EditionSerializer(many=True),
         "500": OpenApiResponse(description="Internal server error"),
-    }
+    },
 )
 @api_view(["GET"])
 def getEditions(request):
@@ -109,11 +121,12 @@ def getEditions(request):
 
 
 @extend_schema(
+    summary="Get a team by ID",
     responses={
         200: TeamSerializer,
         404: OpenApiResponse(description="Team not found"),
         500: OpenApiResponse(description="Internal server error"),
-    }
+    },
 )
 @api_view(["GET"])
 def getTeam(request, team_id):
@@ -126,10 +139,11 @@ def getTeam(request, team_id):
 
 
 @extend_schema(
+    summary="Get all active teams",
     responses={
         "200": TeamSerializer(many=True),
         "500": OpenApiResponse(description="Internal server error"),
-    }
+    },
 )
 @api_view(["GET"])
 def getTeams(request):
@@ -142,11 +156,12 @@ def getTeams(request):
 
 
 @extend_schema(
+    summary="Get a discipline by ID",
     responses={
         "200": DisciplineSerializer,
         "404": OpenApiResponse(description="Discipline not found"),
         "500": OpenApiResponse(description="Internal server error"),
-    }
+    },
 )
 @api_view(["GET"])
 def getDiscipline(request, discipline_id):
@@ -159,10 +174,11 @@ def getDiscipline(request, discipline_id):
 
 
 @extend_schema(
+    summary="Get all active disciplines",
     responses={
         "200": DisciplineSerializer(many=True),
         "500": OpenApiResponse(description="Internal server error"),
-    }
+    },
 )
 @api_view(["GET"])
 def getDisciplines(request):
@@ -172,10 +188,11 @@ def getDisciplines(request):
 
 
 @extend_schema(
+    summary="Get all active disciplines for an edition",
     responses={
         "200": DisciplineSerializer(many=True),
         "500": OpenApiResponse(description="Internal server error"),
-    }
+    },
 )
 @api_view(["GET"])
 def getDisciplinesByEdition(request, edition_id):
@@ -188,11 +205,12 @@ def getDisciplinesByEdition(request, edition_id):
 
 
 @extend_schema(
+    summary="Get a player rating by ID",
     responses={
         200: PlayerRatingSerializer,
         404: OpenApiResponse(description="Player rating not found"),
         500: OpenApiResponse(description="Internal server error"),
-    }
+    },
 )
 @api_view(["GET"])
 def getPlayerRating(request, rating_id):
@@ -205,10 +223,11 @@ def getPlayerRating(request, rating_id):
 
 
 @extend_schema(
+    summary="Get all active player ratings",
     responses={
         "200": PlayerRatingSerializer(many=True),
         "500": OpenApiResponse(description="Internal server error"),
-    }
+    },
 )
 @api_view(["GET"])
 def getPlayerRatings(request):
@@ -218,10 +237,11 @@ def getPlayerRatings(request):
 
 
 @extend_schema(
+    summary="Get all active player ratings for a player",
     responses={
         "200": PlayerRatingSerializer(many=True),
         "500": OpenApiResponse(description="Internal server error"),
-    }
+    },
 )
 @api_view(["GET"])
 def getPlayerRatingsByPlayer(request, player_id):
