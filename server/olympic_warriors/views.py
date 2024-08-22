@@ -4,6 +4,7 @@ Logic for the Olympic Warriors app endpoints.
 
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+from drf_spectacular.utils import extend_schema
 
 from .serializer import (
     PlayerSerializer,
@@ -18,6 +19,7 @@ from .models import Player, Edition, Team, Discipline, PlayerRating
 # Players
 
 
+@extend_schema(responses=PlayerSerializer)
 @api_view(["GET"])
 def getPlayer(request, player_id):
     player = Player.objects.get(id=player_id)
@@ -25,6 +27,7 @@ def getPlayer(request, player_id):
     return Response(serializer.data)
 
 
+@extend_schema(responses=PlayerSerializer(many=True))
 @api_view(["GET"])
 def getPlayers(request):
     """
@@ -35,6 +38,7 @@ def getPlayers(request):
     return Response(serializer.data)
 
 
+@extend_schema(responses=PlayerSerializer(many=True))
 @api_view(["GET"])
 def getPlayersByEdition(request, edition_id):
     players = Player.objects.filter(edition=edition_id, is_active=True)
@@ -42,6 +46,7 @@ def getPlayersByEdition(request, edition_id):
     return Response(serializer.data)
 
 
+@extend_schema(responses=PlayerSerializer(many=True))
 @api_view(["GET"])
 def getPlayersByTeam(request, team_id):
     players = Player.objects.filter(team=team_id, is_active=True)
@@ -52,6 +57,7 @@ def getPlayersByTeam(request, team_id):
 # Editions
 
 
+@extend_schema(responses=EditionSerializer)
 @api_view(["GET"])
 def getEdition(request, edition_id):
     edition = Edition.objects.get(id=edition_id)
@@ -59,6 +65,7 @@ def getEdition(request, edition_id):
     return Response(serializer.data)
 
 
+@extend_schema(responses=EditionSerializer(many=True))
 @api_view(["GET"])
 def getEditions(request):
     editions = Edition.objects.filter(is_active=True)
@@ -69,6 +76,7 @@ def getEditions(request):
 # Teams
 
 
+@extend_schema(responses=TeamSerializer)
 @api_view(["GET"])
 def getTeam(request, team_id):
     team = Team.objects.get(id=team_id)
@@ -76,6 +84,7 @@ def getTeam(request, team_id):
     return Response(serializer.data)
 
 
+@extend_schema(responses=TeamSerializer(many=True))
 @api_view(["GET"])
 def getTeams(request):
     teams = Team.objects.filter(is_active=True)
@@ -86,6 +95,7 @@ def getTeams(request):
 # Disciplines
 
 
+@extend_schema(responses=DisciplineSerializer)
 @api_view(["GET"])
 def getDiscipline(request, discipline_id):
     discipline = Discipline.objects.get(id=discipline_id)
@@ -93,6 +103,7 @@ def getDiscipline(request, discipline_id):
     return Response(serializer.data)
 
 
+@extend_schema(responses=DisciplineSerializer(many=True))
 @api_view(["GET"])
 def getDisciplines(request):
     disciplines = Discipline.objects.filter(is_active=True)
@@ -100,6 +111,7 @@ def getDisciplines(request):
     return Response(serializer.data)
 
 
+@extend_schema(responses=DisciplineSerializer(many=True))
 @api_view(["GET"])
 def getDisciplinesByEdition(request, edition_id):
     disciplines = Discipline.objects.filter(edition=edition_id, is_active=True)
@@ -110,6 +122,7 @@ def getDisciplinesByEdition(request, edition_id):
 # Player Ratings
 
 
+@extend_schema(responses=PlayerRatingSerializer)
 @api_view(["GET"])
 def getPlayerRating(request, rating_id):
     player_rating = PlayerRating.objects.get(id=rating_id)
@@ -117,6 +130,7 @@ def getPlayerRating(request, rating_id):
     return Response(serializer.data)
 
 
+@extend_schema(responses=PlayerRatingSerializer(many=True))
 @api_view(["GET"])
 def getPlayerRatings(request):
     player_ratings = PlayerRating.objects.filter(is_active=True)
@@ -124,6 +138,7 @@ def getPlayerRatings(request):
     return Response(serializer.data)
 
 
+@extend_schema(responses=PlayerRatingSerializer(many=True))
 @api_view(["GET"])
 def getPlayerRatingsByPlayer(request, player_id):
     player_ratings = PlayerRating.objects.filter(player=player_id, is_active=True)
