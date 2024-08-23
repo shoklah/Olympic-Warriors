@@ -18,8 +18,9 @@ Including another URLconf
 import os
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 
+from rest_framework.authtoken import views as auth_views
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import path
 from django.conf import settings
 from django.conf.urls.static import static
 
@@ -34,6 +35,8 @@ urlpatterns = [
     path("api/schema/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
     # admin
     path("admin/", admin.site.urls),
+    # authentication
+    path("auth/token/", auth_views.obtain_auth_token, name="auth_token"),
     # players
     path("players/<int:player_id>/", views.getPlayer),
     path("players/", views.getPlayers),
