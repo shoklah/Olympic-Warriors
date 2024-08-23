@@ -50,6 +50,9 @@ class TeamSerializer(serializers.ModelSerializer):
     Team serializer
     """
 
+    total_points = serializers.ReadOnlyField()
+    ranking = serializers.ReadOnlyField()
+
     class Meta:
         """
         Meta class
