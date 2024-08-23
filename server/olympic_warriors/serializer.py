@@ -3,7 +3,15 @@ Serializers for the Olympic Warriors app
 """
 
 from rest_framework import serializers
-from olympic_warriors.models import Player, Edition, Team, Discipline, PlayerRating, Game
+from olympic_warriors.models import (
+    Player,
+    Edition,
+    Team,
+    Discipline,
+    PlayerRating,
+    Game,
+    TeamSportRound,
+)
 
 
 class PlayerSerializer(serializers.ModelSerializer):
@@ -77,4 +85,10 @@ class PlayerRatingSerializer(serializers.ModelSerializer):
 class GameSerializer(serializers.ModelSerializer):
     class Meta:
         model = Game
+        fields = "__all__"
+
+
+class TeamSportRoundSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TeamSportRound
         fields = "__all__"
