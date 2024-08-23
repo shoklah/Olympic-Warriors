@@ -3,13 +3,14 @@ Serializers for the Olympic Warriors app
 """
 
 from rest_framework import serializers
-from olympic_warriors.models import Player, Edition, Team, Discipline, PlayerRating
+from olympic_warriors.models import Player, Edition, Team, Discipline, PlayerRating, TeamResult
 
 
 class PlayerSerializer(serializers.ModelSerializer):
     """
     Player serializer
     """
+
     first_name = serializers.CharField(source="user.first_name")
     last_name = serializers.CharField(source="user.last_name")
 
@@ -70,4 +71,13 @@ class PlayerRatingSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = PlayerRating
+        fields = "__all__"
+
+
+class TeamResultSerializer(serializers.ModelSerializer):
+    ranking = serializers.ReadOnlyField()
+    global_points = serializers.ReadOnlyField()
+
+    class Meta:
+        model = TeamResult
         fields = "__all__"
