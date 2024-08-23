@@ -89,6 +89,12 @@ class GameSerializer(serializers.ModelSerializer):
 
 
 class TeamSportRoundSerializer(serializers.ModelSerializer):
+    games = serializers.SerializerMethodField()
+
     class Meta:
         model = TeamSportRound
         fields = "__all__"
+
+    def get_games(self, obj):
+        games = Game.objects.filter(round=obj)
+        return GameSerializer(games, many=True).data
