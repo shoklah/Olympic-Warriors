@@ -56,6 +56,27 @@ urlpatterns = [
     path("ratings/<int:rating_id>/", views.getPlayerRating),
     path("ratings/", views.getPlayerRatings),
     path("ratings/player/<int:player_id>/", views.getPlayerRatingsByPlayer),
+    # games
+    path("game/<int:game_id>/", views.getGame),
+    path("games/", views.getGames),
+    path("games/discipline/<int:discipline_id>/", views.getGamesByDiscipline),
+    path("games/team/<int:team_id>/", views.getGamesByTeam),
+    path("games/team/<int:team_id>/played/", views.getPlayedGamesByTeam),
+    path("games/team/<int:team_id>/refereed/", views.getRefereedGamesByTeam),
+    path("games/edition/<int:edition_id>/", views.getGamesByEdition),
+    path(
+        "games/discipline/<int:discipline_id>/team/<int:team_id>/",
+        views.getGamesByDisciplineAndTeam,
+    ),
+    path(
+        "games/discipline/<int:discipline_id>/team/<int:team_id>/played/",
+        views.getPlayedGamesByDisciplineAndTeam,
+    ),
+    path(
+        "games/discipline/<int:discipline_id>/team/<int:team_id>/refereed/",
+        views.getRefereedGamesByDisciplineAndTeam,
+    ),
+    path("games/round/<int:round>/", views.getGamesByRound),
 ]
 
 env = os.environ.get("ENV", "dev").lower()
