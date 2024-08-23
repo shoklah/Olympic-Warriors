@@ -77,6 +77,10 @@ urlpatterns = [
         views.getRefereedGamesByDisciplineAndTeam,
     ),
     path("games/round/<int:round>/", views.getGamesByRound),
+    # rounds
+    path("round/<int:round_id>/", views.getRound),
+    path("rounds/", views.getRounds),
+    path("rounds/discipline/<int:discipline_id>/", views.getRoundsByDiscipline),
 ]
 
 env = os.environ.get("ENV", "dev").lower()

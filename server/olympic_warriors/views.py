@@ -14,8 +14,9 @@ from .serializer import (
     DisciplineSerializer,
     PlayerRatingSerializer,
     GameSerializer,
+    TeamSportRoundSerializer,
 )
-from .models import Player, Edition, Team, Discipline, PlayerRating, Game
+from .models import Player, Edition, Team, Discipline, PlayerRating, Game, TeamSportRound
 
 
 # Players
@@ -304,4 +305,53 @@ def getRefereedGamesByDisciplineAndTeam(request, team_id, discipline_id):
 def getGamesByRound(request, round_id):
     games = Game.objects.filter(round=round_id, is_active=True)
     serializer = GameSerializer(games, many=True)
+    return Response(serializer.data)
+
+
+# Rounds
+
+
+@extend_schema(
+    summary="Get round by ID",
+    responses={
+        200: GameSerializer,
+        404: OpenApiResponse(description="Round not found"),
+        500: OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["GET"])
+def getRound(request, round_id):
+    try:
+        round = TeamSportRound.objects.get(id=round_id)
+    except TeamSportRound.DoesNotExist:
+        return Response({"error": "Round not found"}, status=404)
+    serializer = TeamSportRoundSerializer(round)
+    return Response(serializer.data)
+
+
+@extend_schema(
+    summary="Get all rounds",
+    responses={
+        200: GameSerializer(many=True),
+        500: OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["GET"])
+def getRounds(request):
+    rounds = TeamSportRound.objects.filter(is_active=True)
+    serializer = TeamSportRoundSerializer(rounds, many=True)
+    return Response(serializer.data)
+
+
+@extend_schema(
+    summary="Get rounds by discipline",
+    responses={
+        200: GameSerializer(many=True),
+        500: OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["GET"])
+def getRoundsByDiscipline(request, discipline_id):
+    rounds = TeamSportRound.objects.filter(discipline=discipline_id, is_active=True)
+    serializer = TeamSportRoundSerializer(rounds, many=True)
     return Response(serializer.data)
