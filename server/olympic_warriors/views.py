@@ -7,6 +7,8 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 
+from drf_spectacular.utils import extend_schema, OpenApiResponse
+
 from .serializer import (
     PlayerSerializer,
     EditionSerializer,
@@ -15,8 +17,9 @@ from .serializer import (
     PlayerRatingSerializer,
     GameSerializer,
     TeamSportRoundSerializer,
+    TeamResultSerializer,
 )
-from .models import Player, Edition, Team, Discipline, PlayerRating, Game, TeamSportRound
+from .models import Player, Edition, Team, Discipline, PlayerRating, Game, TeamSportRound, TeamResult
 
 
 # Players
@@ -143,7 +146,6 @@ def getPlayerRatingsByPlayer(request, player_id):
     responses={
         200: GameSerializer,
         404: OpenApiResponse(description="Game not found"),
-        500: OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["GET"])
@@ -152,9 +154,9 @@ def getGame(request, game_id):
         game = Game.objects.get(id=game_id)
     except Game.DoesNotExist:
         return Response({"error": "Game not found"}, status=404)
+
     serializer = GameSerializer(game)
     return Response(serializer.data)
-
 
 @extend_schema(
     summary="Get all games",
@@ -168,22 +170,13 @@ def getGames(request):
     games = Game.objects.filter(is_active=True)
     serializer = GameSerializer(games, many=True)
     return Response(serializer.data)
-
-
-@extend_schema(
-    summary="Get games by discipline",
+      
+    summary="Get all team results",
     responses={
-        200: GameSerializer(many=True),
+        200: TeamResultSerializer(many=True),
         500: OpenApiResponse(description="Internal server error"),
     },
 )
-@api_view(["GET"])
-def getGamesByDiscipline(request, discipline_id):
-    games = Game.objects.filter(discipline=discipline_id, is_active=True)
-    serializer = GameSerializer(games, many=True)
-    return Response(serializer.data)
-
-
 @extend_schema(
     summary="Get games by team",
     responses={
@@ -196,6 +189,19 @@ def getGamesByTeam(request, team_id):
     games = Game.objects.filter(
         (Q(team1=team_id) | Q(team2=team_id) | Q(referees=team_id)), is_active=True
     )
+    serializer = GameSerializer(games, many=True)
+    return Response(serializer.data)
+
+@extend_schema(
+    summary="Get games by discipline",
+    responses={
+        200: GameSerializer(many=True),
+        500: OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["GET"])
+def getGamesByDiscipline(request, discipline_id):
+    games = Game.objects.filter(discipline=discipline_id, is_active=True)
     serializer = GameSerializer(games, many=True)
     return Response(serializer.data)
 
@@ -341,8 +347,7 @@ def getRounds(request):
     rounds = TeamSportRound.objects.filter(is_active=True)
     serializer = TeamSportRoundSerializer(rounds, many=True)
     return Response(serializer.data)
-
-
+  
 @extend_schema(
     summary="Get rounds by discipline",
     responses={
@@ -354,4 +359,74 @@ def getRounds(request):
 def getRoundsByDiscipline(request, discipline_id):
     rounds = TeamSportRound.objects.filter(discipline=discipline_id, is_active=True)
     serializer = TeamSportRoundSerializer(rounds, many=True)
+    return Response(serializer.data)
+    summary="Get team results by discipline ID",
+    responses={
+        200: TeamResultSerializer(many=True),
+        500: OpenApiResponse(description="Internal server error"),
+    },
+)
+      
+# Team Results
+
+@extend_schema(
+    summary="Get team results by ID",
+    responses={
+        200: TeamResultSerializer,
+        404: OpenApiResponse(description="Team result not found"),
+        500: OpenApiResponse(description="Internal server error"),
+    }
+)
+@api_view(["GET"])
+def getTeamResult(request, team_result_id):
+    try:
+        team_result = TeamResult.objects.get(id=team_result_id)
+    except TeamResult.DoesNotExist:
+        return Response({"error": "Team result not found"}, status=404)
+    serializer = TeamResultSerializer(team_result)
+    return Response(serializer.data)
+
+
+@api_view(["GET"])
+def getTeamResults(request):
+    team_results = TeamResult.objects.filter(is_active=True)
+    serializer = TeamResultSerializer(team_results, many=True)
+    return Response(serializer.data)
+
+
+  
+@extend_schema(
+    summary="Get team results by team ID",
+    responses={
+        200: TeamResultSerializer(many=True),
+        500: OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["GET"])
+def getTeamResultsByTeam(request, team_id):
+    team_results = TeamResult.objects.filter(team=team_id, is_active=True)
+    serializer = TeamResultSerializer(team_results, many=True)
+    return Response(serializer.data)
+
+
+ 
+@extend_schema(
+    summary="Get team results by edition ID",
+    responses={
+        200: TeamResultSerializer(many=True),
+        500: OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["GET"])
+def getTeamResultsByEdition(request, edition_id):
+    team_results = TeamResult.objects.filter(edition=edition_id, is_active=True)
+    serializer = TeamResultSerializer(team_results, many=True)
+    return Response(serializer.data)
+
+
+@extend_schema(
+@api_view(["GET"])
+def getTeamResultsByDiscipline(request, discipline_id):
+    team_results = TeamResult.objects.filter(discipline=discipline_id, is_active=True)
+    serializer = TeamResultSerializer(team_results, many=True)
     return Response(serializer.data)

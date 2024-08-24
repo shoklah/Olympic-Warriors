@@ -11,6 +11,7 @@ from olympic_warriors.models import (
     PlayerRating,
     Game,
     TeamSportRound,
+    TeamResult
 )
 
 
@@ -58,6 +59,9 @@ class TeamSerializer(serializers.ModelSerializer):
     Team serializer
     """
 
+    total_points = serializers.ReadOnlyField()
+    ranking = serializers.ReadOnlyField()
+
     class Meta:
         """
         Meta class
@@ -98,3 +102,11 @@ class TeamSportRoundSerializer(serializers.ModelSerializer):
     def get_games(self, obj):
         games = Game.objects.filter(round=obj)
         return GameSerializer(games, many=True).data
+
+class TeamResultSerializer(serializers.ModelSerializer):
+    ranking = serializers.ReadOnlyField()
+    global_points = serializers.ReadOnlyField()
+
+    class Meta:
+        model = TeamResult
+        fields = "__all__"

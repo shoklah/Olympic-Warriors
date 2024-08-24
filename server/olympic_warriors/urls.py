@@ -81,6 +81,12 @@ urlpatterns = [
     path("round/<int:round_id>/", views.getRound),
     path("rounds/", views.getRounds),
     path("rounds/discipline/<int:discipline_id>/", views.getRoundsByDiscipline),
+    # team results
+    path("result/<int:result_id>/", views.getTeamResult),
+    path("results/", views.getTeamResults),
+    path("results/team/<int:team_id>/", views.getTeamResultsByTeam),
+    path("results/discipline/<int:discipline_id>/", views.getTeamResultsByDiscipline),
+    path("results/edition/<int:edition_id>/", views.getTeamResultsByEdition),
 ]
 
 env = os.environ.get("ENV", "dev").lower()
