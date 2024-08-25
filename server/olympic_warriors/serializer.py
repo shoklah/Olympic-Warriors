@@ -12,6 +12,7 @@ from olympic_warriors.models import (
     Game,
     TeamSportRound,
     TeamResult,
+    BlindtestGuess,
 )
 
 
@@ -102,6 +103,12 @@ class TeamSportRoundSerializer(serializers.ModelSerializer):
     def get_games(self, obj):
         games = Game.objects.filter(round=obj)
         return GameSerializer(games, many=True).data
+
+
+class BlindtestGuessSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BlindtestGuess
+        fields = "__all__"
 
 
 class TeamResultSerializer(serializers.ModelSerializer):
