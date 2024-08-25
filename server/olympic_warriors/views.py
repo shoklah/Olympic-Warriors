@@ -16,6 +16,7 @@ from .serializer import (
     GameSerializer,
     TeamSportRoundSerializer,
     TeamResultSerializer,
+    BlindtestGuessSerializer,
 )
 from .models import (
     Player,
@@ -26,6 +27,7 @@ from .models import (
     Game,
     TeamSportRound,
     TeamResult,
+    BlindtestGuess,
 )
 
 
@@ -559,4 +561,125 @@ def getTeamResultsByEdition(request, edition_id):
 def getTeamResultsByDiscipline(request, discipline_id):
     team_results = TeamResult.objects.filter(discipline=discipline_id, is_active=True)
     serializer = TeamResultSerializer(team_results, many=True)
+    return Response(serializer.data)
+
+
+# Blindtest
+
+
+@extend_schema(
+    summary="Get a blindtest guess by ID",
+    responses={
+        200: BlindtestGuessSerializer,
+        404: OpenApiResponse(description="Blindtest guess not found"),
+        500: OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["GET"])
+def getBlindtestGuess(request, guess_id):
+    try:
+        guess = BlindtestGuess.objects.get(id=guess_id)
+    except BlindtestGuess.DoesNotExist:
+        return Response({"error": "Blindtest guess not found"}, status=404)
+    serializer = BlindtestGuessSerializer(guess)
+    return Response(serializer.data)
+
+
+@extend_schema(
+    summary="Get all blindtest guesses",
+    responses={
+        200: BlindtestGuessSerializer(many=True),
+        500: OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["GET"])
+def getBlindtestGuesses(request):
+    guesses = BlindtestGuess.objects.filter(is_active=True)
+    serializer = BlindtestGuessSerializer(guesses, many=True)
+    return Response(serializer.data)
+
+
+@extend_schema(
+    summary="Get all blindtest guesses for a team",
+    responses={
+        200: BlindtestGuessSerializer(many=True),
+        500: OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["GET"])
+def getBlindtestGuessesByTeam(request, team_id):
+    guesses = BlindtestGuess.objects.filter(team=team_id, is_active=True)
+    serializer = BlindtestGuessSerializer(guesses, many=True)
+    return Response(serializer.data)
+
+
+@extend_schema(
+    summary="Get all blindtest guesses for a blindtest",
+    responses={
+        200: BlindtestGuessSerializer(many=True),
+        500: OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["GET"])
+def getBlindtestGuessesByBlindtest(request, blindtest_id):
+    guesses = BlindtestGuess.objects.filter(blindtest=blindtest_id, is_active=True)
+    serializer = BlindtestGuessSerializer(guesses, many=True)
+    return Response(serializer.data)
+
+
+@extend_schema(
+    summary="Get all blindtest guesses for a team and blindtest",
+    responses={
+        200: BlindtestGuessSerializer(many=True),
+        500: OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["GET"])
+def getBlindtestGuessesByTeamAndBlindtest(request, team_id, blindtest_id):
+    guesses = BlindtestGuess.objects.filter(team=team_id, blindtest=blindtest_id, is_active=True)
+    serializer = BlindtestGuessSerializer(guesses, many=True)
+    return Response(serializer.data)
+
+
+@extend_schema(
+    summary="Get all blindtest guesses with correct artist and song",
+    responses={
+        200: BlindtestGuessSerializer(many=True),
+        500: OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["GET"])
+def getCorrectBlindtestGuesses(request):
+    guesses = BlindtestGuess.objects.filter(
+        is_artist_correct=True, is_song_correct=True, is_active=True
+    )
+    serializer = BlindtestGuessSerializer(guesses, many=True)
+    return Response(serializer.data)
+
+
+@extend_schema(
+    summary="Get all blindtest guesses with correct artist",
+    responses={
+        200: BlindtestGuessSerializer(many=True),
+        500: OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["GET"])
+def getCorrectArtistBlindtestGuesses(request):
+    guesses = BlindtestGuess.objects.filter(is_artist_correct=True, is_active=True)
+    serializer = BlindtestGuessSerializer(guesses, many=True)
+    return Response(serializer.data)
+
+
+@extend_schema(
+    summary="Get all blindtest guesses with correct song",
+    responses={
+        200: BlindtestGuessSerializer(many=True),
+        500: OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["GET"])
+def getCorrectSongBlindtestGuesses(request):
+    guesses = BlindtestGuess.objects.filter(is_song_correct=True, is_active=True)
+    serializer = BlindtestGuessSerializer(guesses, many=True)
     return Response(serializer.data)

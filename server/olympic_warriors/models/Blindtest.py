@@ -33,15 +33,17 @@ class BlindtestGuess(models.Model):
 
     team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='team')
     blindtest = models.ForeignKey(Blindtest, on_delete=models.CASCADE, related_name='blindtest')
-    answer = models.CharField(max_length=100)
-    is_valid = models.BooleanField(default=False)
+    artist = models.CharField(max_length=255)
+    song = models.CharField(max_length=255)
+    is_artist_correct = models.BooleanField(default=False)
+    is_song_correct = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
 
     def __str__(self):
         """
         String representation of the object
         """
-        return f'{self.team} - {self.answer}'
+        return f'{self.team}: {self.artist} - {self.song}'
 
     def _update_points(self, points):
         """
@@ -57,12 +59,20 @@ class BlindtestGuess(models.Model):
         """
         if self.pk:
             old_guess = BlindtestGuess.objects.get(pk=self.pk)
-            if old_guess.is_valid and not self.is_valid:
+            if old_guess.is_artist_correct and not self.is_artist_correct:
                 self._update_points(-1)
-            elif not old_guess.is_valid and self.is_valid:
+            elif not old_guess.is_artist_correct and self.is_artist_correct:
+                self._update_points(1)
+
+            if old_guess.is_song_correct and not self.is_song_correct:
+                self._update_points(-1)
+            elif not old_guess.is_song_correct and self.is_song_correct:
                 self._update_points(1)
         else:
-            if self.is_valid:
+            if self.is_artist_correct:
+                self._update_points(1)
+
+            if self.is_song_correct:
                 self._update_points(1)
 
         super().save(*args, **kwargs)

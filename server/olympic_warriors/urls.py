@@ -81,6 +81,18 @@ urlpatterns = [
     path("round/<int:round_id>/", views.getRound),
     path("rounds/", views.getRounds),
     path("rounds/discipline/<int:discipline_id>/", views.getRoundsByDiscipline),
+    # blindtest guesses
+    path("blindtest_guess/<int:guess_id>/", views.getBlindtestGuess),
+    path("blindtest_guesses/", views.getBlindtestGuesses),
+    path("blindtest_guesses/team/<int:team_id>/", views.getBlindtestGuessesByTeam),
+    path("blindtest_guesses/blindtest/<int:blindtest_id>/", views.getBlindtestGuessesByBlindtest),
+    path(
+        "blindtest_guesses/blindtest/<int:blindtest_id>/team/<int:team_id>/",
+        views.getBlindtestGuessesByTeamAndBlindtest,
+    ),
+    path("blindtest_guesses/artist/correct/", views.getCorrectArtistBlindtestGuesses),
+    path("blindtest_guesses/song/correct/", views.getCorrectSongBlindtestGuesses),
+    path("blindtest_guesses/artist/correct/song/correct/", views.getCorrectBlindtestGuesses),
     # team results
     path("result/<int:result_id>/", views.getTeamResult),
     path("results/", views.getTeamResults),
