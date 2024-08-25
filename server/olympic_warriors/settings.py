@@ -224,4 +224,5 @@ SPECTACULAR_SETTINGS = {
     'DESCRIPTION': 'API for Django REST Application to manage sport events',
     #'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': True,
+    'COMPONENT_SPLIT_REQUEST': True,
 }

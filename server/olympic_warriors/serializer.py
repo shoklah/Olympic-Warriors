@@ -3,6 +3,7 @@ Serializers for the Olympic Warriors app
 """
 
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field
 from olympic_warriors.models import (
     Player,
     Edition,
@@ -62,6 +63,7 @@ class TeamSerializer(serializers.ModelSerializer):
 
     total_points = serializers.ReadOnlyField()
     ranking = serializers.ReadOnlyField()
+    players = serializers.SerializerMethodField()
 
     class Meta:
         """
@@ -70,6 +72,14 @@ class TeamSerializer(serializers.ModelSerializer):
 
         model = Team
         fields = "__all__"
+
+    @extend_schema_field(PlayerSerializer(many=True))
+    def get_players(self, obj):
+        """
+        Get players for a team
+        """
+        players = Player.objects.filter(team=obj)
+        return PlayerSerializer(players, many=True).data
 
 
 class DisciplineSerializer(serializers.ModelSerializer):
@@ -100,6 +110,7 @@ class TeamSportRoundSerializer(serializers.ModelSerializer):
         model = TeamSportRound
         fields = "__all__"
 
+    @extend_schema_field(GameSerializer(many=True))
     def get_games(self, obj):
         games = Game.objects.filter(round=obj)
         return GameSerializer(games, many=True).data

@@ -444,7 +444,7 @@ def getGamesByRound(request, round_id):
 @extend_schema(
     summary="Get round by ID",
     responses={
-        200: GameSerializer,
+        200: TeamSportRoundSerializer,
         404: OpenApiResponse(description="Round not found"),
         500: OpenApiResponse(description="Internal server error"),
     },
@@ -462,7 +462,7 @@ def getRound(request, round_id):
 @extend_schema(
     summary="Get all rounds",
     responses={
-        200: GameSerializer(many=True),
+        200: TeamSportRoundSerializer(many=True),
         500: OpenApiResponse(description="Internal server error"),
     },
 )
@@ -476,7 +476,7 @@ def getRounds(request):
 @extend_schema(
     summary="Get rounds by discipline",
     responses={
-        200: GameSerializer(many=True),
+        200: TeamSportRoundSerializer(many=True),
         500: OpenApiResponse(description="Internal server error"),
     },
 )
