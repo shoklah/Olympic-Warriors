@@ -106,6 +106,7 @@ class Discipline(models.Model):
         validators=[FileExtensionValidator(allowed_extensions=["pdf"])],
         verbose_name="rules",
     )
+    reveal_score = models.BooleanField(default=False)
 
     def __str__(self) -> str:
         return self.name + " - " + str(self.edition.year)

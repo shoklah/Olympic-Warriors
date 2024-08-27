@@ -36,6 +36,9 @@ class TeamResult(models.Model):
 
         @return: ranking of the team in the discipline
         """
+        if self.discipline.reveal_score is False:
+            return 0
+
         if self.result_type == TeamResult.TeamResultTypes.TIME:
             return (
                 TeamResult.objects.filter(discipline=self.discipline, time__lt=self.time).count()
@@ -58,6 +61,9 @@ class TeamResult(models.Model):
 
         @return: points of the team from ranking
         """
+        if self.discipline.reveal_score is False:
+            return 0
+
         registered_teams_count = TeamResult.objects.filter(
             discipline=self.discipline, is_active=True
         ).count()
@@ -83,7 +89,7 @@ class Team(models.Model):
         """
         String representation of the object
         """
-        return self.name
+        return str(self.name)
 
     @property
     def total_points(self) -> int:

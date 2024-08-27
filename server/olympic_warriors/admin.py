@@ -166,9 +166,9 @@ class BlindtestGuessAdmin(ModelAdmin):
     Admin dashboard configuration for the BlindtestGuess model.
     """
 
-    list_display = ["team", "blindtest", "answer", "is_valid"]
-    list_filter = ["team", "blindtest", "is_valid", "is_active"]
-    search_fields = ["team", "blindtest", "answer", "is_valid"]
+    list_display = ["team", "blindtest", "artist", "song", "is_artist_correct", "is_song_correct"]
+    list_filter = ["team", "blindtest", "is_artist_correct", "is_song_correct", "is_active"]
+    search_fields = ["team", "blindtest", "artist", "song"]
 
     def changelist_view(self, request, extra_context=None):
         """
