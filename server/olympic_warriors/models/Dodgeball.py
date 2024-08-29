@@ -1,4 +1,5 @@
 from django.db import models
+from django.core.exceptions import ValidationError
 
 from .Discipline import Discipline, Game, GameEvent
 from .Team import Team, TeamResult
@@ -72,6 +73,9 @@ class DodgeballEvent(GameEvent):
         live_players = 3
         previous_events = DodgeballEvent.objects.filter(game=self.game).order_by('-time').values()
         for event in previous_events:
+            if event.id == self.id:
+                continue
+
             match event.event_type:
                 case self.DodgeballEventTypes.HIT:
                     if self.player1.team.id == event.player2.team.id:
@@ -88,10 +92,23 @@ class DodgeballEvent(GameEvent):
 
         return False
 
+    def _players_validation(self):
+        """
+        Check if players are part of the teams playing the game associated with the event
+        """
+        if self.player1 and self.player1.team not in [self.game.team1, self.game.team2]:
+            raise ValidationError('Player 1 is not part of the teams playing the game')
+        elif self.player2 and self.player2.team not in [self.game.team1, self.game.team2]:
+            raise ValidationError('Player 2 is not part of the teams playing the game')
+
     def save(self, *args, **kwargs):
         """
         Override the save method to update score and raise alerts if needed.
         """
+        self._players_validation()
+        # Call the original save method to save the object
+        super().save(*args, **kwargs)
+
         match self.event_type:
             case self.DodgeballEventTypes.HIT:
                 if self.is_hit_end_of_round():
@@ -109,5 +126,3 @@ class DodgeballEvent(GameEvent):
                     else:
                         game.score1 += 1
                     game.save()
-        # Call the original save method to save the object
-        super().save(*args, **kwargs)
