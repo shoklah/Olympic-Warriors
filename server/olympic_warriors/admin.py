@@ -261,7 +261,6 @@ class GameAdmin(ModelAdmin):
         Display the right inline model admin according to the discipline
         """
         inlines = []
-        logger.debug(obj)
         if obj and obj.discipline:
             if obj.discipline.name == "Rugby":
                 inlines.append(RugbyEventInline)
