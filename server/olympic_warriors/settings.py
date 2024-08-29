@@ -172,7 +172,7 @@ LOGGING = {
         "file": {
             "level": settings.LOG_LEVEL_FILE,
             "class": "logging.FileHandler",
-            "filename": settings.LOG_FILE,
+            "filename": os.path.join(BASE_DIR, settings.LOG_FILE),
         },
         "console": {
             "level": settings.LOG_LEVEL_CONSOLE,
@@ -188,7 +188,6 @@ LOGGING = {
         "dev": {
             "handlers": ["console"],
             "level": settings.LOG_LEVEL_CONSOLE,
-            "propagate": True,
         },
     },
 }
