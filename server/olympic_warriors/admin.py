@@ -197,6 +197,25 @@ class BlindtestGuessAdmin(ModelAdmin):
         return super().changelist_view(request, extra_context)
 
 
+class BlindtestRoundAdmin(ModelAdmin):
+    """
+    Admin dashboard configuration for the BlindtestRound model.
+    """
+
+    list_display = ["blindtest", "order", "is_active"]
+    list_filter = ["blindtest", "order", "is_active"]
+    search_fields = ["blindtest", "order"]
+
+    inlines = [BlindtestGuessInline]
+
+    def changelist_view(self, request, extra_context=None):
+        """
+        Filter the request to only show active items.
+        """
+        request = request_only_active(request)
+        return super().changelist_view(request, extra_context)
+
+
 class TeamResultAdmin(ModelAdmin):
     """
     Admin dashboard configuration for the TeamResult model.
@@ -333,4 +352,5 @@ site.register(DodgeballEvent, DodgeballEventAdmin)
 site.register(HideAndSeek, DisciplineAdmin)
 site.register(Orienteering, DisciplineAdmin)
 site.register(Blindtest, BlindtestAdmin)
+site.register(BlindtestRound, BlindtestRoundAdmin)
 site.register(BlindtestGuess, BlindtestGuessAdmin)
