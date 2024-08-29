@@ -72,7 +72,7 @@ class DodgeballEvent(GameEvent):
         Check previous events to end the round and grant points
         """
         live_players = 3
-        previous_events = DodgeballEvent.objects.filter(game=self.game).order_by('-time').values()
+        previous_events = DodgeballEvent.objects.filter(game=self.game).order_by('-time')
         for event in previous_events:
             if event.id == self.id:
                 continue
