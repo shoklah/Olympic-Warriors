@@ -64,7 +64,7 @@ class DodgeballEvent(GameEvent):
                 case self.DodgeballEventTypes.FOUL:
                     if self.player2.team.id == event.player1.team.id:
                         live_players -= 1
-                case self.DodgeballEventTypes.NEW:
+                case self.DodgeballEventTypes.NEW_ROUND | self.DodgeballEventTypes.START:
                     return False
                 case _:
                     continue
