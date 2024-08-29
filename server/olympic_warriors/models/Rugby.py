@@ -1,4 +1,5 @@
 from django.db import models
+from django.core.exceptions import ValidationError
 
 from .Discipline import Discipline, Game, GameEvent
 from .Team import Team, TeamResult
@@ -33,10 +34,13 @@ class RugbyEvent(GameEvent):
         Enum for Rugby Game Events Types
         """
 
+        START = 'STA', 'Start'
+        END = 'END', 'End'
         TRY = 'TRY', 'Try'
+        STEAL = 'STL', 'Steal'
         TACKLE = 'TKL', 'Tackle'
         FOUL = 'FOL', 'Foul'
-        OUTBOUNDS = 'OUT', 'Outbounds'
+        OUT = 'OUT', 'Out'
 
     event_type = models.CharField(max_length=3, choices=RugbyEventTypes.choices)
 
@@ -48,7 +52,12 @@ class RugbyEvent(GameEvent):
         previous_events = RugbyEvent.objects.filter(game=self.game).order_by('-time').values()
         for event in previous_events:
             match event.event_type:
-                case self.RugbyEventTypes.TRY | self.RugbyEventTypes.OUTBOUNDS:
+                case (
+                    self.RugbyEventTypes.TRY
+                    | self.RugbyEventTypes.OUT
+                    | self.RugbyEventTypes.START
+                    | self.RugbyEventTypes.STEAL
+                ):
                     return points
                 case self.RugbyEventTypes.TACKLE:
                     if self.player1.team == event.player1.team:
@@ -62,10 +71,20 @@ class RugbyEvent(GameEvent):
 
         return points
 
+    def _players_validation(self):
+        """
+        Check if players are part of the teams playing the game associated with the event
+        """
+        if self.player1 and self.player1.team not in [self.game.team1, self.game.team2]:
+            raise ValidationError('Player 1 is not part of the teams playing the game')
+        elif self.player2 and self.player2.team not in [self.game.team1, self.game.team2]:
+            raise ValidationError('Player 2 is not part of the teams playing the game')
+
     def save(self, *args, **kwargs):
         """
         Override the save method to update score and raise alerts if needed.
         """
+        self._players_validation()
         match self.event_type:
             case self.RugbyEventTypes.TRY:
                 points = self.process_try_points()
