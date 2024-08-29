@@ -49,8 +49,11 @@ class RugbyEvent(GameEvent):
         Check previous events to grant the right number of points for a try according to tackles
         """
         points = 3
-        previous_events = RugbyEvent.objects.filter(game=self.game).order_by('-time').values()
+        previous_events = RugbyEvent.objects.filter(game=self.game).order_by('-time')
         for event in previous_events:
+            if event.id == self.id:
+                continue
+
             match event.event_type:
                 case (
                     self.RugbyEventTypes.TRY
@@ -85,6 +88,9 @@ class RugbyEvent(GameEvent):
         Override the save method to update score and raise alerts if needed.
         """
         self._players_validation()
+        # Call the original save method to save the object
+        super().save(*args, **kwargs)
+
         match self.event_type:
             case self.RugbyEventTypes.TRY:
                 points = self.process_try_points()
@@ -94,5 +100,3 @@ class RugbyEvent(GameEvent):
                 else:
                     game.score2 += points
                 game.save()
-        # Call the original save method to save the object
-        super().save(*args, **kwargs)
