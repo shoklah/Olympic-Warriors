@@ -26,6 +26,11 @@ class Blindtest(Discipline):
                 team=team, discipline=self, result_type=TeamResult.TeamResultTypes.POINTS, points=0
             )
 
+        for i in range(1, 11):
+            blindtest_round = BlindtestRound.objects.create(blindtest=self, order=i)
+            for team in teams:
+                BlindtestGuess.objects.create(team=team, blindtest_round=blindtest_round)
+
 
 class BlindtestRound(models.Model):
     """
@@ -52,8 +57,8 @@ class BlindtestGuess(models.Model):
     blindtest_round = models.ForeignKey(
         BlindtestRound, on_delete=models.CASCADE, related_name='blindtest_round'
     )
-    artist = models.CharField(max_length=255)
-    song = models.CharField(max_length=255)
+    artist = models.CharField(max_length=255, default='')
+    song = models.CharField(max_length=255, default='')
     is_artist_correct = models.BooleanField(default=False)
     is_song_correct = models.BooleanField(default=False)
 
