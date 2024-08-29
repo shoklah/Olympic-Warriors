@@ -65,6 +65,15 @@ class PlayerInline(TabularInline):
     extra = 1
 
 
+class GameEventInline(TabularInline):
+    """
+    Inline for the GameEvent model to be accessed from the Game model.
+    """
+
+    model = GameEvent
+    extra = 1
+
+
 class PlayerAdmin(ModelAdmin):
     """
     Admin dashboard configuration for the Player model.
@@ -237,6 +246,7 @@ class GameAdmin(ModelAdmin):
     ]
     list_filter = ["discipline", "team1", "team2", "edition", "is_active"]
     search_fields = ["discipline", "team1", "team2", "edition"]
+    inlines = [GameEventInline]
 
     def changelist_view(self, request, extra_context=None):
         """
