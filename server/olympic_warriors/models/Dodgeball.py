@@ -37,6 +37,7 @@ class DodgeballEvent(GameEvent):
         START = 'STA', 'Start'
         END = 'END', 'End'
         HIT = 'HIT', 'Hit'
+        CATCH = 'CAT', 'Catch'
         FOUL = 'FOL', 'Foul'
         OUT = 'OUT', 'Out'
         NEW_ROUND = 'NEW', 'New Round'
@@ -80,6 +81,9 @@ class DodgeballEvent(GameEvent):
                 case self.DodgeballEventTypes.HIT:
                     if self.player1.team.id == event.player2.team.id:
                         live_players -= 1
+                case self.DodgeballEventTypes.CATCH:
+                    if live_players < 3 and self.player1.team.id == event.player2.team.id:
+                        live_players += 1
                 case self.DodgeballEventTypes.FOUL:
                     if self.player1.team.id == event.player1.team.id:
                         live_players -= 1
