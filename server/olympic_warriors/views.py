@@ -17,6 +17,7 @@ from .serializer import (
     TeamSportRoundSerializer,
     TeamResultSerializer,
     BlindtestGuessSerializer,
+    BlindtestGuessUpdateSerializer,
     BlindtestRoundSerializer,
 )
 from .models import (
@@ -751,22 +752,26 @@ def getBlindtestRoundsByEdition(request, edition_id):
     summary="Set the artist and song for a blindtest guess",
     responses={
         200: BlindtestGuessSerializer,
+        400: OpenApiResponse(description="Bad request"),
         404: OpenApiResponse(description="Blindtest guess not found"),
         500: OpenApiResponse(description="Internal server error"),
     },
 )
-@api_view(["PUT"])
+@api_view(["PATCH"])
 def setBlindtestGuessAnswer(request, guess_id):
     try:
         guess = BlindtestGuess.objects.get(id=guess_id)
     except BlindtestGuess.DoesNotExist:
         return Response({"error": "Blindtest guess not found"}, status=404)
 
-    artist = request.data.get("artist")
-    song = request.data.get("song")
+    serializer = BlindtestGuessUpdateSerializer(data=request.data)
+    try:
+        serializer.is_valid(raise_exception=True)
+    except Exception as e:
+        return Response({"error": "Bad request", "details": str(e)}, status=400)
 
-    guess.artist = artist
-    guess.song = song
+    guess.artist = serializer.validated_data["artist"]
+    guess.song = serializer.validated_data["song"]
     guess.save()
 
     serializer = BlindtestGuessSerializer(guess)
