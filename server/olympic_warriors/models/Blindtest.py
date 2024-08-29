@@ -3,6 +3,7 @@ Models for Blindtest discipline
 """
 
 from django.db import models
+from django.core.validators import MinValueValidator, MaxValueValidator
 
 from .Discipline import Discipline
 from .Team import Team, TeamResult
@@ -26,17 +27,36 @@ class Blindtest(Discipline):
             )
 
 
+class BlindtestRound(models.Model):
+    """
+    A round of a blindtest
+    """
+
+    blindtest = models.ForeignKey(Blindtest, on_delete=models.CASCADE, related_name='blindtest')
+    order = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(10)])
+    is_active = models.BooleanField(default=True)
+
+    def __str__(self):
+        """
+        String representation of the object
+        """
+        return f'{self.blindtest}: {str(self.order)}'
+
+
 class BlindtestGuess(models.Model):
     """
     A team guessing a song name and artist
     """
 
     team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='team')
-    blindtest = models.ForeignKey(Blindtest, on_delete=models.CASCADE, related_name='blindtest')
+    blindtest_round = models.ForeignKey(
+        BlindtestRound, on_delete=models.CASCADE, related_name='blindtest_round'
+    )
     artist = models.CharField(max_length=255)
     song = models.CharField(max_length=255)
     is_artist_correct = models.BooleanField(default=False)
     is_song_correct = models.BooleanField(default=False)
+
     is_active = models.BooleanField(default=True)
 
     def __str__(self):

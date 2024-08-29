@@ -22,6 +22,7 @@ from .models import (
     HideAndSeek,
     Orienteering,
     Blindtest,
+    BlindtestRound,
     BlindtestGuess,
 )
 
@@ -45,6 +46,17 @@ class BlindtestGuessInline(TabularInline):
 
     model = BlindtestGuess
     extra = 1
+
+
+class BlindtestRoundInline(TabularInline):
+    """
+    Inline for the BlindtestRound model to be accessed from the Blindtest model.
+    """
+
+    model = BlindtestRound
+    extra = 1
+
+    inlines = [BlindtestGuessInline]
 
 
 class PlayerRatingInline(TabularInline):
@@ -158,7 +170,7 @@ class BlindtestAdmin(DisciplineAdmin):
     Admin dashboard configuration for the Blindtest model.
     """
 
-    inlines = [BlindtestGuessInline]
+    inlines = [BlindtestRoundInline]
 
 
 class BlindtestGuessAdmin(ModelAdmin):
@@ -166,9 +178,16 @@ class BlindtestGuessAdmin(ModelAdmin):
     Admin dashboard configuration for the BlindtestGuess model.
     """
 
-    list_display = ["team", "blindtest", "artist", "song", "is_artist_correct", "is_song_correct"]
-    list_filter = ["team", "blindtest", "is_artist_correct", "is_song_correct", "is_active"]
-    search_fields = ["team", "blindtest", "artist", "song"]
+    list_display = [
+        "team",
+        "blindtest_round",
+        "artist",
+        "song",
+        "is_artist_correct",
+        "is_song_correct",
+    ]
+    list_filter = ["team", "blindtest_round", "is_artist_correct", "is_song_correct", "is_active"]
+    search_fields = ["team", "blindtest_round", "artist", "song"]
 
     def changelist_view(self, request, extra_context=None):
         """
