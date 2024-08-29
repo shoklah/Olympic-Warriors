@@ -33,9 +33,11 @@ class DodgeballEvent(GameEvent):
         Enum for Dodgeball Game Events Types
         """
 
+        START = 'STA', 'Start'
+        END = 'END', 'End'
         HIT = 'HIT', 'Hit'
         FOUL = 'FOL', 'Foul'
-        OUTBOUNDS = 'OUT', 'Outbounds'
+        OUT = 'OUT', 'Out'
         NEW_ROUND = 'NEW', 'New Round'
 
     event_type = models.CharField(max_length=3, choices=DodgeballEventTypes.choices)
@@ -77,7 +79,7 @@ class DodgeballEvent(GameEvent):
                 case self.DodgeballEventTypes.FOUL:
                     if self.player1.team.id == event.player1.team.id:
                         live_players -= 1
-                case self.DodgeballEventTypes.NEW:
+                case self.DodgeballEventTypes.NEW_ROUND | self.DodgeballEventTypes.START:
                     return False
                 case _:
                     continue
