@@ -83,11 +83,19 @@ class RugbyEvent(GameEvent):
         elif self.player2 and self.player2.team not in [self.game.team1, self.game.team2]:
             raise ValidationError('Player 2 is not part of the teams playing the game')
 
+    def _discipline_validation(self):
+        """
+        Check if the game discipline is Rugby
+        """
+        if self.game.discipline.name != 'Rugby':
+            raise ValidationError('The discipline of the game is not Rugby')
+
     def save(self, *args, **kwargs):
         """
         Override the save method to update score and raise alerts if needed.
         """
         self._players_validation()
+        self._discipline_validation()
         # Call the original save method to save the object
         super().save(*args, **kwargs)
 
