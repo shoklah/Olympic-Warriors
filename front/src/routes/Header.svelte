@@ -2,40 +2,40 @@
 	import { page } from '$app/stores';
 	import logo from '$lib/img/logo.svg';
 	import Menu from "./menu.svelte";
+
+	let tabs = [
+		{ name: 'Home', url: '/' },
+		{ name: 'Teams', url: '/teams' },
+		{ name: 'Disciplines', url: '/disciplines' },
+		{ name: 'Login', url: '/login' }
+	];
 </script>
 
 <header>
 	<div class="logo">
 		<a href="/">
-			<img src={logo} alt="OW" />
+			<img src="{logo}" alt="OW" />
 		</a>
 	</div>
 
 	<nav>
 		<ul>
-			<li aria-current={$page.url.pathname === '/' ? 'page' : undefined}>
-				<a href="/">Home</a>
-			</li>
-			<li aria-current={$page.url.pathname === '/login' ? 'page' : undefined}>
-				<a href="/login">Login</a>
-			</li>
+			{#each tabs as tab}
+				<li aria-current={$page.url.pathname === tab.url ? 'page' : undefined}>
+					<a href="{tab.url}">{tab.name}</a>
+				</li>
+			{/each}
 		</ul>
-		<Menu class="menu"/>
 	</nav>
+	<Menu {tabs}/>
 </header>
 
 <style>
-	/* Mobile-first approach */
-	.menu {
-		display: none;
-	}
-
-	/* Flexbox layout for header */
 	header {
 		display: flex;
+		z-index: 10;
 		padding: 2em clamp(0em, 2vw, 5em);
 		justify-content: space-between;
-		view-transition-name: header;
 	}
 
 	.logo a {
@@ -64,9 +64,6 @@
 		padding: 0;
 		margin: 0;
 		height: 3em;
-		list-style: none;
-		background: var(--background);
-		background-size: contain;
 	}
 
 	li {
@@ -92,11 +89,10 @@
 		padding: 0 2em;
 		color: var(--color-theme-1);
 		font-weight: 700;
-		font-size: .8rem;
+		font-size: 1rem;
 		text-transform: uppercase;
 		letter-spacing: .2em;
 		text-decoration: none;
-		transition: color 0.2s linear;
 	}
 
 	a:hover {
@@ -105,20 +101,12 @@
 
 	/* Media queries for larger screens */
 	@media (min-width: 769px) {
-		.menu {
-			display: none;
-		}
-
 		ul {
 			display: flex;
 		}
 	}
 
 	@media (max-width: 768px) {
-		.menu {
-			display: block;
-		}
-
 		ul {
 			display: none;
 		}

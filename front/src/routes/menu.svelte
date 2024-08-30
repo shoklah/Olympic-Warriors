@@ -1,29 +1,14 @@
 <script>
     import { slide } from "svelte/transition";
     import {quintOut} from "svelte/easing";
-    import { onMount } from "svelte";
 
-    let checkbox;
+    export let tabs;
+
     let menuOpen = false;
-    let menu;
-    let links;
 
-    onMount(() => {
-        const handleClickOutside = (event) => {
-            if (menuOpen && !checkbox.contains(event.target) && !menu.contains(event.target) || links.contains(event.target)) {
-                menuOpen = false;
-            }
-        };
-
-        document.body.addEventListener('click', handleClickOutside);
-
-        return () => {
-            document.body.removeEventListener('click', handleClickOutside);
-        };
-    });
 </script>
 
-<label class="hamburger" bind:this={checkbox}>
+<label class="hamburger">
     <input type="checkbox" id="menu-toggle" bind:checked={menuOpen} >
     <svg viewBox="0 0 32 32">
         <path class="line line-top-bottom" d="M27 10 13 10C10.8 10 9 8.2 9 6 9 3.5 10.8 2 13 2 15.2 2 17 3.8 17 6L17 26C17 28.2 18.8 30 21 30 23.2 30 25 28.2 25 26 25 23.8 23.2 22 21 22L7 22"></path>
@@ -32,42 +17,54 @@
 </label>
 
 {#if menuOpen}
-    <div class="menu" bind:this={menu} transition:slide={{ delay: 50, duration: 300, easing: quintOut, axis: 'x' }}>
-        <a href="/" bind:this={links}>Acceuil</a>
-        <a href="/create" bind:this={links}>Créer</a>
-        <a href="https://github.com/RodolpheANDRIEUX/B2Dev">A propos</a>
-        <a href="https://github.com/RodolpheANDRIEUX">Contact</a>
+    <div class="menu" transition:slide={{  duration: 300, easing: quintOut, axis: 'y' }}>
+        {#each tabs as tab}
+            <a href="{tab.url}" on:click={() => {menuOpen = false}}>{tab.name}</a>
+        {/each}
     </div>
 {/if}
 
 <style>
-    .menu a {
-        font-size: 3em;
-        color: var(--color-theme-1);
-        text-decoration: none;
-        padding: .4em 1em;
-        transition: .2s ease-in-out;
+    /* Media queries for larger screens */
+    @media (min-width: 769px) {
+        .hamburger {
+            display: none;
+        }
     }
 
-    .menu a:hover {
-        transform: translate(.5em, 0);
+    @media (max-width: 768px) {
+        .hamburger {
+            display: block;
+        }
+    }
+
+    .menu a {
+        color: var(--color-theme-1);
+        font-weight: 700;
+        font-size: 1.5rem;
+        text-transform: uppercase;
+        letter-spacing: .2em;
+        text-decoration: none;
+        padding: .8em 1em;
+        transition: .2s ease-in-out;
     }
 
     .menu {
         position: fixed;
-        top: 60px;
+        top: 0;
         left: 0;
-        width: min(90vw, 600px);
+        width: 100vw;
         height: 100vh;
-        background-color: var(--color-theme-2);
         display: flex;
-        padding-top: 2rem;
+        padding-top: 6rem;
         flex-direction: column;
-        backdrop-filter: blur(10px);
-        overflow: hidden;
+        background-color: #55555555;
+        -webkit-backdrop-filter: blur(8px);
+        backdrop-filter: blur(8px);
     }
 
     .hamburger {
+        z-index: 11;
         cursor: pointer;
         margin-left: 1.2rem;
     }

@@ -2,9 +2,7 @@ import {fail, redirect} from "@sveltejs/kit";
 
 export const load = async ({locals}) => {
     const user = locals.user;
-    if (user) {
-        redirect(302, "/")
-    }
+
 };
 
 export const actions = {
@@ -30,17 +28,27 @@ export const actions = {
 
     register:  async ({cookies, request}) => {
         const formData = Object.fromEntries(await request.formData());
-        const {email, password, city} = formData;
+        const {email, password, first_name, last_name, password_conf} = formData;
 
+        if (!first_name) {
+            return fail(400, { email, missing: {first_name: true }});
+        }
+        if (!last_name) {
+            return fail(400, { email, missing: {last_name: true }});
+        }
         if (!email) {
-            return fail(400, { email, missing: true });
+            return fail(400, { email, missing : {email: true }});
         }
         if (!password) {
-            return fail(400, { password, missing: true });
+            return fail(400, { email, missing: {password: true }});
         }
-        if (!city) {
-            return fail(400, { city, missing: true });
+        if (!password_conf) {
+            return fail(400, { email, missing: {password_conf: true }});
         }
+        if (password !== password_conf) {
+            return fail(400, { email, error: "Passwords do not match" });
+        }
+
         // const {error, token} = await createUser(email, password, city);
 
         // if (error) {

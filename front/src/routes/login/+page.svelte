@@ -9,9 +9,9 @@
 <div class="login">
     <label id="toggle" for="toggle-login">
         <input type="checkbox" id="toggle-login" bind:checked={login}>
-        <span id="toggle-moving" style="transform: translate({login ? '0' : '120px'}, 0);">{login ? 'Se connecter' : 'S\'inscrire'}</span>
-        <span>Se connecter</span>
-        <span>S'inscrire</span>
+        <span id="toggle-moving" style="transform: translate({login ? '0' : '120px'}, 0);">{login ? 'Log in' : 'Sign in'}</span>
+        <span>Log in</span>
+        <span>Sign in</span>
     </label>
 
     {#if login}
@@ -20,6 +20,7 @@
         <Register {form}/>
     {/if}
 </div>
+
 
 <style>
     .login {
