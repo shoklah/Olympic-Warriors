@@ -17,6 +17,8 @@ from .serializer import (
     TeamSportRoundSerializer,
     TeamResultSerializer,
     BlindtestGuessSerializer,
+    BlindtestGuessUpdateSerializer,
+    BlindtestRoundSerializer,
 )
 from .models import (
     Player,
@@ -28,6 +30,7 @@ from .models import (
     TeamSportRound,
     TeamResult,
     BlindtestGuess,
+    BlindtestRound,
 )
 
 
@@ -682,4 +685,94 @@ def getCorrectArtistBlindtestGuesses(request):
 def getCorrectSongBlindtestGuesses(request):
     guesses = BlindtestGuess.objects.filter(is_song_correct=True, is_active=True)
     serializer = BlindtestGuessSerializer(guesses, many=True)
+    return Response(serializer.data)
+
+
+@extend_schema(
+    summary="Get a blindtest round by ID",
+    responses={
+        200: BlindtestRoundSerializer,
+        404: OpenApiResponse(description="Blindtest round not found"),
+        500: OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["GET"])
+def getBlindtestRound(request, round_id):
+    try:
+        round = BlindtestRound.objects.get(id=round_id)
+    except BlindtestRound.DoesNotExist:
+        return Response({"error": "Blindtest round not found"}, status=404)
+    serializer = BlindtestRoundSerializer(round)
+    return Response(serializer.data)
+
+
+@extend_schema(
+    summary="Get all blindtest rounds",
+    responses={
+        200: BlindtestRoundSerializer(many=True),
+        500: OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["GET"])
+def getBlindtestRounds(request):
+    rounds = BlindtestRound.objects.filter(is_active=True)
+    serializer = BlindtestRoundSerializer(rounds, many=True)
+    return Response(serializer.data)
+
+
+@extend_schema(
+    summary="Get all blindtest rounds for a blindtest",
+    responses={
+        200: BlindtestRoundSerializer(many=True),
+        500: OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["GET"])
+def getBlindtestRoundsByBlindtest(request, blindtest_id):
+    rounds = BlindtestRound.objects.filter(blindtest=blindtest_id, is_active=True)
+    serializer = BlindtestRoundSerializer(rounds, many=True)
+    return Response(serializer.data)
+
+
+@extend_schema(
+    summary="Get all blindtest rounds for an edition",
+    responses={
+        200: BlindtestRoundSerializer(many=True),
+        500: OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["GET"])
+def getBlindtestRoundsByEdition(request, edition_id):
+    rounds = BlindtestRound.objects.filter(blindtest__edition=edition_id, is_active=True)
+    serializer = BlindtestRoundSerializer(rounds, many=True)
+    return Response(serializer.data)
+
+
+@extend_schema(
+    summary="Set the artist and song for a blindtest guess",
+    responses={
+        200: BlindtestGuessSerializer,
+        400: OpenApiResponse(description="Bad request"),
+        404: OpenApiResponse(description="Blindtest guess not found"),
+        500: OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["PATCH"])
+def setBlindtestGuessAnswer(request, guess_id):
+    try:
+        guess = BlindtestGuess.objects.get(id=guess_id)
+    except BlindtestGuess.DoesNotExist:
+        return Response({"error": "Blindtest guess not found"}, status=404)
+
+    serializer = BlindtestGuessUpdateSerializer(data=request.data)
+    try:
+        serializer.is_valid(raise_exception=True)
+    except Exception as e:
+        return Response({"error": "Bad request", "details": str(e)}, status=400)
+
+    guess.artist = serializer.validated_data["artist"]
+    guess.song = serializer.validated_data["song"]
+    guess.save()
+
+    serializer = BlindtestGuessSerializer(guess)
     return Response(serializer.data)

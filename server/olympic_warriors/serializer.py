@@ -13,6 +13,7 @@ from olympic_warriors.models import (
     Game,
     TeamSportRound,
     TeamResult,
+    BlindtestRound,
     BlindtestGuess,
 )
 
@@ -120,6 +121,24 @@ class BlindtestGuessSerializer(serializers.ModelSerializer):
     class Meta:
         model = BlindtestGuess
         fields = "__all__"
+
+
+class BlindtestGuessUpdateSerializer(serializers.Serializer):
+    artist = serializers.CharField(max_length=255, required=True)
+    song = serializers.CharField(max_length=255, required=True)
+
+
+class BlindtestRoundSerializer(serializers.ModelSerializer):
+    guesses = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BlindtestRound
+        fields = "__all__"
+
+    @extend_schema_field(BlindtestGuessSerializer(many=True))
+    def get_guesses(self, obj):
+        guesses = BlindtestGuess.objects.filter(blindtest_round=obj)
+        return BlindtestGuessSerializer(guesses, many=True).data
 
 
 class TeamResultSerializer(serializers.ModelSerializer):
