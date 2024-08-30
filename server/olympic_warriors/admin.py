@@ -65,6 +65,24 @@ class PlayerInline(TabularInline):
     extra = 1
 
 
+class RugbyEventInline(TabularInline):
+    """
+    Inline for the RugbyEvent model to be accessed from the Rugby model.
+    """
+
+    model = RugbyEvent
+    extra = 1
+
+
+class DodgeballEventInline(TabularInline):
+    """
+    Inline for the DodgeballEvent model to be accessed from the Dodgeball model.
+    """
+
+    model = DodgeballEvent
+    extra = 1
+
+
 class PlayerAdmin(ModelAdmin):
     """
     Admin dashboard configuration for the Player model.
@@ -237,6 +255,19 @@ class GameAdmin(ModelAdmin):
     ]
     list_filter = ["discipline", "team1", "team2", "edition", "is_active"]
     search_fields = ["discipline", "team1", "team2", "edition"]
+
+    def get_inline_instances(self, request: HttpRequest, obj=None):
+        """
+        Display the right inline model admin according to the discipline
+        """
+        inlines = []
+        if obj and obj.discipline:
+            if obj.discipline.name == "Rugby":
+                inlines.append(RugbyEventInline)
+            elif obj.discipline.name == "Dodgeball":
+                inlines.append(DodgeballEventInline)
+
+        return [inline(self.model, self.admin_site) for inline in inlines]
 
     def changelist_view(self, request, extra_context=None):
         """
