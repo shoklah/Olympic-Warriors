@@ -14,6 +14,7 @@ from .serializer import (
     DisciplineSerializer,
     PlayerRatingSerializer,
     GameSerializer,
+    GameEventSerializer,
     TeamSportRoundSerializer,
     TeamResultSerializer,
     BlindtestGuessSerializer,
@@ -27,6 +28,7 @@ from .models import (
     Discipline,
     PlayerRating,
     Game,
+    GameEvent,
     TeamSportRound,
     TeamResult,
     BlindtestGuess,
@@ -438,6 +440,105 @@ def getRefereedGamesByDisciplineAndTeam(request, team_id, discipline_id):
 def getGamesByRound(request, round_id):
     games = Game.objects.filter(round=round_id, is_active=True)
     serializer = GameSerializer(games, many=True)
+    return Response(serializer.data)
+
+
+# Game Events
+
+
+@extend_schema(
+    summary="Get a game event by ID",
+    responses={
+        200: GameEventSerializer,
+        404: OpenApiResponse(description="Game event not found"),
+        500: OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["GET"])
+def getGameEvent(request, event_id):
+    try:
+        event = GameEvent.objects.get(id=event_id)
+    except GameEvent.DoesNotExist:
+        return Response({"error": "Game event not found"}, status=404)
+    serializer = GameEventSerializer(event)
+    return Response(serializer.data)
+
+
+@extend_schema(
+    summary="Get all game events",
+    responses={
+        200: GameEventSerializer(many=True),
+        500: OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["GET"])
+def getGameEvents(request):
+    events = GameEvent.objects.filter(is_active=True)
+    serializer = GameEventSerializer(events, many=True)
+    return Response(serializer.data)
+
+
+@extend_schema(
+    summary="Get all game events for a game",
+    responses={
+        200: GameEventSerializer(many=True),
+        500: OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["GET"])
+def getGameEventsByGame(request, game_id):
+    events = GameEvent.objects.filter(game=game_id, is_active=True)
+    serializer = GameEventSerializer(events, many=True)
+    return Response(serializer.data)
+
+
+@extend_schema(
+    summary="Get all game events for a player",
+    responses={
+        200: GameEventSerializer(many=True),
+        500: OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["GET"])
+def getGameEventsByPlayer(request, player_id):
+    events = GameEvent.objects.filter(Q(player1=player_id) | Q(player2=player_id), is_active=True)
+    serializer = GameEventSerializer(events, many=True)
+    return Response(serializer.data)
+
+
+@extend_schema(
+    summary="Get all game events for a team",
+    responses={
+        200: GameEventSerializer(many=True),
+        500: OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["GET"])
+def getGameEventsByTeam(request, team_id):
+    events = GameEvent.objects.filter(
+        Q(player1__team=team_id) | Q(player2__team=team_id), is_active=True
+    )
+    serializer = GameEventSerializer(events, many=True)
+    return Response(serializer.data)
+
+
+@extend_schema(
+    summary="Create a game event",
+    responses={
+        200: GameEventSerializer,
+        400: OpenApiResponse(description="Bad request"),
+        500: OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["POST"])
+def createGameEvent(request):
+    serializer = GameEventSerializer(data=request.data)
+    try:
+        serializer.is_valid(raise_exception=True)
+    except Exception as e:
+        return Response({"error": "Bad request", "details": str(e)}, status=400)
+
+    serializer.save()
     return Response(serializer.data)
 
 

@@ -11,6 +11,7 @@ from olympic_warriors.models import (
     Discipline,
     PlayerRating,
     Game,
+    GameEvent,
     TeamSportRound,
     TeamResult,
     BlindtestRound,
@@ -101,6 +102,12 @@ class PlayerRatingSerializer(serializers.ModelSerializer):
 class GameSerializer(serializers.ModelSerializer):
     class Meta:
         model = Game
+        fields = "__all__"
+
+
+class GameEventSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = GameEvent
         fields = "__all__"
 
 
