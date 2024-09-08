@@ -14,14 +14,21 @@ class Rugby(Discipline):
         """
         Override save method to set discipline name to rugby, schedule games and initialize team results.
         """
-        self.name = 'Rugby'
-        super().save(*args, **kwargs)
-        teams = Team.objects.filter(edition=self.edition, is_active=True)
-        for team in teams:
-            TeamResult.objects.create(
-                team=team, discipline=self, result_type=TeamResult.TeamResultTypes.POINTS, points=0
-            )
-        self.schedule_games()
+        # Check if the object is already in the database
+        if self.pk is None:
+            self.name = 'Rugby'
+            super().save(*args, **kwargs)
+            teams = Team.objects.filter(edition=self.edition, is_active=True)
+            for team in teams:
+                TeamResult.objects.create(
+                    team=team,
+                    discipline=self,
+                    result_type=TeamResult.TeamResultTypes.POINTS,
+                    points=0,
+                )
+            self.schedule_games()
+        else:
+            super().save(*args, **kwargs)
 
 
 class RugbyEvent(GameEvent):
@@ -96,15 +103,19 @@ class RugbyEvent(GameEvent):
         """
         self._players_validation()
         self._discipline_validation()
-        # Call the original save method to save the object
-        super().save(*args, **kwargs)
 
-        match self.event_type:
-            case self.RugbyEventTypes.TRY:
-                points = self.process_try_points()
-                game = Game.objects.get(id=self.game.id)
-                if game.team1.id == self.player1.team.id:
-                    game.score1 += points
-                else:
-                    game.score2 += points
-                game.save()
+        # Check if the object is already in the database
+        if self.pk is None:
+            super().save(*args, **kwargs)
+
+            match self.event_type:
+                case self.RugbyEventTypes.TRY:
+                    points = self.process_try_points()
+                    game = Game.objects.get(id=self.game.id)
+                    if game.team1.id == self.player1.team.id:
+                        game.score1 += points
+                    else:
+                        game.score2 += points
+                    game.save()
+        else:
+            super().save(*args, **kwargs)

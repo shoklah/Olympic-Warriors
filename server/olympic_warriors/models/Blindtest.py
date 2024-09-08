@@ -18,18 +18,26 @@ class Blindtest(Discipline):
         """
         Override save method to set discipline name to Blindtest
         """
-        self.name = 'Blindtest'
-        super().save(*args, **kwargs)
-        teams = Team.objects.filter(edition=self.edition, is_active=True)
-        for team in teams:
-            TeamResult.objects.create(
-                team=team, discipline=self, result_type=TeamResult.TeamResultTypes.POINTS, points=0
-            )
 
-        for i in range(1, 11):
-            blindtest_round = BlindtestRound.objects.create(blindtest=self, order=i)
+        # Check if the object is already in the database
+        if self.pk is None:
+            self.name = 'Blindtest'
+            super().save(*args, **kwargs)
+            teams = Team.objects.filter(edition=self.edition, is_active=True)
             for team in teams:
-                BlindtestGuess.objects.create(team=team, blindtest_round=blindtest_round)
+                TeamResult.objects.create(
+                    team=team,
+                    discipline=self,
+                    result_type=TeamResult.TeamResultTypes.POINTS,
+                    points=0,
+                )
+
+            for i in range(1, 11):
+                blindtest_round = BlindtestRound.objects.create(blindtest=self, order=i)
+                for team in teams:
+                    BlindtestGuess.objects.create(team=team, blindtest_round=blindtest_round)
+        else:
+            super().save(*args, **kwargs)
 
 
 class BlindtestRound(models.Model):

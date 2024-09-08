@@ -14,14 +14,21 @@ class Dodgeball(Discipline):
         """
         Override save method to set discipline name to dodgeball
         """
-        self.name = 'Dodgeball'
-        super().save(*args, **kwargs)
-        teams = Team.objects.filter(edition=self.edition, is_active=True)
-        for team in teams:
-            TeamResult.objects.create(
-                team=team, discipline=self, result_type=TeamResult.TeamResultTypes.POINTS, points=0
-            )
-        self.schedule_games()
+        # Check if the object is already in the database
+        if self.pk is None:
+            self.name = 'Dodgeball'
+            super().save(*args, **kwargs)
+            teams = Team.objects.filter(edition=self.edition, is_active=True)
+            for team in teams:
+                TeamResult.objects.create(
+                    team=team,
+                    discipline=self,
+                    result_type=TeamResult.TeamResultTypes.POINTS,
+                    points=0,
+                )
+            self.schedule_games()
+        else:
+            super().save(*args, **kwargs)
 
 
 class DodgeballEvent(GameEvent):
@@ -124,23 +131,26 @@ class DodgeballEvent(GameEvent):
         """
         self._players_validation()
         self._discipline_validation()
-        # Call the original save method to save the object
-        super().save(*args, **kwargs)
 
-        match self.event_type:
-            case self.DodgeballEventTypes.HIT:
-                if self.is_hit_end_of_round():
-                    game = Game.objects.get(id=self.game.id)
-                    if game.team1.id == self.player1.team.id:
-                        game.score1 += 1
-                    else:
-                        game.score2 += 1
-                    game.save()
-            case self.DodgeballEventTypes.FOUL:
-                if self.is_foul_end_of_round():
-                    game = Game.objects.get(id=self.game.id)
-                    if game.team1.id == self.player1.team.id:
-                        game.score2 += 1
-                    else:
-                        game.score1 += 1
-                    game.save()
+        # Check if the object is already in the database
+        if self.pk is None:
+            super().save(*args, **kwargs)
+            match self.event_type:
+                case self.DodgeballEventTypes.HIT:
+                    if self.is_hit_end_of_round():
+                        game = Game.objects.get(id=self.game.id)
+                        if game.team1.id == self.player1.team.id:
+                            game.score1 += 1
+                        else:
+                            game.score2 += 1
+                        game.save()
+                case self.DodgeballEventTypes.FOUL:
+                    if self.is_foul_end_of_round():
+                        game = Game.objects.get(id=self.game.id)
+                        if game.team1.id == self.player1.team.id:
+                            game.score2 += 1
+                        else:
+                            game.score1 += 1
+                        game.save()
+        else:
+            super().save(*args, **kwargs)
