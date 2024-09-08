@@ -56,7 +56,9 @@ class RugbyEvent(GameEvent):
         Check previous events to grant the right number of points for a try according to tackles
         """
         points = 3
-        previous_events = RugbyEvent.objects.filter(game=self.game).order_by('-time')
+        previous_events = RugbyEvent.objects.filter(game=self.game, is_active=True).order_by(
+            '-time'
+        )
         for event in previous_events:
             if event.id == self.id:
                 continue
@@ -104,13 +106,23 @@ class RugbyEvent(GameEvent):
         self._players_validation()
         self._discipline_validation()
 
+        created = self.pk is None
+        removed = False
+
+        if not created:
+            removed = RugbyEvent.objects.get(pk=self.pk).is_active and not self.is_active
+
         # Check if the object is already in the database
-        if self.pk is None:
+        if created or removed:
             super().save(*args, **kwargs)
 
             match self.event_type:
                 case self.RugbyEventTypes.TRY:
                     points = self.process_try_points()
+
+                    if removed:
+                        points = -points
+
                     game = Game.objects.get(id=self.game.id)
                     if game.team1.id == self.player1.team.id:
                         game.score1 += points
