@@ -171,7 +171,7 @@ class DisciplineAdmin(ModelAdmin):
     """
 
     readonly_fields = ["name"]
-    list_display = ["name", "edition"]
+    list_display = ["name", "edition", "reveal_score"]
     list_filter = ["is_active", "edition", "name"]
     search_fields = ["name", "edition"]
 
