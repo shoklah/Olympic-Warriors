@@ -41,13 +41,15 @@ class TeamResult(models.Model):
 
         if self.result_type == TeamResult.TeamResultTypes.TIME:
             return (
-                TeamResult.objects.filter(discipline=self.discipline, time__lt=self.time).count()
+                TeamResult.objects.filter(
+                    discipline=self.discipline, time__lt=self.time, is_active=True
+                ).count()
                 + 1
             )
         elif self.result_type == TeamResult.TeamResultTypes.POINTS:
             return (
                 TeamResult.objects.filter(
-                    discipline=self.discipline, points__gt=self.points
+                    discipline=self.discipline, points__gt=self.points, is_active=True
                 ).count()
                 + 1
             )
@@ -97,7 +99,9 @@ class Team(models.Model):
         Get the total global points of the team
         """
         points = 0
-        team_results = TeamResult.objects.filter(team=self, discipline__edition=self.edition)
+        team_results = TeamResult.objects.filter(
+            team=self, discipline__edition=self.edition, is_active=True
+        )
 
         for team_result in team_results:
             points += team_result.global_points
