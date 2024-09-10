@@ -58,9 +58,20 @@
         display: flex;
         padding-top: 6rem;
         flex-direction: column;
-        background-color: #55555555;
         -webkit-backdrop-filter: blur(8px);
         backdrop-filter: blur(8px);
+    }
+
+    .menu::after {
+        content: "";
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background-color: var(--color-bg-0);
+        opacity: .4;
+        z-index: -1;
     }
 
     .hamburger {

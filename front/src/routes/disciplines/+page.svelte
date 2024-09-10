@@ -12,7 +12,6 @@
 
 </script>
 
-<h1>disciplines</h1>
 <div class="grid-container">
     {#each data.disciplines as discipline}
         <a href="/disciplines/{discipline.id}">
@@ -30,7 +29,6 @@
         height: 90%;
         width: 50%;
         right: 0;
-        opacity: .3;
     }
 
     .grid-container {
@@ -45,10 +43,28 @@
     .card {
         position: relative;
         height: 200px;
-        background-color: var(--color-theme-1);
+        background-color: var(--color-theme-3);
         border-radius: 8px;
+        border: 2px solid #999999;
         padding: 16px;
         transition: .2s;
+    }
+
+    .card::after {
+        content: "";
+        background: #999999;
+        width: 50%;
+        height: 30%;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        filter: blur(120px);
+        transition: .3s ease-in-out;
+    }
+
+    .card:hover::after {
+        background: #dddddd;
     }
 
     .card:hover {

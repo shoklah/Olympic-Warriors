@@ -7,6 +7,7 @@
 		{ name: 'Home', url: '/' },
 		{ name: 'Teams', url: '/teams' },
 		{ name: 'Disciplines', url: '/disciplines' },
+		{ name: 'Photos', url: '/photos' },
 		{ name: 'Login', url: '/login' }
 	];
 </script>

@@ -3,7 +3,7 @@ export function cleanString(str) {
     return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
 }
 
-export async function request(url, method, token, body) {
+export async function requestAPI(url, method, token, body) {
     try {
         const options = {
             method: method,
