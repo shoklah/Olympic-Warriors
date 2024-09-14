@@ -3,6 +3,7 @@ Models for Blindtest discipline
 """
 
 from django.db import models
+from django.core.validators import MinValueValidator, MaxValueValidator
 
 from .Discipline import Discipline
 from .Team import Team, TeamResult
@@ -17,13 +18,42 @@ class Blindtest(Discipline):
         """
         Override save method to set discipline name to Blindtest
         """
-        self.name = 'Blindtest'
-        super().save(*args, **kwargs)
-        teams = Team.objects.filter(edition=self.edition, is_active=True)
-        for team in teams:
-            TeamResult.objects.create(
-                team=team, discipline=self, result_type=TeamResult.TeamResultTypes.POINTS, points=0
-            )
+
+        # Check if the object is already in the database
+        if self.pk is None:
+            self.name = 'Blindtest'
+            super().save(*args, **kwargs)
+            teams = Team.objects.filter(edition=self.edition, is_active=True)
+            for team in teams:
+                TeamResult.objects.create(
+                    team=team,
+                    discipline=self,
+                    result_type=TeamResult.TeamResultTypes.POINTS,
+                    points=0,
+                )
+
+            for i in range(1, 11):
+                blindtest_round = BlindtestRound.objects.create(blindtest=self, order=i)
+                for team in teams:
+                    BlindtestGuess.objects.create(team=team, blindtest_round=blindtest_round)
+        else:
+            super().save(*args, **kwargs)
+
+
+class BlindtestRound(models.Model):
+    """
+    A round of a blindtest
+    """
+
+    blindtest = models.ForeignKey(Blindtest, on_delete=models.CASCADE, related_name='blindtest')
+    order = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(10)])
+    is_active = models.BooleanField(default=True)
+
+    def __str__(self):
+        """
+        String representation of the object
+        """
+        return f'{self.blindtest}: {str(self.order)}'
 
 
 class BlindtestGuess(models.Model):
@@ -32,11 +62,14 @@ class BlindtestGuess(models.Model):
     """
 
     team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='team')
-    blindtest = models.ForeignKey(Blindtest, on_delete=models.CASCADE, related_name='blindtest')
-    artist = models.CharField(max_length=255)
-    song = models.CharField(max_length=255)
+    blindtest_round = models.ForeignKey(
+        BlindtestRound, on_delete=models.CASCADE, related_name='blindtest_round'
+    )
+    artist = models.CharField(max_length=255, default='')
+    song = models.CharField(max_length=255, default='')
     is_artist_correct = models.BooleanField(default=False)
     is_song_correct = models.BooleanField(default=False)
+
     is_active = models.BooleanField(default=True)
 
     def __str__(self):

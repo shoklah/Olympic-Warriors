@@ -22,6 +22,7 @@ from .models import (
     HideAndSeek,
     Orienteering,
     Blindtest,
+    BlindtestRound,
     BlindtestGuess,
 )
 
@@ -47,6 +48,17 @@ class BlindtestGuessInline(TabularInline):
     extra = 1
 
 
+class BlindtestRoundInline(TabularInline):
+    """
+    Inline for the BlindtestRound model to be accessed from the Blindtest model.
+    """
+
+    model = BlindtestRound
+    extra = 1
+
+    inlines = [BlindtestGuessInline]
+
+
 class PlayerRatingInline(TabularInline):
     """
     Inline for the PlayerRating model to be accessed from the Player model.
@@ -62,6 +74,24 @@ class PlayerInline(TabularInline):
     """
 
     model = Player
+    extra = 1
+
+
+class RugbyEventInline(TabularInline):
+    """
+    Inline for the RugbyEvent model to be accessed from the Rugby model.
+    """
+
+    model = RugbyEvent
+    extra = 1
+
+
+class DodgeballEventInline(TabularInline):
+    """
+    Inline for the DodgeballEvent model to be accessed from the Dodgeball model.
+    """
+
+    model = DodgeballEvent
     extra = 1
 
 
@@ -141,7 +171,7 @@ class DisciplineAdmin(ModelAdmin):
     """
 
     readonly_fields = ["name"]
-    list_display = ["name", "edition"]
+    list_display = ["name", "edition", "reveal_score"]
     list_filter = ["is_active", "edition", "name"]
     search_fields = ["name", "edition"]
 
@@ -158,7 +188,7 @@ class BlindtestAdmin(DisciplineAdmin):
     Admin dashboard configuration for the Blindtest model.
     """
 
-    inlines = [BlindtestGuessInline]
+    inlines = [BlindtestRoundInline]
 
 
 class BlindtestGuessAdmin(ModelAdmin):
@@ -166,9 +196,35 @@ class BlindtestGuessAdmin(ModelAdmin):
     Admin dashboard configuration for the BlindtestGuess model.
     """
 
-    list_display = ["team", "blindtest", "artist", "song", "is_artist_correct", "is_song_correct"]
-    list_filter = ["team", "blindtest", "is_artist_correct", "is_song_correct", "is_active"]
-    search_fields = ["team", "blindtest", "artist", "song"]
+    list_display = [
+        "team",
+        "blindtest_round",
+        "artist",
+        "song",
+        "is_artist_correct",
+        "is_song_correct",
+    ]
+    list_filter = ["team", "blindtest_round", "is_artist_correct", "is_song_correct", "is_active"]
+    search_fields = ["team", "blindtest_round", "artist", "song"]
+
+    def changelist_view(self, request, extra_context=None):
+        """
+        Filter the request to only show active items.
+        """
+        request = request_only_active(request)
+        return super().changelist_view(request, extra_context)
+
+
+class BlindtestRoundAdmin(ModelAdmin):
+    """
+    Admin dashboard configuration for the BlindtestRound model.
+    """
+
+    list_display = ["blindtest", "order", "is_active"]
+    list_filter = ["blindtest", "order", "is_active"]
+    search_fields = ["blindtest", "order"]
+
+    inlines = [BlindtestGuessInline]
 
     def changelist_view(self, request, extra_context=None):
         """
@@ -237,6 +293,19 @@ class GameAdmin(ModelAdmin):
     ]
     list_filter = ["discipline", "team1", "team2", "edition", "is_active"]
     search_fields = ["discipline", "team1", "team2", "edition"]
+
+    def get_inline_instances(self, request: HttpRequest, obj=None):
+        """
+        Display the right inline model admin according to the discipline
+        """
+        inlines = []
+        if obj and obj.discipline:
+            if obj.discipline.name == "Rugby":
+                inlines.append(RugbyEventInline)
+            elif obj.discipline.name == "Dodgeball":
+                inlines.append(DodgeballEventInline)
+
+        return [inline(self.model, self.admin_site) for inline in inlines]
 
     def changelist_view(self, request, extra_context=None):
         """
@@ -314,4 +383,5 @@ site.register(DodgeballEvent, DodgeballEventAdmin)
 site.register(HideAndSeek, DisciplineAdmin)
 site.register(Orienteering, DisciplineAdmin)
 site.register(Blindtest, BlindtestAdmin)
+site.register(BlindtestRound, BlindtestRoundAdmin)
 site.register(BlindtestGuess, BlindtestGuessAdmin)
