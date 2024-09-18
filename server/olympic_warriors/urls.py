@@ -83,7 +83,7 @@ urlpatterns = [
     path("events/game/<int:game_id>/", views.getGameEventsByGame),
     path("events/player/<int:player_id>/", views.getGameEventsByPlayer),
     path("events/team/<int:team_id>/", views.getGameEventsByTeam),
-    path("events/team/<int:team_id>/game/<int:game_id>/", views.getGameEventsByTeamAndGame),
+#     path("events/team/<int:team_id>/game/<int:game_id>/", views.getGameEventsByTeamAndGame),
     # rounds
     path("round/<int:round_id>/", views.getRound),
     path("rounds/", views.getRounds),

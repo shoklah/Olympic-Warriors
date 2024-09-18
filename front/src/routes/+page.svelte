@@ -13,6 +13,7 @@
 
     let countdownDate = new Date('September 21, 2024 09:00:00').getTime();
     let days, hours, minutes, seconds;
+    let OwStarted = false;
 
     const updateCountdown = () => {
         const now = new Date().getTime();
@@ -26,6 +27,7 @@
         if (distance < 0) {
             clearInterval(interval);
             days = hours = minutes = seconds = 0;
+            OwStarted = true;
         }
     };
 
@@ -54,12 +56,19 @@
     </div>
 </div>
 
-<div id="countdown">
-    <div><span>{days}</span>Days</div>
-    <div><span>{hours}</span>Hours</div>
-    <div><span>{minutes}</span>Minutes</div>
-    <div><span>{seconds}</span>Secondes</div>
-</div>
+{#if !OwStarted}
+    <div id="countdown">
+        <div><span>{days}</span>Days</div>
+        <div><span>{hours}</span>Hours</div>
+        <div><span>{minutes}</span>Minutes</div>
+        <div><span>{seconds}</span>Secondes</div>
+    </div>
+{:else}
+    <div id="ranking">
+        <a href="/ranking">Ranking</a>
+    </div>
+{/if}
+
 
 <style>
     .sportcolumn {
@@ -90,13 +99,28 @@
         width: min(100px, 10vw);
     }
 
-    #countdown {
+    #countdown, #ranking {
         display: flex;
         justify-content: center;
         gap: 2rem;
         font-size: 1rem;
         margin: 1rem 0;
         color: var(--color-theme-1);
+    }
+
+    #ranking a {
+        color: var(--color-bg-0);
+        background-color: var(--color-theme-1);
+        padding: .6rem 4rem;
+        border-radius: 2em;
+        font-weight: 700;
+        font-size: 2rem;
+        transition: .3s;
+        text-decoration: none;
+    }
+
+    #ranking a:hover {
+        opacity: .8;
     }
 
     #countdown div {
@@ -113,7 +137,7 @@
     }
 
     #eclipse {
-        width: min(100%, 1200px);
+        width: min(98%, 1200px);
         margin: 0 auto;
         transform: translate(1%, 0); /* to correct img default */
         z-index: -10;
@@ -133,4 +157,30 @@
         align-items: center;
     }
 
+    @media (max-width: 1000px) {
+        .sportcolumn {
+            gap: 100px;
+        }
+
+        .sportcolumn img {
+            width: min(100px, 20vw);
+        }
+
+        #eclipse {
+            width: min(98%, 800px);
+        }
+
+        #title {
+            width: min(25%, 200px);
+        }
+
+        .fullscreen {
+            height: 60vh;
+        }
+
+        #ranking a {
+            padding: .6rem 2rem;
+            font-size: 1.2rem;
+        }
+    }
 </style>

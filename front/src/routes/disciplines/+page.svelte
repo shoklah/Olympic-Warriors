@@ -12,6 +12,7 @@
 
 </script>
 
+<h1>Disciplines</h1>
 <div class="grid-container">
     {#each data.disciplines as discipline}
         <a href="/disciplines/{discipline.id}">
@@ -24,6 +25,10 @@
 </div>
 
 <style>
+    h1 {
+        visibility: hidden;
+    }
+
     img {
         position: absolute;
         height: 90%;
@@ -42,8 +47,8 @@
 
     .card {
         position: relative;
-        height: 200px;
-        background-color: var(--color-theme-3);
+        height: 160px;
+        background-color: var(--color-theme-1);
         border-radius: 8px;
         border: 2px solid #999999;
         padding: 16px;
@@ -52,7 +57,7 @@
 
     .card::after {
         content: "";
-        background: #999999;
+        background: #99999900;
         width: 50%;
         height: 30%;
         position: absolute;
@@ -72,7 +77,7 @@
     }
 
     h2 {
-        color: var(--color-bg-0);
+        color: var(--color-theme-2);
         font-size: 1.5rem;
         font-weight: 600;
     }
@@ -81,13 +86,19 @@
         text-decoration: none;
     }
 
-    @media (max-width: 580px) {
+    @media (max-width: 1000px) {
         h1 {
-            margin-top: 0;
+            display: none;
         }
+    }
 
+    @media (max-width: 580px) {
         .grid-container {
             grid-template-columns: 1fr;
+        }
+
+        .card {
+            height: 100px;
         }
     }
 </style>

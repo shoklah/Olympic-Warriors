@@ -3,13 +3,7 @@
 	import logo from '$lib/img/logo.svg';
 	import Menu from "./menu.svelte";
 
-	let tabs = [
-		{ name: 'Home', url: '/' },
-		{ name: 'Teams', url: '/teams' },
-		{ name: 'Disciplines', url: '/disciplines' },
-		{ name: 'Photos', url: '/photos' },
-		{ name: 'Login', url: '/login' }
-	];
+	$: tabs = $page.data.sections;
 </script>
 
 <header>
@@ -32,6 +26,27 @@
 </header>
 
 <style>
+	li:last-of-type a {
+		color: var(--color-bg-0);
+		background-color: var(--color-theme-1);
+		border-radius: 2em;
+		margin: 0 0 0 2em;
+		text-decoration: none;
+	}
+
+	nav a {
+		display: flex;
+		height: 90%;
+		align-items: center;
+		padding: 0 2em;
+		color: var(--color-theme-1);
+		font-weight: 700;
+		font-size: 1rem;
+		text-transform: uppercase;
+		letter-spacing: .2em;
+		text-decoration: none;
+	}
+
 	header {
 		display: flex;
 		z-index: 10;
@@ -47,8 +62,8 @@
 	}
 
 	.logo img {
-		margin-left: 3vw;
-		height: 2.2em;
+		margin-left: 2vw;
+		height: 3em;
 		object-fit: contain;
 	}
 
@@ -83,31 +98,18 @@
 		view-transition-name: indicator;
 	}
 
-	nav a {
-		display: flex;
-		height: 100%;
-		align-items: center;
-		padding: 0 2em;
-		color: var(--color-theme-1);
-		font-weight: 700;
-		font-size: 1rem;
-		text-transform: uppercase;
-		letter-spacing: .2em;
-		text-decoration: none;
-	}
-
 	a:hover {
 		color: var(--color-theme-1);
 	}
 
 	/* Media queries for larger screens */
-	@media (min-width: 769px) {
+	@media (min-width: 1000px) {
 		ul {
 			display: flex;
 		}
 	}
 
-	@media (max-width: 768px) {
+	@media (max-width: 1000px) {
 		ul {
 			display: none;
 		}

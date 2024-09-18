@@ -26,16 +26,21 @@
 
 <style>
     /* Media queries for larger screens */
-    @media (min-width: 769px) {
+    @media (min-width: 1000px) {
         .hamburger {
             display: none;
         }
     }
 
-    @media (max-width: 768px) {
+    @media (max-width: 1000px) {
         .hamburger {
             display: block;
         }
+    }
+
+    a:last-of-type {
+        color: var(--color-bg-0) !important;
+        background-color: var(--color-theme-1);
     }
 
     .menu a {
@@ -71,7 +76,7 @@
         height: 100vh;
         background-color: var(--color-bg-0);
         opacity: .4;
-        z-index: -1;
+        z-index: -11;
     }
 
     .hamburger {

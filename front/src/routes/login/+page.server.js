@@ -7,8 +7,6 @@ export const actions = {
         const formData = Object.fromEntries(await request.formData());
         const { username, password } = formData;
 
-        console.log('login action called')
-
         // Validation
         const errors = {};
         if (!username) errors.username = 'username required';
