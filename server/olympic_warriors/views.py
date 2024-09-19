@@ -607,6 +607,27 @@ def createGameEvent(request):
     return Response(serializer.data)
 
 
+@extend_schema(
+    summary="Delete a game event",
+    responses={
+        200: GameEventSerializer,
+        404: OpenApiResponse(description="Game event not found"),
+        500: OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["DELETE"])
+def deleteGameEvent(request, event_id):
+    try:
+        event = GameEvent.objects.get(id=event_id)
+    except GameEvent.DoesNotExist:
+        return Response({"error": "Game event not found"}, status=404)
+
+    event.is_active = False
+    event.save()
+    serializer = GameEventSerializer(event)
+    return Response(serializer.data)
+
+
 # Rounds
 
 

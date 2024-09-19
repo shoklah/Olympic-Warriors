@@ -5,9 +5,9 @@
     import title from "$lib/img/title.svg";
 
     import blindtest from "$lib/img/icons/blindtest.svg";
-    import cachecache from "$lib/img/icons/cachecache.svg";
+    import hideandseek from "$lib/img/icons/hideandseek.svg";
     import crossfit from "$lib/img/icons/crossfit.svg";
-    import co from "$lib/img/icons/co.svg";
+    import orienteering from "$lib/img/icons/orienteering.svg";
     import dodgeball from "$lib/img/icons/dodgeball.svg";
     import rugby from "$lib/img/icons/rugby.svg";
 
@@ -44,19 +44,19 @@
     <div class="sportcolumn">
         <img src={rugby} alt="rugby">
 
-        <img src={cachecache} alt="cache cache">
+        <img src={hideandseek} alt="cache cache">
         <img src={crossfit} alt="crossfit">
     </div>
     <div class="sportcolumn">
-        <img src={co} alt="course d'orientation">
+        <img src={orienteering} alt="course d'orientation">
         <img src={dodgeball} alt="dodgeball">
         <img src={blindtest} alt="blindtest">
     </div>
 </div>
 
 <div id="countdown">
-    <div><span>{days}</span>Jours</div>
-    <div><span>{hours}</span>Heures</div>
+    <div><span>{days}</span>Days</div>
+    <div><span>{hours}</span>Hours</div>
     <div><span>{minutes}</span>Minutes</div>
     <div><span>{seconds}</span>Secondes</div>
 </div>

@@ -84,11 +84,12 @@ urlpatterns = [
     path("games/round/<int:round>/", views.getGamesByRound),
     # game events
     path("event/<int:event_id>/", views.getGameEvent),
+    path("event/create/", views.createGameEvent),
+    path("event/<int:event_id>/delete/", views.deleteGameEvent),
     path("events/", views.getGameEvents),
     path("events/game/<int:game_id>/", views.getGameEventsByGame),
     path("events/player/<int:player_id>/", views.getGameEventsByPlayer),
     path("events/team/<int:team_id>/", views.getGameEventsByTeam),
-    path("events/team/<int:team_id>/game/<int:game_id>/", views.getGameEventsByTeamAndGame),
     # rounds
     path("round/<int:round_id>/", views.getRound),
     path("rounds/", views.getRounds),

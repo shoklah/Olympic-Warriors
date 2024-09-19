@@ -1,43 +1,52 @@
 <script>
 	import { page } from '$app/stores';
 	import logo from '$lib/img/logo.svg';
+	import Menu from "./menu.svelte";
+
+	let tabs = [
+		{ name: 'Home', url: '/' },
+		{ name: 'Teams', url: '/teams' },
+		{ name: 'Disciplines', url: '/disciplines' },
+		{ name: 'Photos', url: '/photos' },
+		{ name: 'Login', url: '/login' }
+	];
 </script>
 
 <header>
-	<div id="logo">
+	<div class="logo">
 		<a href="/">
-			<img src={logo} alt="OW" />
+			<img src="{logo}" alt="OW" />
 		</a>
 	</div>
 
-	<nav >
-<!--		<ul>-->
-<!--			<li aria-current={$page.url.pathname === '/' ? 'page' : undefined}>-->
-<!--				<a href="/">Home</a>-->
-<!--			</li>-->
-<!--			<li aria-current={$page.url.pathname === '/login' ? 'page' : undefined}>-->
-<!--				<a href="/login">Login</a>-->
-<!--			</li>-->
-<!--		</ul>-->
+	<nav>
+		<ul>
+			{#each tabs as tab}
+				<li aria-current={$page.url.pathname === tab.url ? 'page' : undefined}>
+					<a href="{tab.url}">{tab.name}</a>
+				</li>
+			{/each}
+		</ul>
 	</nav>
+	<Menu {tabs}/>
 </header>
 
 <style>
 	header {
 		display: flex;
-		padding: 2em clamp( 0em, 2vw, 5em);
+		z-index: 10;
+		padding: 2em clamp(0em, 2vw, 5em);
 		justify-content: space-between;
-		view-transition-name: header;
 	}
 
-	#logo a {
+	.logo a {
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		height: 100%;
 	}
 
-	#logo img {
+	.logo img {
 		margin-left: 3vw;
 		height: 2.2em;
 		object-fit: contain;
@@ -50,16 +59,12 @@
 	}
 
 	ul {
-		position: relative;
-		padding: 0;
-		margin: 0;
-		height: 3em;
 		display: flex;
 		justify-content: center;
 		align-items: center;
-		list-style: none;
-		background: var(--background);
-		background-size: contain;
+		padding: 0;
+		margin: 0;
+		height: 3em;
 	}
 
 	li {
@@ -68,14 +73,12 @@
 	}
 
 	li[aria-current='page']::before {
-		--width: 30px;
-		--height: 3px;
 		content: '';
-		width: var(--width);
-		height: var(--height);
+		width: 30px;
+		height: 3px;
 		position: absolute;
 		top: 0;
-		left: calc(50% - var(--width) / 2);
+		left: calc(50% - 15px);
 		background-color: var(--color-theme-1);
 		view-transition-name: indicator;
 	}
@@ -87,14 +90,26 @@
 		padding: 0 2em;
 		color: var(--color-theme-1);
 		font-weight: 700;
-		font-size: .8rem;
+		font-size: 1rem;
 		text-transform: uppercase;
 		letter-spacing: .2em;
 		text-decoration: none;
-		transition: color 0.2s linear;
 	}
 
 	a:hover {
 		color: var(--color-theme-1);
+	}
+
+	/* Media queries for larger screens */
+	@media (min-width: 769px) {
+		ul {
+			display: flex;
+		}
+	}
+
+	@media (max-width: 768px) {
+		ul {
+			display: none;
+		}
 	}
 </style>

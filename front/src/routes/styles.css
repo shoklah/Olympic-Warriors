@@ -8,7 +8,7 @@
 	--color-bg-1: rgb(250, 250, 250);
 	--color-bg-2: rgb(250, 250, 248);
 	--color-theme-1: #F9F3C1;
-	--color-theme-2: #4c4c4c;
+	--color-theme-2: #F9F3C1;
 	--color-theme-3: #444444;
 	--color-text: rgba(0, 0, 0, 0.7);
 	--column-width: 42rem;
@@ -78,6 +78,11 @@ input,
 button {
 	font-size: inherit;
 	font-family: inherit;
+}
+
+ul {
+	list-style-type: none;
+	padding: 0;
 }
 
 button:focus:not(:focus-visible) {
