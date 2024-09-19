@@ -3,11 +3,13 @@ Logic for the Olympic Warriors app endpoints.
 """
 
 from django.db.models import Q
+from django.contrib.auth.models import User
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 
 from .serializer import (
+    UserSerializer,
     PlayerSerializer,
     EditionSerializer,
     TeamSerializer,
@@ -34,6 +36,51 @@ from .models import (
     BlindtestGuess,
     BlindtestRound,
 )
+
+# Users
+
+@extend_schema(
+    summary="Get a user by ID",
+    responses={
+        200: UserSerializer,
+        404: OpenApiResponse(description="User not found"),
+        500: OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["GET"])
+def getUser(request, user_id):
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Response({"error": "User not found"}, status=404)
+    serializer = UserSerializer(user)
+    return Response(serializer.data)
+
+@extend_schema(
+    summary="Get all users",
+    responses={
+        200: UserSerializer(many=True),
+        500: OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["GET"])
+def getUsers(request):
+    users = User.objects.all()
+    serializer = UserSerializer(users, many=True)
+    return Response(serializer.data)
+
+@extend_schema(
+    summary="Get current user",
+    responses={
+        200: UserSerializer,
+        500: OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["GET"])
+def getCurrentUser(request):
+    user = request.user
+    serializer = UserSerializer(user)
+    return Response(serializer.data)
 
 
 # Players
