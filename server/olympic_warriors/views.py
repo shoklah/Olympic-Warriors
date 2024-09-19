@@ -937,6 +937,7 @@ def getBlindtestRoundsByEdition(request, edition_id):
 
 @extend_schema(
     summary="Set the artist and song for a blindtest guess",
+    request=BlindtestGuessUpdateSerializer,
     responses={
         200: BlindtestGuessSerializer,
         400: OpenApiResponse(description="Bad request"),
