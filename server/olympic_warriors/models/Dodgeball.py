@@ -56,7 +56,9 @@ class DodgeballEvent(GameEvent):
         Check previous events to end the round and grant points
         """
         live_players = 3
-        previous_events = DodgeballEvent.objects.filter(game=self.game).order_by('-time')
+        previous_events = DodgeballEvent.objects.filter(game=self.game, is_active=True).order_by(
+            '-time'
+        )
         for event in previous_events:
             if event.id == self.id:
                 continue
@@ -85,7 +87,9 @@ class DodgeballEvent(GameEvent):
         Check previous events to end the round and grant points
         """
         live_players = 3
-        previous_events = DodgeballEvent.objects.filter(game=self.game).order_by('-time')
+        previous_events = DodgeballEvent.objects.filter(game=self.game, is_active=True).order_by(
+            '-time'
+        )
         for event in previous_events:
             if event.id == self.id:
                 continue
@@ -132,8 +136,14 @@ class DodgeballEvent(GameEvent):
         self._players_validation()
         self._discipline_validation()
 
+        created = self.pk is None
+        removed = False
+
+        if not created:
+            removed = DodgeballEvent.objects.get(pk=self.pk).is_active and not self.is_active
+
         # Check if the object is already in the database
-        if self.pk is None:
+        if created or removed:
             super().save(*args, **kwargs)
             match self.event_type:
                 case self.DodgeballEventTypes.HIT:
