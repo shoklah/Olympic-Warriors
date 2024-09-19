@@ -37,10 +37,15 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     # authentication
     path("auth/token/", auth_views.obtain_auth_token, name="auth_token"),
+    # users
+    path("user/<int:user_id>/", views.getUser),
+    path("users/", views.getUsers),
+    path("user/current/", views.getCurrentUser),
     # players
     path("player/<int:player_id>/", views.getPlayer),
     path("players/", views.getPlayers),
     path("players/edition/<int:edition_id>/", views.getPlayersByEdition),
+    path("players/user/<int:user_id>/edition/<int:edition_id>/", views.getPlayerByUserAndEdition),
     path("players/team/<int:team_id>/", views.getPlayersByTeam),
     # editions
     path("edition/<int:edition_id>/", views.getEdition),

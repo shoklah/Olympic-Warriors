@@ -4,11 +4,13 @@ Logic for the Olympic Warriors app endpoints.
 
 from django.db.models import Q
 from rest_framework.permissions import AllowAny
+from django.contrib.auth.models import User
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 
 from .serializer import (
+    UserSerializer,
     PlayerSerializer,
     EditionSerializer,
     TeamSerializer,
@@ -35,6 +37,51 @@ from .models import (
     BlindtestGuess,
     BlindtestRound,
 )
+
+# Users
+
+@extend_schema(
+    summary="Get a user by ID",
+    responses={
+        200: UserSerializer,
+        404: OpenApiResponse(description="User not found"),
+        500: OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["GET"])
+def getUser(request, user_id):
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Response({"error": "User not found"}, status=404)
+    serializer = UserSerializer(user)
+    return Response(serializer.data)
+
+@extend_schema(
+    summary="Get all users",
+    responses={
+        200: UserSerializer(many=True),
+        500: OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["GET"])
+def getUsers(request):
+    users = User.objects.all()
+    serializer = UserSerializer(users, many=True)
+    return Response(serializer.data)
+
+@extend_schema(
+    summary="Get current user",
+    responses={
+        200: UserSerializer,
+        500: OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["GET"])
+def getCurrentUser(request):
+    user = request.user
+    serializer = UserSerializer(user)
+    return Response(serializer.data)
 
 
 # Players
@@ -91,6 +138,22 @@ def getPlayersByEdition(request, edition_id):
     serializer = PlayerSerializer(players, many=True)
     return Response(serializer.data)
 
+@extend_schema(
+    summary="Get a player by user and edition",
+    responses={
+        200: PlayerSerializer,
+        404: OpenApiResponse(description="Player not found"),
+        500: OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["GET"])
+def getPlayerByUserAndEdition(request, user_id, edition_id):
+    try:
+        player = Player.objects.get(user=user_id, edition=edition_id)
+    except Player.DoesNotExist:
+        return Response({"error": "Player not found"}, status=404)
+    serializer = PlayerSerializer(player)
+    return Response(serializer.data)
 
 @extend_schema(
     summary="Get all active players for a team",
@@ -925,6 +988,7 @@ def getBlindtestRoundsByEdition(request, edition_id):
 
 @extend_schema(
     summary="Set the artist and song for a blindtest guess",
+    request=BlindtestGuessUpdateSerializer,
     responses={
         "200": BlindtestGuessSerializer,
         "400": OpenApiResponse(description="Bad request"),
