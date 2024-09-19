@@ -134,6 +134,22 @@ def getPlayersByEdition(request, edition_id):
     serializer = PlayerSerializer(players, many=True)
     return Response(serializer.data)
 
+@extend_schema(
+    summary="Get a player by user and edition",
+    responses={
+        200: PlayerSerializer,
+        404: OpenApiResponse(description="Player not found"),
+        500: OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["GET"])
+def getPlayerByUserAndEdition(request, user_id, edition_id):
+    try:
+        player = Player.objects.get(user=user_id, edition=edition_id)
+    except Player.DoesNotExist:
+        return Response({"error": "Player not found"}, status=404)
+    serializer = PlayerSerializer(player)
+    return Response(serializer.data)
 
 @extend_schema(
     summary="Get all active players for a team",
