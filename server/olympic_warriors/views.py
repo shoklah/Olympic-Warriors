@@ -3,7 +3,8 @@ Logic for the Olympic Warriors app endpoints.
 """
 
 from django.db.models import Q
-from rest_framework.decorators import api_view
+from rest_framework.permissions import AllowAny
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 
@@ -42,9 +43,10 @@ from .models import (
 @extend_schema(
     summary="Get a player by ID",
     responses={
-        200: PlayerSerializer,
-        404: OpenApiResponse(description="Player not found"),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": PlayerSerializer,
+        "401": OpenApiResponse(description="Unauthorized"),
+        "404": OpenApiResponse(description="Player not found"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["GET"])
@@ -61,6 +63,7 @@ def getPlayer(request, player_id):
     summary="Get all active players",
     responses={
         "200": PlayerSerializer(many=True),
+        "401": OpenApiResponse(description="Unauthorized"),
         "500": OpenApiResponse(description="Internal server error"),
     },
 )
@@ -78,6 +81,7 @@ def getPlayers(request):
     summary="Get all active players for an edition",
     responses={
         "200": PlayerSerializer(many=True),
+        "401": OpenApiResponse(description="Unauthorized"),
         "500": OpenApiResponse(description="Internal server error"),
     },
 )
@@ -92,6 +96,7 @@ def getPlayersByEdition(request, edition_id):
     summary="Get all active players for a team",
     responses={
         "200": PlayerSerializer(many=True),
+        "401": OpenApiResponse(description="Unauthorized"),
         "500": OpenApiResponse(description="Internal server error"),
     },
 )
@@ -108,11 +113,12 @@ def getPlayersByTeam(request, team_id):
 @extend_schema(
     summary="Get an edition by ID",
     responses={
-        200: EditionSerializer,
-        404: OpenApiResponse(description="Edition not found"),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": EditionSerializer,
+        "404": OpenApiResponse(description="Edition not found"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
+@permission_classes([AllowAny])
 @api_view(["GET"])
 def getEdition(request, edition_id):
     try:
@@ -130,6 +136,7 @@ def getEdition(request, edition_id):
         "500": OpenApiResponse(description="Internal server error"),
     },
 )
+@permission_classes([AllowAny])
 @api_view(["GET"])
 def getEditions(request):
     editions = Edition.objects.filter(is_active=True)
@@ -143,9 +150,10 @@ def getEditions(request):
 @extend_schema(
     summary="Get a team by ID",
     responses={
-        200: TeamSerializer,
-        404: OpenApiResponse(description="Team not found"),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": TeamSerializer,
+        "401": OpenApiResponse(description="Unauthorized"),
+        "404": OpenApiResponse(description="Team not found"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["GET"])
@@ -162,6 +170,7 @@ def getTeam(request, team_id):
     summary="Get all active teams",
     responses={
         "200": TeamSerializer(many=True),
+        "401": OpenApiResponse(description="Unauthorized"),
         "500": OpenApiResponse(description="Internal server error"),
     },
 )
@@ -183,6 +192,7 @@ def getTeams(request):
         "500": OpenApiResponse(description="Internal server error"),
     },
 )
+@permission_classes([AllowAny])
 @api_view(["GET"])
 def getDiscipline(request, discipline_id):
     try:
@@ -200,6 +210,7 @@ def getDiscipline(request, discipline_id):
         "500": OpenApiResponse(description="Internal server error"),
     },
 )
+@permission_classes([AllowAny])
 @api_view(["GET"])
 def getDisciplines(request):
     disciplines = Discipline.objects.filter(is_active=True)
@@ -214,6 +225,7 @@ def getDisciplines(request):
         "500": OpenApiResponse(description="Internal server error"),
     },
 )
+@permission_classes([AllowAny])
 @api_view(["GET"])
 def getDisciplinesByEdition(request, edition_id):
     disciplines = Discipline.objects.filter(edition=edition_id, is_active=True)
@@ -227,9 +239,10 @@ def getDisciplinesByEdition(request, edition_id):
 @extend_schema(
     summary="Get a player rating by ID",
     responses={
-        200: PlayerRatingSerializer,
-        404: OpenApiResponse(description="Player rating not found"),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": PlayerRatingSerializer,
+        "401": OpenApiResponse(description="Unauthorized"),
+        "404": OpenApiResponse(description="Player rating not found"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["GET"])
@@ -246,6 +259,7 @@ def getPlayerRating(request, rating_id):
     summary="Get all active player ratings",
     responses={
         "200": PlayerRatingSerializer(many=True),
+        "401": OpenApiResponse(description="Unauthorized"),
         "500": OpenApiResponse(description="Internal server error"),
     },
 )
@@ -260,6 +274,7 @@ def getPlayerRatings(request):
     summary="Get all active player ratings for a player",
     responses={
         "200": PlayerRatingSerializer(many=True),
+        "401": OpenApiResponse(description="Unauthorized"),
         "500": OpenApiResponse(description="Internal server error"),
     },
 )
@@ -276,8 +291,9 @@ def getPlayerRatingsByPlayer(request, player_id):
 @extend_schema(
     summary="Get a game by ID",
     responses={
-        200: GameSerializer,
-        404: OpenApiResponse(description="Game not found"),
+        "200": GameSerializer,
+        "401": OpenApiResponse(description="Unauthorized"),
+        "404": OpenApiResponse(description="Game not found"),
     },
 )
 @api_view(["GET"])
@@ -294,8 +310,9 @@ def getGame(request, game_id):
 @extend_schema(
     summary="Get all games",
     responses={
-        200: GameSerializer(many=True),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": GameSerializer(many=True),
+        "401": OpenApiResponse(description="Unauthorized"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["GET"])
@@ -308,8 +325,9 @@ def getGames(request):
 @extend_schema(
     summary="Get games by team",
     responses={
-        200: GameSerializer(many=True),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": GameSerializer(many=True),
+        "401": OpenApiResponse(description="Unauthorized"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["GET"])
@@ -324,8 +342,9 @@ def getGamesByTeam(request, team_id):
 @extend_schema(
     summary="Get games by discipline",
     responses={
-        200: GameSerializer(many=True),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": GameSerializer(many=True),
+        "401": OpenApiResponse(description="Unauthorized"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["GET"])
@@ -338,8 +357,9 @@ def getGamesByDiscipline(request, discipline_id):
 @extend_schema(
     summary="Get games played by a team",
     responses={
-        200: GameSerializer(many=True),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": GameSerializer(many=True),
+        "401": OpenApiResponse(description="Unauthorized"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 def getPlayedGamesByTeam(request, team_id):
@@ -351,8 +371,9 @@ def getPlayedGamesByTeam(request, team_id):
 @extend_schema(
     summary="Get games refereed by a team",
     responses={
-        200: GameSerializer(many=True),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": GameSerializer(many=True),
+        "401": OpenApiResponse(description="Unauthorized"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 def getRefereedGamesByTeam(request, team_id):
@@ -364,8 +385,9 @@ def getRefereedGamesByTeam(request, team_id):
 @extend_schema(
     summary="Get games by edition",
     responses={
-        200: GameSerializer(many=True),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": GameSerializer(many=True),
+        "401": OpenApiResponse(description="Unauthorized"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["GET"])
@@ -378,8 +400,9 @@ def getGamesByEdition(request, edition_id):
 @extend_schema(
     summary="Get games by discipline and team",
     responses={
-        200: GameSerializer(many=True),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": GameSerializer(many=True),
+        "401": OpenApiResponse(description="Unauthorized"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["GET"])
@@ -396,8 +419,9 @@ def getGamesByDisciplineAndTeam(request, discipline_id, team_id):
 @extend_schema(
     summary="Get games played by a team for a discipline",
     responses={
-        200: GameSerializer(many=True),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": GameSerializer(many=True),
+        "401": OpenApiResponse(description="Unauthorized"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["GET"])
@@ -414,8 +438,9 @@ def getPlayedGamesByDisciplineAndTeam(request, team_id, discipline_id):
 @extend_schema(
     summary="Get games refereed by a team for a discipline",
     responses={
-        200: GameSerializer(many=True),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": GameSerializer(many=True),
+        "401": OpenApiResponse(description="Unauthorized"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["GET"])
@@ -432,8 +457,9 @@ def getRefereedGamesByDisciplineAndTeam(request, team_id, discipline_id):
 @extend_schema(
     summary="Get games by round ID",
     responses={
-        200: GameSerializer(many=True),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": GameSerializer(many=True),
+        "401": OpenApiResponse(description="Unauthorized"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["GET"])
@@ -449,9 +475,10 @@ def getGamesByRound(request, round_id):
 @extend_schema(
     summary="Get a game event by ID",
     responses={
-        200: GameEventSerializer,
-        404: OpenApiResponse(description="Game event not found"),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": GameEventSerializer,
+        "401": OpenApiResponse(description="Unauthorized"),
+        "404": OpenApiResponse(description="Game event not found"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["GET"])
@@ -467,8 +494,9 @@ def getGameEvent(request, event_id):
 @extend_schema(
     summary="Get all game events",
     responses={
-        200: GameEventSerializer(many=True),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": GameEventSerializer(many=True),
+        "401": OpenApiResponse(description="Unauthorized"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["GET"])
@@ -481,8 +509,9 @@ def getGameEvents(request):
 @extend_schema(
     summary="Get all game events for a game",
     responses={
-        200: GameEventSerializer(many=True),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": GameEventSerializer(many=True),
+        "401": OpenApiResponse(description="Unauthorized"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["GET"])
@@ -495,8 +524,9 @@ def getGameEventsByGame(request, game_id):
 @extend_schema(
     summary="Get all game events for a player",
     responses={
-        200: GameEventSerializer(many=True),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": GameEventSerializer(many=True),
+        "401": OpenApiResponse(description="Unauthorized"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["GET"])
@@ -509,8 +539,9 @@ def getGameEventsByPlayer(request, player_id):
 @extend_schema(
     summary="Get all game events for a team",
     responses={
-        200: GameEventSerializer(many=True),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": GameEventSerializer(many=True),
+        "401": OpenApiResponse(description="Unauthorized"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["GET"])
@@ -525,9 +556,10 @@ def getGameEventsByTeam(request, team_id):
 @extend_schema(
     summary="Create a game event",
     responses={
-        200: GameEventSerializer,
-        400: OpenApiResponse(description="Bad request"),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": GameEventSerializer,
+        "400": OpenApiResponse(description="Bad request"),
+        "401": OpenApiResponse(description="Unauthorized"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["POST"])
@@ -545,9 +577,10 @@ def createGameEvent(request):
 @extend_schema(
     summary="Delete a game event",
     responses={
-        200: GameEventSerializer,
-        404: OpenApiResponse(description="Game event not found"),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": GameEventSerializer,
+        "401": OpenApiResponse(description="Unauthorized"),
+        "404": OpenApiResponse(description="Game event not found"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["DELETE"])
@@ -569,9 +602,10 @@ def deleteGameEvent(request, event_id):
 @extend_schema(
     summary="Get round by ID",
     responses={
-        200: TeamSportRoundSerializer,
-        404: OpenApiResponse(description="Round not found"),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": TeamSportRoundSerializer,
+        "401": OpenApiResponse(description="Unauthorized"),
+        "404": OpenApiResponse(description="Round not found"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["GET"])
@@ -587,8 +621,9 @@ def getRound(request, round_id):
 @extend_schema(
     summary="Get all rounds",
     responses={
-        200: TeamSportRoundSerializer(many=True),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": TeamSportRoundSerializer(many=True),
+        "401": OpenApiResponse(description="Unauthorized"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["GET"])
@@ -601,8 +636,9 @@ def getRounds(request):
 @extend_schema(
     summary="Get rounds by discipline",
     responses={
-        200: TeamSportRoundSerializer(many=True),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": TeamSportRoundSerializer(many=True),
+        "401": OpenApiResponse(description="Unauthorized"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["GET"])
@@ -618,9 +654,10 @@ def getRoundsByDiscipline(request, discipline_id):
 @extend_schema(
     summary="Get team results by ID",
     responses={
-        200: TeamResultSerializer,
-        404: OpenApiResponse(description="Team result not found"),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": TeamResultSerializer,
+        "401": OpenApiResponse(description="Unauthorized"),
+        "404": OpenApiResponse(description="Team result not found"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["GET"])
@@ -636,8 +673,9 @@ def getTeamResult(request, team_result_id):
 @extend_schema(
     summary="Get all team results",
     responses={
-        200: TeamResultSerializer(many=True),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": TeamResultSerializer(many=True),
+        "401": OpenApiResponse(description="Unauthorized"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["GET"])
@@ -650,8 +688,9 @@ def getTeamResults(request):
 @extend_schema(
     summary="Get team results by team ID",
     responses={
-        200: TeamResultSerializer(many=True),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": TeamResultSerializer(many=True),
+        "401": OpenApiResponse(description="Unauthorized"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["GET"])
@@ -664,8 +703,9 @@ def getTeamResultsByTeam(request, team_id):
 @extend_schema(
     summary="Get team results by edition ID",
     responses={
-        200: TeamResultSerializer(many=True),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": TeamResultSerializer(many=True),
+        "401": OpenApiResponse(description="Unauthorized"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["GET"])
@@ -678,8 +718,9 @@ def getTeamResultsByEdition(request, edition_id):
 @extend_schema(
     summary="Get team results by discipline ID",
     responses={
-        200: TeamResultSerializer(many=True),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": TeamResultSerializer(many=True),
+        "401": OpenApiResponse(description="Unauthorized"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["GET"])
@@ -695,9 +736,10 @@ def getTeamResultsByDiscipline(request, discipline_id):
 @extend_schema(
     summary="Get a blindtest guess by ID",
     responses={
-        200: BlindtestGuessSerializer,
-        404: OpenApiResponse(description="Blindtest guess not found"),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": BlindtestGuessSerializer,
+        "401": OpenApiResponse(description="Unauthorized"),
+        "404": OpenApiResponse(description="Blindtest guess not found"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["GET"])
@@ -713,8 +755,9 @@ def getBlindtestGuess(request, guess_id):
 @extend_schema(
     summary="Get all blindtest guesses",
     responses={
-        200: BlindtestGuessSerializer(many=True),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": BlindtestGuessSerializer(many=True),
+        "401": OpenApiResponse(description="Unauthorized"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["GET"])
@@ -727,8 +770,9 @@ def getBlindtestGuesses(request):
 @extend_schema(
     summary="Get all blindtest guesses for a team",
     responses={
-        200: BlindtestGuessSerializer(many=True),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": BlindtestGuessSerializer(many=True),
+        "401": OpenApiResponse(description="Unauthorized"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["GET"])
@@ -741,8 +785,9 @@ def getBlindtestGuessesByTeam(request, team_id):
 @extend_schema(
     summary="Get all blindtest guesses for a blindtest",
     responses={
-        200: BlindtestGuessSerializer(many=True),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": BlindtestGuessSerializer(many=True),
+        "401": OpenApiResponse(description="Unauthorized"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["GET"])
@@ -755,8 +800,9 @@ def getBlindtestGuessesByBlindtest(request, blindtest_id):
 @extend_schema(
     summary="Get all blindtest guesses for a team and blindtest",
     responses={
-        200: BlindtestGuessSerializer(many=True),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": BlindtestGuessSerializer(many=True),
+        "401": OpenApiResponse(description="Unauthorized"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["GET"])
@@ -769,8 +815,9 @@ def getBlindtestGuessesByTeamAndBlindtest(request, team_id, blindtest_id):
 @extend_schema(
     summary="Get all blindtest guesses with correct artist and song",
     responses={
-        200: BlindtestGuessSerializer(many=True),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": BlindtestGuessSerializer(many=True),
+        "401": OpenApiResponse(description="Unauthorized"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["GET"])
@@ -785,8 +832,9 @@ def getCorrectBlindtestGuesses(request):
 @extend_schema(
     summary="Get all blindtest guesses with correct artist",
     responses={
-        200: BlindtestGuessSerializer(many=True),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": BlindtestGuessSerializer(many=True),
+        "401": OpenApiResponse(description="Unauthorized"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["GET"])
@@ -799,8 +847,9 @@ def getCorrectArtistBlindtestGuesses(request):
 @extend_schema(
     summary="Get all blindtest guesses with correct song",
     responses={
-        200: BlindtestGuessSerializer(many=True),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": BlindtestGuessSerializer(many=True),
+        "401": OpenApiResponse(description="Unauthorized"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["GET"])
@@ -813,9 +862,10 @@ def getCorrectSongBlindtestGuesses(request):
 @extend_schema(
     summary="Get a blindtest round by ID",
     responses={
-        200: BlindtestRoundSerializer,
-        404: OpenApiResponse(description="Blindtest round not found"),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": BlindtestRoundSerializer,
+        "401": OpenApiResponse(description="Unauthorized"),
+        "404": OpenApiResponse(description="Blindtest round not found"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["GET"])
@@ -831,8 +881,9 @@ def getBlindtestRound(request, round_id):
 @extend_schema(
     summary="Get all blindtest rounds",
     responses={
-        200: BlindtestRoundSerializer(many=True),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": BlindtestRoundSerializer(many=True),
+        "401": OpenApiResponse(description="Unauthorized"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["GET"])
@@ -845,8 +896,9 @@ def getBlindtestRounds(request):
 @extend_schema(
     summary="Get all blindtest rounds for a blindtest",
     responses={
-        200: BlindtestRoundSerializer(many=True),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": BlindtestRoundSerializer(many=True),
+        "401": OpenApiResponse(description="Unauthorized"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["GET"])
@@ -859,8 +911,9 @@ def getBlindtestRoundsByBlindtest(request, blindtest_id):
 @extend_schema(
     summary="Get all blindtest rounds for an edition",
     responses={
-        200: BlindtestRoundSerializer(many=True),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": BlindtestRoundSerializer(many=True),
+        "401": OpenApiResponse(description="Unauthorized"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["GET"])
@@ -873,10 +926,10 @@ def getBlindtestRoundsByEdition(request, edition_id):
 @extend_schema(
     summary="Set the artist and song for a blindtest guess",
     responses={
-        200: BlindtestGuessSerializer,
-        400: OpenApiResponse(description="Bad request"),
-        404: OpenApiResponse(description="Blindtest guess not found"),
-        500: OpenApiResponse(description="Internal server error"),
+        "200": BlindtestGuessSerializer,
+        "400": OpenApiResponse(description="Bad request"),
+        "404": OpenApiResponse(description="Blindtest guess not found"),
+        "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["PATCH"])
