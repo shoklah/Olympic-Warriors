@@ -151,6 +151,7 @@ class BlindtestRoundSerializer(serializers.ModelSerializer):
 class TeamResultSerializer(serializers.ModelSerializer):
     ranking = serializers.ReadOnlyField()
     global_points = serializers.ReadOnlyField()
+    team_name = serializers.CharField(source="team.name")
 
     class Meta:
         model = TeamResult
