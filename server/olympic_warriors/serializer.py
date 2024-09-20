@@ -3,6 +3,7 @@ Serializers for the Olympic Warriors app
 """
 
 from rest_framework import serializers
+from django.contrib.auth.models import User
 from drf_spectacular.utils import extend_schema_field
 from olympic_warriors.models import (
     Player,
@@ -19,6 +20,19 @@ from olympic_warriors.models import (
 )
 
 
+class UserSerializer(serializers.ModelSerializer):
+    """
+    User serializer
+    """
+
+    class Meta:
+        """
+        Meta class
+        """
+
+        model = User
+        fields = ("id", "username", "first_name", "last_name", "email")
+        
 class PlayerSerializer(serializers.ModelSerializer):
     """
     Player serializer
@@ -151,6 +165,7 @@ class BlindtestRoundSerializer(serializers.ModelSerializer):
 class TeamResultSerializer(serializers.ModelSerializer):
     ranking = serializers.ReadOnlyField()
     global_points = serializers.ReadOnlyField()
+    team_name = serializers.CharField(source="team.name")
 
     class Meta:
         model = TeamResult
