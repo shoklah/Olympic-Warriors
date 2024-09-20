@@ -9,14 +9,14 @@ export const load = async ({ cookies }) => {
         const token = authCookie.split(' ')[1];
 
         const disciplines = await requestAPI(`${API_URL}/disciplines`, "GET", token, null);
-        const ranking = await requestAPI(`${API_URL}/results/`, "GET", token, null);
+        const teams = await requestAPI(`${API_URL}/teams`, "GET", token, null);
 
         disciplines.sort((a, b) => { return a.id - b.id; });
-        ranking.sort((a, b) => { return b.ranking - a.ranking; });
+        teams.sort((a, b) => { return b.global_points - a.global_points; });
 
-        console.log(ranking);
+        console.log(teams);
 
-        return {disciplines, ranking};
+        return {disciplines, teams};
 
     } else {
         redirect(302, "/login");

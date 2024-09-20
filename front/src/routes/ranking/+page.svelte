@@ -10,58 +10,33 @@
   import Rugby from "$lib/img/icons/rugby.svg";
   const disciplineIcons = {Orienteering, Dodgeball, Blindtest, Hideandseek, Crossfit, Rugby};
 
-  const teams = data.ranking
+  const teams = data.teams
 </script>
 
 <div class="flex-box">
     <div id="disciplines">
         {#each data.disciplines as discipline}
-            <a class="discipline-card" href="/disciplines/{discipline.id}/ranking"
-            style="{discipline.reveal_score ? 'opacity: 1;' : 'opacity: .2;'}">
-                <img src="{disciplineIcons[cleanString(discipline.name)]}" alt="{discipline.name}">
+            <a
+                    class="discipline-card"
+                    href="/disciplines/{discipline.id}/ranking"
+                    style="{discipline.reveal_score ? 'opacity: 1;' : 'opacity: 0.2; pointer-events: none;'}"
+            >
+                <img src="{disciplineIcons[cleanString(discipline.name)]}" alt="{discipline.name}" />
             </a>
         {/each}
+
     </div>
 
     <div id="teams">
         {#each teams as team}
-            <a href="/teams/{team.id}/ranking">
+            <a href="/teams/{team.id}">
                 <div class="team-card">
                     <p>{team.ranking}. {team.name}</p>
-                    <p>{team.points} pts</p>
+                    <p>{team.total_points} pts</p>
                 </div>
             </a>
         {/each}
-        <a href="/teams/1/ranking" class="team-card">
-            <p>1. Nom d'équipe</p>
-            <p>36 pts</p>
-        </a>
-        <a href="/teams/1/ranking" class="team-card">
-            <p>1. Nom d'équipe</p>
-            <p>36 pts</p>
-        </a>
-        <a href="/teams/1/ranking" class="team-card">
-            <p>1. Nom d'équipe</p>
-            <p>36 pts</p>
-        </a>
-        <a href="/teams/1/ranking" class="team-card">
-            <p>1. Nom d'équipe</p>
-            <p>36 pts</p>
-        </a>
-        <a href="/teams/1/ranking" class="team-card">
-            <p>1. Nom d'équipe</p>
-            <p>36 pts</p>
-        </a>
-        <a href="/teams/1/ranking" class="team-card">
-            <p>1. Nom d'équipe</p>
-            <p>36 pts</p>
-        </a>
-        <a href="/teams/1/ranking" class="team-card">
-            <p>1. Nom d'équipe</p>
-            <p>36 pts</p>
-        </a>
     </div>
-
 </div>
 
 

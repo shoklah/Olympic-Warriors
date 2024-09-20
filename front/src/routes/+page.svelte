@@ -13,7 +13,7 @@
 
     let countdownDate = new Date('September 21, 2024 09:00:00').getTime();
     let days, hours, minutes, seconds;
-    let OwStarted = false;
+    let OwStarted = true;
 
     const updateCountdown = () => {
         const now = new Date().getTime();
