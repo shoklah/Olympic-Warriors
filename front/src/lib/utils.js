@@ -3,29 +3,55 @@ export function cleanString(str) {
     return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
 }
 
+export const setAuthToken = ({cookies, token}) => {
+    cookies.set('Authorization', `Bearer ${token}`, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'strict',
+        maxAge: 60 * 60 * 24 * 7, // 1 week
+        path: '/'
+    });
+};
+
 export async function requestAPI(url, method, token, body) {
     try {
+        const headers = {};
+
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
         const options = {
-            method: method,
-            headers: {
-                "Content-Type": "application/json",
-                "authorization": `Bearer ${token}`
-            }
+            method,
+            headers,
         };
 
-        if (method !== "GET") {
+        if (body) {
+            headers['Content-Type'] = 'application/json';
             options.body = JSON.stringify(body);
         }
 
-        const response = await fetch(`${url}`, options);
+        const response = await fetch(url, options);
 
-        if (!response.ok) {
-            throw new Error(`Failed to fetch ${url}: ${response.statusText}`);
+        const contentType = response.headers.get('content-type');
+
+        let data;
+        if (contentType && contentType.includes('application/json')) {
+            data = await response.json();
+        } else {
+            data = await response.text();
         }
 
-        return await response.json();
+        if (!response.ok) {
+            return {
+                error: data,
+                status: response.status,
+                statusText: response.statusText,
+            };
+        }
+
+        return data;
     } catch (error) {
-        console.error(error);
-        throw error;
+        return { error: error.message };
     }
 }

@@ -1,42 +1,43 @@
-import {fail, redirect} from "@sveltejs/kit";
-import {requestAPI} from '$lib/utils';
-import { API_URL } from "$env/static/private";
-
-export const load = async ({locals}) => {
-    const user = locals.user;
-};
+import {fail, redirect} from '@sveltejs/kit';
+import {requestAPI, setAuthToken} from '$lib/utils';
+import { API_URL } from '$env/static/private';
 
 export const actions = {
     login: async ({cookies, request}) => {
         const formData = Object.fromEntries(await request.formData());
-        const {email, password} = formData;
+        const { username, password } = formData;
 
-        if (!email) {
-            return fail(400, { email, missing : {email: true }});
-        }
-        if (!password) {
-            return fail(400, { email, missing: {password: true }});
+        // Validation
+        const errors = {};
+        if (!username) errors.username = 'username required';
+        if (!password) errors.password = 'Password required';
+
+        if (Object.keys(errors).length > 0) {
+            return fail(400, { errors, username });
         }
 
-        try {
-            const response = await requestAPI(
-                API_URL+'/auth/token/',
-                'POST',
-                null,
-                {
-                    "username": email,
-                    "password": password
-                }
-            );
-            const { token } = response;
+        const {error, token} = await requestAPI(
+            `${API_URL}/auth/token/`,
+            'POST',
+            null,
+            {
+                username: username,
+                password: password
+            }
+        );
 
-            console.log({token});
-            // setAuthToken({cookies, token});
-            // throw redirect(302, "/");
-        } catch (error) {
-            return fail(500, {error});
+        if (error) {
+            return fail(500, { error: error.message || 'Invalid username or password' });
         }
-    },
+
+        if (!token) {
+            return fail(500, { error: 'Authentication failed: token not received' });
+        }
+
+        setAuthToken({cookies, token});
+        throw redirect(302, "/")
+    }
+};
 
     // register:  async ({cookies, request}) => {
     //     const formData = Object.fromEntries(await request.formData());
@@ -72,4 +73,3 @@ export const actions = {
     //
     //     // throw  redirect(302, "/");
     // }
-}

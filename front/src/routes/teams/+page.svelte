@@ -19,6 +19,10 @@
 </div>
 
 <style>
+    h1 {
+        visibility: hidden;
+    }
+
     a:hover {
         text-decoration: none;
     }
@@ -65,12 +69,6 @@
         }
     }
 
-    @media (max-width: 520px) {
-        h1 {
-            margin-top: 0;
-        }
-    }
-
     @media (max-width: 700px) {
         .grid-container {
             grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -80,6 +78,12 @@
             flex-direction: column;
             align-items: center;
             margin: 0;
+        }
+    }
+
+    @media (max-width: 1000px) {
+        h1 {
+            display: none;
         }
     }
 </style>

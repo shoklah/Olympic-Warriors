@@ -2,7 +2,7 @@
 	import Header from './Header.svelte';
 	import Footer from './Footer.svelte';
 	import './styles.css';
-	import { onNavigate } from "$app/navigation";
+	import {onNavigate} from "$app/navigation";
 	import { page } from '$app/stores';
 
 	onNavigate((navigation) => {
