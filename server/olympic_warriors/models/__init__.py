@@ -1,8 +1,8 @@
 from .Player import Player, PlayerRating
-from .Team import Team
+from .Team import Team, TeamResult
 from .Edition import Edition
-from .Discipline import Game, GameEvent, Discipline, TeamResult
-from .Blindtest import Blindtest, BlindtestGuess
+from .Discipline import Game, GameEvent, Discipline, TeamSportRound
+from .Blindtest import Blindtest, BlindtestRound, BlindtestGuess
 from .Crossfit import Crossfit
 from .Dodgeball import Dodgeball, DodgeballEvent
 from .HideAndSeek import HideAndSeek

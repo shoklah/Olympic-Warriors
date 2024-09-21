@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     "crispy_forms",
     "crispy_bootstrap5",
     "rest_framework",
+    "rest_framework.authtoken",
     "drf_spectacular",
 ]
 
@@ -171,7 +172,7 @@ LOGGING = {
         "file": {
             "level": settings.LOG_LEVEL_FILE,
             "class": "logging.FileHandler",
-            "filename": settings.LOG_FILE,
+            "filename": os.path.join(BASE_DIR, settings.LOG_FILE),
         },
         "console": {
             "level": settings.LOG_LEVEL_CONSOLE,
@@ -187,7 +188,6 @@ LOGGING = {
         "dev": {
             "handlers": ["console"],
             "level": settings.LOG_LEVEL_CONSOLE,
-            "propagate": True,
         },
     },
 }
@@ -207,8 +207,13 @@ CRISPY_TEMPLATE_PACK = "bootstrap5"
 # Django Rest Framework
 
 REST_FRAMEWORK = {
-    # YOUR SETTINGS
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
 }
 
 # Spectacular settings
@@ -218,5 +223,5 @@ SPECTACULAR_SETTINGS = {
     'DESCRIPTION': 'API for Django REST Application to manage sport events',
     #'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': True,
-    # OTHER SETTINGS
+    'COMPONENT_SPLIT_REQUEST': True,
 }

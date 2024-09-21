@@ -18,8 +18,9 @@ Including another URLconf
 import os
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 
+from rest_framework.authtoken import views as auth_views
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import path
 from django.conf import settings
 from django.conf.urls.static import static
 
@@ -34,25 +35,88 @@ urlpatterns = [
     path("api/schema/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
     # admin
     path("admin/", admin.site.urls),
+    # authentication
+    path("auth/token/", auth_views.obtain_auth_token, name="auth_token"),
+    # users
+    path("user/<int:user_id>/", views.getUser),
+    path("users/", views.getUsers),
+    path("user/current/", views.getCurrentUser),
     # players
-    path("players/<int:player_id>/", views.getPlayer),
+    path("player/<int:player_id>/", views.getPlayer),
     path("players/", views.getPlayers),
     path("players/edition/<int:edition_id>/", views.getPlayersByEdition),
+    path("players/user/<int:user_id>/edition/<int:edition_id>/", views.getPlayerByUserAndEdition),
     path("players/team/<int:team_id>/", views.getPlayersByTeam),
     # editions
-    path("editions/<int:edition_id>/", views.getEdition),
+    path("edition/<int:edition_id>/", views.getEdition),
     path("editions/", views.getEditions),
     # teams
-    path("teams/<int:team_id>/", views.getTeam),
+    path("team/<int:team_id>/", views.getTeam),
     path("teams/", views.getTeams),
     # disciplines
-    path("disciplines/<int:discipline_id>/", views.getDiscipline),
+    path("discipline/<int:discipline_id>/", views.getDiscipline),
     path("disciplines/", views.getDisciplines),
     path("disciplines/<int:edition_id>/", views.getDisciplinesByEdition),
     # player ratings
-    path("ratings/<int:rating_id>/", views.getPlayerRating),
+    path("rating/<int:rating_id>/", views.getPlayerRating),
     path("ratings/", views.getPlayerRatings),
     path("ratings/player/<int:player_id>/", views.getPlayerRatingsByPlayer),
+    # games
+    path("game/<int:game_id>/", views.getGame),
+    path("games/", views.getGames),
+    path("games/discipline/<int:discipline_id>/", views.getGamesByDiscipline),
+    path("games/team/<int:team_id>/", views.getGamesByTeam),
+    path("games/team/<int:team_id>/played/", views.getPlayedGamesByTeam),
+    path("games/team/<int:team_id>/refereed/", views.getRefereedGamesByTeam),
+    path("games/edition/<int:edition_id>/", views.getGamesByEdition),
+    path(
+        "games/discipline/<int:discipline_id>/team/<int:team_id>/",
+        views.getGamesByDisciplineAndTeam,
+    ),
+    path(
+        "games/discipline/<int:discipline_id>/team/<int:team_id>/played/",
+        views.getPlayedGamesByDisciplineAndTeam,
+    ),
+    path(
+        "games/discipline/<int:discipline_id>/team/<int:team_id>/refereed/",
+        views.getRefereedGamesByDisciplineAndTeam,
+    ),
+    path("games/round/<int:round>/", views.getGamesByRound),
+    # game events
+    path("event/<int:event_id>/", views.getGameEvent),
+    path("event/create/", views.createGameEvent),
+    path("event/<int:event_id>/delete/", views.deleteGameEvent),
+    path("events/", views.getGameEvents),
+    path("events/game/<int:game_id>/", views.getGameEventsByGame),
+    path("events/player/<int:player_id>/", views.getGameEventsByPlayer),
+    path("events/team/<int:team_id>/", views.getGameEventsByTeam),
+    # rounds
+    path("round/<int:round_id>/", views.getRound),
+    path("rounds/", views.getRounds),
+    path("rounds/discipline/<int:discipline_id>/", views.getRoundsByDiscipline),
+    # blindtest guesses
+    path("blindtest/guess/<int:guess_id>/", views.getBlindtestGuess),
+    path("blindtest/guesses/", views.getBlindtestGuesses),
+    path("blindtest/guesses/team/<int:team_id>/", views.getBlindtestGuessesByTeam),
+    path("blindtest/guesses/blindtest/<int:blindtest_id>/", views.getBlindtestGuessesByBlindtest),
+    path(
+        "blindtest/guesses/blindtest/<int:blindtest_id>/team/<int:team_id>/",
+        views.getBlindtestGuessesByTeamAndBlindtest,
+    ),
+    path("blindtest/guesses/artist/correct/", views.getCorrectArtistBlindtestGuesses),
+    path("blindtest/guesses/song/correct/", views.getCorrectSongBlindtestGuesses),
+    path("blindtest/guesses/artist/correct/song/correct/", views.getCorrectBlindtestGuesses),
+    path("blindtest/round/<int:round_id>/", views.getBlindtestRound),
+    path("blindtest/rounds/", views.getBlindtestRounds),
+    path("blindtest/rounds/blindtest/<int:blindtest_id>/", views.getBlindtestRoundsByBlindtest),
+    path("blindtest/rounds/edition/<int:edition_id>/", views.getBlindtestRoundsByEdition),
+    path("blindtest/guess/<int:guess_id>/answer/", views.setBlindtestGuessAnswer),
+    # team results
+    path("result/<int:result_id>/", views.getTeamResult),
+    path("results/", views.getTeamResults),
+    path("results/team/<int:team_id>/", views.getTeamResultsByTeam),
+    path("results/discipline/<int:discipline_id>/", views.getTeamResultsByDiscipline),
+    path("results/edition/<int:edition_id>/", views.getTeamResultsByEdition),
 ]
 
 env = os.environ.get("ENV", "dev").lower()

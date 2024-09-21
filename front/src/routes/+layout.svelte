@@ -2,7 +2,8 @@
 	import Header from './Header.svelte';
 	import Footer from './Footer.svelte';
 	import './styles.css';
-	import { onNavigate } from "$app/navigation";
+	import {onNavigate} from "$app/navigation";
+	import { page } from '$app/stores';
 
 	onNavigate((navigation) => {
 		if (!document.startViewTransition) return;
@@ -14,6 +15,19 @@
 			})
 		});
 	});
+
+	$: {
+		if (typeof document !== 'undefined'){
+			if (document && $page.url.pathname === '/') {
+				document.documentElement.style.setProperty('--color-bg-0', 'black');
+				document.documentElement.style.setProperty('--color-theme-1', '#F9F3C1');
+			} else {
+				document.documentElement.style.setProperty('--color-bg-0', 'white');
+				document.documentElement.style.setProperty('--color-theme-1', 'black');
+			}
+		}
+	}
+
 </script>
 
 <div class="app">
