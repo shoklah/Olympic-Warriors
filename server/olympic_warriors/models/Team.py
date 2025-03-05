@@ -69,11 +69,11 @@ class TeamResult(models.Model):
         registered_teams_count = TeamResult.objects.filter(
             discipline=self.discipline, is_active=True
         ).count()
-        points = registered_teams_count - self.ranking
+        points = registered_teams_count - self.ranking + 1
         if self.ranking == 1:
-            points += 3
-        elif self.ranking <= 3:
             points += 2
+        elif self.ranking <= 3:
+            points += 1
 
         return points
 
