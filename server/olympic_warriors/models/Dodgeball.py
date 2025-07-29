@@ -26,7 +26,6 @@ class Dodgeball(Discipline):
                     result_type=TeamResult.TeamResultTypes.POINTS,
                     points=0,
                 )
-            self.schedule_games()
         else:
             super().save(*args, **kwargs)
 
