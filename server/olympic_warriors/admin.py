@@ -170,7 +170,7 @@ class DisciplineAdmin(ModelAdmin):
     Admin dashboard configuration for the Discipline model.
     """
 
-    readonly_fields = ["name"]
+    readonly_fields = ["name", "result_type"]
     list_display = ["name", "edition", "reveal_score"]
     list_filter = ["is_active", "edition", "name"]
     search_fields = ["name", "edition"]
@@ -248,8 +248,8 @@ class TeamResultAdmin(ModelAdmin):
         "ranking",
         "global_points",
     ]
-    list_filter = ["team", "discipline", "result_type", "is_active"]
-    search_fields = ["team", "discipline", "result_type"]
+    list_filter = ["team", "discipline", "is_active"]
+    search_fields = ["team", "discipline"]
 
     def changelist_view(self, request, extra_context=None):
         """

@@ -3,10 +3,11 @@ from datetime import datetime
 from django.db import models
 from django.core.validators import FileExtensionValidator, MinValueValidator
 
-from schedule.round_robin import schedule_round_robin_games
+from olympic_warriors.schedule import schedule_round_robin_games
 from .Team import Team, TeamResult
 from .Edition import Edition
 from .Player import Player
+from .ResultTypes import ResultTypes
 
 
 class TeamSportRound(models.Model):
@@ -111,6 +112,12 @@ class Discipline(models.Model):
         validators=[FileExtensionValidator(allowed_extensions=["pdf"])],
         verbose_name="rules",
     )
+    result_type = models.CharField(
+        max_length=3,
+        choices=ResultTypes.choices,
+        blank=True,
+        verbose_name="result type",
+    )
     reveal_score = models.BooleanField(default=False)
 
     max_rounds = models.IntegerField(
@@ -134,8 +141,24 @@ class Discipline(models.Model):
         Override save method to schedule games matching the pairing system.
         """
         super().save(*args, **kwargs)
-        if self.pairing_system == self.PairingSystem.ROUND_ROBIN:
-            schedule_round_robin_games(self)
+        teams = Team.objects.filter(edition=self.edition, is_active=True)
+        for team in teams:
+            TeamResult.objects.get_or_create(
+                team=team,
+                discipline=self,
+                defaults={
+                    'points': 0,
+                }
+            )
+
+        match self.pairing_system:
+            case self.PairingSystem.ROUND_ROBIN:
+                schedule_round_robin_games(self.id)
+            case self.PairingSystem.SWISS:
+                # Implement Swiss pairing logic here
+                pass
+            case self.PairingSystem.NONE:
+                pass
 
     def get_ranking(self, team_id: int) -> int:
         """
