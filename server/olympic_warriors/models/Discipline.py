@@ -147,7 +147,8 @@ class Discipline(models.Model):
                 team=team,
                 discipline=self,
                 defaults={
-                    'points': 0,
+                    "points": 0 if self.result_type == ResultTypes.POINTS else None,
+                    "time": "00:00:00" if self.result_type == ResultTypes.TIME else None,
                 }
             )
 

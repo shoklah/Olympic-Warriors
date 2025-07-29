@@ -1,5 +1,5 @@
 from .Discipline import Discipline
-from .Team import Team, TeamResult
+from .ResultTypes import ResultTypes
 
 
 class Orienteering(Discipline):
@@ -15,14 +15,6 @@ class Orienteering(Discipline):
         # Check if the object is already in the database
         if self.pk is None:
             self.name = 'Orienteering'
-            super().save(*args, **kwargs)
-            teams = Team.objects.filter(edition=self.edition, is_active=True)
-            for team in teams:
-                TeamResult.objects.create(
-                    team=team,
-                    discipline=self,
-                    result_type=TeamResult.TeamResultTypes.TIME,
-                    time="00:00:00",
-                )
-        else:
-            super().save(*args, **kwargs)
+            self.result_type = ResultTypes.TIME
+
+        super().save(*args, **kwargs)
