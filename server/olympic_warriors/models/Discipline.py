@@ -95,6 +95,11 @@ class Discipline(models.Model):
     A Discipline is a competition that takes place in an edition of the Olympic Warriors.
     """
 
+    class PairingSystem(models.TextChoices):
+        ROUND_ROBIN = "RR", "Round Robin"
+        SWISS = "SW", "Swiss"
+        NONE = "NO", "None"
+
     name = models.CharField(max_length=100, blank=True)
     edition = models.ForeignKey(Edition, on_delete=models.CASCADE)
     is_active = models.BooleanField(default=True)
@@ -107,6 +112,19 @@ class Discipline(models.Model):
         verbose_name="rules",
     )
     reveal_score = models.BooleanField(default=False)
+
+    max_rounds = models.IntegerField(
+        blank=True,
+        null=True,
+        validators=[MinValueValidator(1)],
+        verbose_name="max rounds"
+    )
+    pairing_system = models.CharField(
+        max_length=2,
+        choices=PairingSystem.choices,
+        default=PairingSystem.NONE,
+        verbose_name="pairing system",
+    )
 
     def __str__(self) -> str:
         return self.name + " - " + str(self.edition.year)
@@ -221,7 +239,7 @@ class Discipline(models.Model):
 
         return game_index
 
-    def schedule_games(self) -> None:
+    def schedule_round_robin_games(self) -> None:
         """
         Schedule round-robin games for the discipline, including teams refereeing.
         Applicable to team sports.
@@ -230,6 +248,9 @@ class Discipline(models.Model):
         simultaneous_games = len(teams) // 3
         iteration_per_round = (len(teams) // 2) // simultaneous_games
         max_rounds = len(teams) - 1
+        self.max_rounds = max_rounds
+        self.save()
+
         team_ids = {team.id for team in teams}
 
         # Split teams in two halves for round-robin
