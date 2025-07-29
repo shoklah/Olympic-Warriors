@@ -140,26 +140,29 @@ class Discipline(models.Model):
         """
         Override save method to schedule games matching the pairing system.
         """
-        super().save(*args, **kwargs)
-        teams = Team.objects.filter(edition=self.edition, is_active=True)
-        for team in teams:
-            TeamResult.objects.get_or_create(
-                team=team,
-                discipline=self,
-                defaults={
-                    "points": 0 if self.result_type == ResultTypes.POINTS else None,
-                    "time": "00:00:00" if self.result_type == ResultTypes.TIME else None,
-                }
-            )
+        if self.pk is None:
+            super().save(*args, **kwargs)
+            teams = Team.objects.filter(edition=self.edition, is_active=True)
+            for team in teams:
+                TeamResult.objects.get_or_create(
+                    team=team,
+                    discipline=self,
+                    defaults={
+                        "points": 0 if self.result_type == ResultTypes.POINTS else None,
+                        "time": "00:00:00" if self.result_type == ResultTypes.TIME else None,
+                    }
+                )
 
-        match self.pairing_system:
-            case self.PairingSystem.ROUND_ROBIN:
-                schedule_round_robin_games(self.id)
-            case self.PairingSystem.SWISS:
-                # Implement Swiss pairing logic here
-                pass
-            case self.PairingSystem.NONE:
-                pass
+            match self.pairing_system:
+                case self.PairingSystem.ROUND_ROBIN:
+                    schedule_round_robin_games(self.id)
+                case self.PairingSystem.SWISS:
+                    # Implement Swiss pairing logic here
+                    pass
+                case self.PairingSystem.NONE:
+                    pass
+        else:
+            super().save(*args, **kwargs)
 
     def get_ranking(self, team_id: int) -> int:
         """
