@@ -1,10 +1,31 @@
 from copy import deepcopy
 
-from models.Discipline import Discipline, TeamSportRound, Game
-from models.Team import Team
+from django.apps import apps
+from olympic_warriors.models.Team import Team
 
 
-def _get_last_round_as_referee(discipline: Discipline, team_id: int) -> int:
+def _get_discipline_model():
+    """
+    Get the Discipline model from the apps registry.
+    """
+    return apps.get_model('olympic_warriors', 'Discipline')
+
+
+def _get_game_model():
+    """
+    Get the Game model from the apps registry.
+    """
+    return apps.get_model('olympic_warriors', 'Game')
+
+
+def _get_team_sport_round_model():
+    """
+    Get the TeamSportRound model from the apps registry.
+    """
+    return apps.get_model('olympic_warriors', 'TeamSportRound')
+
+
+def _get_last_round_as_referee(discipline_id: int, team_id: int) -> int:
     """
     Get the last round order in which a team was a referee.
 
@@ -12,9 +33,11 @@ def _get_last_round_as_referee(discipline: Discipline, team_id: int) -> int:
 
     @return: order of the last round in which the team was a referee, -1 if never
     """
+    Game = _get_game_model()
+
     last_game_refereed = (
         Game.objects.filter(referees__id=team_id, is_active=True)
-        .filter(discipline=discipline)
+        .filter(discipline__id=discipline_id)
         .order_by("-round__order")
         .first()
     )
@@ -26,7 +49,7 @@ def _get_last_round_as_referee(discipline: Discipline, team_id: int) -> int:
 
 
 def _assign_referees(
-    discipline: Discipline, game_without_referees: list[Game], leftover_team_ids: set[int]
+    discipline_id: int, game_without_referees: list, leftover_team_ids: set[int]
 ) -> None:
     """
     Assign referees to games without referees while ensuring best possible distribution.
@@ -34,13 +57,15 @@ def _assign_referees(
     @param game_without_referees: list of games without referees for this round iteration
     @param leftover_team_ids: set of team ids that can be referees for this round iteration
     """
+    Game = _get_game_model()
+
     for game in game_without_referees:
         best_referee_id: int = None
         best_referee_score: int = None
         last_round_best_referee: int = None
         for team_id in leftover_team_ids:
             referee_score = Game.objects.filter(
-                referees__id=team_id, discipline=discipline, is_active=True
+                referees__id=team_id, discipline__id=discipline_id, is_active=True
             ).count()
 
             # Assign the first team as the best referee, or the one with the refereed games
@@ -53,9 +78,11 @@ def _assign_referees(
             elif referee_score == best_referee_score:
                 if not last_round_best_referee:
                     last_round_best_referee = _get_last_round_as_referee(
-                        best_referee_id)
+                        discipline_id,
+                        best_referee_id
+                    )
 
-                if _get_last_round_as_referee(team_id) < last_round_best_referee:
+                if _get_last_round_as_referee(discipline_id, team_id) < last_round_best_referee:
                     best_referee_id = team_id
                     best_referee_score = referee_score
 
@@ -65,11 +92,11 @@ def _assign_referees(
 
 
 def _create_round_iterations(
-    discipline: Discipline,
+    discipline_id: int,
     l1: list[Team],
     l2: list[Team],
     leftover_team_ids: set[int],
-    game_round: TeamSportRound,
+    game_round_id: int,
     game_index: int,
     iteration_index: int,
     simultaneous_games: int,
@@ -88,13 +115,16 @@ def _create_round_iterations(
     @return: game index
     """
     games_without_referees = []
+    Discipline = _get_discipline_model()
+    Game = _get_game_model()
+    discipline = Discipline.objects.get(id=discipline_id)
 
     # Create games for this iteration, hence the number of simultaneous games for a round
     while game_index < simultaneous_games * (iteration_index + 1):
         games_without_referees.append(
             Game.objects.create(
                 discipline=discipline,
-                round=game_round,
+                round_id=game_round_id,
                 team1=l1[game_index],
                 team2=l2[game_index],
                 referees=l1[game_index],
@@ -105,21 +135,31 @@ def _create_round_iterations(
         leftover_team_ids.remove(l2[game_index].id)
         game_index += 1
 
-    _assign_referees(games_without_referees, leftover_team_ids)
+    _assign_referees(discipline_id, games_without_referees, leftover_team_ids)
 
     return game_index
 
-def schedule_round_robin_games(discipline: Discipline) -> None:
+
+def schedule_round_robin_games(discipline_id: int) -> None:
     """
     Schedule round-robin games for the discipline, including teams refereeing.
     Applicable to team sports.
     """
+    Discipline = _get_discipline_model()
+    TeamSportRound = _get_team_sport_round_model()
+
+    discipline = Discipline.objects.get(id=discipline_id)
     teams = Team.objects.filter(edition=discipline.edition, is_active=True)
+
+    if len(teams) < 2:
+        raise ValueError("Not enough teams to schedule round-robin games.")
+
     simultaneous_games = len(teams) // 3
     iteration_per_round = (len(teams) // 2) // simultaneous_games
-    max_rounds = len(teams) - 1
-    discipline.max_rounds = max_rounds
-    discipline.save()
+
+    if not discipline.max_rounds:
+        discipline.max_rounds = len(teams) - 1
+        discipline.save()
 
     team_ids = {team.id for team in teams}
 
@@ -128,17 +168,17 @@ def schedule_round_robin_games(discipline: Discipline) -> None:
     l2 = teams[len(teams) // 2:]
     l2.reverse()
 
-    for round_index in range(max_rounds):
+    for round_index in range(discipline.max_rounds):
         game_round = TeamSportRound.objects.create(discipline=discipline, order=round_index)
         game_index = 0
 
         for iteration_index in range(iteration_per_round):
             game_index = _create_round_iterations(
-                discipline,
+                discipline_id,
                 l1,
                 l2,
                 deepcopy(team_ids),
-                game_round,
+                game_round.id,
                 game_index,
                 iteration_index,
                 simultaneous_games,
