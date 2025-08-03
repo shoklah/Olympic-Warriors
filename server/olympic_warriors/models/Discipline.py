@@ -17,7 +17,7 @@ class TeamSportRound(models.Model):
 
     discipline = models.ForeignKey("Discipline", on_delete=models.CASCADE)
     order = models.IntegerField()
-    # is_over = models.BooleanField(default=False)
+    is_over = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
 
     def __str__(self) -> str:
