@@ -3,7 +3,7 @@ from datetime import datetime
 from django.db import models
 from django.core.validators import FileExtensionValidator, MinValueValidator
 
-from olympic_warriors.schedule import schedule_round_robin_games
+from olympic_warriors.schedule import schedule_round_robin_games, schedule_swiss_games
 from .Team import Team, TeamResult
 from .Edition import Edition
 from .Player import Player
@@ -17,6 +17,7 @@ class TeamSportRound(models.Model):
 
     discipline = models.ForeignKey("Discipline", on_delete=models.CASCADE)
     order = models.IntegerField()
+    # is_over = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
 
     def __str__(self) -> str:
@@ -157,8 +158,7 @@ class Discipline(models.Model):
                 case self.PairingSystem.ROUND_ROBIN:
                     schedule_round_robin_games(self.id)
                 case self.PairingSystem.SWISS:
-                    # Implement Swiss pairing logic here
-                    pass
+                    schedule_swiss_games(self.id)
                 case self.PairingSystem.NONE:
                     pass
         else:
