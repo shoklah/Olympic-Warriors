@@ -1,5 +1,6 @@
 from django.db import models
 from .Edition import Edition
+from .ResultTypes import ResultTypes
 
 
 class TeamResult(models.Model):
@@ -7,27 +8,25 @@ class TeamResult(models.Model):
     Team's score for an Discipline.
     """
 
-    class TeamResultTypes(models.TextChoices):
-        """
-        Enum for Team Result Types
-        """
-
-        POINTS = 'PTS', 'Points'
-        TIME = 'TIM', 'Time'
-
     team = models.ForeignKey("Team", on_delete=models.CASCADE, related_name='registered_team')
     discipline = models.ForeignKey(
         "Discipline", on_delete=models.CASCADE, related_name='registered_to'
     )
     points = models.IntegerField(null=True, blank=True)
     time = models.TimeField(null=True, blank=True)
-    result_type = models.CharField(max_length=3, choices=TeamResultTypes.choices)
     is_active = models.BooleanField(default=True)
 
     def __str__(self) -> str:
         return (
             self.team.name + " - " + self.discipline.name + ' ' + str(self.discipline.edition.year)
         )
+
+    @property
+    def result_type(self) -> str:
+        """
+        Get the result type of the team in the discipline.
+        """
+        return self.discipline.result_type
 
     @property
     def ranking(self) -> int:
@@ -39,14 +38,14 @@ class TeamResult(models.Model):
         if self.discipline.reveal_score is False:
             return 0
 
-        if self.result_type == TeamResult.TeamResultTypes.TIME:
+        if self.discipline.result_type == ResultTypes.TIME:
             return (
                 TeamResult.objects.filter(
                     discipline=self.discipline, time__lt=self.time, is_active=True
                 ).count()
                 + 1
             )
-        elif self.result_type == TeamResult.TeamResultTypes.POINTS:
+        elif self.discipline.result_type == ResultTypes.POINTS:
             return (
                 TeamResult.objects.filter(
                     discipline=self.discipline, points__gt=self.points, is_active=True

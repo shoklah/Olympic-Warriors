@@ -3,8 +3,7 @@ Model for Crossfit discipline.
 """
 
 from .Discipline import Discipline
-from .Team import Team, TeamResult
-
+from .ResultTypes import ResultTypes
 
 class Crossfit(Discipline):
     """
@@ -19,14 +18,6 @@ class Crossfit(Discipline):
         # Check if the object is already in the database
         if self.pk is None:
             self.name = 'Crossfit'
-            super().save(*args, **kwargs)
-            teams = Team.objects.filter(edition=self.edition, is_active=True)
-            for team in teams:
-                TeamResult.objects.create(
-                    team=team,
-                    discipline=self,
-                    result_type=TeamResult.TeamResultTypes.TIME,
-                    time="00:00:00",
-                )
-        else:
-            super().save(*args, **kwargs)
+            self.result_type = ResultTypes.TIME
+
+        super().save(*args, **kwargs)

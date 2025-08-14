@@ -2,7 +2,7 @@ from django.db import models
 from django.core.exceptions import ValidationError
 
 from .Discipline import Discipline, Game, GameEvent
-from .Team import Team, TeamResult
+from .ResultTypes import ResultTypes
 
 
 class Rugby(Discipline):
@@ -17,18 +17,9 @@ class Rugby(Discipline):
         # Check if the object is already in the database
         if self.pk is None:
             self.name = 'Rugby'
-            super().save(*args, **kwargs)
-            teams = Team.objects.filter(edition=self.edition, is_active=True)
-            for team in teams:
-                TeamResult.objects.create(
-                    team=team,
-                    discipline=self,
-                    result_type=TeamResult.TeamResultTypes.POINTS,
-                    points=0,
-                )
-            self.schedule_games()
-        else:
-            super().save(*args, **kwargs)
+            self.result_type = ResultTypes.POINTS
+
+        super().save(*args, **kwargs)
 
 
 class RugbyEvent(GameEvent):
