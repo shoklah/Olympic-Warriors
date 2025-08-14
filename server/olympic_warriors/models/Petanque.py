@@ -1,7 +1,4 @@
-from django.db import models
-from django.core.exceptions import ValidationError
-
-from .Discipline import Discipline, Game, GameEvent
+from .Discipline import Discipline
 from .ResultTypes import ResultTypes
 
 
