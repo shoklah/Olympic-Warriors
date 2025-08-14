@@ -23,6 +23,16 @@ class TeamSportRound(models.Model):
     def __str__(self) -> str:
         return self.discipline.name + " - Round " + str(self.order)
 
+    def save(self, *args, **kwargs):
+        """
+        Override save method.
+        """
+        if self.pk is not None:
+            old_round = TeamSportRound.objects.get(pk=self.pk)
+            if self.discipline.pairing_system == "SW" and self.is_over and not old_round.is_over:
+                schedule_swiss_games(self.discipline.id)
+        super().save(*args, **kwargs)
+
 
 class Game(models.Model):
     """
