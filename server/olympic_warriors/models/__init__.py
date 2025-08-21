@@ -13,4 +13,5 @@ from .Basketball import Basketball
 from .GeographyQuizz import GeographyQuizz
 from .Relay import Relay
 from .Fair import Fair
+from .ObstacleCourse import ObstacleCourse
 from .ResultTypes import ResultTypes

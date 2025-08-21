@@ -29,6 +29,7 @@ from .models import (
     GeographyQuizz,
     Relay,
     Fair,
+    ObstacleCourse,
 )
 
 
@@ -395,3 +396,4 @@ site.register(GeographyQuizz, DisciplineAdmin)
 site.register(Basketball, DisciplineAdmin)
 site.register(Relay, DisciplineAdmin)
 site.register(Fair, DisciplineAdmin)
+site.register(ObstacleCourse, DisciplineAdmin)
