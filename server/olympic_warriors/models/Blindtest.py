@@ -7,6 +7,7 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 
 from .Discipline import Discipline
 from .Team import Team, TeamResult
+from .ResultTypes import ResultTypes
 
 
 class Blindtest(Discipline):
@@ -22,15 +23,9 @@ class Blindtest(Discipline):
         # Check if the object is already in the database
         if self.pk is None:
             self.name = 'Blindtest'
+            self.result_type = ResultTypes.POINTS
             super().save(*args, **kwargs)
             teams = Team.objects.filter(edition=self.edition, is_active=True)
-            for team in teams:
-                TeamResult.objects.create(
-                    team=team,
-                    discipline=self,
-                    result_type=TeamResult.TeamResultTypes.POINTS,
-                    points=0,
-                )
 
             for i in range(1, 11):
                 blindtest_round = BlindtestRound.objects.create(blindtest=self, order=i)

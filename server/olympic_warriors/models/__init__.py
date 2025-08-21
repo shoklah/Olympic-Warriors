@@ -8,3 +8,10 @@ from .Dodgeball import Dodgeball, DodgeballEvent
 from .HideAndSeek import HideAndSeek
 from .Orienteering import Orienteering
 from .Rugby import Rugby, RugbyEvent
+from .Petanque import Petanque
+from .Basketball import Basketball
+from .GeographyQuizz import GeographyQuizz
+from .Relay import Relay
+from .Fair import Fair
+from .ObstacleCourse import ObstacleCourse
+from .ResultTypes import ResultTypes
