@@ -24,7 +24,8 @@ from .models import (
     Blindtest,
     BlindtestRound,
     BlindtestGuess,
-    Petanque
+    Petanque,
+    Basketball
 )
 
 
@@ -387,3 +388,4 @@ site.register(Blindtest, BlindtestAdmin)
 site.register(BlindtestRound, BlindtestRoundAdmin)
 site.register(BlindtestGuess, BlindtestGuessAdmin)
 site.register(Petanque, DisciplineAdmin)
+site.register(Basketball, DisciplineAdmin)
