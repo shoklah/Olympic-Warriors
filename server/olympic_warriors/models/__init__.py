@@ -11,4 +11,5 @@ from .Rugby import Rugby, RugbyEvent
 from .Petanque import Petanque
 from .Basketball import Basketball
 from .GeographyQuizz import GeographyQuizz
+from .Relay import Relay
 from .ResultTypes import ResultTypes

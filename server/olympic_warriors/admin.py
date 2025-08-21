@@ -26,7 +26,8 @@ from .models import (
     BlindtestGuess,
     Petanque,
     Basketball,
-    GeographyQuizz
+    GeographyQuizz,
+    Relay,
 )
 
 
@@ -391,3 +392,4 @@ site.register(BlindtestGuess, BlindtestGuessAdmin)
 site.register(Petanque, DisciplineAdmin)
 site.register(GeographyQuizz, DisciplineAdmin)
 site.register(Basketball, DisciplineAdmin)
+site.register(Relay, DisciplineAdmin)
