@@ -10,4 +10,5 @@ from .Orienteering import Orienteering
 from .Rugby import Rugby, RugbyEvent
 from .Petanque import Petanque
 from .Basketball import Basketball
+from .GeographyQuizz import GeographyQuizz
 from .ResultTypes import ResultTypes
