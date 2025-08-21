@@ -15,7 +15,8 @@ class TeamSportRound(models.Model):
     A team sport round is a round of a team sport discipline, used to schedule games.
     """
 
-    discipline = models.ForeignKey("Discipline", on_delete=models.CASCADE)
+    discipline = models.ForeignKey(
+        "Discipline", on_delete=models.CASCADE, related_name="rounds")
     order = models.IntegerField()
     is_over = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)

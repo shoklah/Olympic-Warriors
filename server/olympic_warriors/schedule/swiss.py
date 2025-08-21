@@ -29,8 +29,10 @@ def schedule_swiss_games(discipline_id: int):
     Game = _get_game_model()
     TeamSportRound = _get_team_sport_round_model()
     discipline = _get_discipline_model().objects.get(pk=discipline_id)
-    round_index = (discipline.rounds.filter(
-        is_active=True).order_by('-order').first().order or -1) + 1
+    last_round = discipline.rounds.filter(
+        is_active=True).order_by('-order').first()
+    round_index = (last_round.order if last_round else -1) + 1
+
 
     if round_index > discipline.max_rounds:
         return
@@ -47,7 +49,7 @@ def schedule_swiss_games(discipline_id: int):
                 round=round,
                 team1=team1,
                 team2=team2,
-                referees=None,  # No referee for Swiss rounds for now
+                referees=team1,  # No referee for Swiss rounds for now
                 edition=discipline.edition
             )
             game.save()
