@@ -27,31 +27,29 @@ class Edition(models.Model):
         "Quels sont les sports que tu as pratiqué (dans toute ta vie et à tout niveau) ? En précisant sur chaque ligne le sport, le nombre d'années, le niveau et ta pratique actuelle (et toute information utile, comme le poste ou la spécialité). Exemple : "
         "Foot - 6 années - Amateur - Ne pratique plus - Défenseur gauche"
         "": "Sports Practiced",
-        "Sur une échelle de 1 (le plus faible) à 10 (le plus élevé), comment estimes-tu le niveau que tu auras en septembre selon les critères suivants ? [Cohésion et esprit d'équipe]": "Cohesion and Team Spirit",
-        "Sur une échelle de 1 (le plus faible) à 10 (le plus élevé), comment estimes-tu le niveau que tu auras en septembre selon les critères suivants ? [Observation et orientation]": "Observation and Orientation",
-        "Sur une échelle de 1 (le plus faible) à 10 (le plus élevé), comment estimes-tu le niveau que tu auras en septembre selon les critères suivants ? [Souplesse et coordination]": "Mobility",
-        "Sur une échelle de 1 (le plus faible) à 10 (le plus élevé), comment estimes-tu le niveau que tu auras en septembre selon les critères suivants ? [Précision et lancer]": "Accuracy and Aiming",
-        "Sur une échelle de 1 (le plus faible) à 10 (le plus élevé), comment estimes-tu le niveau que tu auras en septembre selon les critères suivants ? [Course et vitesse]": "Running and Speed",
-        "Sur une échelle de 1 (le plus faible) à 10 (le plus élevé), comment estimes-tu le niveau que tu auras en septembre selon les critères suivants ? [Endurance et cardio]": "Endurance and Cardio",
-        "Sur une échelle de 1 (le plus faible) à 10 (le plus élevé), comment estimes-tu le niveau que tu auras en septembre selon les critères suivants ? [Culture]": "Cultural Knowledge",
-        "Sur une échelle de 1 (le plus faible) à 10 (le plus élevé), comment estimes-tu le niveau que tu auras en septembre selon les critères suivants ? [Force]": "Strength",
-        "Sur une échelle de 1 (le plus faible) à 10 (le plus élevé), comment estimes-tu le niveau que tu auras en septembre selon les critères suivants ? [Explosivité (effort puissant en un temps court)]": "Explosiveness",
-        "Sur une échelle de 1 (le plus faible) à 10 (le plus élevé), comment estimes-tu le niveau que tu auras en septembre selon les critères suivants ? [Stratégie et vision de jeu]": "Strategy and Game Vision",
-        "As-tu déjà participé aux Olympic Warriors ? Si oui, écris le classement final de ton équipe par ligne et par année. Exemple : "
-        " - 2022, 2e "
-        " - 2023, 3e": "Olympic Warriors Participation",
-        "Sur une échelle de 1 à 10, comment estimes-tu ton niveau global pour les Olympic Warriors de 2024 (Cache-cache, Touch Rugby, Balle au camp, Course d'orientation, Blind Test, CrossFit) ?": "Global Level Estimation for Olympic Warriors 2024",
-        "Avec qui souhaiterais-tu être ou ne pas être en équipe ? (Ces demandes resteront confidentielles. Par contre, on ne pourra pas toutes les prendre en compte mais on le fera le plus possible).": "Team Preferences",
+        "Sur une échelle de 1 (le plus faible) à 10 (le plus élevé), comment estimes-tu le niveau que tu auras en août selon les critères suivants ? [Cohésion et esprit d'équipe]": "Cohesion and Team Spirit",
+        "Sur une échelle de 1 (le plus faible) à 10 (le plus élevé), comment estimes-tu le niveau que tu auras en août selon les critères suivants ? [Cardio]": "Cardio",
+        "Sur une échelle de 1 (le plus faible) à 10 (le plus élevé), comment estimes-tu le niveau que tu auras en août selon les critères suivants ? [Souplesse et coordination]": "Mobility",
+        "Sur une échelle de 1 (le plus faible) à 10 (le plus élevé), comment estimes-tu le niveau que tu auras en août selon les critères suivants ? [Précision et lancer]": "Accuracy and Aiming",
+        "Sur une échelle de 1 (le plus faible) à 10 (le plus élevé), comment estimes-tu le niveau que tu auras en août selon les critères suivants ? [Course et vitesse]": "Running and Speed",
+        "Sur une échelle de 1 (le plus faible) à 10 (le plus élevé), comment estimes-tu le niveau que tu auras en août selon les critères suivants ? [Endurance longue durée]": "Endurance",
+        "Sur une échelle de 1 (le plus faible) à 10 (le plus élevé), comment estimes-tu le niveau que tu auras en août selon les critères suivants ? [Culture générale]": "Cultural Knowledge",
+        "Sur une échelle de 1 (le plus faible) à 10 (le plus élevé), comment estimes-tu le niveau que tu auras en août selon les critères suivants ? [Force (soulever, pousser, etc)]": "Strength",
+        "Sur une échelle de 1 (le plus faible) à 10 (le plus élevé), comment estimes-tu le niveau que tu auras en août selon les critères suivants ? [Explosivité (effort puissant en un temps court)]": "Explosiveness",
+        "Sur une échelle de 1 (le plus faible) à 10 (le plus élevé), comment estimes-tu le niveau que tu auras en août selon les critères suivants ? [Stratégie et vision de jeu]": "Strategy and Game Vision",
+        "Sur une échelle de 1 à 10, comment estimes-tu ton niveau global pour les Olympic Warriors de 2025 : Pétanque, Basket, Sprint/Relais, Parcours du Combattant, Kermesse (chamboule-tout, etc) et Géographie ?": "Global Level Estimation for Olympic Warriors 2025",
+        "Idéalement, avec qui souhaiterais-tu être ou ne pas être en équipe ? "
+        "(Ces demandes resteront confidentielles. Par contre, on ne pourra pas toutes les prendre en compte mais on essaiera).": "Team Preferences",
         "J'ai payé mon inscription et je confirme que je serai là.": "Paid Registration Confirmation",
     }
 
     ratings = {
         "Cohesion and Team Spirit": {"id": "TEAM", "coef": 2},
-        "Observation and Orientation": {"id": "OBS", "coef": 1},
         "Mobility": {"id": "MOB", "coef": 3},
         "Accuracy and Aiming": {"id": "ACC", "coef": 2},
         "Running and Speed": {"id": "SPD", "coef": 4},
-        "Endurance and Cardio": {"id": "STMN", "coef": 4},
+        "Endurance": {"id": "STMN", "coef": 4},
+        "Cardio": {"id": "CARD", "coef": 4},
         "Cultural Knowledge": {"id": "CULT", "coef": 1},
         "Strength": {"id": "STR", "coef": 3},
         "Explosiveness": {"id": "EXPL", "coef": 4},
@@ -82,7 +80,7 @@ class Edition(models.Model):
             lambda x: (
                 x["Weighted_Rating"] * 2.5
                 if x["Weighted_Rating"] < 4
-                and int(x["Global Level Estimation for Olympic Warriors 2024"] > 4)
+                and int(x["Global Level Estimation for Olympic Warriors 2025"] > 4)
                 else x["Weighted_Rating"]
             ),
             axis=1,
@@ -100,7 +98,8 @@ class Edition(models.Model):
         """
         df["Global_Rating"] = df.apply(
             lambda x: (
-                (x["Weighted_Rating"] + x["Global Level Estimation for Olympic Warriors 2024"] * 4)
+                (x["Weighted_Rating"] +
+                 x["Global Level Estimation for Olympic Warriors 2025"] * 4)
                 / 5
             ),
             axis=1,
