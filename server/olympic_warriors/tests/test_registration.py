@@ -7,6 +7,7 @@ from olympic_warriors.registration import (
     GLOBAL_LEVEL,
     NAME,
     RATINGS,
+    compute_ratings,
     parse_name,
     resolve_columns,
 )
@@ -128,3 +129,64 @@ class ParseNameTests(SimpleTestCase):
             parse_name("   ")
         with self.assertRaises(ValueError):
             parse_name(float("nan"))
+
+    def test_username_matches_legacy_scheme(self):
+        # Earlier editions created usernames with name.replace(" ", "").lower();
+        # returning players must keep matching their account.
+        for raw in ["Pauline Fauré ", "Cédric LE GUEDART ", "Adrien ", "Emma BOUCTON"]:
+            self.assertEqual(parse_name(raw)[2], raw.replace(" ", "").lower())
+
+    def test_internal_double_space_is_collapsed(self):
+        self.assertEqual(parse_name("Jean  Dupont"), ("Jean", "Dupont", "jeandupont"))
+
+
+def make_row(name, skill, global_level, email="x@example.com"):
+    """One form response where every skill has the same value."""
+    return ["1/1/2026 10:00:00", email, name, "Souvent"] + [skill] * len(CRITERIA) + [
+        global_level, "Oui"
+    ]
+
+
+class ComputeRatingsTests(SimpleTestCase):
+    def compute(self, rows):
+        df = make_df(rows=rows)
+        return compute_ratings(df, resolve_columns(df))
+
+    def test_global_rating_blends_weighted_and_global_estimate(self):
+        out = self.compute([make_row("Alice Martin", 6, 8)])
+
+        self.assertEqual(out.loc[0, "Weighted_Rating"], 6)
+        self.assertEqual(out.loc[0, "Global_Rating"], 7.6)
+
+    def test_low_weighted_with_high_global_is_boosted(self):
+        out = self.compute([make_row("Bob", 2, 6)])
+
+        self.assertEqual(out.loc[0, "Weighted_Rating"], 5.0)
+        self.assertEqual(out.loc[0, "Global_Rating"], 5.8)
+
+    def test_low_weighted_with_low_global_is_not_boosted(self):
+        out = self.compute([make_row("Bob", 2, 3)])
+
+        self.assertEqual(out.loc[0, "Weighted_Rating"], 2)
+        self.assertEqual(out.loc[0, "Global_Rating"], 2.8)
+
+    def test_columns_are_renamed_to_internal_names(self):
+        out = self.compute([make_row("Alice Martin", 6, 8)])
+
+        self.assertEqual(out.loc[0, NAME], "Alice Martin")
+        self.assertEqual(out.loc[0, EMAIL], "x@example.com")
+        self.assertEqual(out.loc[0, GLOBAL_LEVEL], 8)
+        self.assertEqual(out.loc[0, "Cardio"], 6)
+
+    def test_non_numeric_rating_raises_with_name(self):
+        row = make_row("Alice Martin", 6, 8)
+        row[4] = "beaucoup"
+
+        with self.assertRaises(ValueError) as ctx:
+            self.compute([row])
+        self.assertIn("Alice Martin", str(ctx.exception))
+
+    def test_out_of_range_rating_raises_with_name(self):
+        with self.assertRaises(ValueError) as ctx:
+            self.compute([make_row("Alice Martin", 11, 8)])
+        self.assertIn("Alice Martin", str(ctx.exception))

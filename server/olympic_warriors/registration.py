@@ -5,6 +5,7 @@ The form wording changes every year, so columns are matched by stable
 fragments (the bracketed criterion of each skill question, the prefix of the
 global-level question) rather than by full header text.
 """
+import pandas as pd
 
 NAME = "Name"
 EMAIL = "Email"
@@ -103,8 +104,44 @@ def parse_name(raw):
     """
     tokens = raw.split() if isinstance(raw, str) else []
     if not tokens:
-        raise ValueError("Empty participant name")
+        raise ValueError(f"Invalid participant name: {raw!r}")
     first_name = tokens[0]
     last_name = " ".join(tokens[1:])
     username = "".join(tokens).lower()
     return first_name, last_name, username
+
+
+def compute_ratings(df, columns):
+    """
+    Rename resolved columns to internal names and add Weighted_Rating and
+    Global_Rating columns using the historical formulas.
+
+    :param df: DataFrame read from the registration CSV.
+    :param columns: mapping returned by resolve_columns.
+    :return: a new DataFrame with internal column names and the two ratings.
+    :raises ValueError: if any rating is blank, non-numeric, or outside 1-10.
+    """
+    df = df.rename(columns={header: internal for internal, header in columns.items()})
+
+    for column in list(RATINGS) + [GLOBAL_LEVEL]:
+        values = pd.to_numeric(df[column], errors="coerce")
+        invalid = df[values.isna() | (values < 1) | (values > 10)]
+        if not invalid.empty:
+            raise ValueError(
+                f"Invalid rating for {column!r} on participant {invalid.iloc[0][NAME]!r}: "
+                f"{invalid.iloc[0][column]!r}"
+            )
+        df[column] = values
+
+    total_coef = sum(spec["coef"] for spec in RATINGS.values())
+    weighted = sum(df[name] * spec["coef"] for name, spec in RATINGS.items()) / total_coef
+    weighted = weighted.clip(lower=1, upper=10)
+
+    # A weak self-assessment on the skills but a confident global estimate is
+    # treated as under-reporting: multiply by 2.5 (historical rule).
+    boost = (weighted < 4) & (df[GLOBAL_LEVEL] > 4)
+    weighted = weighted.where(~boost, weighted * 2.5)
+    df["Weighted_Rating"] = weighted
+
+    df["Global_Rating"] = ((weighted + df[GLOBAL_LEVEL] * 4) / 5).clip(lower=1, upper=10).round(2)
+    return df
