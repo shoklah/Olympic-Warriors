@@ -11,7 +11,8 @@ the global-level question changes (new sports list), and the parser hardcodes
 that column name in three places. The 2026 export therefore raises a
 `KeyError`, exactly as the 2025 export did before commit `b8c2429`.
 
-The 2026 export also adds an email column, and its names are messier: ten of
+The 2025 and 2026 exports include an email column (the 2024 one did not),
+which the parser never used. The 2026 names are messier: ten of
 21 names carry trailing spaces, one is a first name only ("Adrien "), which
 raises `IndexError` on the first/last split, and one has three tokens
 ("Cédric LE GUEDART"), which stores "LE" as the last name.
@@ -90,7 +91,9 @@ For each row:
   non-blank, otherwise `<username>@olympicwarriors.com` as today. If an
   existing user's email ends with `@olympicwarriors.com` and the form gives a
   real one, the real one is saved on the user.
-- `Player`: get by (user, edition), else create with `rating=Global_Rating`.
+- `Player`: `update_or_create` keyed on (user, edition), setting
+  `rating=round(Global_Rating)`, so a corrected re-upload refreshes the
+  aggregate rating instead of keeping a stale one.
 - `PlayerRating`: `update_or_create` keyed on (player, identifier), setting
   `name` and `rating`. Re-uploading a form updates the ten rows instead of
   appending ten more.
@@ -104,6 +107,7 @@ For each row:
 - These surface as a server error in the admin on `Edition` save, which is
   the current behaviour for parser failures. Improving the admin UX is out of
   scope.
+- The Edition row and the import share one transaction on every save path.
 
 ### 5. Tests
 
