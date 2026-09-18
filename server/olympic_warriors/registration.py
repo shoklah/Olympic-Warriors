@@ -17,7 +17,9 @@ GLOBAL_LEVEL_PREFIX = "Sur une échelle de 1 à 10, comment estimes-tu ton nivea
 # Skill name -> PlayerRating identifier, weighting coefficient, and the French
 # criterion that appears between brackets in the form header.
 RATINGS = {
-    "Cohesion and Team Spirit": {"id": "TEAM", "coef": 2, "criterion": "Cohésion et esprit d'équipe"},
+    "Cohesion and Team Spirit": {
+        "id": "TEAM", "coef": 2, "criterion": "Cohésion et esprit d'équipe"
+    },
     "Mobility": {"id": "MOB", "coef": 3, "criterion": "Souplesse et coordination"},
     "Accuracy and Aiming": {"id": "ACC", "coef": 2, "criterion": "Précision et lancer"},
     "Running and Speed": {"id": "SPD", "coef": 4, "criterion": "Course et vitesse"},
@@ -25,8 +27,12 @@ RATINGS = {
     "Cardio": {"id": "CARD", "coef": 4, "criterion": "Cardio"},
     "Cultural Knowledge": {"id": "CULT", "coef": 1, "criterion": "Culture générale"},
     "Strength": {"id": "STR", "coef": 3, "criterion": "Force (soulever, pousser, etc)"},
-    "Explosiveness": {"id": "EXPL", "coef": 4, "criterion": "Explosivité (effort puissant en un temps court)"},
-    "Strategy and Game Vision": {"id": "STRT", "coef": 2, "criterion": "Stratégie et vision de jeu"},
+    "Explosiveness": {
+        "id": "EXPL", "coef": 4, "criterion": "Explosivité (effort puissant en un temps court)"
+    },
+    "Strategy and Game Vision": {
+        "id": "STRT", "coef": 2, "criterion": "Stratégie et vision de jeu"
+    },
 }
 
 
@@ -46,23 +52,25 @@ def resolve_columns(df):
     :return: dict {internal name: header}. Contains NAME, GLOBAL_LEVEL, every
              key of RATINGS, and EMAIL only when the form has an email column.
     :raises ValueError: if a required column is missing or matched twice.
+    An ambiguous match (two headers for one column) raises immediately, while
+    missing columns are collected and reported together.
     """
-    headers = [str(header) for header in df.columns]
+    headers = list(df.columns)
     columns = {}
     missing = []
 
-    name_header = _find_column(headers, lambda h: h.strip() == NAME_HEADER, NAME_HEADER)
+    name_header = _find_column(headers, lambda h: str(h).strip() == NAME_HEADER, NAME_HEADER)
     if name_header is None:
         missing.append(NAME_HEADER)
     else:
         columns[NAME] = name_header
 
-    email_header = _find_column(headers, lambda h: h.strip() == EMAIL_HEADER, EMAIL_HEADER)
+    email_header = _find_column(headers, lambda h: str(h).strip() == EMAIL_HEADER, EMAIL_HEADER)
     if email_header is not None:
         columns[EMAIL] = email_header
 
     global_header = _find_column(
-        headers, lambda h: h.startswith(GLOBAL_LEVEL_PREFIX), GLOBAL_LEVEL_PREFIX
+        headers, lambda h: str(h).strip().startswith(GLOBAL_LEVEL_PREFIX), GLOBAL_LEVEL_PREFIX
     )
     if global_header is None:
         missing.append(f"{GLOBAL_LEVEL_PREFIX}...")
@@ -71,7 +79,7 @@ def resolve_columns(df):
 
     for name, spec in RATINGS.items():
         needle = f"[{spec['criterion']}]"
-        header = _find_column(headers, lambda h, needle=needle: needle in h, needle)
+        header = _find_column(headers, lambda h, needle=needle: needle in str(h), needle)
         if header is None:
             missing.append(needle)
         else:

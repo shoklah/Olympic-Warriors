@@ -46,14 +46,14 @@ class ResolveColumnsTests(SimpleTestCase):
         self.assertEqual(columns[GLOBAL_LEVEL], GLOBAL_2026)
         for name, spec in RATINGS.items():
             self.assertEqual(columns[name], SKILL_SENTENCE.format(spec["criterion"]))
-        self.assertEqual(len(columns), 13)
+        self.assertEqual(len(columns), len(RATINGS) + 3)  # name, email, global level
 
     def test_resolves_2025_columns_without_email(self):
         columns = resolve_columns(make_df(global_header=GLOBAL_2025, with_email=False))
 
         self.assertNotIn(EMAIL, columns)
         self.assertEqual(columns[GLOBAL_LEVEL], GLOBAL_2025)
-        self.assertEqual(len(columns), 12)
+        self.assertEqual(len(columns), len(RATINGS) + 2)  # name, global level
 
     def test_missing_skill_column_raises_with_criterion(self):
         df = make_df(drop_criterion="Cardio")
@@ -71,8 +71,37 @@ class ResolveColumnsTests(SimpleTestCase):
 
     def test_duplicate_skill_column_raises(self):
         df = make_df()
-        df["Encore une question ? [Cardio]"] = []
+        df["Encore une question ? [Cardio]"] = None
 
         with self.assertRaises(ValueError) as ctx:
             resolve_columns(df)
         self.assertIn("Ambiguous", str(ctx.exception))
+
+    def test_resolves_literal_headers_from_real_2026_export(self):
+        # Copied verbatim from the Google Forms export; deliberately not built from RATINGS.
+        literal = pd.DataFrame(
+            columns=[
+                "Prénom et Nom",
+                "Sur une échelle de 1 (le plus faible) à 10 (le plus élevé), comment estimes-tu "
+                "le niveau que tu auras en août selon les critères suivants ? "
+                "[Cohésion et esprit d'équipe]",
+                "Sur une échelle de 1 (le plus faible) à 10 (le plus élevé), comment estimes-tu "
+                "le niveau que tu auras en août selon les critères suivants ? "
+                "[Force (soulever, pousser, etc)]",
+                "Sur une échelle de 1 (le plus faible) à 10 (le plus élevé), comment estimes-tu "
+                "le niveau que tu auras en août selon les critères suivants ? "
+                "[Explosivité (effort puissant en un temps court)]",
+                " Sur une échelle de 1 à 10, comment estimes-tu ton niveau global pour les "
+                "Olympic Warriors de 2026 : Flag Rugby, Cache-cache, CrossFit, Relais, "
+                "Maître des Fleurs, Fléchettes.",
+            ]
+        )
+
+        with self.assertRaises(ValueError) as ctx:
+            resolve_columns(literal)
+
+        # Only the seven skills absent from this frame may be reported missing.
+        message = str(ctx.exception)
+        for present in ("Cohésion", "Force (soulever", "Explosivité", "niveau global"):
+            self.assertNotIn(present, message)
+        self.assertIn("[Cardio]", message)
