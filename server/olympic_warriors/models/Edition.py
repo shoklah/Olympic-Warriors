@@ -1,11 +1,18 @@
+import logging
+
 import pandas as pd
 
-from django.db import models
+from django.db import models, transaction
 from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils.crypto import get_random_string
 
+from ..registration import EMAIL, NAME, RATINGS, compute_ratings, parse_name, resolve_columns
 from .Player import Player, PlayerRating
+
+FALLBACK_EMAIL_DOMAIN = "olympicwarriors.com"
+
+logger = logging.getLogger(__name__)
 
 
 class Edition(models.Model):
@@ -20,138 +27,67 @@ class Edition(models.Model):
     registration_form = models.FileField(upload_to="registration_forms/", null=True, blank=True)
     is_active = models.BooleanField(default=True)
 
-    header_mapping = {
-        "Horodateur": "Timestamp",
-        "Prénom et Nom": "Name",
-        "A quelle fréquence pratiques-tu du sport ? ": "Sport Frequency",
-        "Quels sont les sports que tu as pratiqué (dans toute ta vie et à tout niveau) ? En précisant sur chaque ligne le sport, le nombre d'années, le niveau et ta pratique actuelle (et toute information utile, comme le poste ou la spécialité). Exemple : "
-        "Foot - 6 années - Amateur - Ne pratique plus - Défenseur gauche"
-        "": "Sports Practiced",
-        "Sur une échelle de 1 (le plus faible) à 10 (le plus élevé), comment estimes-tu le niveau que tu auras en août selon les critères suivants ? [Cohésion et esprit d'équipe]": "Cohesion and Team Spirit",
-        "Sur une échelle de 1 (le plus faible) à 10 (le plus élevé), comment estimes-tu le niveau que tu auras en août selon les critères suivants ? [Cardio]": "Cardio",
-        "Sur une échelle de 1 (le plus faible) à 10 (le plus élevé), comment estimes-tu le niveau que tu auras en août selon les critères suivants ? [Souplesse et coordination]": "Mobility",
-        "Sur une échelle de 1 (le plus faible) à 10 (le plus élevé), comment estimes-tu le niveau que tu auras en août selon les critères suivants ? [Précision et lancer]": "Accuracy and Aiming",
-        "Sur une échelle de 1 (le plus faible) à 10 (le plus élevé), comment estimes-tu le niveau que tu auras en août selon les critères suivants ? [Course et vitesse]": "Running and Speed",
-        "Sur une échelle de 1 (le plus faible) à 10 (le plus élevé), comment estimes-tu le niveau que tu auras en août selon les critères suivants ? [Endurance longue durée]": "Endurance",
-        "Sur une échelle de 1 (le plus faible) à 10 (le plus élevé), comment estimes-tu le niveau que tu auras en août selon les critères suivants ? [Culture générale]": "Cultural Knowledge",
-        "Sur une échelle de 1 (le plus faible) à 10 (le plus élevé), comment estimes-tu le niveau que tu auras en août selon les critères suivants ? [Force (soulever, pousser, etc)]": "Strength",
-        "Sur une échelle de 1 (le plus faible) à 10 (le plus élevé), comment estimes-tu le niveau que tu auras en août selon les critères suivants ? [Explosivité (effort puissant en un temps court)]": "Explosiveness",
-        "Sur une échelle de 1 (le plus faible) à 10 (le plus élevé), comment estimes-tu le niveau que tu auras en août selon les critères suivants ? [Stratégie et vision de jeu]": "Strategy and Game Vision",
-        "Sur une échelle de 1 à 10, comment estimes-tu ton niveau global pour les Olympic Warriors de 2025 : Pétanque, Basket, Sprint/Relais, Parcours du Combattant, Kermesse (chamboule-tout, etc) et Géographie ?": "Global Level Estimation for Olympic Warriors 2025",
-        "Idéalement, avec qui souhaiterais-tu être ou ne pas être en équipe ? "
-        "(Ces demandes resteront confidentielles. Par contre, on ne pourra pas toutes les prendre en compte mais on essaiera).": "Team Preferences",
-        "J'ai payé mon inscription et je confirme que je serai là.": "Paid Registration Confirmation",
-    }
-
-    ratings = {
-        "Cohesion and Team Spirit": {"id": "TEAM", "coef": 2},
-        "Mobility": {"id": "MOB", "coef": 3},
-        "Accuracy and Aiming": {"id": "ACC", "coef": 2},
-        "Running and Speed": {"id": "SPD", "coef": 4},
-        "Endurance": {"id": "STMN", "coef": 4},
-        "Cardio": {"id": "CARD", "coef": 4},
-        "Cultural Knowledge": {"id": "CULT", "coef": 1},
-        "Strength": {"id": "STR", "coef": 3},
-        "Explosiveness": {"id": "EXPL", "coef": 4},
-        "Strategy and Game Vision": {"id": "STRT", "coef": 2},
-    }
-
     def __str__(self) -> str:
         return f"{self.year} - {self.host}"
 
-    def process_weighted_rating(self, df):
-        """
-        Process weighted average rating for each player.
-
-        :param df: The DataFrame with the player data.
-        :return: The DataFrame with the weighted rating.
-        """
-        df["Weighted_Rating"] = df.apply(
-            lambda x: sum([x[rating] * self.ratings[rating]["coef"] for rating in self.ratings])
-            / sum([self.ratings[rating]["coef"] for rating in self.ratings]),
-            axis=1,
-        )
-
-        df["Weighted_Rating"] = df["Weighted_Rating"].apply(lambda x: 1 if x < 1 else x)
-        df["Weighted_Rating"] = df["Weighted_Rating"].apply(lambda x: 10 if x > 10 else x)
-
-        # multiply rating by 2.5 if rating is below 4 and global level estimation is above 5
-        df["Weighted_Rating"] = df.apply(
-            lambda x: (
-                x["Weighted_Rating"] * 2.5
-                if x["Weighted_Rating"] < 4
-                and int(x["Global Level Estimation for Olympic Warriors 2025"] > 4)
-                else x["Weighted_Rating"]
-            ),
-            axis=1,
-        )
-
-        return df
-
-    def process_global_rating(self, df):
-        """
-        Process global level estimation for each player from weighted rating
-        and global level estimation.
-
-        :param df: The DataFrame with the player data.
-        :return: The DataFrame with the global rating.
-        """
-        df["Global_Rating"] = df.apply(
-            lambda x: (
-                (x["Weighted_Rating"] +
-                 x["Global Level Estimation for Olympic Warriors 2025"] * 4)
-                / 5
-            ),
-            axis=1,
-        )
-        df["Global_Rating"] = df["Global_Rating"].apply(lambda x: 1 if x < 1 else x)
-        df["Global_Rating"] = df["Global_Rating"].apply(lambda x: 10 if x > 10 else x)
-        df["Global_Rating"] = df["Global_Rating"].round(2)
-
-        return df
-
     def create_players_from_registration_form(self, registration_form):
         """
-        Create players from the registration form of the edition.
+        Create or update users, players and skill ratings from the registration form.
 
-        :param registration_form: The registration form of the edition.
+        The whole import runs in one transaction: a bad row leaves nothing written.
+
+        :param registration_form: file-like CSV export of the Google Form.
+        :raises ValueError: on missing columns, invalid ratings, or a blank name.
         """
-
+        # After Django stores an upload the pointer sits at end-of-file; rewind
+        # so pandas sees the header. Plain file objects passed by callers are
+        # rewound too, which is harmless.
+        if hasattr(registration_form, "seek"):
+            registration_form.seek(0)
         df = pd.read_csv(registration_form)
-        df.rename(columns=self.header_mapping, inplace=True)
+        columns = resolve_columns(df)
+        if EMAIL not in columns:
+            logger.warning(
+                "Registration form for edition %s has no email column; "
+                "generated @%s addresses will be used.",
+                self,
+                FALLBACK_EMAIL_DOMAIN,
+            )
+        df = compute_ratings(df, columns)
 
-        df = self.process_weighted_rating(df)
-        df = self.process_global_rating(df)
+        with transaction.atomic():
+            for index, row in df.iterrows():
+                try:
+                    first_name, last_name, username = parse_name(row[NAME])
+                except ValueError as exc:
+                    raise ValueError(f"Registration form line {index + 2}: {exc}") from exc
 
-        ## Create players from the registration form
-        for _, row in df.iterrows():
-            try:
-                user = User.objects.get(username=row["Name"].replace(" ", "").lower())
-            except User.DoesNotExist:
-                user = User.objects.create_user(
-                    username=row["Name"].replace(" ", "").lower(),
-                    first_name=row["Name"].split(" ")[0],
-                    last_name=row["Name"].split(" ")[1],
-                    password=get_random_string(length=8),
-                    email=f"{row['Name'].replace(' ', '').lower()}@olympicwarriors.com",
+                email = row.get(EMAIL)
+                email = email.strip() if isinstance(email, str) else ""
+
+                user = User.objects.filter(username=username).first()
+                if user is None:
+                    user = User.objects.create_user(
+                        username=username,
+                        first_name=first_name,
+                        last_name=last_name,
+                        password=get_random_string(length=8),
+                        email=email or f"{username}@{FALLBACK_EMAIL_DOMAIN}",
+                    )
+                elif email and user.email.endswith(f"@{FALLBACK_EMAIL_DOMAIN}"):
+                    user.email = email
+                    user.save(update_fields=["email"])
+
+                player, _ = Player.objects.get_or_create(
+                    user=user, edition=self, defaults={"rating": row["Global_Rating"]}
                 )
 
-            try:
-                player = Player.objects.get(user=user, edition=self)
-            except Player.DoesNotExist:
-                player = Player.objects.create(
-                    user=user,
-                    rating=row["Global_Rating"],
-                    edition=self,
-                )
-
-            for rating in self.ratings:
-                PlayerRating.objects.create(
-                    player=player,
-                    name=rating,
-                    identifier=self.ratings[rating]["id"],
-                    rating=row[rating],
-                )
+                for name, spec in RATINGS.items():
+                    PlayerRating.objects.update_or_create(
+                        player=player,
+                        identifier=spec["id"],
+                        defaults={"name": name, "rating": row[name]},
+                    )
 
     def save(self, *args, **kwargs):
         """
@@ -166,9 +102,14 @@ class Edition(models.Model):
             if new_registration_form != getattr(original_obj, "registration_form"):
                 super().save(*args, **kwargs)
                 self.create_players_from_registration_form(new_registration_form)
+                # The row is already written; saving again would replay the
+                # caller's flags (Edition.objects.create passes force_insert=True,
+                # which would re-INSERT the same pk).
+                return
         elif self.registration_form:
             super().save(*args, **kwargs)
             self.create_players_from_registration_form(self.registration_form)
+            return
 
         # Call the original save method to save the object
         super().save(*args, **kwargs)
