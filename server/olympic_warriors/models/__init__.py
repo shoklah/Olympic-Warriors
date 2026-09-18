@@ -15,4 +15,5 @@ from .Relay import Relay
 from .Fair import Fair
 from .ObstacleCourse import ObstacleCourse
 from .GeneralCultureQuizz import GeneralCultureQuizz
+from .Darts import Darts
 from .ResultTypes import ResultTypes

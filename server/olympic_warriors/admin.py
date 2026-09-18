@@ -31,6 +31,7 @@ from .models import (
     Fair,
     ObstacleCourse,
     GeneralCultureQuizz,
+    Darts,
 )
 
 
@@ -399,3 +400,4 @@ site.register(Relay, DisciplineAdmin)
 site.register(Fair, DisciplineAdmin)
 site.register(ObstacleCourse, DisciplineAdmin)
 site.register(GeneralCultureQuizz, DisciplineAdmin)
+site.register(Darts, DisciplineAdmin)
