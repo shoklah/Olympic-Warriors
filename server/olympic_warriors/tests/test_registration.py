@@ -7,6 +7,7 @@ from olympic_warriors.registration import (
     GLOBAL_LEVEL,
     NAME,
     RATINGS,
+    parse_name,
     resolve_columns,
 )
 
@@ -77,19 +78,19 @@ class ResolveColumnsTests(SimpleTestCase):
             resolve_columns(df)
         self.assertIn("Ambiguous", str(ctx.exception))
 
-    def test_resolves_literal_headers_from_real_2026_export(self):
+    def test_literal_2026_headers_are_not_reported_missing(self):
         # Copied verbatim from the Google Forms export; deliberately not built from RATINGS.
         literal = pd.DataFrame(
             columns=[
                 "Prénom et Nom",
-                "Sur une échelle de 1 (le plus faible) à 10 (le plus élevé), comment estimes-tu "
-                "le niveau que tu auras en août selon les critères suivants ? "
+                "Sur une échelle de 1 (le plus faible) à 10 (le plus élevé), comment "
+                "estimes-tu le niveau que tu auras en août selon les critères suivants ? "
                 "[Cohésion et esprit d'équipe]",
-                "Sur une échelle de 1 (le plus faible) à 10 (le plus élevé), comment estimes-tu "
-                "le niveau que tu auras en août selon les critères suivants ? "
+                "Sur une échelle de 1 (le plus faible) à 10 (le plus élevé), comment "
+                "estimes-tu le niveau que tu auras en août selon les critères suivants ? "
                 "[Force (soulever, pousser, etc)]",
-                "Sur une échelle de 1 (le plus faible) à 10 (le plus élevé), comment estimes-tu "
-                "le niveau que tu auras en août selon les critères suivants ? "
+                "Sur une échelle de 1 (le plus faible) à 10 (le plus élevé), comment "
+                "estimes-tu le niveau que tu auras en août selon les critères suivants ? "
                 "[Explosivité (effort puissant en un temps court)]",
                 " Sur une échelle de 1 à 10, comment estimes-tu ton niveau global pour les "
                 "Olympic Warriors de 2026 : Flag Rugby, Cache-cache, CrossFit, Relais, "
@@ -105,3 +106,25 @@ class ResolveColumnsTests(SimpleTestCase):
         for present in ("Cohésion", "Force (soulever", "Explosivité", "niveau global"):
             self.assertNotIn(present, message)
         self.assertIn("[Cardio]", message)
+
+
+class ParseNameTests(SimpleTestCase):
+    def test_two_tokens(self):
+        self.assertEqual(parse_name("Alice Martin"), ("Alice", "Martin", "alicemartin"))
+
+    def test_trailing_space_and_accent_keep_legacy_username(self):
+        self.assertEqual(parse_name("Pauline Fauré "), ("Pauline", "Fauré", "paulinefauré"))
+
+    def test_first_name_only(self):
+        self.assertEqual(parse_name("Adrien "), ("Adrien", "", "adrien"))
+
+    def test_three_tokens_join_last_name(self):
+        self.assertEqual(
+            parse_name("Cédric LE GUEDART "), ("Cédric", "LE GUEDART", "cédricleguedart")
+        )
+
+    def test_empty_or_nan_raises(self):
+        with self.assertRaises(ValueError):
+            parse_name("   ")
+        with self.assertRaises(ValueError):
+            parse_name(float("nan"))

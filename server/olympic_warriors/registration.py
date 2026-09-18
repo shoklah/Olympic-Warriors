@@ -88,3 +88,23 @@ def resolve_columns(df):
     if missing:
         raise ValueError(f"Missing registration form columns: {missing}")
     return columns
+
+
+def parse_name(raw):
+    """
+    Split a "Prénom et Nom" cell into first name, last name, and username.
+
+    Whitespace is stripped and collapsed. The first token is the first name;
+    the remaining tokens, joined by a space, form the last name (may be empty).
+    The username is every token concatenated and lowercased, which matches the
+    scheme used by earlier editions so returning players keep their account.
+
+    :raises ValueError: if the cell is blank or not a string (pandas NaN).
+    """
+    tokens = raw.split() if isinstance(raw, str) else []
+    if not tokens:
+        raise ValueError("Empty participant name")
+    first_name = tokens[0]
+    last_name = " ".join(tokens[1:])
+    username = "".join(tokens).lower()
+    return first_name, last_name, username
