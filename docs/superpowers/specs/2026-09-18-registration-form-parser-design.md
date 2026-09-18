@@ -114,8 +114,8 @@ exists as a user from a prior edition. No real participant data is committed.
 
 `tests/test_registration.py` (no database):
 
-- `resolve_columns` finds all twelve columns on the 2026 headers.
-- `resolve_columns` finds all eleven required columns on the 2025 headers
+- `resolve_columns` finds all thirteen columns on the 2026 headers (name, email, global level, ten skills).
+- `resolve_columns` finds all twelve required columns on the 2025 headers
   (no email), proving the rules are not tied to one year.
 - `resolve_columns` raises and names the criterion when one skill header is
   removed.

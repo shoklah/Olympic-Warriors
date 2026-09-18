@@ -52,7 +52,7 @@ Discipline-specific admin and validation match on the discipline **name string**
 
 **Registration import:** saving an `Edition` with a new `registration_form` CSV runs `Edition.create_players_from_registration_form`, which parses the French Google Forms export with pandas (`header_mapping` in `models/Edition.py`), computes weighted ratings, and auto-creates `User`, `Player` and `PlayerRating` rows. Every re-save with a changed file re-imports.
 
-**API:** ~70 flat `@api_view` functions in `views.py` wired in one hand-written list in `urls.py` (no routers, no `/api/` prefix except the schema at `/api/schema/swagger/`). Global auth is DRF `TokenAuthentication` + `IsAuthenticated`; only the edition/discipline read endpoints are `AllowAny`. Tokens are issued at `/auth/token/` and auto-created per user by `signals.py`. Serializers are `fields="__all__"` `ModelSerializer`s with a few computed read-only fields.
+**API:** ~70 flat `@api_view` functions in `views.py` wired in one hand-written list in `urls.py` (no routers, no `/api/` prefix except the schema at `/api/schema/swagger/`). Global auth is DRF `TokenAuthentication` + `IsAuthenticated`. Five edition/discipline read views carry `@permission_classes([AllowAny])`, but it is stacked above `@api_view` so DRF ignores it and every endpoint currently returns 401 without a token. Per-view decorators must go below `@api_view`. Tokens are issued at `/auth/token/` and auto-created per user by `signals.py`. Serializers are `fields="__all__"` `ModelSerializer`s with a few computed read-only fields.
 
 **Soft deletes:** nearly every model has `is_active`; the admin injects `is_active__exact=1` into every changelist via `request_only_active`, so inactive rows are hidden but still exist.
 
