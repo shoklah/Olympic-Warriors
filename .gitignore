@@ -174,3 +174,6 @@ mediafiles/
 # graphify local state (machine-specific paths)
 graphify-out/.graphify_python
 graphify-out/.graphify_root
+
+# synthetic test fixtures are not real exports
+!server/olympic_warriors/tests/fixtures/*.csv
