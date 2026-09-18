@@ -130,3 +130,12 @@ docker compose exec server python manage.py test olympic_warriors.tests.test_dis
 - **Icons.** No SVG for `Generalculturequizz` or `Darts` in
   `front/src/lib/img/icons/`, and the front's icon map is hard-coded; six older
   disciplines are in the same state. To be handled in a later front pass.
+- **Resaving a round-robin discipline nulls `max_rounds`.** The scheduler
+  writes `max_rounds` on a separately fetched `Discipline` instance, so the
+  caller's instance still holds `None`; any later `save()` from that instance
+  (or from the admin form loaded before scheduling) overwrites the column with
+  `None`. Cosmetic today because `max_rounds` is only read at scheduling time.
+- **Swiss pairing crashes when `max_rounds` is empty.** `schedule/swiss.py`
+  compares the round count to `max_rounds` without a default, so creating any
+  discipline with pairing system Swiss and no `max_rounds` raises `TypeError`
+  and the admin save returns a 500. Affects Petanque and Basketball too.
