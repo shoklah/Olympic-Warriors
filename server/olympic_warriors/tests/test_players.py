@@ -33,11 +33,15 @@ class TestPlayerSetup(APITestCase):
 
 class TestPlayersAPI(TestPlayerSetup):
 
+    def test_get_players_unauthenticated_is_rejected(self):
+        response = self.client.get("/players/")
+        self.assertEqual(response.status_code, 401)
+
     def test_get_players(self):
+        self.client.force_authenticate(user=self.user)
         response = self.client.get("/players/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]["user"]["email"], "johndoe@email.com")
-        self.assertEqual(response.data[0]["user"]["first_name"], "John")
-        self.assertEqual(response.data[0]["user"]["last_name"], "Doe")
+        self.assertEqual(response.data[0]["first_name"], "John")
+        self.assertEqual(response.data[0]["last_name"], "Doe")
         self.assertEqual(response.data[0]["rating"], 5)
