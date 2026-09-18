@@ -44,9 +44,10 @@ subclass `Discipline`, override `save()` to set `name` and `result_type` when
 - Export `GeneralCultureQuizz` and `Darts` from `models/__init__.py`.
 - `site.register(GeneralCultureQuizz, DisciplineAdmin)` and
   `site.register(Darts, DisciplineAdmin)` in `admin.py`.
-- One migration, `0025_darts_generalculturequizz.py`, depending on
-  `0024_obstaclecourse`, with two `CreateModel` operations that carry only the
-  `discipline_ptr` one-to-one link, matching migration 0024.
+- One migration per discipline, generated with `makemigrations`:
+  `0025_generalculturequizz.py` then `0026_darts.py`. Each holds a single
+  `CreateModel` carrying only the `discipline_ptr` one-to-one link, matching
+  migration 0024. Separate migrations let each discipline land green on its own.
 
 ## Naming
 
@@ -77,8 +78,12 @@ Cases:
    `pairing_system = ROUND_ROBIN` creates five rounds (`max_rounds` defaults to
    team count minus one), and every `Game` belongs to that discipline with a
    referee that is neither `team1` nor `team2`.
-3. **Darts scoring.** Saving one darts game with `score1 > score2` adds three
-   points to `team1`'s result and leaves `team2`'s at zero.
+3. **Darts scoring.** The existing `Game.save()` treats a freshly scheduled
+   0-0 game as a draw and gives both teams one point at creation. Editing one
+   scheduled darts game to `score1 > score2` then moves `team1`'s result up by
+   two and `team2`'s down by one relative to the post-scheduling baseline, so
+   that game ends up contributing three points to the winner and none to the
+   loser.
 
 ## Out of scope
 
