@@ -133,6 +133,9 @@ class TestDarts(DisciplineTestSetup):
             TeamResult.objects.filter(discipline=darts).values_list("team_id", "points")
         )
 
+        # The scheduler writes max_rounds on a separately fetched instance, so refresh
+        # first; resaving a stale instance would null max_rounds (see spec follow-ups).
+        darts.refresh_from_db()
         darts.reveal_score = True
         darts.save()
 

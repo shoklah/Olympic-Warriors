@@ -32,7 +32,9 @@ subclass `Discipline`, override `save()` to set `name` and `result_type` when
 - `class Darts(Discipline)`
 - `name = 'Darts'`, `result_type = ResultTypes.POINTS`
 - No pairing system is forced. The organiser picks Round Robin or Swiss on the
-  admin form, exactly as for `Rugby` and `Dodgeball`. The base
+  admin form, exactly as for `Rugby` and `Dodgeball`. Swiss requires
+  `max_rounds` to be filled in on the same form, because the Swiss scheduler
+  has no default for it and crashes on an empty value (see follow-ups). The base
   `Discipline.save()` then schedules rounds and games with referees, and
   `Game.save()` rolls win/draw/loss points into `TeamResult.points`.
 - No `GameEvent` subclass. `GameAdmin.get_inline_instances` matches on the
@@ -83,6 +85,10 @@ Cases:
    two and `team2`'s down by one relative to the post-scheduling baseline, so
    that game ends up contributing three points to the winner and none to the
    loser.
+4. **Idempotent resaves.** Saving an existing quiz or darts discipline again
+   (for example to toggle `reveal_score`) creates no extra team results, rounds
+   or games and leaves every team's points unchanged. A darts discipline left
+   on the default pairing system schedules nothing.
 
 ## Out of scope
 

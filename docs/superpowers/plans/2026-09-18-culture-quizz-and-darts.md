@@ -392,7 +392,7 @@ Expected: `No changes detected`.
 docker compose exec server python manage.py test olympic_warriors
 ```
 
-Expected: `Ran 7 tests ... FAILED (failures=1)`, where the only failure is the pre-existing `test_players` 401 and all six `test_disciplines` tests pass.
+Expected: `Ran 9 tests ... FAILED (failures=1)`, where the only failure is the pre-existing `test_players` 401 and all eight `test_disciplines` tests pass (the review pass after Task 3 added two more tests).
 
 - [ ] **Step 3: Run pylint as CI does (advisory)**
 
