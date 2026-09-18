@@ -119,19 +119,22 @@ def compute_ratings(df, columns):
     :param df: DataFrame read from the registration CSV.
     :param columns: mapping returned by resolve_columns.
     :return: a new DataFrame with internal column names and the two ratings.
-    :raises ValueError: if any rating is blank, non-numeric, or outside 1-10.
+    :raises ValueError: if any rating is blank, non-numeric, or outside 1-10;
+                        every invalid cell of the form is reported together.
     """
     df = df.rename(columns={header: internal for internal, header in columns.items()})
 
+    problems = []
     for column in list(RATINGS) + [GLOBAL_LEVEL]:
         values = pd.to_numeric(df[column], errors="coerce")
         invalid = df[values.isna() | (values < 1) | (values > 10)]
-        if not invalid.empty:
-            raise ValueError(
-                f"Invalid rating for {column!r} on participant {invalid.iloc[0][NAME]!r}: "
-                f"{invalid.iloc[0][column]!r}"
-            )
+        for index, row in invalid.iterrows():
+            name = row[NAME]
+            who = repr(name) if isinstance(name, str) else f"line {index + 2}"
+            problems.append(f"{column!r} for {who}: {row[column]!r}")
         df[column] = values
+    if problems:
+        raise ValueError("Invalid ratings in registration form: " + "; ".join(problems))
 
     total_coef = sum(spec["coef"] for spec in RATINGS.values())
     weighted = sum(df[name] * spec["coef"] for name, spec in RATINGS.items()) / total_coef

@@ -190,3 +190,31 @@ class ComputeRatingsTests(SimpleTestCase):
         with self.assertRaises(ValueError) as ctx:
             self.compute([make_row("Alice Martin", 11, 8)])
         self.assertIn("Alice Martin", str(ctx.exception))
+
+    def test_all_invalid_cells_are_reported_together(self):
+        alice = make_row("Alice Martin", 6, 8)
+        alice[4] = "beaucoup"
+        bob = make_row("Bob", 6, 12)
+
+        with self.assertRaises(ValueError) as ctx:
+            self.compute([alice, bob])
+        message = str(ctx.exception)
+        self.assertIn("Alice Martin", message)
+        self.assertIn("Bob", message)
+
+    def test_invalid_cell_with_blank_name_is_reported_by_line(self):
+        row = make_row(float("nan"), 6, 12)
+
+        with self.assertRaises(ValueError) as ctx:
+            self.compute([row])
+        self.assertIn("line 2", str(ctx.exception))
+
+    def test_weighted_exactly_four_is_not_boosted(self):
+        out = self.compute([make_row("X", 4, 8)])
+
+        self.assertEqual(out.loc[0, "Weighted_Rating"], 4.0)
+
+    def test_global_exactly_four_does_not_boost(self):
+        out = self.compute([make_row("X", 3, 4)])
+
+        self.assertEqual(out.loc[0, "Weighted_Rating"], 3.0)
