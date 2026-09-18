@@ -39,6 +39,7 @@ class DisciplineTestSetup(TestCase):
 
 
 class TestGeneralCultureQuizz(DisciplineTestSetup):
+    """Minimal discipline: no scheduling, one zero-point result per active team."""
 
     def test_sets_name_and_result_type(self):
         quizz = GeneralCultureQuizz.objects.create(edition=self.edition)
@@ -67,6 +68,7 @@ class TestGeneralCultureQuizz(DisciplineTestSetup):
 
 
 class TestDarts(DisciplineTestSetup):
+    """Game-based discipline: pairing-system-driven scheduling and score roll-up."""
 
     def _create_round_robin_darts(self):
         return Darts.objects.create(
@@ -74,29 +76,39 @@ class TestDarts(DisciplineTestSetup):
             pairing_system=Discipline.PairingSystem.ROUND_ROBIN,
         )
 
-    def test_sets_name_and_result_type(self):
+    def test_sets_name_and_result_type_and_schedules_nothing_by_default(self):
         darts = Darts.objects.create(edition=self.edition)
         darts.refresh_from_db()
         self.assertEqual(darts.name, "Darts")
         self.assertEqual(darts.result_type, ResultTypes.POINTS)
+        self.assertEqual(TeamSportRound.objects.filter(discipline=darts).count(), 0)
+        self.assertEqual(Game.objects.filter(discipline=darts).count(), 0)
 
     def test_round_robin_schedules_rounds_and_games_with_referees(self):
         darts = self._create_round_robin_darts()
         darts.refresh_from_db()
 
-        # Six teams: max_rounds defaults to 5, two games per round.
-        self.assertEqual(darts.max_rounds, 5)
-        self.assertEqual(TeamSportRound.objects.filter(discipline=darts).count(), 5)
+        # With six teams the scheduler creates len(teams) - 1 rounds of
+        # len(teams) // 3 simultaneous games. This is NOT a full round robin:
+        # the circle rotation pins the first team into every round and drops
+        # the third pairing, so only 10 of the 15 possible pairings are played.
+        # This is pre-existing scheduler behaviour; these tests pin it, not endorse it.
+        expected_rounds = len(self.teams) - 1
+        expected_games = expected_rounds * (len(self.teams) // 3)
+        self.assertEqual(darts.max_rounds, expected_rounds)
+        self.assertEqual(
+            TeamSportRound.objects.filter(discipline=darts).count(), expected_rounds
+        )
 
         games = Game.objects.filter(discipline=darts)
-        self.assertEqual(games.count(), 10)
+        self.assertEqual(games.count(), expected_games)
         for game in games:
             self.assertEqual(game.edition, self.edition)
             self.assertNotIn(game.referees_id, (game.team1_id, game.team2_id))
 
     def test_game_score_rolls_into_team_results(self):
         darts = self._create_round_robin_darts()
-        game = Game.objects.filter(discipline=darts).first()
+        game = Game.objects.filter(discipline=darts).order_by("round__order", "id").first()
 
         # Scheduled games start 0-0, which Game.save() already counted as a draw (+1 each).
         team1_before = TeamResult.objects.get(team=game.team1, discipline=darts).points
@@ -112,3 +124,21 @@ class TestDarts(DisciplineTestSetup):
         # Draw -> team1 win: winner goes from 1 to 3 (+2), loser from 1 to 0 (-1).
         self.assertEqual(team1_after - team1_before, 2)
         self.assertEqual(team2_after - team2_before, -1)
+
+    def test_resaving_does_not_reschedule_or_rescore(self):
+        darts = self._create_round_robin_darts()
+        rounds_before = TeamSportRound.objects.filter(discipline=darts).count()
+        games_before = Game.objects.filter(discipline=darts).count()
+        points_before = dict(
+            TeamResult.objects.filter(discipline=darts).values_list("team_id", "points")
+        )
+
+        darts.reveal_score = True
+        darts.save()
+
+        self.assertEqual(TeamSportRound.objects.filter(discipline=darts).count(), rounds_before)
+        self.assertEqual(Game.objects.filter(discipline=darts).count(), games_before)
+        points_after = dict(
+            TeamResult.objects.filter(discipline=darts).values_list("team_id", "points")
+        )
+        self.assertEqual(points_after, points_before)
