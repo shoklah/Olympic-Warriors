@@ -181,8 +181,8 @@ def getPlayersByTeam(request, team_id):
         "500": OpenApiResponse(description="Internal server error"),
     },
 )
-@permission_classes([AllowAny])
 @api_view(["GET"])
+@permission_classes([AllowAny])
 def getEdition(request, edition_id):
     try:
         edition = Edition.objects.get(id=edition_id)
@@ -199,8 +199,8 @@ def getEdition(request, edition_id):
         "500": OpenApiResponse(description="Internal server error"),
     },
 )
-@permission_classes([AllowAny])
 @api_view(["GET"])
+@permission_classes([AllowAny])
 def getEditions(request):
     editions = Edition.objects.filter(is_active=True)
     serializer = EditionSerializer(editions, many=True)
@@ -255,8 +255,8 @@ def getTeams(request):
         "500": OpenApiResponse(description="Internal server error"),
     },
 )
-@permission_classes([AllowAny])
 @api_view(["GET"])
+@permission_classes([AllowAny])
 def getDiscipline(request, discipline_id):
     try:
         discipline = Discipline.objects.get(id=discipline_id)
@@ -273,8 +273,8 @@ def getDiscipline(request, discipline_id):
         "500": OpenApiResponse(description="Internal server error"),
     },
 )
-@permission_classes([AllowAny])
 @api_view(["GET"])
+@permission_classes([AllowAny])
 def getDisciplines(request):
     disciplines = Discipline.objects.filter(is_active=True)
     serializer = DisciplineSerializer(disciplines, many=True)
@@ -288,8 +288,8 @@ def getDisciplines(request):
         "500": OpenApiResponse(description="Internal server error"),
     },
 )
-@permission_classes([AllowAny])
 @api_view(["GET"])
+@permission_classes([AllowAny])
 def getDisciplinesByEdition(request, edition_id):
     disciplines = Discipline.objects.filter(edition=edition_id, is_active=True)
     serializer = DisciplineSerializer(disciplines, many=True)
