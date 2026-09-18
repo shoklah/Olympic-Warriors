@@ -130,7 +130,8 @@ def compute_ratings(df, columns):
         invalid = df[values.isna() | (values < 1) | (values > 10)]
         for index, row in invalid.iterrows():
             name = row[NAME]
-            who = repr(name) if isinstance(name, str) else f"line {index + 2}"
+            # 1-based spreadsheet row, header is row 1
+            who = repr(name) if isinstance(name, str) else f"row {index + 2}"
             problems.append(f"{column!r} for {who}: {row[column]!r}")
         df[column] = values
     if problems:

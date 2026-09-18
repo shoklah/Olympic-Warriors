@@ -202,12 +202,12 @@ class ComputeRatingsTests(SimpleTestCase):
         self.assertIn("Alice Martin", message)
         self.assertIn("Bob", message)
 
-    def test_invalid_cell_with_blank_name_is_reported_by_line(self):
+    def test_invalid_cell_with_blank_name_is_reported_by_row(self):
         row = make_row(float("nan"), 6, 12)
 
         with self.assertRaises(ValueError) as ctx:
             self.compute([row])
-        self.assertIn("line 2", str(ctx.exception))
+        self.assertIn("row 2", str(ctx.exception))
 
     def test_weighted_exactly_four_is_not_boosted(self):
         out = self.compute([make_row("X", 4, 8)])

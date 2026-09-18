@@ -60,7 +60,8 @@ class Edition(models.Model):
                 try:
                     first_name, last_name, username = parse_name(row[NAME])
                 except ValueError as exc:
-                    raise ValueError(f"Registration form line {index + 2}: {exc}") from exc
+                    # 1-based spreadsheet row, header is row 1
+                    raise ValueError(f"Registration form row {index + 2}: {exc}") from exc
 
                 email = row.get(EMAIL)
                 email = email.strip() if isinstance(email, str) else ""
@@ -78,8 +79,8 @@ class Edition(models.Model):
                     user.email = email
                     user.save(update_fields=["email"])
 
-                player, _ = Player.objects.get_or_create(
-                    user=user, edition=self, defaults={"rating": row["Global_Rating"]}
+                player, _ = Player.objects.update_or_create(
+                    user=user, edition=self, defaults={"rating": round(row["Global_Rating"])}
                 )
 
                 for name, spec in RATINGS.items():
@@ -99,16 +100,22 @@ class Edition(models.Model):
             original_obj = Edition.objects.get(pk=self.pk)
             # Compare registration from to see if it has been updated
             new_registration_form = getattr(self, "registration_form")
-            if new_registration_form != getattr(original_obj, "registration_form"):
-                super().save(*args, **kwargs)
-                self.create_players_from_registration_form(new_registration_form)
+            if new_registration_form and new_registration_form != getattr(
+                original_obj, "registration_form"
+            ):
+                # The Edition row and its import share one transaction: a bad
+                # form leaves neither a row nor half the players behind.
+                with transaction.atomic():
+                    super().save(*args, **kwargs)
+                    self.create_players_from_registration_form(new_registration_form)
                 # The row is already written; saving again would replay the
                 # caller's flags (Edition.objects.create passes force_insert=True,
                 # which would re-INSERT the same pk).
                 return
         elif self.registration_form:
-            super().save(*args, **kwargs)
-            self.create_players_from_registration_form(self.registration_form)
+            with transaction.atomic():
+                super().save(*args, **kwargs)
+                self.create_players_from_registration_form(self.registration_form)
             return
 
         # Call the original save method to save the object
