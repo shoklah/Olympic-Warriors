@@ -64,9 +64,8 @@ The discipline `name` string is what admin code matches on and what the front's
 New module `server/olympic_warriors/tests/test_disciplines.py`, using Django's
 `TestCase` against the Postgres container.
 
-Shared setup: one edition, six active teams, one inactive team. Six is the
-smallest team count where the round-robin scheduler leaves teams free to
-referee (it uses `len(teams) // 3` simultaneous games).
+Shared setup: one edition, six active teams, one inactive team. Six gives a
+realistic edition: two simultaneous games and two referee teams per round.
 
 Cases:
 
@@ -90,9 +89,13 @@ Cases:
 - Icons and the front's hard-coded icon map. Six existing disciplines already
   render without an icon; this will be handled in a later front pass.
 - Views, serializers, URL entries.
-- Pre-existing scheduler bug: `schedule_round_robin_games` raises when the
-  active team count is even but not a multiple of three (for example four),
-  because every team is playing and none is left to referee. Not touched here.
+- Pre-existing scheduler bug: `schedule_round_robin_games` raises
+  `ZeroDivisionError` with exactly two active teams, because
+  `len(teams) // 3` simultaneous games is zero and the guard only rejects fewer
+  than two. Not touched here.
+- Pre-existing test failure: `tests/test_players.py` gets a 401 because of the
+  decorator-ordering bug documented in `CLAUDE.md`. The full suite is expected
+  to show that one failure alongside the new passing tests.
 
 ## Running the tests
 

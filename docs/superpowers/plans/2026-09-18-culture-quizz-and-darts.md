@@ -28,7 +28,7 @@
 
 - **Business logic lives in model `save()` overrides.** `Discipline.save()` (in `server/olympic_warriors/models/Discipline.py`) creates `TeamResult` rows and dispatches scheduling on first save. `Game.save()` turns scores into `TeamResult.points` as deltas.
 - **A freshly scheduled game is a draw.** The round-robin scheduler creates games with `score1 = score2 = 0`, and `Game.save()` on a new object with equal scores gives both teams `+1`. So after scheduling, team results are not zero. Tests assert deltas, not absolute values.
-- **Round robin needs spare teams to referee.** `schedule_round_robin_games` uses `len(teams) // 3` simultaneous games. With six active teams that is two games per round, four teams playing and two refereeing, `max_rounds` defaulting to five, ten games total. Four teams would crash (nobody left to referee). Use six teams in tests.
+- **Round robin shape with six teams.** `schedule_round_robin_games` uses `len(teams) // 3` simultaneous games and refreshes the referee pool per iteration. With six active teams that is two games per round, four teams playing and two refereeing, `max_rounds` defaulting to five, ten games total. Exactly two teams crashes with `ZeroDivisionError` (pre-existing, out of scope). Use six teams in tests.
 - **The discipline `name` string matters.** Admin code and the front icon key match on it. Use exactly `General Culture Quizz` and `Darts`.
 - **All commands run from the worktree root** `/Users/shoklah/Work/Playground/Olympic-Warriors/.claude/worktrees/new-disciplines-culture-darts-62bc99`. Do not `cd` to the main checkout.
 - **Docker project name.** Compose derives its project name from the worktree folder, so this stack is separate from the main checkout's. Ports 3003 and 5433 must be free (the main stack was down when this plan was written).
@@ -62,7 +62,7 @@ Expected: both containers reach `Started`/`Healthy`. The server container runs `
 docker compose exec server python manage.py test olympic_warriors
 ```
 
-Expected: `Ran 1 test ... OK`.
+Expected: `Ran 1 test ... FAILED (failures=1)`. The single pre-existing test gets a 401 because of the decorator-ordering auth bug documented in `CLAUDE.md`. That is the baseline; it is not touched by this plan.
 
 ---
 
@@ -392,7 +392,7 @@ Expected: `No changes detected`.
 docker compose exec server python manage.py test olympic_warriors
 ```
 
-Expected: `Ran 7 tests ... OK`.
+Expected: `Ran 7 tests ... FAILED (failures=1)`, where the only failure is the pre-existing `test_players` 401 and all six `test_disciplines` tests pass.
 
 - [ ] **Step 3: Run pylint as CI does (advisory)**
 
