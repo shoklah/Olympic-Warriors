@@ -106,3 +106,27 @@ checkout, then:
 docker compose up -d db server
 docker compose exec server python manage.py test olympic_warriors.tests.test_disciplines
 ```
+
+## Follow-ups surfaced during review (not addressed here)
+
+- **Round-robin schedule is unbalanced.** `schedule_round_robin_games` keeps
+  the first team pinned in `l1[0]` while rotating the others and creates only
+  `len(teams) // 3` games per round, so with six teams the first team plays all
+  five rounds while every other team plays three, and only 10 of the 15
+  pairings happen. Since `Game.save()` credits one point per team at creation,
+  the pinned team starts with more points. Affects every game-based discipline,
+  not just darts. The darts test pins this behaviour with an explanatory
+  comment rather than endorsing it.
+- **Scheduling only happens on first save.** A discipline created with pairing
+  system `None` can never be scheduled afterwards from the admin; it must be
+  deleted and recreated. Consider re-dispatching when `pairing_system` changes
+  away from `None`, or making the field read-only after creation.
+- **Unpinned dependencies break a fresh image.** `server/requirements.txt`
+  pins nothing. A fresh build in September 2026 pulls a Django REST Framework
+  release that turns the documented `@permission_classes` ordering bug in
+  `views.py` into a hard `TypeError` at boot. The main checkout's long-running
+  container is on Django 4.2.19 and DRF 3.15.2. Either pin those versions or fix
+  the decorator order.
+- **Icons.** No SVG for `Generalculturequizz` or `Darts` in
+  `front/src/lib/img/icons/`, and the front's icon map is hard-coded; six older
+  disciplines are in the same state. To be handled in a later front pass.
