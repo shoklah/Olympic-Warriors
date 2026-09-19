@@ -28,7 +28,7 @@
 
 - **Business logic lives in model `save()` overrides.** `Discipline.save()` (in `server/olympic_warriors/models/Discipline.py`) creates `TeamResult` rows and dispatches scheduling on first save. `Game.save()` turns scores into `TeamResult.points` as deltas.
 - **A freshly scheduled game is a draw.** The round-robin scheduler creates games with `score1 = score2 = 0`, and `Game.save()` on a new object with equal scores gives both teams `+1`. So after scheduling, team results are not zero. Tests assert deltas, not absolute values.
-- **Round robin shape with six teams.** `schedule_round_robin_games` uses `len(teams) // 3` simultaneous games and refreshes the referee pool per iteration. With six active teams that is two games per round, four teams playing and two refereeing, `max_rounds` defaulting to five, ten games total. Exactly two teams crashes with `ZeroDivisionError` (pre-existing, out of scope). Use six teams in tests.
+- **Round robin shape with six teams.** `schedule_round_robin_games` builds a full round robin: `max_rounds` defaults to five, every team plays once per round, fifteen games total. Each round is played in batches of `len(teams) // 3` simultaneous games (two, then one) refereed by the teams not playing in the batch. Use six teams in tests. (When this plan was written the scheduler dropped one pairing per round and produced ten games; that has since been fixed on `dev`.)
 - **The discipline `name` string matters.** Admin code and the front icon key match on it. Use exactly `General Culture Quizz` and `Darts`.
 - **All commands run from the worktree root** `/Users/shoklah/Work/Playground/Olympic-Warriors/.claude/worktrees/new-disciplines-culture-darts-62bc99`. Do not `cd` to the main checkout.
 - **Docker project name.** Compose derives its project name from the worktree folder, so this stack is separate from the main checkout's. Ports 3003 and 5433 must be free (the main stack was down when this plan was written).
@@ -265,12 +265,12 @@ class TestDarts(DisciplineTestSetup):
         darts = self._create_round_robin_darts()
         darts.refresh_from_db()
 
-        # Six teams: max_rounds defaults to 5, two games per round.
+        # Six teams: max_rounds defaults to 5, every pair of teams meets once.
         self.assertEqual(darts.max_rounds, 5)
         self.assertEqual(TeamSportRound.objects.filter(discipline=darts).count(), 5)
 
         games = Game.objects.filter(discipline=darts)
-        self.assertEqual(games.count(), 10)
+        self.assertEqual(games.count(), 15)
         for game in games:
             self.assertEqual(game.edition, self.edition)
             self.assertNotIn(game.referees_id, (game.team1_id, game.team2_id))
