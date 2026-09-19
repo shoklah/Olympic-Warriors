@@ -159,6 +159,14 @@ class TestRankingTieBreaker(RankingTestSetup):
             TeamResult.objects.get(team=self.team_b, discipline=quizz).points_difference, 0
         )
 
+    def test_inactive_results_are_not_counted(self):
+        self.play(self.team_a, 5, self.team_b, 2)  # A 3 pts (+3)
+        self.play(self.team_c, 1, self.team_d, 0)  # C 3 pts (+1), D 0 pts (-1)
+        TeamResult.objects.filter(team=self.team_c, discipline=self.darts).update(is_active=False)
+
+        self.assertEqual(self.result(self.team_a).ranking, 1)
+        self.assertEqual(self.result(self.team_d).ranking, 2)
+
 
 class TestTeamResultSerializer(RankingTestSetup):
     """The API exposes the difference next to ranking and global_points."""
