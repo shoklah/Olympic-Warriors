@@ -12,8 +12,9 @@ from datetime import datetime, timezone
 
 from django.apps import apps
 from django.contrib.auth.models import User
+from django.core.exceptions import SuspiciousFileOperation
 from django.core.files.storage import default_storage
-from django.db import transaction
+from django.db import models, transaction
 from django.utils.crypto import get_random_string
 
 from .models import (
@@ -32,7 +33,6 @@ from .models import (
 
 FORMAT = 1
 USER_FIELDS = ("username", "first_name", "last_name", "email", "is_active")
-FILE_FIELDS = ("registration_form", "rules")
 
 # Exported tables in dependency order: (name, model, lookup selecting an edition's rows).
 TABLES = (
@@ -176,11 +176,39 @@ def _insert(model, kwargs, force_insert=False):
     return obj
 
 
+def _file_field_names(model, fields=None):
+    return [
+        f.name for f in (fields or model._meta.concrete_fields) if isinstance(f, models.FileField)
+    ]
+
+
 def _file_paths(document):
-    paths = [document["edition"].get(name) for name in FILE_FIELDS]
-    for row in document["tables"].get("Discipline", []):
-        paths += [row.get(name) for name in FILE_FIELDS]
+    """Every media path referenced by the document (edition, tables, and MTI child payloads)."""
+    paths = [document["edition"].get(name) for name in _file_field_names(Edition)]
+    for name, model, _ in TABLES:
+        names = _file_field_names(model)
+        for row in document["tables"].get(name, []):
+            paths += [row.get(field) for field in names]
+            if row.get("subclass"):
+                child = apps.get_model("olympic_warriors", row["subclass"])
+                paths += [
+                    row.get("child", {}).get(field)
+                    for field in _file_field_names(child, child._meta.local_concrete_fields)
+                ]
     return [path for path in paths if path]
+
+
+def _missing_files(document):
+    """Media paths the document references that are absent from this side's storage."""
+    missing = []
+    for path in _file_paths(document):
+        try:
+            present = default_storage.exists(path)
+        except SuspiciousFileOperation:
+            present = False
+        if not present:
+            missing.append(path)
+    return missing
 
 
 def import_edition(document, replace=False):
@@ -199,6 +227,13 @@ def import_edition(document, replace=False):
     """
     if document.get("format") != FORMAT:
         raise TransferError(f"Unsupported transfer document format {document.get('format')!r}")
+    tables_ok = isinstance(document.get("tables"), dict)
+    edition_ok = isinstance(document.get("edition"), dict)
+    if not tables_ok or not edition_ok:
+        raise TransferError("Malformed transfer document: 'edition' and 'tables' must be objects")
+    unknown = set(document["tables"]) - {name for name, _, _ in TABLES}
+    if unknown:
+        raise TransferError(f"Document holds unknown tables {sorted(unknown)}")
     year = document["edition"]["year"]
 
     with transaction.atomic():
@@ -262,7 +297,5 @@ def import_edition(document, replace=False):
             "users_reused": reused,
             "users_created": created,
             "counts": counts,
-            "missing_files": [
-                path for path in _file_paths(document) if not default_storage.exists(path)
-            ],
+            "missing_files": _missing_files(document),
         }

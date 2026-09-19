@@ -1,8 +1,9 @@
 """Round-trip tests for exporting an edition and importing it with fresh ids."""
 import copy
+import tempfile
 
 from django.contrib.auth.models import User
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from olympic_warriors.models import (
     Blindtest,
@@ -151,6 +152,13 @@ class ExportEditionTests(TestCase):
 
 
 class ImportEditionTests(TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        tmp = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(tmp.cleanup)
+        cls.enterClassContext(override_settings(MEDIA_ROOT=tmp.name))
+
     def setUp(self):
         self.edition = build_edition()
         self.before = snapshot(self.edition)
@@ -199,16 +207,22 @@ class ImportEditionTests(TestCase):
             (game.team1.edition_id, game.team2.edition_id, game.referees.edition_id),
             (edition.pk, edition.pk, edition.pk),
         )
+        self.assertEqual(
+            (game.team1.name, game.team2.name, game.referees.name), ("Red", "Blue", "Red")
+        )
         self.assertEqual(game.round.discipline.edition_id, edition.pk)
         self.assertEqual(Rugby.objects.get(edition=edition).pk, game.discipline_id)
         event = RugbyEvent.objects.get(game=game)
         self.assertEqual(event.event_type, "STA")
         self.assertEqual(event.player1.user.username, "alice")
         self.assertIsNone(event.player2)
-        guess = BlindtestGuess.objects.filter(
-            blindtest_round__blindtest__edition=edition
-        ).first()
-        self.assertEqual(guess.team.edition_id, edition.pk)
+        red_guesses = BlindtestGuess.objects.filter(
+            blindtest_round__blindtest__edition=edition, team__name="Red"
+        )
+        self.assertEqual(red_guesses.count(), 10)
+        self.assertEqual(red_guesses.first().team.edition_id, edition.pk)
+        bob_player = Player.objects.get(user__username="bob", edition=edition)
+        self.assertEqual(bob_player.team.name, "Blue")
         self.assertEqual(Blindtest.objects.get(edition=edition).name, "Blindtest")
         crossfit = TeamResult.objects.get(
             discipline__edition=edition, discipline__name="Crossfit", team__name="Red"
@@ -253,6 +267,15 @@ class ImportEditionTests(TestCase):
     def test_unsupported_format_is_rejected(self):
         with self.assertRaises(TransferError):
             import_edition({**self.document, "format": 2})
+        self.assertFalse(Edition.objects.filter(year=2024).exists())
+
+    def test_unknown_table_is_rejected(self):
+        broken = copy.deepcopy(self.document)
+        broken["tables"]["Tiebreak"] = [{"_id": 1}]
+
+        with self.assertRaises(TransferError) as ctx:
+            import_edition(broken)
+        self.assertIn("Tiebreak", str(ctx.exception))
         self.assertFalse(Edition.objects.filter(year=2024).exists())
 
     def test_missing_media_files_are_reported(self):
