@@ -1,6 +1,40 @@
+from django.apps import apps
 from django.db import models
+from django.db.models import F, OuterRef, Q, Subquery, Sum
+from django.db.models.functions import Coalesce
+
 from .Edition import Edition
 from .ResultTypes import ResultTypes
+
+
+def annotate_points_difference(queryset):
+    """
+    Annotate a TeamResult queryset with `points_difference`: over the active games of the
+    result's discipline, the sum of the team's score minus its opponent's score. Teams
+    without any game get 0.
+
+    Game is fetched from the app registry because Discipline.py imports this module.
+    """
+    Game = apps.get_model("olympic_warriors", "Game")
+
+    def score_gap(team_field, own_score, other_score):
+        games = Game.objects.filter(
+            discipline_id=OuterRef("discipline_id"),
+            is_active=True,
+            **{team_field: OuterRef("team_id")},
+        )
+        total = (
+            games.order_by()
+            .values(team_field)
+            .annotate(gap=Sum(F(own_score) - F(other_score)))
+            .values("gap")[:1]
+        )
+        return Coalesce(Subquery(total, output_field=models.IntegerField()), 0)
+
+    return queryset.annotate(
+        points_difference=score_gap("team1", "score1", "score2")
+        + score_gap("team2", "score2", "score1")
+    )
 
 
 class TeamResult(models.Model):
@@ -27,6 +61,19 @@ class TeamResult(models.Model):
         Get the result type of the team in the discipline.
         """
         return self.discipline.result_type
+
+    @property
+    def points_difference(self) -> int:
+        """
+        Sum of the team's score minus its opponent's score over the active games of the
+        discipline. 0 when the team has no game.
+        """
+        difference = (
+            annotate_points_difference(TeamResult.objects.filter(pk=self.pk))
+            .values_list("points_difference", flat=True)
+            .first()
+        )
+        return difference or 0
 
     @property
     def ranking(self) -> int:
