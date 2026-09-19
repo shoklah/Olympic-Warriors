@@ -88,13 +88,10 @@ class TestDarts(DisciplineTestSetup):
         darts = self._create_round_robin_darts()
         darts.refresh_from_db()
 
-        # With six teams the scheduler creates len(teams) - 1 rounds of
-        # len(teams) // 3 simultaneous games. This is NOT a full round robin:
-        # the circle rotation pins the first team into every round and drops
-        # the third pairing, so only 10 of the 15 possible pairings are played.
-        # This is pre-existing scheduler behaviour; these tests pin it, not endorse it.
+        # With six teams the scheduler creates len(teams) - 1 rounds in which
+        # every team plays once, so every pair of teams meets exactly once.
         expected_rounds = len(self.teams) - 1
-        expected_games = expected_rounds * (len(self.teams) // 3)
+        expected_games = len(self.teams) * (len(self.teams) - 1) // 2
         self.assertEqual(darts.max_rounds, expected_rounds)
         self.assertEqual(
             TeamSportRound.objects.filter(discipline=darts).count(), expected_rounds

@@ -1,5 +1,3 @@
-from copy import deepcopy
-
 from django.apps import apps
 from olympic_warriors.models.Team import Team
 
@@ -47,19 +45,22 @@ def _get_last_round_as_referee(discipline_id: int, team_id: int) -> int:
     return last_game_refereed.round.order
 
 
-
 def _assign_referees(
     discipline_id: int, game_without_referees: list, leftover_team_ids: set[int]
 ) -> None:
     """
     Assign referees to games without referees while ensuring best possible distribution.
 
-    @param game_without_referees: list of games without referees for this round iteration
-    @param leftover_team_ids: set of team ids that can be referees for this round iteration
+    @param game_without_referees: list of games without referees for this batch of games
+    @param leftover_team_ids: set of team ids that can be referees for this batch of games
     """
     Game = _get_game_model()
 
     for game in game_without_referees:
+        if not leftover_team_ids:
+            # Nobody left to referee (e.g. only two teams): keep the default referee.
+            return
+
         best_referee_id: int = None
         best_referee_score: int = None
         last_round_best_referee: int = None
@@ -72,11 +73,12 @@ def _assign_referees(
             if not best_referee_id or referee_score < best_referee_score:
                 best_referee_id = team_id
                 best_referee_score = referee_score
+                last_round_best_referee = None
 
             # If the team has refereed the same number of games,
             # pick the one that didn't referee for longer
             elif referee_score == best_referee_score:
-                if not last_round_best_referee:
+                if last_round_best_referee is None:
                     last_round_best_referee = _get_last_round_as_referee(
                         discipline_id,
                         best_referee_id
@@ -85,105 +87,93 @@ def _assign_referees(
                 if _get_last_round_as_referee(discipline_id, team_id) < last_round_best_referee:
                     best_referee_id = team_id
                     best_referee_score = referee_score
+                    last_round_best_referee = None
 
         game.referees = Team.objects.get(id=best_referee_id)
         game.save()
         leftover_team_ids.remove(best_referee_id)
 
 
-def _create_round_iterations(
-    discipline_id: int,
-    l1: list[Team],
-    l2: list[Team],
-    leftover_team_ids: set[int],
-    game_round_id: int,
-    game_index: int,
-    iteration_index: int,
-    simultaneous_games: int,
-    ) -> int:
+def round_robin_pairings(teams: list[Team]) -> list[list[tuple[Team, Team]]]:
     """
-    Create round iterations for team sports.
+    Build the pairings of a full round-robin with the circle method: every team meets every
+    other team exactly once, and every team plays in every round. With an odd number of teams,
+    one team sits out each round.
 
-    @param l1: list of teams in the first half of the round
-    @param l2: list of teams in the second half of the round
-    @param leftover_team_ids: set of team ids that can be referees for this round iteration
-    @param game_round: round of the game
-    @param game_index: index of the game in the round
-    @param iteration_index: index of the iteration in the round
-    @param simultaneous_games: number of simultaneous games in the round
+    @param teams: teams to pair
 
-    @return: game index
+    @return: list of rounds, each round being the list of (team1, team2) pairings played in it
     """
-    games_without_referees = []
-    Discipline = _get_discipline_model()
-    Game = _get_game_model()
-    discipline = Discipline.objects.get(id=discipline_id)
+    rotation = list(teams)
+    if len(rotation) % 2:
+        rotation.append(None)  # bye
 
-    # Create games for this iteration, hence the number of simultaneous games for a round
-    while game_index < simultaneous_games * (iteration_index + 1):
-        games_without_referees.append(
-            Game.objects.create(
-                discipline=discipline,
-                round_id=game_round_id,
-                team1=l1[game_index],
-                team2=l2[game_index],
-                referees=l1[game_index],
-                edition=discipline.edition,
-            )
-        )
-        leftover_team_ids.remove(l1[game_index].id)
-        leftover_team_ids.remove(l2[game_index].id)
-        game_index += 1
+    half = len(rotation) // 2
+    rounds = []
+    for _ in range(len(rotation) - 1):
+        pairings = [
+            (rotation[i], rotation[-1 - i])
+            for i in range(half)
+            if rotation[i] is not None and rotation[-1 - i] is not None
+        ]
+        rounds.append(pairings)
+        # Keep the first team in place and rotate every other team by one position
+        rotation = [rotation[0], rotation[-1]] + rotation[1:-1]
 
-    _assign_referees(discipline_id, games_without_referees, leftover_team_ids)
-
-    return game_index
+    return rounds
 
 
 def schedule_round_robin_games(discipline_id: int) -> None:
     """
     Schedule round-robin games for the discipline, including teams refereeing.
     Applicable to team sports.
+
+    A round holds every pairing of a round-robin round, so every team plays once per round.
+    Games are split in batches of simultaneous games, refereed by the teams not playing in the
+    batch. When max_rounds is not set, it defaults to the number of rounds needed for every
+    team to meet every other team once. When it is larger, pairings start over.
     """
     Discipline = _get_discipline_model()
+    Game = _get_game_model()
     TeamSportRound = _get_team_sport_round_model()
 
     discipline = Discipline.objects.get(id=discipline_id)
-    teams = Team.objects.filter(edition=discipline.edition, is_active=True)
+    teams = list(Team.objects.filter(edition=discipline.edition, is_active=True).order_by("id"))
 
     if len(teams) < 2:
         raise ValueError("Not enough teams to schedule round-robin games.")
 
-    simultaneous_games = len(teams) // 3
-    iteration_per_round = (len(teams) // 2) // simultaneous_games
+    # A game keeps three teams busy: two playing and one refereeing
+    simultaneous_games = max(1, len(teams) // 3)
+    pairing_rounds = round_robin_pairings(teams)
 
     if not discipline.max_rounds:
-        discipline.max_rounds = len(teams) - 1
-        discipline.save()
+        discipline.max_rounds = len(pairing_rounds)
+        discipline.save(update_fields=["max_rounds"])
 
     team_ids = {team.id for team in teams}
 
-    # Split teams in two halves for round-robin
-    l1 = teams[: len(teams) // 2]
-    l2 = teams[len(teams) // 2:]
-    l2.reverse()
-
     for round_index in range(discipline.max_rounds):
         game_round = TeamSportRound.objects.create(discipline=discipline, order=round_index)
-        game_index = 0
+        pairings = pairing_rounds[round_index % len(pairing_rounds)]
 
-        for iteration_index in range(iteration_per_round):
-            game_index = _create_round_iterations(
-                discipline_id,
-                l1,
-                l2,
-                deepcopy(team_ids),
-                game_round.id,
-                game_index,
-                iteration_index,
-                simultaneous_games,
-            )
+        for batch_start in range(0, len(pairings), simultaneous_games):
+            batch = pairings[batch_start:batch_start + simultaneous_games]
+            leftover_team_ids = set(team_ids)
+            games_without_referees = []
 
-        # Rotate teams for next round
-        l2.append(l1.pop())
-        l1.insert(1, l2.pop(0))
+            for team1, team2 in batch:
+                games_without_referees.append(
+                    Game.objects.create(
+                        discipline=discipline,
+                        round=game_round,
+                        team1=team1,
+                        team2=team2,
+                        referees=team1,
+                        edition=discipline.edition,
+                    )
+                )
+                leftover_team_ids.discard(team1.id)
+                leftover_team_ids.discard(team2.id)
+
+            _assign_referees(discipline_id, games_without_referees, leftover_team_ids)
