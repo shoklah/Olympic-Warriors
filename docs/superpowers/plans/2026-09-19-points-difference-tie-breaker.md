@@ -306,7 +306,7 @@ Run:
 ```bash
 docker compose exec server python manage.py test olympic_warriors.tests.test_ranking
 ```
-Expected: `test_equal_points_are_ranked_by_difference` fails (`2 != 1` for team C, since A and C currently share rank 1) and `test_more_points_beat_better_difference` fails on team B (`3 != 4`). The other three pass already.
+Expected: `test_equal_points_are_ranked_by_difference` fails with `AssertionError: 1 != 2` on team C, since A and C currently share rank 1. The other four pass already (they only pin behaviour that must not change).
 
 - [ ] **Step 3: Use the difference as a secondary key in `ranking`**
 
