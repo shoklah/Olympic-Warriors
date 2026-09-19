@@ -41,6 +41,9 @@ export const load = async ({ cookies, params }) => {
             teamTotalPoints: teamMap.get(result.team)?.total_points || 0,
         }));
 
+        // Show the list in rank order; tied teams keep the API order.
+        enrichedResults.sort((a, b) => a.ranking - b.ranking);
+
         // Return the enriched results and discipline data to the page
         return {
             results: enrichedResults,
