@@ -100,6 +100,13 @@ saved, which rolls league points through the existing path. Cases:
 - `reveal_score = False` still yields rank 0.
 - The serializer output includes `points_difference`.
 
+## Known caveat
+
+Soft-deleting a game (`is_active = False`) removes it from the points difference
+but leaves the league points that `Game.save()` already rolled into
+`TeamResult.points`. That is the existing delta-maintenance weakness described
+in `CLAUDE.md`, not something this feature changes.
+
 ## Out of scope
 
 - Swiss pairing order.
