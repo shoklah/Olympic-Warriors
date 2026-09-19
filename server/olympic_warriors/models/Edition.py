@@ -2,6 +2,7 @@ import logging
 
 import pandas as pd
 
+from django.core.exceptions import MultipleObjectsReturned
 from django.db import models, transaction
 from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator, MaxValueValidator
@@ -81,16 +82,25 @@ class Edition(models.Model):
                     user.email = email
                     user.save(update_fields=["email"])
 
-                player, _ = Player.objects.update_or_create(
-                    user=user, edition=self, defaults={"rating": round(row["Global_Rating"])}
-                )
-
-                for name, spec in RATINGS.items():
-                    PlayerRating.objects.update_or_create(
-                        player=player,
-                        identifier=spec["id"],
-                        defaults={"name": name, "rating": row[name]},
+                try:
+                    player, _ = Player.objects.update_or_create(
+                        user=user,
+                        edition=self,
+                        defaults={"rating": round(row["Global_Rating"]), "is_active": True},
                     )
+                    for name, spec in RATINGS.items():
+                        PlayerRating.objects.update_or_create(
+                            player=player,
+                            identifier=spec["id"],
+                            defaults={"name": name, "rating": row[name], "is_active": True},
+                        )
+                except MultipleObjectsReturned as exc:
+                    # Editions imported before ratings were update-or-created may
+                    # hold duplicate (player, identifier) rows.
+                    raise ValueError(
+                        f"Duplicate player or rating rows already exist for {username!r}; "
+                        "remove them in the admin before re-importing."
+                    ) from exc
 
     def save(self, *args, **kwargs):
         """

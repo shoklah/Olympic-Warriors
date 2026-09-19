@@ -137,3 +137,23 @@ class EditionImportTests(TestCase):
                 registration_form=broken,
             )
         self.assertIn("row 3", str(ctx.exception))
+
+    def test_reimport_reactivates_soft_deleted_rows(self):
+        Player.objects.filter(user__username="bob", edition=self.edition).update(is_active=False)
+        PlayerRating.objects.filter(player__user__username="bob").update(is_active=False)
+
+        self.edition.registration_form = upload()
+        self.edition.save()
+
+        bob = Player.objects.get(user__username="bob", edition=self.edition)
+        self.assertTrue(bob.is_active)
+        self.assertTrue(PlayerRating.objects.get(player=bob, identifier="CARD").is_active)
+
+    def test_duplicate_existing_rows_fail_with_participant_name(self):
+        alice = Player.objects.get(user__username="alicemartin", edition=self.edition)
+        PlayerRating.objects.create(player=alice, name="Cardio", identifier="CARD", rating=1)
+
+        self.edition.registration_form = upload()
+        with self.assertRaises(ValueError) as ctx:
+            self.edition.save()
+        self.assertIn("alicemartin", str(ctx.exception))

@@ -15,7 +15,7 @@ The 2025 and 2026 exports include an email column (the 2024 one did not),
 which the parser never used. The 2026 names are messier: ten of
 21 names carry trailing spaces, one is a first name only ("Adrien "), which
 raises `IndexError` on the first/last split, and one has three tokens
-("Cédric LE GUEDART"), which stores "LE" as the last name.
+("Cédric DE LA MOTTE"), which stores "LE" as the last name.
 
 The ten skill rating columns are unchanged from 2025 and contain clean 1-10
 integers with no blanks.
@@ -123,7 +123,7 @@ exists as a user from a prior edition. No real participant data is committed.
   (no email), proving the rules are not tied to one year.
 - `resolve_columns` raises and names the criterion when one skill header is
   removed.
-- `parse_name` on `"Adrien "`, `"Cédric LE GUEDART "`, `"Pauline Fauré "`.
+- `parse_name` on `"Adrien "`, `"Cédric DE LA MOTTE "`, `"Camille Béziau "`.
 - `compute_ratings` reproduces the current formula on a hand-computed row.
 
 `tests/test_edition_import.py` (`TestCase`, needs Postgres via compose):

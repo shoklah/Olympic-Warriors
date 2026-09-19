@@ -114,14 +114,14 @@ class ParseNameTests(SimpleTestCase):
         self.assertEqual(parse_name("Alice Martin"), ("Alice", "Martin", "alicemartin"))
 
     def test_trailing_space_and_accent_keep_legacy_username(self):
-        self.assertEqual(parse_name("Pauline Fauré "), ("Pauline", "Fauré", "paulinefauré"))
+        self.assertEqual(parse_name("Camille Béziau "), ("Camille", "Béziau", "camillebéziau"))
 
     def test_first_name_only(self):
         self.assertEqual(parse_name("Adrien "), ("Adrien", "", "adrien"))
 
     def test_three_tokens_join_last_name(self):
         self.assertEqual(
-            parse_name("Cédric LE GUEDART "), ("Cédric", "LE GUEDART", "cédricleguedart")
+            parse_name("Cédric DE LA MOTTE "), ("Cédric", "DE LA MOTTE", "cédricdelamotte")
         )
 
     def test_empty_or_nan_raises(self):
@@ -133,7 +133,7 @@ class ParseNameTests(SimpleTestCase):
     def test_username_matches_legacy_scheme(self):
         # Earlier editions created usernames with name.replace(" ", "").lower();
         # returning players must keep matching their account.
-        for raw in ["Pauline Fauré ", "Cédric LE GUEDART ", "Adrien ", "Emma BOUCTON"]:
+        for raw in ["Camille Béziau ", "Cédric DE LA MOTTE ", "Adrien ", "Léa DURAND"]:
             self.assertEqual(parse_name(raw)[2], raw.replace(" ", "").lower())
 
     def test_internal_double_space_is_collapsed(self):
