@@ -53,6 +53,11 @@ class Command(BaseCommand):
         self.stdout.write(
             f"Users: {report['users_reused']} reused, {report['users_created']} created"
         )
+        if report["created_users"]:
+            self.stdout.write(
+                "  created (set a password in the admin before they can log in): "
+                + ", ".join(report["created_users"])
+            )
         for table, count in report["counts"].items():
             self.stdout.write(f"  {table:<16} {count}")
         for path in report["missing_files"]:

@@ -2,6 +2,7 @@
 import copy
 import tempfile
 
+from django.apps import apps
 from django.contrib.auth.models import User
 from django.test import TestCase, override_settings
 
@@ -150,6 +151,15 @@ class ExportEditionTests(TestCase):
         with self.assertRaises(Edition.DoesNotExist):
             export_edition(1999)
 
+    def test_tables_cover_every_root_model(self):
+        # MTI children ride along with their parent; every other model must be exported.
+        roots = {
+            model.__name__
+            for model in apps.get_app_config("olympic_warriors").get_models()
+            if not model._meta.get_parent_list()
+        }
+        self.assertEqual(roots, {name for name, _, _ in TABLES} | {"Edition"})
+
 
 class ImportEditionTests(TestCase):
     @classmethod
@@ -288,3 +298,13 @@ class ImportEditionTests(TestCase):
         self.assertEqual(
             Edition.objects.get(year=2024).registration_form.name, "registration_forms/nope.csv"
         )
+
+    def test_report_lists_created_usernames(self):
+        report = import_edition(self.document)
+
+        self.assertEqual(report["created_users"], ["bob"])
+
+    def test_malformed_users_is_rejected(self):
+        with self.assertRaises(TransferError):
+            import_edition({**self.document, "users": None})
+        self.assertFalse(Edition.objects.filter(year=2024).exists())

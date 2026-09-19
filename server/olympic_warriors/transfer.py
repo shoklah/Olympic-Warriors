@@ -223,7 +223,8 @@ def import_edition(document, replace=False):
     :param document: dict produced by export_edition.
     :param replace: delete an existing edition with the same year first.
     :return: report dict with edition_id, year, users_reused, users_created,
-             counts (per table) and missing_files (media paths absent here).
+             created_users (their usernames), counts (per table) and missing_files
+             (media paths absent here).
     :raises EditionExists: year already present and replace is False.
     :raises TransferError: unsupported format, dangling reference, or insert failure.
     """
@@ -231,8 +232,12 @@ def import_edition(document, replace=False):
         raise TransferError(f"Unsupported transfer document format {document.get('format')!r}")
     tables_ok = isinstance(document.get("tables"), dict)
     edition_ok = isinstance(document.get("edition"), dict)
-    if not tables_ok or not edition_ok:
-        raise TransferError("Malformed transfer document: 'edition' and 'tables' must be objects")
+    users_ok = isinstance(document.get("users"), list)
+    if not tables_ok or not edition_ok or not users_ok:
+        raise TransferError(
+            "Malformed transfer document: 'edition' and 'tables' must be objects and "
+            "'users' a list"
+        )
     unknown = set(document["tables"]) - {name for name, _, _ in TABLES}
     if unknown:
         raise TransferError(f"Document holds unknown tables {sorted(unknown)}")
@@ -254,18 +259,24 @@ def import_edition(document, replace=False):
             ),
         )
 
-        users, reused, created = {}, 0, 0
+        users, reused, created, created_users = {}, 0, 0, []
         for entry in document["users"]:
-            user = User.objects.filter(username=entry["username"]).first()
-            if user is None:
-                user = User.objects.create_user(
-                    password=get_random_string(length=8),
-                    **{name: entry[name] for name in USER_FIELDS},
-                )
-                created += 1
-            else:
-                reused += 1
-            users[entry["username"]] = user
+            try:
+                user = User.objects.filter(username=entry["username"]).first()
+                if user is None:
+                    user = User.objects.create_user(
+                        password=get_random_string(length=8),
+                        **{name: entry[name] for name in USER_FIELDS},
+                    )
+                    created += 1
+                    created_users.append(user.username)
+                else:
+                    reused += 1
+                users[entry["username"]] = user
+            except TransferError:
+                raise
+            except Exception as exc:
+                raise TransferError(f"user {entry.get('username')!r}: {exc}") from exc
 
         ids = {name: {} for name, _, _ in TABLES}
         counts = {}
@@ -291,13 +302,14 @@ def import_edition(document, replace=False):
                     raise
                 except Exception as exc:
                     raise TransferError(f"{name} _id {row.get('_id')}: {exc}") from exc
-            counts[name] = len(rows)
+            counts[name] = len(ids[name])
 
         return {
             "edition_id": edition.pk,
             "year": year,
             "users_reused": reused,
             "users_created": created,
+            "created_users": created_users,
             "counts": counts,
             "missing_files": _missing_files(document),
         }
