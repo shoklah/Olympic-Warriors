@@ -95,7 +95,9 @@ Rules:
   `Edition` are omitted (there is exactly one edition per document).
 - All other concrete fields are exported generically from `_meta.concrete_fields`
   (dates as ISO strings, files as their storage name, `None` kept). Inactive
-  rows (`is_active=False`) are exported too.
+  rows (`is_active=False`) are exported too. On import, every `FileField` is
+  discovered the same generic way (including MTI child payloads), and any
+  path it references that is absent from this side's storage is reported.
 - Multi-table inheritance: a `Discipline` row carries `subclass` (the child
   model name, e.g. `Rugby`, `Blindtest`) and `child` (the child model's own
   concrete fields, usually empty). Same for `GameEvent` with `RugbyEvent` /
@@ -146,6 +148,10 @@ import uses; the `post_save` signal creates the DRF token.
 - Any exception rolls the whole edition back; the message names the table and
   `_id` being inserted.
 - Document `format` other than 1 is rejected.
+- Unknown table names in the document, or a document whose `edition`/`tables`
+  are not objects or `users` not a list, are rejected before any write.
+- The report also lists the usernames it created; those users have an unknown
+  random password and need one set in the admin before they can log in.
 
 ### 5. Tests
 
@@ -164,6 +170,9 @@ import uses; the `post_save` signal creates the DRF token.
   counts unchanged and the edition id changed. With `--dry-run`: no edition.
 - A document referencing an unknown `_id` rolls back cleanly.
 - A document with `format: 2` is rejected.
+- A document with an unknown table name, or malformed `users`, is rejected.
+- `TABLES` covers every root model of the app (guard against a new model
+  being skipped).
 
 Before finishing, export the real local 2024 and 2026 editions and import
 them with `--dry-run` into the local database (both years pre-exist locally,
@@ -171,20 +180,46 @@ so the dry run is combined with `--replace`), confirming counts match.
 
 ## Runbook (after implementation)
 
-Locally:
+Prod runs the code baked into its image (`Dockerfile.prod` copies `server/` to
+`/home/app/web`), and its `MEDIA_ROOT` is the docker volume mounted at
+`/home/app/web/mediafiles`, not the `./server` bind mount. So: deploy first,
+copy files into the container second, import third.
 
-    docker compose exec server python manage.py export_edition 2024 --out /server/edition-2024.json
-    docker compose exec server python manage.py export_edition 2026 --out /server/edition-2026.json
-    scp server/edition-20*.json hugo@192.168.1.100:/opt/OW/Olympic-Warriors/server/
-    scp -r server/mediafiles/registration_forms server/mediafiles/rules hugo@192.168.1.100:/opt/OW/Olympic-Warriors/server/mediafiles/
+0. Deploy the merged code on the server (see the deploy steps in
+   `prod-server-access` notes): pull `main`, rebuild and restart the `server`
+   service, run `migrate`. The prod code must be at least as new as the export
+   (an unknown discipline subclass aborts the import).
 
-On the server, for each file:
+1. Locally:
 
-    docker compose -f docker-compose.prod.yml exec server python manage.py import_edition edition-2024.json --dry-run
-    docker compose -f docker-compose.prod.yml exec server python manage.py import_edition edition-2024.json
+       docker compose exec server python manage.py export_edition 2024 --out /server/edition-2024.json
+       docker compose exec server python manage.py export_edition 2026 --out /server/edition-2026.json
+       scp server/edition-20*.json hugo@192.168.1.100:/opt/OW/Olympic-Warriors/server/
+       scp -r server/mediafiles/registration_forms server/mediafiles/rules hugo@192.168.1.100:/tmp/ow-media/
+
+2. On the server, copy the media into the container's volume (the bind mount at
+   `/server` is not where prod reads media):
+
+       cd /opt/OW/Olympic-Warriors
+       docker compose -f docker-compose.prod.yml cp /tmp/ow-media/registration_forms server:/home/app/web/mediafiles/
+       docker compose -f docker-compose.prod.yml cp /tmp/ow-media/rules server:/home/app/web/mediafiles/
+
+3. On the server, for each year, dry run then real run. The JSON sits on the
+   bind mount, so the in-container path is `/server/...`:
+
+       docker compose -f docker-compose.prod.yml exec server python manage.py import_edition /server/edition-2024.json --dry-run
+       docker compose -f docker-compose.prod.yml exec server python manage.py import_edition /server/edition-2024.json
+       docker compose -f docker-compose.prod.yml exec server python manage.py import_edition /server/edition-2026.json --dry-run
+       docker compose -f docker-compose.prod.yml exec server python manage.py import_edition /server/edition-2026.json
+
+   A "Missing media file" warning means step 2 was skipped or landed elsewhere.
+
+4. For every username the import reports as created, set a password in
+   `/admin/auth/user/`; they cannot log in otherwise. Reused users keep their
+   existing password.
 
 The JSON files are gitignored (`server/edition-*.json`) because they contain
-names and emails.
+names and emails; delete them from both machines afterwards.
 
 ## Files
 
