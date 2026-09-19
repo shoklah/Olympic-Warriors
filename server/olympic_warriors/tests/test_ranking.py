@@ -158,3 +158,15 @@ class TestRankingTieBreaker(RankingTestSetup):
         self.assertEqual(
             TeamResult.objects.get(team=self.team_b, discipline=quizz).points_difference, 0
         )
+
+
+class TestTeamResultSerializer(RankingTestSetup):
+    """The API exposes the difference next to ranking and global_points."""
+
+    def test_serializes_points_difference(self):
+        self.play(self.team_a, 5, self.team_b, 2)
+
+        data = TeamResultSerializer(self.result(self.team_a)).data
+
+        self.assertEqual(data["points_difference"], 3)
+        self.assertEqual(data["ranking"], 1)
