@@ -276,7 +276,7 @@ def import_edition(document, replace=False):
             except TransferError:
                 raise
             except Exception as exc:
-                raise TransferError(f"user {entry.get('username')!r}: {exc}") from exc
+                raise TransferError(f"user {entry!r}: {exc}") from exc
 
         ids = {name: {} for name, _, _ in TABLES}
         counts = {}

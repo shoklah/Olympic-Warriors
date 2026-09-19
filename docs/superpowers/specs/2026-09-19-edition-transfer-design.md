@@ -195,6 +195,7 @@ copy files into the container second, import third.
        docker compose exec server python manage.py export_edition 2024 --out /server/edition-2024.json
        docker compose exec server python manage.py export_edition 2026 --out /server/edition-2026.json
        scp server/edition-20*.json hugo@192.168.1.100:/opt/OW/Olympic-Warriors/server/
+       ssh hugo@192.168.1.100 mkdir -p /tmp/ow-media
        scp -r server/mediafiles/registration_forms server/mediafiles/rules hugo@192.168.1.100:/tmp/ow-media/
 
 2. On the server, copy the media into the container's volume (the bind mount at
