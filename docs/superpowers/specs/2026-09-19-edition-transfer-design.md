@@ -70,7 +70,7 @@ the commands are thin wrappers.
       "exported_at": "<ISO timestamp>",
       "edition": {"year": 2026, "host": "...", ...all concrete fields except id},
       "users": [{"username": "alicemartin", "first_name": ..., "last_name": ...,
-                 "email": ..., "password": "<hash>", "is_active": true}],
+                 "email": ..., "is_active": true}],
       "tables": {
         "Team":            [{"_id": 12, "name": ..., ...}],
         "Player":          [{"_id": 40, "user": "alicemartin", "team": 12, "rating": 8, ...}],
@@ -103,10 +103,11 @@ Rules:
   `apps.get_model("olympic_warriors", subclass)`, so disciplines added later
   need no change here.
 - `users` holds every user that owns a `Player` in this edition, whatever its
-  flags, so no `Player` can reference a missing username. `is_superuser` and
-  `is_staff` are exported as `false`: a user created on production by the
-  import never gains admin rights, and an existing production user is not
-  modified anyway.
+  flags, so no `Player` can reference a missing username. Only `username`,
+  `first_name`, `last_name`, `email` and `is_active` are exported: no password
+  hash, and no `is_superuser`/`is_staff`, so a user created on production by
+  the import gets a fresh random password and never gains admin rights. An
+  existing production user is not modified anyway.
 - `Team.edition`, `Discipline.edition`, `Game.edition`, `Player.edition` are
   all set to the new edition on import.
 - `BlindtestRound.blindtest` references the `_id` of the `Discipline` row whose
@@ -128,8 +129,9 @@ missing from the document is an error.
 
 User matching: `User.objects.filter(username=...)` first. An existing user is
 reused as is (production keeps its email and password). A missing user is
-created from the exported fields, password hash included, with
-`save_base(raw=True)`; the `post_save` signal still creates the DRF token.
+created with `User.objects.create_user(...)` from the exported fields and a
+fresh `get_random_string(length=8)` password, the same scheme the registration
+import uses; the `post_save` signal creates the DRF token.
 
 ### 4. Safety and reporting
 
