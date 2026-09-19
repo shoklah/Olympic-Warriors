@@ -178,7 +178,9 @@ def _insert(model, kwargs, force_insert=False):
 
 def _file_field_names(model, fields=None):
     return [
-        f.name for f in (fields or model._meta.concrete_fields) if isinstance(f, models.FileField)
+        f.name
+        for f in (model._meta.concrete_fields if fields is None else fields)
+        if isinstance(f, models.FileField)
     ]
 
 
