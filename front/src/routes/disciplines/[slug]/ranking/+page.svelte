@@ -2,6 +2,9 @@
     export let data;
     let results = data.results;
     let discipline = data.discipline;
+
+    const formatDifference = (difference) =>
+        difference > 0 ? `+${difference}` : `${difference}`;
 </script>
 
 
@@ -15,7 +18,7 @@
                 {#if result.result_type == 'TIM'}
                     <p>{result.time}</p>
                 {:else}
-                    <p>{result.points} pts</p>
+                    <p>{result.points} pts ({formatDifference(result.points_difference)})</p>
                 {/if}
             </div>
         </a>
