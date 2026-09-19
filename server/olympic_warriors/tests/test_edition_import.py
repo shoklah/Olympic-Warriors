@@ -123,7 +123,7 @@ class EditionImportTests(TestCase):
             )
         self.assertFalse(Edition.objects.filter(year=2028).exists())
 
-    def test_blank_name_reports_csv_line(self):
+    def test_blank_name_reports_spreadsheet_row(self):
         rows = FIXTURE.read_text(encoding="utf-8").splitlines(keepends=True)
         # Bob is the second data row; reported as "row 3" (header counts as row 1,
         # wrapped header cells ignored).

@@ -35,6 +35,8 @@ class Edition(models.Model):
         Create or update users, players and skill ratings from the registration form.
 
         The whole import runs in one transaction: a bad row leaves nothing written.
+        Re-importing overwrites ``Player.rating`` and every ``PlayerRating`` of the
+        listed participants, including values edited by hand in the admin.
 
         :param registration_form: file-like CSV export of the Google Form.
         :raises ValueError: on missing columns, invalid ratings, or a blank name.
@@ -109,13 +111,15 @@ class Edition(models.Model):
                     super().save(*args, **kwargs)
                     self.create_players_from_registration_form(new_registration_form)
                 # The row is already written; saving again would replay the
-                # caller's flags (Edition.objects.create passes force_insert=True,
-                # which would re-INSERT the same pk).
+                # caller's flags.
                 return
         elif self.registration_form:
             with transaction.atomic():
                 super().save(*args, **kwargs)
                 self.create_players_from_registration_form(self.registration_form)
+            # Same reason as above; here Edition.objects.create passes
+            # force_insert=True, which a second save would replay as a
+            # duplicate INSERT of the same pk.
             return
 
         # Call the original save method to save the object
