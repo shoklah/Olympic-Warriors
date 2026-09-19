@@ -166,6 +166,7 @@ class TeamResultSerializer(serializers.ModelSerializer):
     ranking = serializers.ReadOnlyField()
     global_points = serializers.ReadOnlyField()
     points_difference = serializers.ReadOnlyField()
+    result_type = serializers.ReadOnlyField()
     team_name = serializers.CharField(source="team.name")
 
     class Meta:

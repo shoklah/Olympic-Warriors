@@ -177,4 +177,5 @@ class TestTeamResultSerializer(RankingTestSetup):
         data = TeamResultSerializer(self.result(self.team_a)).data
 
         self.assertEqual(data["points_difference"], 3)
+        self.assertEqual(data["result_type"], "PTS")
         self.assertEqual(data["ranking"], 1)
