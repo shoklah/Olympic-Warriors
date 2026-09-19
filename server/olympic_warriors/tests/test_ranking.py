@@ -13,6 +13,7 @@ from olympic_warriors.models import (
     Darts,
     GeneralCultureQuizz,
 )
+from olympic_warriors.models.Team import annotate_points_difference
 from olympic_warriors.serializer import TeamResultSerializer
 
 
@@ -92,3 +93,13 @@ class TestPointsDifference(RankingTestSetup):
         )
 
         self.assertEqual(self.result(self.team_a).points_difference, 0)
+
+    def test_annotated_queryset_iterates_as_model_instances(self):
+        self.play(self.team_a, 5, self.team_b, 2)
+        results = annotate_points_difference(
+            TeamResult.objects.filter(discipline=self.darts).order_by("team__name")
+        )
+
+        differences = [result.points_difference for result in results]
+
+        self.assertEqual(differences, [3, -3, 0, 0])

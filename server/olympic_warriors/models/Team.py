@@ -1,3 +1,5 @@
+from functools import cached_property
+
 from django.apps import apps
 from django.db import models
 from django.db.models import F, OuterRef, Q, Subquery, Sum
@@ -62,18 +64,20 @@ class TeamResult(models.Model):
         """
         return self.discipline.result_type
 
-    @property
+    @cached_property
     def points_difference(self) -> int:
         """
         Sum of the team's score minus its opponent's score over the active games of the
         discipline. 0 when the team has no game.
         """
-        difference = (
+        if self.pk is None:
+            return 0
+
+        return (
             annotate_points_difference(TeamResult.objects.filter(pk=self.pk))
             .values_list("points_difference", flat=True)
             .first()
         )
-        return difference or 0
 
     @property
     def ranking(self) -> int:
