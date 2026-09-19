@@ -103,3 +103,58 @@ class TestPointsDifference(RankingTestSetup):
         differences = [result.points_difference for result in results]
 
         self.assertEqual(differences, [3, -3, 0, 0])
+
+
+class TestRankingTieBreaker(RankingTestSetup):
+    """Equal league points are split by points difference; equal difference shares a rank."""
+
+    def test_equal_points_are_ranked_by_difference(self):
+        self.play(self.team_a, 5, self.team_b, 2)  # A 3 pts (+3), B 0 pts (-3)
+        self.play(self.team_c, 1, self.team_d, 0)  # C 3 pts (+1), D 0 pts (-1)
+
+        self.assertEqual(self.result(self.team_a).ranking, 1)
+        self.assertEqual(self.result(self.team_c).ranking, 2)
+        self.assertEqual(self.result(self.team_d).ranking, 3)
+        self.assertEqual(self.result(self.team_b).ranking, 4)
+
+    def test_more_points_beat_better_difference(self):
+        self.play(self.team_a, 1, self.team_b, 0)  # A 3 pts (+1)
+        self.play(self.team_c, 9, self.team_d, 9)  # C 1 pt (0), D 1 pt (0)
+
+        self.assertEqual(self.result(self.team_a).ranking, 1)
+        self.assertEqual(self.result(self.team_c).ranking, 2)
+        self.assertEqual(self.result(self.team_d).ranking, 2)
+        self.assertEqual(self.result(self.team_b).ranking, 4)
+
+    def test_equal_points_and_difference_share_rank(self):
+        self.play(self.team_a, 3, self.team_b, 1)  # A 3 pts (+2), B 0 pts (-2)
+        self.play(self.team_c, 3, self.team_d, 1)  # C 3 pts (+2), D 0 pts (-2)
+
+        self.assertEqual(self.result(self.team_a).ranking, 1)
+        self.assertEqual(self.result(self.team_c).ranking, 1)
+        self.assertEqual(self.result(self.team_b).ranking, 3)
+        self.assertEqual(self.result(self.team_d).ranking, 3)
+
+    def test_hidden_scores_rank_zero(self):
+        self.darts.reveal_score = False
+        self.darts.save()
+        self.play(self.team_a, 5, self.team_b, 2)
+
+        self.assertEqual(self.result(self.team_a).ranking, 0)
+
+    def test_discipline_without_games_ranks_on_points_only(self):
+        quizz = GeneralCultureQuizz.objects.create(edition=self.edition, reveal_score=True)
+        points = {self.team_a: 10, self.team_b: 5, self.team_c: 5, self.team_d: 0}
+        for team, value in points.items():
+            TeamResult.objects.filter(team=team, discipline=quizz).update(points=value)
+
+        def rank(team):
+            return TeamResult.objects.get(team=team, discipline=quizz).ranking
+
+        self.assertEqual(rank(self.team_a), 1)
+        self.assertEqual(rank(self.team_b), 2)
+        self.assertEqual(rank(self.team_c), 2)
+        self.assertEqual(rank(self.team_d), 4)
+        self.assertEqual(
+            TeamResult.objects.get(team=self.team_b, discipline=quizz).points_difference, 0
+        )

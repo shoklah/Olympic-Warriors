@@ -82,7 +82,8 @@ class TeamResult(models.Model):
     @property
     def ranking(self) -> int:
         """
-        Get the ranking of the team in the discipline.
+        Get the ranking of the team in the discipline. Points disciplines break ties on
+        points difference; teams still tied share a rank.
 
         @return: ranking of the team in the discipline
         """
@@ -97,12 +98,14 @@ class TeamResult(models.Model):
                 + 1
             )
         elif self.discipline.result_type == ResultTypes.POINTS:
-            return (
-                TeamResult.objects.filter(
-                    discipline=self.discipline, points__gt=self.points, is_active=True
-                ).count()
-                + 1
+            results = annotate_points_difference(
+                TeamResult.objects.filter(discipline=self.discipline, is_active=True)
             )
+            ahead = results.filter(
+                Q(points__gt=self.points)
+                | Q(points=self.points, points_difference__gt=self.points_difference)
+            )
+            return ahead.count() + 1
         else:
             return 0
 
