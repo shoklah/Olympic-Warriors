@@ -271,14 +271,14 @@ class ParseNameTests(SimpleTestCase):
         self.assertEqual(parse_name("Alice Martin"), ("Alice", "Martin", "alicemartin"))
 
     def test_trailing_space_and_accent_keep_legacy_username(self):
-        self.assertEqual(parse_name("Pauline Fauré "), ("Pauline", "Fauré", "paulinefauré"))
+        self.assertEqual(parse_name("Camille Béziau "), ("Camille", "Béziau", "camillebéziau"))
 
     def test_first_name_only(self):
         self.assertEqual(parse_name("Adrien "), ("Adrien", "", "adrien"))
 
     def test_three_tokens_join_last_name(self):
         self.assertEqual(
-            parse_name("Cédric LE GUEDART "), ("Cédric", "LE GUEDART", "cédricleguedart")
+            parse_name("Cédric DE LA MOTTE "), ("Cédric", "DE LA MOTTE", "cédricdelamotte")
         )
 
     def test_empty_or_nan_raises(self):
@@ -790,7 +790,7 @@ except Rollback:
     print('rolled back, nothing persisted')
 "
 ```
-Expected: `players: 21 ratings: 210`, one line per participant, `adrien` with last name `''`, `cédricleguedart` with last name `'LE GUEDART'`, real emails on every line, then `rolled back, nothing persisted`.
+Expected: `players: 21 ratings: 210`, one line per participant, `adrien` with last name `''`, `cédricdelamotte` with last name `'DE LA MOTTE'`, real emails on every line, then `rolled back, nothing persisted`.
 
 If a `ValueError` is raised instead, its message names the missing column or the offending participant; fix the data or the resolver and re-run.
 
