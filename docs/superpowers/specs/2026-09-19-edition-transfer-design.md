@@ -32,8 +32,7 @@ so returning players already exist on production under different ids.
 ## Non-goals
 
 - Two-way sync or merging two diverging copies of an edition.
-- Moving users that have no player in the exported edition, or the `admin`
-  superuser.
+- Moving users that have no player in the exported edition.
 - Copying media files inside the JSON. File fields keep their relative media
   path; the files are copied with `scp` separately.
 - Any schema change.
@@ -103,10 +102,15 @@ Rules:
   `DodgeballEvent`. The child model is resolved at import with
   `apps.get_model("olympic_warriors", subclass)`, so disciplines added later
   need no change here.
-- `users` holds only users that own a `Player` in this edition. Superusers and
-  staff are skipped and a warning names them.
+- `users` holds every user that owns a `Player` in this edition, whatever its
+  flags, so no `Player` can reference a missing username. `is_superuser` and
+  `is_staff` are exported as `false`: a user created on production by the
+  import never gains admin rights, and an existing production user is not
+  modified anyway.
 - `Team.edition`, `Discipline.edition`, `Game.edition`, `Player.edition` are
   all set to the new edition on import.
+- `BlindtestRound.blindtest` references the `_id` of the `Discipline` row whose
+  `subclass` is `Blindtest` (the child shares the parent's id).
 
 ### 3. Import order and id mapping
 
