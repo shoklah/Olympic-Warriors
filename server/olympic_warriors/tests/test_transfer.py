@@ -19,7 +19,14 @@ from olympic_warriors.models import (
     TeamResult,
     TeamSportRound,
 )
-from olympic_warriors.transfer import FORMAT, TABLES, export_edition
+from olympic_warriors.transfer import (
+    FORMAT,
+    TABLES,
+    EditionExists,
+    TransferError,
+    export_edition,
+    import_edition,
+)
 
 
 def build_edition(year=2024):
@@ -141,3 +148,120 @@ class ExportEditionTests(TestCase):
     def test_missing_year_raises(self):
         with self.assertRaises(Edition.DoesNotExist):
             export_edition(1999)
+
+
+class ImportEditionTests(TestCase):
+    def setUp(self):
+        self.edition = build_edition()
+        self.before = snapshot(self.edition)
+        self.document = export_edition(self.edition.year)
+        Edition.objects.filter(year=2024).delete()
+        # bob must be recreated by the import; alice pre-exists with different data.
+        User.objects.filter(username="bob").delete()
+        User.objects.filter(username="alice").update(email="kept@example.com")
+        self.alice_id = User.objects.get(username="alice").pk
+
+    def test_round_trip_recreates_every_row_without_side_effects(self):
+        report = import_edition(self.document)
+
+        edition = Edition.objects.get(year=2024)
+        self.assertEqual(snapshot(edition), self.before)
+        self.assertEqual(report["counts"], self.before[0])
+        self.assertEqual(report["year"], 2024)
+        self.assertEqual(report["edition_id"], edition.pk)
+        self.assertNotEqual(edition.pk, self.edition.pk)
+        self.assertEqual(edition.registration_form.name, "registration_forms/test.csv")
+        self.assertEqual(report["missing_files"], ["registration_forms/test.csv"])
+
+    def test_existing_user_is_reused_untouched_and_missing_user_created(self):
+        report = import_edition(self.document)
+
+        alice = User.objects.get(username="alice")
+        bob = User.objects.get(username="bob")
+        self.assertEqual(alice.pk, self.alice_id)
+        self.assertEqual(alice.email, "kept@example.com")
+        self.assertEqual(
+            (bob.first_name, bob.last_name, bob.email), ("Bob", "B", "bob@example.com")
+        )
+        self.assertFalse(bob.is_staff)
+        self.assertFalse(bob.is_superuser)
+        self.assertTrue(bob.has_usable_password())
+        self.assertFalse(bob.check_password("x"))
+        self.assertEqual((report["users_reused"], report["users_created"]), (1, 1))
+        self.assertEqual(Player.objects.get(user=alice).team.name, "Red")
+
+    def test_foreign_keys_point_at_the_new_rows(self):
+        import_edition(self.document)
+
+        edition = Edition.objects.get(year=2024)
+        game = Game.objects.get(edition=edition)
+        self.assertEqual(
+            (game.team1.edition_id, game.team2.edition_id, game.referees.edition_id),
+            (edition.pk, edition.pk, edition.pk),
+        )
+        self.assertEqual(game.round.discipline.edition_id, edition.pk)
+        self.assertEqual(Rugby.objects.get(edition=edition).pk, game.discipline_id)
+        event = RugbyEvent.objects.get(game=game)
+        self.assertEqual(event.event_type, "STA")
+        self.assertEqual(event.player1.user.username, "alice")
+        self.assertIsNone(event.player2)
+        guess = BlindtestGuess.objects.filter(
+            blindtest_round__blindtest__edition=edition
+        ).first()
+        self.assertEqual(guess.team.edition_id, edition.pk)
+        self.assertEqual(Blindtest.objects.get(edition=edition).name, "Blindtest")
+        crossfit = TeamResult.objects.get(
+            discipline__edition=edition, discipline__name="Crossfit", team__name="Red"
+        )
+        self.assertEqual(str(crossfit.time), "00:00:00")
+
+    def test_existing_year_aborts_unless_replace(self):
+        import_edition(self.document)
+        first_id = Edition.objects.get(year=2024).pk
+
+        with self.assertRaises(EditionExists):
+            import_edition(self.document)
+        self.assertEqual(Edition.objects.filter(year=2024).count(), 1)
+        self.assertEqual(snapshot(Edition.objects.get(year=2024)), self.before)
+
+        import_edition(self.document, replace=True)
+        edition = Edition.objects.get(year=2024)
+        self.assertNotEqual(edition.pk, first_id)
+        self.assertEqual(snapshot(edition), self.before)
+        self.assertEqual(User.objects.filter(username__in=["alice", "bob"]).count(), 2)
+
+    def test_unknown_reference_rolls_back(self):
+        broken = copy.deepcopy(self.document)
+        broken["tables"]["Game"][0]["team1"] = 999999
+
+        with self.assertRaises(TransferError) as ctx:
+            import_edition(broken)
+        self.assertIn("Game", str(ctx.exception))
+        self.assertIn("999999", str(ctx.exception))
+        self.assertFalse(Edition.objects.filter(year=2024).exists())
+        self.assertFalse(User.objects.filter(username="bob").exists())
+
+    def test_unknown_user_rolls_back(self):
+        broken = copy.deepcopy(self.document)
+        broken["tables"]["Player"][0]["user"] = "nobody"
+
+        with self.assertRaises(TransferError) as ctx:
+            import_edition(broken)
+        self.assertIn("nobody", str(ctx.exception))
+        self.assertFalse(Edition.objects.filter(year=2024).exists())
+
+    def test_unsupported_format_is_rejected(self):
+        with self.assertRaises(TransferError):
+            import_edition({**self.document, "format": 2})
+        self.assertFalse(Edition.objects.filter(year=2024).exists())
+
+    def test_missing_media_files_are_reported(self):
+        doc = copy.deepcopy(self.document)
+        doc["edition"]["registration_form"] = "registration_forms/nope.csv"
+
+        report = import_edition(doc)
+
+        self.assertEqual(report["missing_files"], ["registration_forms/nope.csv"])
+        self.assertEqual(
+            Edition.objects.get(year=2024).registration_form.name, "registration_forms/nope.csv"
+        )

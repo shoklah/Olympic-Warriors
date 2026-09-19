@@ -135,3 +135,134 @@ def export_edition(year):
         rows = model.objects.filter(**{lookup: edition}).order_by("pk")
         document["tables"][name] = [_serialize_row(obj) for obj in rows]
     return document
+
+
+def _deserialize_fields(model, fields, row, ids, users, edition):
+    """Model kwargs from an exported row, rewriting references through ids and users."""
+    kwargs = {}
+    for field in fields:
+        if field.primary_key:
+            continue
+        if field.name == "edition":
+            kwargs["edition"] = edition
+            continue
+        if field.name not in row:
+            continue  # field added after the export: the model default applies
+        value = row[field.name]
+        if not field.is_relation:
+            kwargs[field.name] = field.to_python(value)
+        elif value is None:
+            kwargs[field.attname] = None
+        elif field.related_model is User:
+            if value not in users:
+                raise TransferError(
+                    f"{model.__name__}.{field.name} references unknown user {value!r}"
+                )
+            kwargs[field.attname] = users[value].pk
+        else:
+            table = _root_table(field.related_model)
+            if value not in ids.get(table, {}):
+                raise TransferError(
+                    f"{model.__name__}.{field.name} references unknown {table} _id {value}"
+                )
+            kwargs[field.attname] = ids[table][value]
+    return kwargs
+
+
+def _insert(model, kwargs, force_insert=False):
+    """Insert without running the model's save() override (same path as loaddata)."""
+    obj = model(**kwargs)
+    obj.save_base(raw=True, force_insert=force_insert)
+    return obj
+
+
+def _file_paths(document):
+    paths = [document["edition"].get(name) for name in FILE_FIELDS]
+    for row in document["tables"].get("Discipline", []):
+        paths += [row.get(name) for name in FILE_FIELDS]
+    return [path for path in paths if path]
+
+
+def import_edition(document, replace=False):
+    """
+    Recreate an exported edition with fresh ids, in one transaction.
+
+    Existing users are reused by username and left untouched; missing users are
+    created with a fresh random password and no staff flags.
+
+    :param document: dict produced by export_edition.
+    :param replace: delete an existing edition with the same year first.
+    :return: report dict with edition_id, year, users_reused, users_created,
+             counts (per table) and missing_files (media paths absent here).
+    :raises EditionExists: year already present and replace is False.
+    :raises TransferError: unsupported format, dangling reference, or insert failure.
+    """
+    if document.get("format") != FORMAT:
+        raise TransferError(f"Unsupported transfer document format {document.get('format')!r}")
+    year = document["edition"]["year"]
+
+    with transaction.atomic():
+        existing = Edition.objects.filter(year=year)
+        if existing.exists():
+            if not replace:
+                raise EditionExists(
+                    f"Edition {year} already exists; use --replace to overwrite it"
+                )
+            existing.delete()
+
+        edition = _insert(
+            Edition,
+            _deserialize_fields(
+                Edition, Edition._meta.concrete_fields, document["edition"], {}, {}, None
+            ),
+        )
+
+        users, reused, created = {}, 0, 0
+        for entry in document["users"]:
+            user = User.objects.filter(username=entry["username"]).first()
+            if user is None:
+                user = User.objects.create_user(
+                    password=get_random_string(length=8),
+                    **{name: entry[name] for name in USER_FIELDS},
+                )
+                created += 1
+            else:
+                reused += 1
+            users[entry["username"]] = user
+
+        ids = {name: {} for name, _, _ in TABLES}
+        counts = {}
+        for name, model, _ in TABLES:
+            rows = document["tables"].get(name, [])
+            for row in rows:
+                try:
+                    kwargs = _deserialize_fields(
+                        model, model._meta.concrete_fields, row, ids, users, edition
+                    )
+                    obj = _insert(model, kwargs)
+                    ids[name][row["_id"]] = obj.pk
+                    if row.get("subclass"):
+                        child_model = apps.get_model("olympic_warriors", row["subclass"])
+                        link = child_model._meta.get_ancestor_link(model)
+                        child_kwargs = _deserialize_fields(
+                            child_model, child_model._meta.local_concrete_fields,
+                            row.get("child", {}), ids, users, edition,
+                        )
+                        child_kwargs[link.attname] = obj.pk
+                        _insert(child_model, child_kwargs, force_insert=True)
+                except TransferError:
+                    raise
+                except Exception as exc:
+                    raise TransferError(f"{name} _id {row.get('_id')}: {exc}") from exc
+            counts[name] = len(rows)
+
+        return {
+            "edition_id": edition.pk,
+            "year": year,
+            "users_reused": reused,
+            "users_created": created,
+            "counts": counts,
+            "missing_files": [
+                path for path in _file_paths(document) if not default_storage.exists(path)
+            ],
+        }
