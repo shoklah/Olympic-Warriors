@@ -7,6 +7,7 @@ from django.test import TestCase
 from olympic_warriors.models import (
     Blindtest,
     BlindtestGuess,
+    Crossfit,
     Edition,
     Game,
     GameEvent,
@@ -26,6 +27,10 @@ def build_edition(year=2024):
     edition = Edition.objects.create(
         year=year, host="Test", start_date=f"{year}-08-01", end_date=f"{year}-08-02"
     )
+    # Name a file without uploading one and without replaying Edition.save(), which
+    # would try to import the CSV.
+    Edition.objects.filter(pk=edition.pk).update(registration_form="registration_forms/test.csv")
+    edition.refresh_from_db()
     alice = User.objects.create_user(
         username="alice", first_name="Alice", last_name="A", email="alice@example.com", password="x"
     )
@@ -46,14 +51,15 @@ def build_edition(year=2024):
         edition=edition, score1=5, score2=0,
     )
     # Raw saves: RugbyEvent.save() validates and rescores, which is not under test here.
-    event = GameEvent(game=game, player1=p_alice, time="2024-08-01T10:00:00+00:00")
+    event = GameEvent(game=game, player1=p_alice, time=f"{year}-08-01T10:00:00+00:00")
     event.save_base(raw=True)
     RugbyEvent(
         gameevent_ptr_id=event.pk, game=game, player1=p_alice,
-        time="2024-08-01T10:00:00+00:00", event_type=RugbyEvent.RugbyEventTypes.START,
+        time=f"{year}-08-01T10:00:00+00:00", event_type=RugbyEvent.RugbyEventTypes.START,
     ).save_base(raw=True, force_insert=True)
 
     Blindtest.objects.create(edition=edition)  # save() creates 10 rounds x 2 guesses
+    Crossfit.objects.create(edition=edition)  # TIME discipline: two TeamResults with a time
     return edition
 
 
@@ -78,7 +84,7 @@ class ExportEditionTests(TestCase):
         self.assertEqual(
             counts,
             {
-                "Team": 2, "Player": 2, "PlayerRating": 2, "Discipline": 2, "TeamResult": 4,
+                "Team": 2, "Player": 2, "PlayerRating": 2, "Discipline": 3, "TeamResult": 6,
                 "TeamSportRound": 1, "Game": 1, "GameEvent": 1, "BlindtestRound": 10,
                 "BlindtestGuess": 20,
             },
@@ -86,7 +92,7 @@ class ExportEditionTests(TestCase):
         self.assertIn(("Red", "Rugby", 3), results)
 
     def test_document_has_no_database_ids_and_references_users_by_username(self):
-        doc = export_edition(2024)
+        doc = export_edition(self.edition.year)
 
         self.assertEqual(doc["format"], FORMAT)
         self.assertEqual(doc["edition"]["year"], 2024)
@@ -101,7 +107,7 @@ class ExportEditionTests(TestCase):
         self.assertIn("_id", players[0])
 
     def test_rows_reference_each_other_by_local_id(self):
-        doc = export_edition(2024)
+        doc = export_edition(self.edition.year)
 
         team_ids = {t["_id"] for t in doc["tables"]["Team"]}
         game = doc["tables"]["Game"][0]
@@ -111,11 +117,11 @@ class ExportEditionTests(TestCase):
         self.assertEqual(game["score1"], 5)
 
     def test_subclass_rows_are_marked(self):
-        doc = export_edition(2024)
+        doc = export_edition(self.edition.year)
 
         disciplines = doc["tables"]["Discipline"]
-        self.assertEqual({d["subclass"] for d in disciplines}, {"Rugby", "Blindtest"})
-        self.assertEqual(disciplines[0]["child"], {})
+        self.assertEqual({d["subclass"] for d in disciplines}, {"Rugby", "Blindtest", "Crossfit"})
+        self.assertEqual(next(d for d in disciplines if d["subclass"] == "Rugby")["child"], {})
         event = doc["tables"]["GameEvent"][0]
         self.assertEqual(event["subclass"], "RugbyEvent")
         self.assertEqual(event["child"], {"event_type": "STA"})
@@ -124,11 +130,13 @@ class ExportEditionTests(TestCase):
         self.assertEqual(round_blindtests, {blindtest["_id"]})
 
     def test_dates_and_files_are_strings(self):
-        doc = export_edition(2024)
+        doc = export_edition(self.edition.year)
 
         self.assertEqual(doc["edition"]["start_date"], "2024-08-01")
-        self.assertEqual(doc["edition"]["registration_form"], "")
+        self.assertEqual(doc["edition"]["registration_form"], "registration_forms/test.csv")
         self.assertEqual(doc["tables"]["GameEvent"][0]["time"], "2024-08-01T10:00:00+00:00")
+        self.assertIsNone(doc["tables"]["GameEvent"][0]["player2"])
+        self.assertIn("00:00:00", {r["time"] for r in doc["tables"]["TeamResult"]})
 
     def test_missing_year_raises(self):
         with self.assertRaises(Edition.DoesNotExist):

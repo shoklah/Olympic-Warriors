@@ -7,6 +7,7 @@ ids. Users are referenced by username. Rows are written with
 Model.save_base(raw=True), as loaddata does, so the model save() overrides
 (scheduling, team results, CSV import, score deltas) never run.
 """
+import functools
 from datetime import datetime, timezone
 
 from django.apps import apps
@@ -41,7 +42,7 @@ TABLES = (
     ("Discipline", Discipline, "edition"),
     ("TeamResult", TeamResult, "discipline__edition"),
     ("TeamSportRound", TeamSportRound, "discipline__edition"),
-    ("Game", Game, "edition"),
+    ("Game", Game, "discipline__edition"),
     ("GameEvent", GameEvent, "game__edition"),
     ("BlindtestRound", BlindtestRound, "blindtest__edition"),
     ("BlindtestGuess", BlindtestGuess, "blindtest_round__blindtest__edition"),
@@ -62,6 +63,7 @@ def _root_table(model):
     return (parents[-1] if parents else model).__name__
 
 
+@functools.lru_cache(maxsize=None)
 def _child_models(parent):
     """App models that extend parent through multi-table inheritance."""
     return [
@@ -98,12 +100,19 @@ def _serialize_fields(obj, fields):
 def _serialize_row(obj):
     """One exported row: ``_id`` plus fields, plus subclass/child for MTI parents."""
     row = {"_id": obj.pk, **_serialize_fields(obj, obj._meta.concrete_fields)}
+    matches = []
     for child_model in _child_models(type(obj)):
         child = child_model.objects.filter(pk=obj.pk).first()
         if child is not None:
-            row["subclass"] = child_model.__name__
-            row["child"] = _serialize_fields(child, child_model._meta.local_concrete_fields)
-            break
+            matches.append((child_model, child))
+    if len(matches) > 1:
+        raise TransferError(
+            f"{type(obj).__name__} {obj.pk} has rows in several child tables"
+        )
+    if matches:
+        subclass, child = matches[0]
+        row["subclass"] = subclass.__name__
+        row["child"] = _serialize_fields(child, subclass._meta.local_concrete_fields)
     return row
 
 
