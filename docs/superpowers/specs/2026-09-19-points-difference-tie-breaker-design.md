@@ -84,10 +84,11 @@ returns it next to `ranking` and `global_points`. No view or URL changes.
 
 ## Tests
 
-New `server/olympic_warriors/tests/test_ranking.py`, using the existing edition
-and team fixtures and a `Darts` discipline with round robin pairing so games
-exist without per-player events. Scores are set directly on `Game` rows and
-saved, which rolls league points through the existing path. Cases:
+New `server/olympic_warriors/tests/test_ranking.py`, with an edition, four
+teams and a `Darts` discipline with no pairing system, so nothing is scheduled
+automatically and each test creates exactly the games it needs. Games are
+created with their scores, which rolls league points through the existing
+`Game.save()` path. Cases:
 
 - `points_difference` sums games played as team1 and as team2, and is 0 for a
   team with no games.
