@@ -230,3 +230,56 @@ names and emails; delete them from both machines afterwards.
 - Add `server/olympic_warriors/tests/test_transfer.py`
 - Edit `.gitignore` (`server/edition-*.json`)
 - Edit `CLAUDE.md` (commands section: the two commands, one line each)
+
+## Rehearsal on staging (before touching prod)
+
+Staging is the `server-stage`/`db-stage` pair inside `docker-compose.prod.yml`,
+served by the same nginx. It runs the code checked out in
+`/opt/OW_stage/Olympic-Warriors` (bind-mounted over `/home/stage/web`, the
+image's app dir), so `git pull` there changes the code, but dependency changes
+still need an image rebuild. Its media root is the `media_volume_stage` volume
+at `/home/stage/web/mediafiles`; its Postgres listens on 5433 inside the
+container (`PGPORT=5433`). Compose project name is `olympic-warriors`, so
+containers are `olympic-warriors-<service>-1` and volumes
+`olympic-warriors_<name>`.
+
+All commands on the prod host, from `/opt/OW/Olympic-Warriors` unless noted.
+
+1. Put the candidate code on staging and rebuild its image:
+
+       (cd /opt/OW_stage/Olympic-Warriors && git fetch origin && git checkout dev && git pull --ff-only)
+       docker compose -f docker-compose.prod.yml build server-stage
+       docker compose -f docker-compose.prod.yml stop server-stage
+
+2. Replace the staging database with a copy of prod:
+
+       docker exec olympic-warriors-db-1 pg_dump -U owprod -Fc olympic_warriors > /tmp/prod.dump
+       docker exec olympic-warriors-db-stage-1 psql -U owprod -p 5433 -d postgres \
+         -c "DROP DATABASE IF EXISTS olympic_warriors" -c "CREATE DATABASE olympic_warriors OWNER owprod"
+       docker exec -i olympic-warriors-db-stage-1 pg_restore -U owprod -p 5433 -d olympic_warriors --no-owner < /tmp/prod.dump
+
+3. Replace the staging media with a copy of prod's:
+
+       docker run --rm -v olympic-warriors_media_volume:/from -v olympic-warriors_media_volume_stage:/to \
+         alpine sh -c 'rm -rf /to/* && cp -a /from/. /to/'
+
+4. Start staging on the copied data and migrate it to the candidate schema:
+
+       docker compose -f docker-compose.prod.yml up -d server-stage
+       docker compose -f docker-compose.prod.yml exec server-stage python manage.py migrate
+       docker compose -f docker-compose.prod.yml exec server-stage python manage.py collectstatic --no-input
+
+5. Check the copied data for duplicate rating rows (the import refuses them):
+
+       docker compose -f docker-compose.prod.yml exec server-stage python manage.py shell -c "from django.db.models import Count; from olympic_warriors.models import PlayerRating; print(PlayerRating.objects.values('player','identifier').annotate(n=Count('id')).filter(n__gt=1).count())"
+
+6. Run the transfer against staging exactly as the prod runbook says, with
+   `-stage` names. The JSON copied to `/opt/OW_stage/Olympic-Warriors/server/`
+   is visible in the container as `/home/stage/web/edition-<year>.json`;
+   media copied to `/tmp/ow-media` goes into the container with
+   `docker compose -f docker-compose.prod.yml cp /tmp/ow-media/<dir> server-stage:/home/stage/web/mediafiles/`.
+   Then `import_edition /home/stage/web/edition-2024.json --dry-run`, the real
+   run, same for 2026, and browse the result on port 3004 (or the stage vhost).
+
+7. Once staging looks right, repeat steps 6 on prod after deploying `main`.
+   Staging now holds prod's user password hashes; treat it as prod-sensitive.
