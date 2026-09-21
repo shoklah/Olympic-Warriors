@@ -12,6 +12,7 @@ from olympic_warriors.models import (
     Game,
     Darts,
     GeneralCultureQuizz,
+    ResultTypes,
 )
 from olympic_warriors.models.Team import annotate_points_difference
 from olympic_warriors.serializer import TeamResultSerializer
@@ -179,3 +180,32 @@ class TestTeamResultSerializer(RankingTestSetup):
         self.assertEqual(data["points_difference"], 3)
         self.assertEqual(data["result_type"], "PTS")
         self.assertEqual(data["ranking"], 1)
+
+
+class TestGlobalPoints(RankingTestSetup):
+    """global_points rewards the discipline rank; an unranked result earns nothing."""
+
+    def test_points_follow_ranking_with_podium_bonus(self):
+        self.play(self.team_a, 5, self.team_b, 2)  # A 3 pts (+3), B 0 pts (-3)
+        self.play(self.team_c, 1, self.team_d, 0)  # C 3 pts (+1), D 0 pts (-1)
+
+        # 4 teams: rank 1 -> 4 + 2, rank 2 -> 3 + 1, rank 3 -> 2 + 1, rank 4 -> 1
+        self.assertEqual(self.result(self.team_a).global_points, 6)
+        self.assertEqual(self.result(self.team_c).global_points, 4)
+        self.assertEqual(self.result(self.team_d).global_points, 3)
+        self.assertEqual(self.result(self.team_b).global_points, 1)
+
+    def test_hidden_scores_give_no_points(self):
+        self.darts.reveal_score = False
+        self.darts.save()
+        self.play(self.team_a, 5, self.team_b, 2)
+
+        self.assertEqual(self.result(self.team_a).global_points, 0)
+
+    def test_result_type_none_gives_no_points(self):
+        self.play(self.team_a, 5, self.team_b, 2)
+        Darts.objects.filter(pk=self.darts.pk).update(result_type=ResultTypes.NONE)
+
+        self.assertEqual(self.result(self.team_a).ranking, 0)
+        self.assertEqual(self.result(self.team_a).global_points, 0)
+        self.assertEqual(self.result(self.team_b).global_points, 0)
