@@ -70,14 +70,14 @@
     "semantic_hash": "dfe7aaf79ebaef8cccf322d4673371d8"
   },
   "/Users/shoklah/Work/Playground/Olympic-Warriors/front/src/routes/disciplines/[slug]/ranking/+page.server.js": {
-    "mtime": 1726923088.6528444,
-    "ast_hash": "6cac0cc4bcffdd89d798f71ac0681897",
-    "semantic_hash": "6cac0cc4bcffdd89d798f71ac0681897"
+    "mtime": 1789847657.168547,
+    "ast_hash": "bd10f47cff3c3bdb4733cc54e35390f1",
+    "semantic_hash": "bd10f47cff3c3bdb4733cc54e35390f1"
   },
   "/Users/shoklah/Work/Playground/Olympic-Warriors/front/src/routes/disciplines/[slug]/ranking/+page.svelte": {
-    "mtime": 1726923088.6531677,
-    "ast_hash": "e8d43542226fe5c86821ad2679ae8a48",
-    "semantic_hash": "e8d43542226fe5c86821ad2679ae8a48"
+    "mtime": 1789847657.1686983,
+    "ast_hash": "e979f0b66e4a48d3e68cd52edd564950",
+    "semantic_hash": "e979f0b66e4a48d3e68cd52edd564950"
   },
   "/Users/shoklah/Work/Playground/Olympic-Warriors/front/src/routes/login/+page.server.js": {
     "mtime": 1726923088.6553862,
@@ -170,9 +170,9 @@
     "semantic_hash": "f2006b8fe9b4038961f2f6dd878d81db"
   },
   "/Users/shoklah/Work/Playground/Olympic-Warriors/server/olympic_warriors/admin.py": {
-    "mtime": 1755793851.8423958,
-    "ast_hash": "fdc9fb3d23310091751ea948e8896274",
-    "semantic_hash": "fdc9fb3d23310091751ea948e8896274"
+    "mtime": 1789799377.1670094,
+    "ast_hash": "dced4af0a148388419bf4d5f46855594",
+    "semantic_hash": "dced4af0a148388419bf4d5f46855594"
   },
   "/Users/shoklah/Work/Playground/Olympic-Warriors/server/olympic_warriors/apps.py": {
     "mtime": 1726922943.5719547,
@@ -350,9 +350,9 @@
     "semantic_hash": "b6f0a9dfdf4eaa94c4d6592ab4c1c2f1"
   },
   "/Users/shoklah/Work/Playground/Olympic-Warriors/server/olympic_warriors/models/Discipline.py": {
-    "mtime": 1755779031.0261705,
-    "ast_hash": "2b2cb8bed8472c624abb086050f696ae",
-    "semantic_hash": "2b2cb8bed8472c624abb086050f696ae"
+    "mtime": 1789799377.1674616,
+    "ast_hash": "67f64748fa968cdc806f159474d9c46b",
+    "semantic_hash": "67f64748fa968cdc806f159474d9c46b"
   },
   "/Users/shoklah/Work/Playground/Olympic-Warriors/server/olympic_warriors/models/Dodgeball.py": {
     "mtime": 1755191848.643174,
@@ -360,9 +360,9 @@
     "semantic_hash": "33d10271a448fd6d9562cd07c2b71c19"
   },
   "/Users/shoklah/Work/Playground/Olympic-Warriors/server/olympic_warriors/models/Edition.py": {
-    "mtime": 1755856895.5964687,
-    "ast_hash": "58f62598789829239e52c0b138e19f2c",
-    "semantic_hash": "58f62598789829239e52c0b138e19f2c"
+    "mtime": 1789799800.5310264,
+    "ast_hash": "5f3d5cb4253bb443bf5b5e63e79670d2",
+    "semantic_hash": "5f3d5cb4253bb443bf5b5e63e79670d2"
   },
   "/Users/shoklah/Work/Playground/Olympic-Warriors/server/olympic_warriors/models/Fair.py": {
     "mtime": 1755793710.1918414,
@@ -415,14 +415,14 @@
     "semantic_hash": "3c0c29b24401a643d2ea480db746bbdc"
   },
   "/Users/shoklah/Work/Playground/Olympic-Warriors/server/olympic_warriors/models/Team.py": {
-    "mtime": 1755191848.644104,
-    "ast_hash": "0685e671a764e81eb10c566de4d57c1f",
-    "semantic_hash": "0685e671a764e81eb10c566de4d57c1f"
+    "mtime": 1789847657.1690247,
+    "ast_hash": "965793cf85b3b254887a6559f9d556c5",
+    "semantic_hash": "965793cf85b3b254887a6559f9d556c5"
   },
   "/Users/shoklah/Work/Playground/Olympic-Warriors/server/olympic_warriors/models/__init__.py": {
-    "mtime": 1755793841.3272593,
-    "ast_hash": "d87d47d6146397cd2b7654bac76fef78",
-    "semantic_hash": "d87d47d6146397cd2b7654bac76fef78"
+    "mtime": 1789799377.167933,
+    "ast_hash": "45dbef2236895bd5e4b0d4501490f819",
+    "semantic_hash": "45dbef2236895bd5e4b0d4501490f819"
   },
   "/Users/shoklah/Work/Playground/Olympic-Warriors/server/olympic_warriors/schedule/__init__.py": {
     "mtime": 1755191848.644501,
@@ -430,19 +430,19 @@
     "semantic_hash": "cf5d8f569143fdf84e736e466b545d6a"
   },
   "/Users/shoklah/Work/Playground/Olympic-Warriors/server/olympic_warriors/schedule/round_robin.py": {
-    "mtime": 1755191848.6447341,
-    "ast_hash": "ce3c9325c137404f76e39d26a77e4af4",
-    "semantic_hash": "ce3c9325c137404f76e39d26a77e4af4"
+    "mtime": 1789799377.1680882,
+    "ast_hash": "7d29ecece194212dfd66b78f381d701d",
+    "semantic_hash": "7d29ecece194212dfd66b78f381d701d"
   },
   "/Users/shoklah/Work/Playground/Olympic-Warriors/server/olympic_warriors/schedule/swiss.py": {
-    "mtime": 1755779199.714385,
-    "ast_hash": "8aae30aad71a30af0b8a14bc56e5ead6",
-    "semantic_hash": "8aae30aad71a30af0b8a14bc56e5ead6"
+    "mtime": 1789799377.168226,
+    "ast_hash": "53e9b868f00b77e8a7e06944e6dda16e",
+    "semantic_hash": "53e9b868f00b77e8a7e06944e6dda16e"
   },
   "/Users/shoklah/Work/Playground/Olympic-Warriors/server/olympic_warriors/serializer.py": {
-    "mtime": 1726923088.660863,
-    "ast_hash": "d9845bbf00ad22d628e4b42d91535dcf",
-    "semantic_hash": "d9845bbf00ad22d628e4b42d91535dcf"
+    "mtime": 1789847657.1692364,
+    "ast_hash": "7b9af621b74253a675640ca7a976bb31",
+    "semantic_hash": "7b9af621b74253a675640ca7a976bb31"
   },
   "/Users/shoklah/Work/Playground/Olympic-Warriors/server/olympic_warriors/settings.py": {
     "mtime": 1726923088.661634,
@@ -460,9 +460,9 @@
     "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
   },
   "/Users/shoklah/Work/Playground/Olympic-Warriors/server/olympic_warriors/tests/test_players.py": {
-    "mtime": 1726922943.607273,
-    "ast_hash": "caf8abcadc401dce5dd7991030c76adb",
-    "semantic_hash": "caf8abcadc401dce5dd7991030c76adb"
+    "mtime": 1789799377.1691241,
+    "ast_hash": "318ef537c18ad2c69cfb50e3721305f0",
+    "semantic_hash": "318ef537c18ad2c69cfb50e3721305f0"
   },
   "/Users/shoklah/Work/Playground/Olympic-Warriors/server/olympic_warriors/urls.py": {
     "mtime": 1726923088.662607,
@@ -470,9 +470,9 @@
     "semantic_hash": "2c624e1dce39ff795419dc6205b2c062"
   },
   "/Users/shoklah/Work/Playground/Olympic-Warriors/server/olympic_warriors/views.py": {
-    "mtime": 1726923088.6630538,
-    "ast_hash": "66a2ed330879382f5df2bf67bce30694",
-    "semantic_hash": "66a2ed330879382f5df2bf67bce30694"
+    "mtime": 1789799377.1696646,
+    "ast_hash": "25b2e0236121d1b1ff38449c2ce3fa6e",
+    "semantic_hash": "25b2e0236121d1b1ff38449c2ce3fa6e"
   },
   "/Users/shoklah/Work/Playground/Olympic-Warriors/server/olympic_warriors/wsgi.py": {
     "mtime": 1726922943.6085224,
@@ -515,9 +515,9 @@
     "semantic_hash": "ccefef8ff5f177f6195245e3162a7fb0"
   },
   "/Users/shoklah/Work/Playground/Olympic-Warriors/server/requirements.txt": {
-    "mtime": 1726922943.608931,
-    "ast_hash": "ff72717cc5b3f63b1952a2ab83a3499b",
-    "semantic_hash": "ff72717cc5b3f63b1952a2ab83a3499b"
+    "mtime": 1789799377.1700406,
+    "ast_hash": "fa80cf96ec17a4d19abeafff411129a6",
+    "semantic_hash": "fa80cf96ec17a4d19abeafff411129a6"
   },
   "/Users/shoklah/Work/Playground/Olympic-Warriors/front/src/lib/img/eclipse.png": {
     "mtime": 1726922943.554798,
@@ -583,5 +583,125 @@
     "mtime": 1726922943.6383166,
     "ast_hash": "1937055f9b5cea1d37c676512149c6b7",
     "semantic_hash": "1937055f9b5cea1d37c676512149c6b7"
+  },
+  "/Users/shoklah/Work/Playground/Olympic-Warriors/server/olympic_warriors/management/commands/export_edition.py": {
+    "mtime": 1789983811.6711144,
+    "ast_hash": "90f340d4176b66253df0352a2c556885",
+    "semantic_hash": "90f340d4176b66253df0352a2c556885"
+  },
+  "/Users/shoklah/Work/Playground/Olympic-Warriors/server/olympic_warriors/management/commands/import_edition.py": {
+    "mtime": 1789983811.6712,
+    "ast_hash": "520badc9d34aaf252b7c7df4925f0485",
+    "semantic_hash": "520badc9d34aaf252b7c7df4925f0485"
+  },
+  "/Users/shoklah/Work/Playground/Olympic-Warriors/server/olympic_warriors/migrations/0025_generalculturequizz.py": {
+    "mtime": 1789799377.1671104,
+    "ast_hash": "3a1fa396aa9db2d1e7be8a5ca63e502d",
+    "semantic_hash": "3a1fa396aa9db2d1e7be8a5ca63e502d"
+  },
+  "/Users/shoklah/Work/Playground/Olympic-Warriors/server/olympic_warriors/migrations/0026_darts.py": {
+    "mtime": 1789799377.1672032,
+    "ast_hash": "7b428dbaaaf44578f550b061ba2ab176",
+    "semantic_hash": "7b428dbaaaf44578f550b061ba2ab176"
+  },
+  "/Users/shoklah/Work/Playground/Olympic-Warriors/server/olympic_warriors/models/Darts.py": {
+    "mtime": 1789799377.1672957,
+    "ast_hash": "4bb93a3daa3fa081eb50b007b8660410",
+    "semantic_hash": "4bb93a3daa3fa081eb50b007b8660410"
+  },
+  "/Users/shoklah/Work/Playground/Olympic-Warriors/server/olympic_warriors/models/GeneralCultureQuizz.py": {
+    "mtime": 1789799377.1677423,
+    "ast_hash": "b6755a6b9aaee6e664a41c5b0bad8538",
+    "semantic_hash": "b6755a6b9aaee6e664a41c5b0bad8538"
+  },
+  "/Users/shoklah/Work/Playground/Olympic-Warriors/server/olympic_warriors/registration.py": {
+    "mtime": 1789799800.5313492,
+    "ast_hash": "d89f3840595128aded7d75dc137a0f32",
+    "semantic_hash": "d89f3840595128aded7d75dc137a0f32"
+  },
+  "/Users/shoklah/Work/Playground/Olympic-Warriors/server/olympic_warriors/tests/test_disciplines.py": {
+    "mtime": 1789799377.1685104,
+    "ast_hash": "1d7aa234fed3e64bb1e4ae7207a09480",
+    "semantic_hash": "1d7aa234fed3e64bb1e4ae7207a09480"
+  },
+  "/Users/shoklah/Work/Playground/Olympic-Warriors/server/olympic_warriors/tests/test_edition_import.py": {
+    "mtime": 1789799800.5317647,
+    "ast_hash": "d5e40f29e8b2afd200278b47cb60d3e8",
+    "semantic_hash": "d5e40f29e8b2afd200278b47cb60d3e8"
+  },
+  "/Users/shoklah/Work/Playground/Olympic-Warriors/server/olympic_warriors/tests/test_public_endpoints.py": {
+    "mtime": 1789799377.1692727,
+    "ast_hash": "350d2071c23174ff877cf5faab3c1507",
+    "semantic_hash": "350d2071c23174ff877cf5faab3c1507"
+  },
+  "/Users/shoklah/Work/Playground/Olympic-Warriors/server/olympic_warriors/tests/test_ranking.py": {
+    "mtime": 1789847657.1694186,
+    "ast_hash": "8ba0cf690503ea7ab971da13f3fc9383",
+    "semantic_hash": "8ba0cf690503ea7ab971da13f3fc9383"
+  },
+  "/Users/shoklah/Work/Playground/Olympic-Warriors/server/olympic_warriors/tests/test_registration.py": {
+    "mtime": 1789799800.5320284,
+    "ast_hash": "aca9b3038b7965d1968063586b72f17d",
+    "semantic_hash": "aca9b3038b7965d1968063586b72f17d"
+  },
+  "/Users/shoklah/Work/Playground/Olympic-Warriors/server/olympic_warriors/tests/test_scheduling.py": {
+    "mtime": 1789799377.1694684,
+    "ast_hash": "befac4bad43543032856e8eabc8ec6c4",
+    "semantic_hash": "befac4bad43543032856e8eabc8ec6c4"
+  },
+  "/Users/shoklah/Work/Playground/Olympic-Warriors/server/olympic_warriors/tests/test_transfer.py": {
+    "mtime": 1789983811.671305,
+    "ast_hash": "634ef9b9ad46bf4c3c765389e9287a7a",
+    "semantic_hash": "634ef9b9ad46bf4c3c765389e9287a7a"
+  },
+  "/Users/shoklah/Work/Playground/Olympic-Warriors/server/olympic_warriors/transfer.py": {
+    "mtime": 1789983811.6714149,
+    "ast_hash": "6f1882b4c82679bd392e1908d92dc7a1",
+    "semantic_hash": "6f1882b4c82679bd392e1908d92dc7a1"
+  },
+  "/Users/shoklah/Work/Playground/Olympic-Warriors/CLAUDE.md": {
+    "mtime": 1789983811.67075,
+    "ast_hash": "5cbb46d90520a351dda058c50ff0cbef",
+    "semantic_hash": "5cbb46d90520a351dda058c50ff0cbef"
+  },
+  "/Users/shoklah/Work/Playground/Olympic-Warriors/docs/superpowers/plans/2026-09-18-culture-quizz-and-darts.md": {
+    "mtime": 1789799800.5296257,
+    "ast_hash": "5a56a0a5b174220a99df13380ebccb1e",
+    "semantic_hash": "5a56a0a5b174220a99df13380ebccb1e"
+  },
+  "/Users/shoklah/Work/Playground/Olympic-Warriors/docs/superpowers/plans/2026-09-18-registration-form-parser.md": {
+    "mtime": 1789799800.5301318,
+    "ast_hash": "7224b8fb19336721ad4504ff8463cc05",
+    "semantic_hash": "7224b8fb19336721ad4504ff8463cc05"
+  },
+  "/Users/shoklah/Work/Playground/Olympic-Warriors/docs/superpowers/plans/2026-09-19-edition-transfer.md": {
+    "mtime": 1789983811.6708896,
+    "ast_hash": "aee6792f7a6d6c7815ec72e0ebb8a138",
+    "semantic_hash": "aee6792f7a6d6c7815ec72e0ebb8a138"
+  },
+  "/Users/shoklah/Work/Playground/Olympic-Warriors/docs/superpowers/plans/2026-09-19-points-difference-tie-breaker.md": {
+    "mtime": 1789847463.8120167,
+    "ast_hash": "239828f4a44fcd6a391ee0a1bbd8966f",
+    "semantic_hash": "239828f4a44fcd6a391ee0a1bbd8966f"
+  },
+  "/Users/shoklah/Work/Playground/Olympic-Warriors/docs/superpowers/specs/2026-09-18-culture-quizz-and-darts-design.md": {
+    "mtime": 1789799800.530395,
+    "ast_hash": "ee856d6679ee8ec151349f82504186ef",
+    "semantic_hash": "ee856d6679ee8ec151349f82504186ef"
+  },
+  "/Users/shoklah/Work/Playground/Olympic-Warriors/docs/superpowers/specs/2026-09-18-registration-form-parser-design.md": {
+    "mtime": 1789799800.5306952,
+    "ast_hash": "b9479744f7676cc8fe2f3cfc7b9c362b",
+    "semantic_hash": "b9479744f7676cc8fe2f3cfc7b9c362b"
+  },
+  "/Users/shoklah/Work/Playground/Olympic-Warriors/docs/superpowers/specs/2026-09-19-edition-transfer-design.md": {
+    "mtime": 1789983811.6710246,
+    "ast_hash": "55482b7b0176cab9854117a9a9c05ad0",
+    "semantic_hash": "55482b7b0176cab9854117a9a9c05ad0"
+  },
+  "/Users/shoklah/Work/Playground/Olympic-Warriors/docs/superpowers/specs/2026-09-19-points-difference-tie-breaker-design.md": {
+    "mtime": 1789847657.1683626,
+    "ast_hash": "16e3dbf4293c02fbd88de64d2a57938b",
+    "semantic_hash": "16e3dbf4293c02fbd88de64d2a57938b"
   }
 }
