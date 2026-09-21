@@ -22,6 +22,8 @@ docker compose exec server python manage.py test olympic_warriors.tests.test_pla
 docker compose exec server python manage.py makemigrations
 docker compose exec server python manage.py createsu                   # superuser from SU_USERNAME/SU_PASSWORD
 docker compose exec server python manage.py create_tokens_for_users    # backfill DRF tokens
+docker compose exec server python manage.py export_edition 2026 --out /server/edition-2026.json   # edition -> JSON without ids
+docker compose exec server python manage.py import_edition /server/edition-2026.json --dry-run     # add --replace to overwrite that year
 pylint --load-plugins pylint_django --ignore=lib server/               # what CI runs (advisory, no .pylintrc)
 ```
 
@@ -51,6 +53,8 @@ The base `Discipline.save()` creates a `TeamResult` per active team on first sav
 Discipline-specific admin and validation match on the discipline **name string** (`GameAdmin.get_inline_instances`, `RugbyEvent._discipline_validation`); renaming a discipline breaks scoring.
 
 **Registration import:** saving an `Edition` with a new `registration_form` CSV runs `Edition.create_players_from_registration_form`, which delegates to `olympic_warriors/registration.py`. Columns are matched by stable fragments (the bracketed skill criterion such as `[Cardio]`, the prefix of the global-level question, `Prénom et Nom`, optional `Adresse e-mail`), so yearly wording changes need no code change; add a new skill by adding an entry to `RATINGS` there (its `id` must be at most 4 characters, the `PlayerRating.identifier` limit). The Edition row and the import share one transaction, returning players are linked by name-derived username (accents kept), the form email is stored when present, and both `Player` and `PlayerRating` rows are update-or-created so re-uploading a corrected form refreshes ratings without duplicates. `Player.rating` is the rounded global rating.
+
+**Edition transfer:** `olympic_warriors/transfer.py` moves a whole edition between databases (local to prod). The export carries no database ids (users by username, rows cross-referenced by throwaway `_id`s, MTI children as `subclass`/`child`); the import inserts with `save_base(raw=True)` so no model `save()` side effect runs, reuses existing users by username and creates missing ones with a random password. Media files are not in the document; on prod, `mediafiles` is a docker volume, so copy them into the container (`docker compose cp`), not into the repo folder. The runbook is in the transfer design spec under `docs/superpowers/specs/`.
 
 **API:** ~70 flat `@api_view` functions in `views.py` wired in one hand-written list in `urls.py` (no routers, no `/api/` prefix except the schema at `/api/schema/swagger/`). Global auth is DRF `TokenAuthentication` + `IsAuthenticated`. Five edition/discipline read views carry `@permission_classes([AllowAny])` below `@api_view` and are public; everything else returns 401 without a token. Per-view policy decorators must go below `@api_view`: stacked above it DRF used to ignore them silently, and DRF 3.16+ raises a `TypeError` at import, so the wrong order stops the server from booting. Tokens are issued at `/auth/token/` and auto-created per user by `signals.py`. Serializers are `fields="__all__"` `ModelSerializer`s with a few computed read-only fields.
 
