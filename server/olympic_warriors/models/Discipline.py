@@ -150,30 +150,60 @@ class Discipline(models.Model):
 
     def save(self, *args, **kwargs):
         """
-        Override save method to schedule games matching the pairing system.
+        Override save method to register the teams of the edition and schedule games matching
+        the pairing system. Games are scheduled when the discipline is created with a pairing
+        system, or when a pairing system is set later on a discipline that has no round yet.
         """
-        if self.pk is None:
-            super().save(*args, **kwargs)
-            teams = Team.objects.filter(edition=self.edition, is_active=True)
-            for team in teams:
-                TeamResult.objects.get_or_create(
-                    team=team,
-                    discipline=self,
-                    defaults={
-                        "points": 0 if self.result_type == ResultTypes.POINTS else None,
-                        "time": "00:00:00" if self.result_type == ResultTypes.TIME else None,
-                    }
-                )
+        previous_pairing_system = None
+        if self.pk is not None:
+            previous_pairing_system = (
+                Discipline.objects.filter(pk=self.pk)
+                .values_list("pairing_system", flat=True)
+                .first()
+            )
+        is_new = previous_pairing_system is None
 
-            match self.pairing_system:
-                case self.PairingSystem.ROUND_ROBIN:
-                    schedule_round_robin_games(self.id)
-                case self.PairingSystem.SWISS:
-                    schedule_swiss_games(self.id)
-                case self.PairingSystem.NONE:
-                    pass
-        else:
-            super().save(*args, **kwargs)
+        super().save(*args, **kwargs)
+
+        if is_new:
+            self.register_teams()
+
+        if (
+            self.pairing_system != self.PairingSystem.NONE
+            and self.pairing_system != previous_pairing_system
+            and not self.rounds.filter(is_active=True).exists()
+        ):
+            if not is_new:
+                # Teams may have joined the edition since the discipline was created
+                self.register_teams()
+            self.schedule_games()
+
+    def register_teams(self) -> None:
+        """
+        Create a result entry for every active team of the edition that does not have one yet.
+        """
+        teams = Team.objects.filter(edition=self.edition, is_active=True)
+        for team in teams:
+            TeamResult.objects.get_or_create(
+                team=team,
+                discipline=self,
+                defaults={
+                    "points": 0 if self.result_type == ResultTypes.POINTS else None,
+                    "time": "00:00:00" if self.result_type == ResultTypes.TIME else None,
+                }
+            )
+
+    def schedule_games(self) -> None:
+        """
+        Schedule the games of the discipline according to its pairing system.
+        """
+        match self.pairing_system:
+            case self.PairingSystem.ROUND_ROBIN:
+                schedule_round_robin_games(self.id)
+            case self.PairingSystem.SWISS:
+                schedule_swiss_games(self.id)
+            case self.PairingSystem.NONE:
+                pass
 
     def get_ranking(self, team_id: int) -> int:
         """

@@ -168,3 +168,18 @@ nginx
 # media files
 media/
 mediafiles/
+# macOS
+.DS_Store
+
+# graphify local state (machine-specific paths)
+graphify-out/.graphify_python
+graphify-out/.graphify_root
+
+# synthetic test fixtures are not real exports
+!server/olympic_warriors/tests/fixtures/*.csv
+
+# edition transfer documents contain names and emails
+server/edition-*.json
+
+# graphify extraction cache is local, machine-specific state
+graphify-out/cache/

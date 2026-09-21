@@ -1,6 +1,42 @@
+from functools import cached_property
+
+from django.apps import apps
 from django.db import models
+from django.db.models import F, OuterRef, Q, Subquery, Sum
+from django.db.models.functions import Coalesce
+
 from .Edition import Edition
 from .ResultTypes import ResultTypes
+
+
+def annotate_points_difference(queryset):
+    """
+    Annotate a TeamResult queryset with `points_difference`: over the active games of the
+    result's discipline, the sum of the team's score minus its opponent's score. Teams
+    without any game get 0.
+
+    Game is fetched from the app registry because Discipline.py imports this module.
+    """
+    Game = apps.get_model("olympic_warriors", "Game")
+
+    def score_gap(team_field, own_score, other_score):
+        games = Game.objects.filter(
+            discipline_id=OuterRef("discipline_id"),
+            is_active=True,
+            **{team_field: OuterRef("team_id")},
+        )
+        total = (
+            games.order_by()
+            .values(team_field)
+            .annotate(gap=Sum(F(own_score) - F(other_score)))
+            .values("gap")[:1]
+        )
+        return Coalesce(Subquery(total, output_field=models.IntegerField()), 0)
+
+    return queryset.annotate(
+        points_difference=score_gap("team1", "score1", "score2")
+        + score_gap("team2", "score2", "score1")
+    )
 
 
 class TeamResult(models.Model):
@@ -28,10 +64,26 @@ class TeamResult(models.Model):
         """
         return self.discipline.result_type
 
+    @cached_property
+    def points_difference(self) -> int:
+        """
+        Sum of the team's score minus its opponent's score over the active games of the
+        discipline. 0 when the team has no game.
+        """
+        if self.pk is None:
+            return 0
+
+        return (
+            annotate_points_difference(TeamResult.objects.filter(pk=self.pk))
+            .values_list("points_difference", flat=True)
+            .first()
+        )
+
     @property
     def ranking(self) -> int:
         """
-        Get the ranking of the team in the discipline.
+        Get the ranking of the team in the discipline. Points disciplines break ties on
+        points difference; teams still tied share a rank.
 
         @return: ranking of the team in the discipline
         """
@@ -46,12 +98,14 @@ class TeamResult(models.Model):
                 + 1
             )
         elif self.discipline.result_type == ResultTypes.POINTS:
-            return (
-                TeamResult.objects.filter(
-                    discipline=self.discipline, points__gt=self.points, is_active=True
-                ).count()
-                + 1
+            results = annotate_points_difference(
+                TeamResult.objects.filter(discipline=self.discipline, is_active=True)
             )
+            ahead = results.filter(
+                Q(points__gt=self.points)
+                | Q(points=self.points, points_difference__gt=self.points_difference)
+            )
+            return ahead.count() + 1
         else:
             return 0
 
@@ -62,16 +116,18 @@ class TeamResult(models.Model):
 
         @return: points of the team from ranking
         """
-        if self.discipline.reveal_score is False:
+        ranking = self.ranking
+        if ranking == 0:
+            # Hidden scores or a discipline without a result type: nothing to reward.
             return 0
 
         registered_teams_count = TeamResult.objects.filter(
             discipline=self.discipline, is_active=True
         ).count()
-        points = registered_teams_count - self.ranking + 1
-        if self.ranking == 1:
+        points = registered_teams_count - ranking + 1
+        if ranking == 1:
             points += 2
-        elif self.ranking <= 3:
+        elif ranking <= 3:
             points += 1
 
         return points
