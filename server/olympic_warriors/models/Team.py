@@ -116,16 +116,18 @@ class TeamResult(models.Model):
 
         @return: points of the team from ranking
         """
-        if self.discipline.reveal_score is False:
+        ranking = self.ranking
+        if ranking == 0:
+            # Hidden scores or a discipline without a result type: nothing to reward.
             return 0
 
         registered_teams_count = TeamResult.objects.filter(
             discipline=self.discipline, is_active=True
         ).count()
-        points = registered_teams_count - self.ranking + 1
-        if self.ranking == 1:
+        points = registered_teams_count - ranking + 1
+        if ranking == 1:
             points += 2
-        elif self.ranking <= 3:
+        elif ranking <= 3:
             points += 1
 
         return points
