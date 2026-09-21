@@ -4,6 +4,7 @@ from django.test import SimpleTestCase
 
 from olympic_warriors.registration import (
     EMAIL,
+    FORM_PROFILES,
     GLOBAL_LEVEL,
     NAME,
     RATINGS,
@@ -41,8 +42,9 @@ def make_df(global_header=GLOBAL_2026, with_email=True, rows=None, drop_criterio
 
 class ResolveColumnsTests(SimpleTestCase):
     def test_resolves_all_2026_columns(self):
-        columns = resolve_columns(make_df())
+        columns, ratings = resolve_columns(make_df())
 
+        self.assertIs(ratings, FORM_PROFILES["2025"])
         self.assertEqual(columns[NAME], "Prénom et Nom")
         self.assertEqual(columns[EMAIL], "Adresse e-mail")
         self.assertEqual(columns[GLOBAL_LEVEL], GLOBAL_2026)
@@ -51,8 +53,9 @@ class ResolveColumnsTests(SimpleTestCase):
         self.assertEqual(len(columns), len(RATINGS) + 3)  # name, email, global level
 
     def test_resolves_2025_columns_without_email(self):
-        columns = resolve_columns(make_df(global_header=GLOBAL_2025, with_email=False))
+        columns, ratings = resolve_columns(make_df(global_header=GLOBAL_2025, with_email=False))
 
+        self.assertIs(ratings, FORM_PROFILES["2025"])
         self.assertNotIn(EMAIL, columns)
         self.assertEqual(columns[GLOBAL_LEVEL], GLOBAL_2025)
         self.assertEqual(len(columns), len(RATINGS) + 2)  # name, global level
@@ -150,7 +153,8 @@ def make_row(name, skill, global_level, email="x@example.com"):
 class ComputeRatingsTests(SimpleTestCase):
     def compute(self, rows):
         df = make_df(rows=rows)
-        return compute_ratings(df, resolve_columns(df))
+        columns, ratings = resolve_columns(df)
+        return compute_ratings(df, columns, ratings)
 
     def test_global_rating_blends_weighted_and_global_estimate(self):
         out = self.compute([make_row("Alice Martin", 6, 8)])
@@ -218,3 +222,99 @@ class ComputeRatingsTests(SimpleTestCase):
         out = self.compute([make_row("X", 3, 4)])
 
         self.assertEqual(out.loc[0, "Weighted_Rating"], 3.0)
+
+
+# The 2024 form: "septembre" wording, an "Observation et orientation" skill, a single
+# "Endurance et cardio" skill, and short "Culture" / "Force" labels.
+SKILL_SENTENCE_2024 = (
+    "Sur une échelle de 1 (le plus faible) à 10 (le plus élevé), comment estimes-tu "
+    "le niveau que tu auras en septembre selon les critères suivants ? [{}]"
+)
+GLOBAL_2024 = (
+    "Sur une échelle de 1 à 10, comment estimes-tu ton niveau global pour les Olympic "
+    "Warriors de 2024 (Cache-cache, Touch Rugby, Balle au camp, Course d'orientation, "
+    "Blind Test, CrossFit) ?"
+)
+CRITERIA_2024 = [spec["criterion"] for spec in FORM_PROFILES["2024"].values()]
+
+
+def make_df_2024(rows=None, drop_criterion=None):
+    headers = ["Horodateur", "Adresse e-mail", "Prénom et Nom", "A quelle fréquence pratiques-tu du sport ? "]
+    headers += [SKILL_SENTENCE_2024.format(c) for c in CRITERIA_2024 if c != drop_criterion]
+    headers += [GLOBAL_2024, "J'ai payé mon inscription et je confirme que je serai là."]
+    return pd.DataFrame(rows or [], columns=headers)
+
+
+def make_row_2024(name, skills, global_level, email=""):
+    """One 2024 response; skills is the list of ten values in form order."""
+    return ["1/4/2024 10:00:00", email, name, "Souvent"] + list(skills) + [global_level, "Oui"]
+
+
+class ResolveColumns2024Tests(SimpleTestCase):
+    def test_resolves_2024_columns_with_the_2024_profile(self):
+        columns, ratings = resolve_columns(make_df_2024())
+
+        self.assertIs(ratings, FORM_PROFILES["2024"])
+        self.assertEqual(columns[GLOBAL_LEVEL], GLOBAL_2024)
+        self.assertIn("Observation and Orientation", columns)
+        self.assertIn("Endurance and Cardio", columns)
+        self.assertNotIn("Cardio", columns)
+        for name, spec in ratings.items():
+            self.assertEqual(columns[name], SKILL_SENTENCE_2024.format(spec["criterion"]))
+        self.assertEqual(len(columns), len(ratings) + 3)  # name, email, global level
+
+    def test_2024_profile_has_the_historical_identifiers(self):
+        ids = sorted(spec["id"] for spec in FORM_PROFILES["2024"].values())
+
+        self.assertEqual(
+            ids, ["ACC", "CULT", "EXPL", "MOB", "OBS", "SPD", "STMN", "STR", "STRT", "TEAM"]
+        )
+        self.assertEqual(sum(spec["coef"] for spec in FORM_PROFILES["2024"].values()), 26)
+
+    def test_missing_column_is_reported_against_the_closest_profile(self):
+        df = make_df_2024(drop_criterion="Culture")
+
+        with self.assertRaises(ValueError) as ctx:
+            resolve_columns(df)
+        message = str(ctx.exception)
+        self.assertIn("2024", message)
+        self.assertIn("[Culture]", message)
+        self.assertNotIn("[Cardio]", message)
+
+    def test_literal_2024_headers_resolve(self):
+        # Copied verbatim from the 2024 Google Forms export.
+        literal = pd.DataFrame(
+            columns=["Horodateur", "Adresse e-mail", "Prénom et Nom"]
+            + [SKILL_SENTENCE_2024.format(c) for c in (
+                "Cohésion et esprit d'équipe", "Observation et orientation",
+                "Souplesse et coordination", "Précision et lancer", "Course et vitesse",
+                "Endurance et cardio", "Culture", "Force",
+                "Explosivité (effort puissant en un temps court)", "Stratégie et vision de jeu",
+            )]
+            + [GLOBAL_2024]
+        )
+
+        columns, ratings = resolve_columns(literal)
+
+        self.assertIs(ratings, FORM_PROFILES["2024"])
+
+
+class ComputeRatings2024Tests(SimpleTestCase):
+    def compute(self, rows):
+        df = make_df_2024(rows=rows)
+        columns, ratings = resolve_columns(df)
+        return compute_ratings(df, columns, ratings)
+
+    def test_uses_the_2024_coefficients(self):
+        # Observation (coef 1) at 10, the other nine skills at 5: (5 * 25 + 10) / 26.
+        out = self.compute([make_row_2024("Alice Martin", [5, 10, 5, 5, 5, 5, 5, 5, 5, 5], 7)])
+
+        self.assertAlmostEqual(out.loc[0, "Weighted_Rating"], 135 / 26)
+        self.assertEqual(out.loc[0, "Global_Rating"], 6.64)
+        self.assertEqual(out.loc[0, "Observation and Orientation"], 10)
+
+    def test_same_formula_as_later_forms(self):
+        out = self.compute([make_row_2024("Alice Martin", [6] * 10, 8)])
+
+        self.assertEqual(out.loc[0, "Weighted_Rating"], 6)
+        self.assertEqual(out.loc[0, "Global_Rating"], 7.6)
