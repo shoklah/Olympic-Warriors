@@ -8,7 +8,7 @@ from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils.crypto import get_random_string
 
-from ..registration import EMAIL, NAME, RATINGS, compute_ratings, parse_name, resolve_columns
+from ..registration import EMAIL, NAME, compute_ratings, parse_name, resolve_columns
 from .Player import Player, PlayerRating
 
 FALLBACK_EMAIL_DOMAIN = "olympicwarriors.com"
@@ -48,7 +48,7 @@ class Edition(models.Model):
         if hasattr(registration_form, "seek"):
             registration_form.seek(0)
         df = pd.read_csv(registration_form)
-        columns = resolve_columns(df)
+        columns, ratings = resolve_columns(df)
         if EMAIL not in columns:
             logger.warning(
                 "Registration form for edition %s has no email column; "
@@ -56,7 +56,7 @@ class Edition(models.Model):
                 self,
                 FALLBACK_EMAIL_DOMAIN,
             )
-        df = compute_ratings(df, columns)
+        df = compute_ratings(df, columns, ratings)
 
         with transaction.atomic():
             for index, row in df.iterrows():
@@ -88,7 +88,7 @@ class Edition(models.Model):
                         edition=self,
                         defaults={"rating": round(row["Global_Rating"]), "is_active": True},
                     )
-                    for name, spec in RATINGS.items():
+                    for name, spec in ratings.items():
                         PlayerRating.objects.update_or_create(
                             player=player,
                             identifier=spec["id"],

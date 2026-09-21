@@ -157,3 +157,57 @@ class EditionImportTests(TestCase):
         with self.assertRaises(ValueError) as ctx:
             self.edition.save()
         self.assertIn("alicemartin", str(ctx.exception))
+
+
+FIXTURE_2024 = Path(__file__).parent / "fixtures" / "registration_2024_sample.csv"
+
+
+class EditionImport2024Tests(TestCase):
+    """The 2024 form (Observation skill, single Endurance and Cardio skill) still imports."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        media_root = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(media_root.cleanup)
+        cls.enterClassContext(override_settings(MEDIA_ROOT=media_root.name))
+
+    def setUp(self):
+        self.edition = Edition.objects.create(
+            year=2024,
+            host="Toulouse",
+            start_date="2024-09-21",
+            end_date="2024-09-22",
+            registration_form=SimpleUploadedFile(
+                "registration_2024_sample.csv", FIXTURE_2024.read_bytes()
+            ),
+        )
+
+    def test_creates_players_with_the_2024_skill_set(self):
+        self.assertEqual(Player.objects.filter(edition=self.edition).count(), 3)
+        identifiers = set(
+            PlayerRating.objects.filter(player__edition=self.edition).values_list(
+                "identifier", flat=True
+            )
+        )
+        self.assertEqual(
+            identifiers, {"TEAM", "OBS", "MOB", "ACC", "SPD", "STMN", "CULT", "STR", "EXPL", "STRT"}
+        )
+        self.assertEqual(PlayerRating.objects.count(), 30)
+
+    def test_ratings_use_the_2024_coefficients(self):
+        alice = Player.objects.get(user__username="alicemartin")
+        doumen = Player.objects.get(user__username='alexandre"doumen"domene')
+
+        self.assertEqual(alice.rating, 8)  # 7.6 rounded
+        self.assertEqual(doumen.rating, 7)  # 6.64 rounded
+        observation = PlayerRating.objects.get(player=doumen, identifier="OBS")
+        self.assertEqual(observation.name, "Observation and Orientation")
+        self.assertEqual(observation.rating, 10)
+
+    def test_blank_email_column_falls_back_to_generated_address(self):
+        alice = User.objects.get(username="alicemartin")
+        bob = User.objects.get(username="bob")
+
+        self.assertEqual(alice.email, "alicemartin@olympicwarriors.com")
+        self.assertEqual(bob.email, "bob@example.com")
