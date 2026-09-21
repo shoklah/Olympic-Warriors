@@ -180,3 +180,6 @@ graphify-out/.graphify_root
 
 # edition transfer documents contain names and emails
 server/edition-*.json
+
+# graphify extraction cache is local, machine-specific state
+graphify-out/cache/
