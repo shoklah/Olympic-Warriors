@@ -15,7 +15,7 @@
 		align-items: center;
 		gap: 1rem;
 		margin: 6rem 1rem;
-		color: var(--color-theme-1);
+		color: var(--text);
 		text-align: center;
 	}
 
@@ -25,10 +25,18 @@
 	}
 
 	a {
-		color: var(--color-bg-0);
-		background-color: var(--color-theme-1);
+		background: var(--accent);
+		color: var(--bg);
+		font-family: var(--font-display);
+		letter-spacing: 0.15em;
 		padding: 0.6rem 2rem;
-		border-radius: 2em;
-		font-weight: 700;
+		border-radius: var(--radius);
+		text-decoration: none;
+		transition: 0.3s;
+	}
+
+	a:hover,
+	a:focus-visible {
+		opacity: 0.8;
 	}
 </style>
