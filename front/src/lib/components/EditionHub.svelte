@@ -119,7 +119,8 @@
 		text-decoration: none;
 	}
 
-	#ranking a:hover {
+	#ranking a:hover,
+	#ranking a:focus-visible {
 		opacity: 0.8;
 	}
 
@@ -133,6 +134,9 @@
 	#countdown .num {
 		font-size: 3rem;
 		margin-bottom: 0.25rem;
+		color: var(--ink);
+		font-weight: 400;
+		letter-spacing: 0.02em;
 	}
 
 	.editions {
@@ -153,7 +157,8 @@
 		transition: 0.2s;
 	}
 
-	.editions a:hover {
+	.editions a:hover,
+	.editions a:focus-visible {
 		color: var(--bg);
 		background-color: var(--accent);
 	}
@@ -180,7 +185,7 @@
 		align-items: center;
 	}
 
-	@media (max-width: 1000px) {
+	@media (max-width: 999.98px) {
 		.sportcolumn img {
 			width: min(100px, 20vw);
 		}
@@ -200,6 +205,11 @@
 		#ranking a {
 			padding: 0.6rem 2rem;
 			font-size: 1.2rem;
+		}
+
+		#countdown {
+			gap: 1rem;
+			padding: 0 1rem;
 		}
 	}
 </style>
