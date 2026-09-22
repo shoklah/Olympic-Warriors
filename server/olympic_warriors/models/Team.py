@@ -11,9 +11,9 @@ from .ResultTypes import ResultTypes
 
 def annotate_points_difference(queryset):
     """
-    Annotate a TeamResult queryset with `points_difference`: over the active games of the
-    result's discipline, the sum of the team's score minus its opponent's score. Teams
-    without any game get 0.
+    Annotate a TeamResult queryset with `points_difference`: over the active, played games
+    of the result's discipline, the sum of the team's score minus its opponent's score.
+    Teams without any played game get 0.
 
     Game is fetched from the app registry because Discipline.py imports this module.
     """
@@ -23,6 +23,7 @@ def annotate_points_difference(queryset):
         games = Game.objects.filter(
             discipline_id=OuterRef("discipline_id"),
             is_active=True,
+            is_played=True,
             **{team_field: OuterRef("team_id")},
         )
         total = (

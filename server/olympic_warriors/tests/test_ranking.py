@@ -51,6 +51,7 @@ class RankingTestSetup(TestCase):
             score2=score2,
             referees=self.team_d,
             edition=self.edition,
+            is_played=True,
         )
 
     def result(self, team):
@@ -91,6 +92,7 @@ class TestPointsDifference(RankingTestSetup):
             score2=0,
             referees=self.team_d,
             edition=self.edition,
+            is_played=True,
         )
 
         self.assertEqual(self.result(self.team_a).points_difference, 0)

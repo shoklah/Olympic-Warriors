@@ -55,9 +55,10 @@ def build_edition(year=2024):
 
     rugby = Rugby.objects.create(edition=edition)  # save() creates one TeamResult per team
     round1 = TeamSportRound.objects.create(discipline=rugby, order=1)
-    game = Game.objects.create(  # save() gives Red 3 points
+    game = Game.objects.create(  # played: save() gives Red 3 points
         discipline=rugby, round=round1, team1=red, team2=blue, referees=red,
         edition=edition, score1=5, score2=0,
+        is_played=True,
     )
     # Raw saves: RugbyEvent.save() validates and rescores, which is not under test here.
     event = GameEvent(game=game, player1=p_alice, time=f"{year}-08-01T10:00:00+00:00")
