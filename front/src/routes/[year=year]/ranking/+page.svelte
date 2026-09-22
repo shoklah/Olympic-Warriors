@@ -16,7 +16,7 @@
 	<h1>Ranking</h1>
 
 	<div class="columns">
-		<div id="disciplines">
+		<nav id="disciplines" aria-label="Disciplines">
 			{#each disciplines as discipline}
 				<a
 					class="discipline-tile"
@@ -29,7 +29,7 @@
 					<img src={iconFor(discipline.name)} alt="" />
 				</a>
 			{/each}
-		</div>
+		</nav>
 
 		<div id="teams">
 			{#each teams as team}
@@ -64,10 +64,13 @@
 
 	#disciplines {
 		display: flex;
-		flex-wrap: nowrap;
 		gap: 8px;
 		overflow-x: auto;
 		overflow-y: hidden;
+		scroll-snap-type: x proximity;
+		/* Room for the 2px hover lift, which `overflow-y: hidden` would clip. */
+		padding-top: 2px;
+		margin-top: -2px;
 		-ms-overflow-style: none;
 		scrollbar-width: none;
 	}
@@ -86,6 +89,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
+		scroll-snap-align: start;
 		transition:
 			transform 0.2s ease,
 			background 0.2s ease;
@@ -105,6 +109,12 @@
 		transform: translateY(-2px);
 	}
 
+	.discipline-tile:focus-visible,
+	.team-row:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: -2px;
+	}
+
 	#teams {
 		display: flex;
 		flex-direction: column;
@@ -113,12 +123,13 @@
 
 	.team-row {
 		display: grid;
-		grid-template-columns: 44px 1fr auto;
+		grid-template-columns: 44px minmax(0, 1fr) auto;
 		align-items: center;
 		gap: 12px;
 		--medal-size: 1.9rem;
 		padding: 10px 12px;
 		background: var(--bg-raised);
+		border-radius: var(--radius);
 		border-left: 4px solid var(--line-strong);
 		color: var(--text);
 		text-decoration: none;
@@ -145,6 +156,8 @@
 	.name {
 		font-weight: 600;
 		font-size: 1rem;
+		min-width: 0;
+		overflow-wrap: anywhere;
 	}
 
 	.pts {
@@ -168,7 +181,6 @@
 		#disciplines {
 			order: 2;
 			flex-direction: column;
-			flex-wrap: wrap;
 			gap: 8px;
 			overflow: visible;
 		}
