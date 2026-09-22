@@ -14,12 +14,9 @@
 			});
 		});
 	});
-
-	const HUB_ROUTES = new Set(['/', '/[year=year]']);
-	$: isHub = HUB_ROUTES.has($page.route.id);
 </script>
 
-<div class="app" class:hub={isHub}>
+<div class="app">
 	<Header />
 
 	<main>
@@ -33,7 +30,6 @@
 		display: flex;
 		flex-direction: column;
 		min-height: 100vh;
-		background-color: var(--color-bg-0);
 	}
 
 	main {
