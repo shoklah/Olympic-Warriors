@@ -8,6 +8,7 @@ import {
 	findTeam,
 	formatDateRange,
 	formatDifference,
+	ordinal,
 	rankedTeams,
 	startInstant,
 	switchYearPath,
@@ -180,6 +181,29 @@ describe('formatDifference', () => {
 		expect(formatDifference(3)).toBe('+3');
 		expect(formatDifference(0)).toBe('0');
 		expect(formatDifference(-2)).toBe('-2');
+	});
+});
+
+describe('ordinal', () => {
+	it('suffixes the usual ranks', () => {
+		expect(ordinal(1)).toBe('1st');
+		expect(ordinal(2)).toBe('2nd');
+		expect(ordinal(3)).toBe('3rd');
+		expect(ordinal(4)).toBe('4th');
+	});
+
+	it('keeps the teens in th', () => {
+		expect(ordinal(11)).toBe('11th');
+		expect(ordinal(12)).toBe('12th');
+		expect(ordinal(13)).toBe('13th');
+	});
+
+	it('suffixes above twenty and above a hundred', () => {
+		expect(ordinal(21)).toBe('21st');
+		expect(ordinal(22)).toBe('22nd');
+		expect(ordinal(23)).toBe('23rd');
+		expect(ordinal(101)).toBe('101st');
+		expect(ordinal(111)).toBe('111th');
 	});
 });
 

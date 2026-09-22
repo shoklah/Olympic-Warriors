@@ -119,6 +119,17 @@ export function formatDifference(n) {
 	return n > 0 ? `+${n}` : `${n}`;
 }
 
+/** 1st, 2nd, 3rd, 4th, 11th, 21st — English ordinal of a rank. */
+export function ordinal(n) {
+	const mod100 = n % 100;
+	if (mod100 >= 11 && mod100 <= 13) return `${n}th`;
+	const mod10 = n % 10;
+	if (mod10 === 1) return `${n}st`;
+	if (mod10 === 2) return `${n}nd`;
+	if (mod10 === 3) return `${n}rd`;
+	return `${n}th`;
+}
+
 /**
  * Where the year switcher sends the visitor: same section under the other year
  * (a detail page falls back to its list), the hub for anything else.

@@ -3,7 +3,6 @@
 	import { goto } from '$app/navigation';
 	import logo from '$lib/img/logo.svg';
 	import { switchYearPath } from '$lib/edition';
-	import Menu from './menu.svelte';
 
 	$: editions = $page.data.editions ?? [];
 	// On an error page the year in the URL may be one with no edition, so fall back to the latest.
@@ -19,7 +18,6 @@
 					: [])
 			]
 		: [];
-	$: years = editions.map((e) => ({ year: e.year, url: switchYearPath($page.url.pathname, e.year) }));
 
 	const switchYear = (event) => goto(switchYearPath($page.url.pathname, event.target.value));
 </script>
@@ -58,45 +56,44 @@
 			{/if}
 		</ul>
 	</nav>
-	<Menu {tabs} {years} {year} />
 </header>
 
 <style>
 	header {
 		display: flex;
 		z-index: 10;
-		padding: 2em clamp(0em, 2vw, 5em);
+		align-items: center;
 		justify-content: space-between;
+		gap: 1rem;
+		padding: 12px 18px;
+		border-bottom: 1px solid var(--line);
 	}
 
 	.logo {
 		display: flex;
 		align-items: center;
-		gap: 1rem;
+		gap: 0.8rem;
 	}
 
 	.logo a {
 		display: flex;
 		align-items: center;
-		justify-content: center;
-		height: 100%;
 	}
 
 	.logo img {
-		margin-left: 2vw;
-		height: 3em;
+		height: 2.2rem;
 		object-fit: contain;
 	}
 
 	select {
 		background: transparent;
-		color: var(--color-theme-1);
-		border: 2px solid var(--color-theme-1);
-		border-radius: 2em;
-		padding: 0.3em 0.8em;
-		font-weight: 700;
-		font-size: 1rem;
-		letter-spacing: 0.1em;
+		color: var(--accent);
+		border: 1px solid var(--accent);
+		border-radius: var(--radius-pill);
+		padding: 0.15em 0.9em;
+		font-family: var(--font-display);
+		font-size: 1.1rem;
+		letter-spacing: 0.08em;
 		cursor: pointer;
 	}
 
@@ -110,49 +107,35 @@
 		view-transition-name: navbar;
 	}
 
-	nav a {
+	ul {
 		display: flex;
-		height: 90%;
 		align-items: center;
-		padding: 0 2em;
-		color: var(--color-theme-1);
-		font-weight: 700;
-		font-size: 1rem;
+		gap: 0.4rem;
+		padding: 0;
+		margin: 0;
+	}
+
+	nav a {
+		display: block;
+		padding: 0.2em 1.1em;
+		color: var(--muted);
+		font-family: var(--font-display);
+		font-size: 1.1rem;
 		text-transform: uppercase;
-		letter-spacing: 0.2em;
+		letter-spacing: 0.14em;
 		text-decoration: none;
 	}
 
-	ul {
-		display: flex;
-		justify-content: center;
-		align-items: center;
-		padding: 0;
-		margin: 0;
-		height: 3em;
+	nav a:hover {
+		color: var(--accent);
+		text-decoration: none;
 	}
 
-	li {
-		position: relative;
-		height: 100%;
+	li[aria-current='page'] a {
+		color: var(--accent);
 	}
 
-	li[aria-current='page']::before {
-		content: '';
-		width: 30px;
-		height: 3px;
-		position: absolute;
-		top: 0;
-		left: calc(50% - 15px);
-		background-color: var(--color-theme-1);
-		view-transition-name: indicator;
-	}
-
-	a:hover {
-		color: var(--color-theme-1);
-	}
-
-	@media (max-width: 1000px) {
+	@media (max-width: 999px) {
 		ul {
 			display: none;
 		}
