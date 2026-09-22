@@ -1,8 +1,11 @@
 import { redirect } from '@sveltejs/kit';
 import { localeFrom } from '$lib/i18n/locale.js';
 
-/** Only a path on this site: one leading slash, so `//host` and absolute URLs go home. */
-const localPath = (value) => (typeof value === 'string' && /^\/(?!\/)/.test(value) ? value : '/');
+/**
+ * Only a path on this site: one leading slash, so `//host`, `/\host` (which browsers
+ * read as scheme-relative) and absolute URLs go home.
+ */
+const localPath = (value) => (typeof value === 'string' && /^\/(?![/\\])/.test(value) ? value : '/');
 
 /** Nothing to show here: a GET goes to the hub. */
 export const load = () => {

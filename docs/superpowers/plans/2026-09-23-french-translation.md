@@ -589,7 +589,7 @@ Run: `docker compose exec -T front npm run build`
 Expected: `✓ built`.
 
 Browser: `curl -s http://localhost:5173/ | grep -o '<html lang="[a-z]*"'` prints `<html lang="fr">`. Then
-`curl -s -i -X POST -d 'lang=en&redirectTo=/2026/ranking' http://localhost:5173/lang | grep -i -E "^(HTTP|location|set-cookie)"` prints a 303, `location: /2026/ranking` and a `set-cookie` line containing `lang=en`, `Path=/`, `Max-Age=31536000` and `SameSite=Lax` (attribute order may differ). And `curl -s -b lang=en http://localhost:5173/ | grep -o '<html lang="[a-z]*"'` prints `en`.
+`curl -s -i -X POST -H 'Origin: http://localhost:5173' -H 'Accept: text/html' -d 'lang=en&redirectTo=/2026/ranking' http://localhost:5173/lang | grep -i -E "^(HTTP|location|set-cookie)"` (without `Origin` SvelteKit's CSRF check answers 403; without `Accept: text/html` the action answers a 200 JSON redirect) prints a 303, `location: /2026/ranking` and a `set-cookie` line containing `lang=en`, `Path=/`, `Max-Age=31536000` and `SameSite=Lax` (attribute order may differ). And `curl -s -b lang=en http://localhost:5173/ | grep -o '<html lang="[a-z]*"'` prints `en`.
 
 - [ ] **Step 8: Commit**
 
@@ -797,7 +797,7 @@ Expected: PASS (3 tests).
 
 In `front/src/lib/components/TabBar.svelte`, add to the script after the props: `import { useT } from '$lib/i18n';` at the top and `const t = useT();` after the last `export let`; then replace the four literal names with `t('nav.ranking')`, `t('nav.teams')`, `t('nav.disciplines')`, `t('nav.photos')`, and `aria-label="Sections"` with `aria-label={t('nav.sections')}`.
 
-In `front/src/lib/components/TabBar.test.js`: add `import { renderWith } from '$lib/test-utils';` alongside the existing `import { render, screen } from '@testing-library/svelte';` (keep `render` imported — see below), and every existing `render(TabBar, X)` with `renderWith(TabBar, X)` (7 places; the default locale of the helper is `en`, so the assertions stay). Append two tests inside the describe:
+In `front/src/lib/components/TabBar.test.js`: add `import { renderWith } from '$lib/test-utils';` alongside the existing `import { render, screen } from '@testing-library/svelte';` (keep `render` imported — see below), and replace every existing `render(TabBar, X)` with `renderWith(TabBar, X)` (7 places; the default locale of the helper is `en`, so the assertions stay). Append two tests inside the describe:
 
 ```js
 	it('speaks French under fr', () => {

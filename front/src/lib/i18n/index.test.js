@@ -21,7 +21,6 @@ describe('t', () => {
 
 	it('ignores inherited object keys', () => {
 		expect(t('en', 'toString')).toBe('toString');
-		expect(disciplineName('fr', 'constructor')).toBe('constructor');
 	});
 
 	it('picks the plural form of the locale', () => {
@@ -52,6 +51,10 @@ describe('translator', () => {
 });
 
 describe('disciplineName', () => {
+	it('ignores inherited object keys', () => {
+		expect(disciplineName('fr', 'constructor')).toBe('constructor');
+	});
+
 	it('translates a mapped discipline in French', () => {
 		expect(disciplineName('fr', 'Relay')).toBe('Relais');
 		expect(disciplineName('fr', 'Hide and Seek')).toBe('Cache-cache');

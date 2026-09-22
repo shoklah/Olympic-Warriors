@@ -16,7 +16,10 @@ const MESSAGES = { fr, en };
 const fill = (text, params) =>
 	text.replace(/\{(\w+)\}/g, (match, name) => (params[name] == null ? match : String(params[name])));
 
-const own = (dict, k) => (Object.hasOwn(dict, k) ? dict[k] : undefined);
+// Own keys only, so `toString` is not a message. hasOwnProperty.call rather than
+// Object.hasOwn: Vite lowers syntax for the build target but polyfills no built-in.
+const hasOwn = (obj, k) => Object.prototype.hasOwnProperty.call(obj, k);
+const own = (dict, k) => (hasOwn(dict, k) ? dict[k] : undefined);
 
 /**
  * The message `key` in `locale`, placeholders filled from `params`. Falls back to the
@@ -48,5 +51,5 @@ export const useT = () => translator(useLocale());
 
 /** French name of a discipline when the locale is French and the map knows it. */
 export function disciplineName(locale, name) {
-	return locale === 'fr' ? (Object.hasOwn(FRENCH_NAMES, name) ? FRENCH_NAMES[name] : name) : name;
+	return locale === 'fr' ? (hasOwn(FRENCH_NAMES, name) ? FRENCH_NAMES[name] : name) : name;
 }

@@ -39,6 +39,9 @@ describe('lang action', () => {
 		await expect(call({ lang: 'en', redirectTo: 'https://evil.example/' }).promise).rejects.toMatchObject({
 			location: '/'
 		});
+		await expect(call({ lang: 'en', redirectTo: '/\\evil.example' }).promise).rejects.toMatchObject({
+			location: '/'
+		});
 		await expect(call({ lang: 'en' }).promise).rejects.toMatchObject({ location: '/' });
 	});
 });
