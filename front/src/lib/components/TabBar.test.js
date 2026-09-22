@@ -1,10 +1,11 @@
 import { render, screen } from '@testing-library/svelte';
 import { describe, expect, it } from 'vitest';
+import { renderWith } from '$lib/test-utils';
 import TabBar from './TabBar.svelte';
 
 describe('TabBar', () => {
 	it('links the three sections of the year', () => {
-		render(TabBar, { year: 2026, pathname: '/2026/teams/1' });
+		renderWith(TabBar, { year: 2026, pathname: '/2026/teams/1' });
 
 		expect(screen.getByRole('link', { name: 'Ranking' })).toHaveAttribute(
 			'href',
@@ -18,7 +19,7 @@ describe('TabBar', () => {
 	});
 
 	it('marks the section of the current path', () => {
-		render(TabBar, { year: 2026, pathname: '/2026/teams/1' });
+		renderWith(TabBar, { year: 2026, pathname: '/2026/teams/1' });
 
 		expect(screen.getByRole('link', { name: 'Teams' })).toHaveAttribute('aria-current', 'page');
 		expect(screen.getByRole('link', { name: 'Ranking' })).not.toHaveAttribute('aria-current');
@@ -28,25 +29,25 @@ describe('TabBar', () => {
 	});
 
 	it('renders nothing without a year', () => {
-		const { container } = render(TabBar, { year: null, pathname: '/' });
+		const { container } = renderWith(TabBar, { year: null, pathname: '/' });
 
 		expect(container.querySelector('nav')).toBeNull();
 	});
 
 	it('renders nothing when the year is missing', () => {
-		const { container } = render(TabBar, { year: undefined, pathname: '/' });
+		const { container } = renderWith(TabBar, { year: undefined, pathname: '/' });
 
 		expect(container.querySelector('nav')).toBeNull();
 	});
 
 	it('renders nothing when the year is not a number', () => {
-		const { container } = render(TabBar, { year: 'abc', pathname: '/abc/teams' });
+		const { container } = renderWith(TabBar, { year: 'abc', pathname: '/abc/teams' });
 
 		expect(container.querySelector('nav')).toBeNull();
 	});
 
 	it('adds an external photos item when the edition has an album', () => {
-		render(TabBar, {
+		renderWith(TabBar, {
 			year: 2026,
 			pathname: '/2026/ranking',
 			photosUrl: 'https://photos.example/2026'
@@ -59,8 +60,21 @@ describe('TabBar', () => {
 	});
 
 	it('has no photos item by default', () => {
-		render(TabBar, { year: 2026, pathname: '/2026/ranking' });
+		renderWith(TabBar, { year: 2026, pathname: '/2026/ranking' });
 
 		expect(screen.queryByRole('link', { name: 'Photos' })).toBeNull();
+	});
+
+	it('speaks French under fr', () => {
+		renderWith(TabBar, { year: 2026, pathname: '/2026/teams/1' }, 'fr');
+
+		expect(screen.getByRole('navigation', { name: 'Rubriques' })).toBeInTheDocument();
+		expect(screen.getByRole('link', { name: 'Équipes' })).toHaveAttribute('aria-current', 'page');
+	});
+
+	it('speaks French without any locale in context', () => {
+		render(TabBar, { year: 2026, pathname: '/2026/ranking' });
+
+		expect(screen.getByRole('link', { name: 'Classement' })).toBeInTheDocument();
 	});
 });
