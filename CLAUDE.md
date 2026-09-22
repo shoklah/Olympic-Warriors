@@ -17,6 +17,7 @@ Everything runs through the root `docker-compose.yml` (server on 3003, Postgres 
 
 ```bash
 docker compose up --build              # migrate + runserver + vite dev
+docker compose up -d -V --build front  # after a front dependency or Dockerfile change: node_modules is an anonymous volume, -V renews it
 docker compose exec server python manage.py test                       # all Django tests (needs Postgres)
 docker compose exec server python manage.py test olympic_warriors.tests.test_players.TestPlayersAPI.test_get_players
 docker compose exec server python manage.py makemigrations
@@ -30,8 +31,8 @@ pylint --load-plugins pylint_django --ignore=lib server/               # what CI
 Front (inside `front/`): `npm run dev`, `npm run build`, `npm run preview`. There is no `check` or `lint` script. `npm test` runs Vitest once over `src/**/*.test.js` (`vite.config.js`: jsdom, `src/setupTests.js` loading `@testing-library/jest-dom/vitest`, components rendered with `@testing-library/svelte`); summary fixtures live in `front/src/lib/fixtures/summary.js`.
 
 Required env files, both gitignored:
-- `server/dev.env` (copy `server/.env.example`); `ENV=prod` selects `server/prod.env`. Any real env var overrides the file.
-- `front/.env` with `API_URL=http://server:3003` (in compose) or `http://localhost:3003`. `API_URL` is `$env/static/private`, so it is baked in at build time and a missing file fails the build.
+- `server/dev.env` (copy `server/.env.example`); `ENV=prod` selects `server/prod.env`. Any real env var overrides the file. `ALLOWED_HOSTS` must include `server`, the hostname the front container uses, or every front page 400s. The file is read at startup: `docker compose restart server` after editing it.
+- `front/.env` (copy `front/.env.example`) with `API_URL=http://server:3003` (in compose) or `http://localhost:3003`. `API_URL` is `$env/static/private`, so it is baked in at build time; a missing file fails the production build, and in dev `src/lib/server/urls.js` throws a clear error instead of fetching `undefined/...`.
 
 CI (`.github/workflows/test.yml`) has two jobs. `test` runs pylint with `continue-on-error` and boots the compose stack; its migrate/test steps are commented out, so the Django side is not a gate. `front` (Node 22) runs `npm ci`, writes a throwaway `.env`, then `npm test` and `npm run build` — that one does gate, so a failing front test or build fails the workflow.
 
