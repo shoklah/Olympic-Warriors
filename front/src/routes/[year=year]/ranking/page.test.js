@@ -9,9 +9,9 @@ describe('ranking page', () => {
 
 		const rows = screen.getAllByTestId('team-row');
 		expect(rows).toHaveLength(3);
-		expect(rows[0]).toHaveTextContent(/1\. Bisons\s*5 pts/);
-		expect(rows[1]).toHaveTextContent(/2\. Aigles\s*3 pts/);
-		expect(rows[2]).toHaveTextContent(/3\. Cerfs\s*2 pts/);
+		expect(rows[0]).toHaveTextContent(/1\s*Bisons\s*5 pts/);
+		expect(rows[1]).toHaveTextContent(/2\s*Aigles\s*3 pts/);
+		expect(rows[2]).toHaveTextContent(/3\s*Cerfs\s*2 pts/);
 		// the whole row is the link
 		expect(rows[0]).toHaveAttribute('href', '/2026/teams/2');
 	});
