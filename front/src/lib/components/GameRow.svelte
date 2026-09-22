@@ -16,20 +16,33 @@
 	export let team1Href = null;
 	/** @type {string | null} */
 	export let team2Href = null;
+	/** Short round label ("R1") rendered in a narrow column before the pairing, or null. */
+	export let roundLabel = null;
+	/** Ids of the two teams, needed only with `highlightId`. */
+	export let team1Id = null;
+	export let team2Id = null;
+	/** The team whose page this row is on: accent colour, plain text instead of a link. */
+	export let highlightId = null;
 
 	const t = useT();
 
 	$: hasScore = isPlayed && score1 !== null && score2 !== null;
 	$: team1Class = !hasScore || score1 === score2 ? '' : score1 > score2 ? 'winner' : 'loser';
 	$: team2Class = !hasScore || score1 === score2 ? '' : score2 > score1 ? 'winner' : 'loser';
+	$: own1 = highlightId !== null && team1Id === highlightId;
+	$: own2 = highlightId !== null && team2Id === highlightId;
 </script>
 
 <div class="game-row" data-testid="game-row">
 	<p class="teams">
-		{#if team1Href}
+		{#if roundLabel !== null}
+			<span class="round label">{roundLabel}</span>
+		{/if}
+
+		{#if team1Href && !own1}
 			<a class="team {team1Class}" href={team1Href}>{team1Name ?? t('team.unknown')}</a>
 		{:else}
-			<span class="team {team1Class}">{team1Name ?? t('team.unknown')}</span>
+			<span class="team {team1Class}" class:own={own1}>{team1Name ?? t('team.unknown')}</span>
 		{/if}
 
 		{#if hasScore}
@@ -40,10 +53,10 @@
 			<span class="score pending">{t('game.played')}</span>
 		{/if}
 
-		{#if team2Href}
+		{#if team2Href && !own2}
 			<a class="team right {team2Class}" href={team2Href}>{team2Name ?? t('team.unknown')}</a>
 		{:else}
-			<span class="team right {team2Class}">{team2Name ?? t('team.unknown')}</span>
+			<span class="team right {team2Class}" class:own={own2}>{team2Name ?? t('team.unknown')}</span>
 		{/if}
 	</p>
 	{#if refereeName}
@@ -78,6 +91,20 @@
 
 	.team.right {
 		text-align: right;
+	}
+
+	.round {
+		flex: none;
+		min-width: 2.4rem;
+		color: var(--muted);
+	}
+
+	.team.own {
+		color: var(--accent);
+	}
+
+	.team.own.winner {
+		font-weight: 600;
 	}
 
 	.team:focus-visible {

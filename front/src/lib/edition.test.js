@@ -342,39 +342,37 @@ describe('roundCount', () => {
 });
 
 describe('teamGames', () => {
-	it('lists play and referee rows per discipline, own score first', () => {
+	it('lists the games the team played per discipline, in round order, referee named', () => {
 		const [relay, orienteering] = teamGames(summary, 1);
 		expect(relay.disciplineName).toBe('Relay');
 		expect(relay.games).toEqual([
-			{ id: 200, round: 0, role: 'play', opponentId: 2, opponentName: 'Bisons', team1Name: 'Bisons', team2Name: 'Aigles', isPlayed: true, ownScore: 9, theirScore: 12, result: 'loss' },
-			{ id: 201, round: 0, role: 'referee', opponentId: null, opponentName: null, team1Name: 'Cerfs', team2Name: 'Bisons', isPlayed: false, ownScore: null, theirScore: null, result: null },
-			{ id: 202, round: 1, role: 'play', opponentId: 3, opponentName: 'Cerfs', team1Name: 'Aigles', team2Name: 'Cerfs', isPlayed: true, ownScore: 7, theirScore: 7, result: 'draw' }
+			{ id: 200, round: 0, team1Id: 2, team2Id: 1, team1Name: 'Bisons', team2Name: 'Aigles', refereeName: 'Cerfs', isPlayed: true, score1: 12, score2: 9 },
+			{ id: 202, round: 1, team1Id: 1, team2Id: 3, team1Name: 'Aigles', team2Name: 'Cerfs', refereeName: 'Bisons', isPlayed: true, score1: 7, score2: 7 }
 		]);
-		expect(orienteering.games[0]).toMatchObject({ role: 'play', opponentName: 'Bisons', isPlayed: true, ownScore: null, result: null });
+		expect(orienteering.games).toEqual([
+			{ id: 203, round: 0, team1Id: 1, team2Id: 2, team1Name: 'Aigles', team2Name: 'Bisons', refereeName: 'Cerfs', isPlayed: true, score1: null, score2: null }
+		]);
 	});
 
-	it('reports a win and an unplayed game', () => {
-		const [relay] = teamGames(summary, 2);
-		expect(relay.games.map((g) => [g.role, g.isPlayed, g.result])).toEqual([
-			['play', true, 'win'],
-			['play', false, null],
-			['referee', true, null]
-		]);
+	it('leaves out the games the team only referees', () => {
+		expect(teamGames(summary, 1).flatMap((d) => d.games.map((g) => g.id))).not.toContain(201);
+		const [relay] = teamGames(summary, 3);
+		expect(relay.games.map((g) => g.id)).toEqual([201, 202]);
 	});
 
 	it('omits disciplines where the team has no game', () => {
+		// Cerfs only referee the Orienteering game, so that discipline is not listed for them.
+		expect(teamGames(summary, 3).map((d) => d.disciplineName)).toEqual(['Relay']);
 		const none = { ...summary, games: summary.games.filter((g) => g.discipline !== 11) };
-		expect(teamGames(none, 3).map((d) => d.disciplineName)).toEqual(['Relay']);
+		expect(teamGames(none, 1).map((d) => d.disciplineName)).toEqual(['Relay']);
 	});
 
 	it('returns an empty array for an unknown team', () => {
 		expect(teamGames(summary, 999)).toEqual([]);
 	});
 
-	it('treats a team that is both player and referee in one game as playing', () => {
-		const odd = { ...summary, games: [{ ...summary.games[0], referees: 2 }] };
-		const [discipline] = teamGames(odd, 2);
-		expect(discipline.games).toHaveLength(1);
-		expect(discipline.games[0].role).toBe('play');
+	it('keeps a game whose referee is unknown, with a null name', () => {
+		const odd = { ...summary, games: [{ ...summary.games[0], referees: 42 }] };
+		expect(teamGames(odd, 2)[0].games[0].refereeName).toBeNull();
 	});
 });

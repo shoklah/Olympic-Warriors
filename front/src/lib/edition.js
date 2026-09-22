@@ -207,16 +207,10 @@ export function roundCount(round) {
 	return { left, total: round.games.length };
 }
 
-function gameResult(own, theirs) {
-	if (own === null || theirs === null) return null;
-	if (own > theirs) return 'win';
-	if (own < theirs) return 'loss';
-	return 'draw';
-}
-
 /**
- * Every game a team plays or referees, grouped by discipline in id order,
- * with the team's own score first. Disciplines without a game are omitted.
+ * The games a team played (as team1 or team2), grouped by discipline in id order and
+ * sorted by round, with team and referee names joined. Games the team only referees
+ * are left out. Disciplines without such a game are omitted.
  */
 export function teamGames(summary, teamId) {
 	const names = teamNames(summary);
@@ -227,30 +221,20 @@ export function teamGames(summary, teamId) {
 			disciplineName: discipline.name,
 			games: summary.games
 				.filter(
-					(g) =>
-						g.discipline === discipline.id &&
-						(g.team1 === teamId || g.team2 === teamId || g.referees === teamId)
+					(g) => g.discipline === discipline.id && (g.team1 === teamId || g.team2 === teamId)
 				)
-				.map((g) => {
-					const plays = g.team1 === teamId || g.team2 === teamId;
-					const isTeam1 = g.team1 === teamId;
-					const opponentId = plays ? (isTeam1 ? g.team2 : g.team1) : null;
-					const ownScore = plays ? (isTeam1 ? g.score1 : g.score2) : null;
-					const theirScore = plays ? (isTeam1 ? g.score2 : g.score1) : null;
-					return {
-						id: g.id,
-						round: roundOrder.get(g.round) ?? 0,
-						role: plays ? 'play' : 'referee',
-						opponentId,
-						opponentName: opponentId === null ? null : nameOf(names, opponentId),
-						team1Name: nameOf(names, g.team1),
-						team2Name: nameOf(names, g.team2),
-						isPlayed: g.is_played,
-						ownScore,
-						theirScore,
-						result: plays && g.is_played ? gameResult(ownScore, theirScore) : null
-					};
-				})
+				.map((g) => ({
+					id: g.id,
+					round: roundOrder.get(g.round) ?? 0,
+					team1Id: g.team1,
+					team2Id: g.team2,
+					team1Name: nameOf(names, g.team1),
+					team2Name: nameOf(names, g.team2),
+					refereeName: g.referees == null ? null : nameOf(names, g.referees),
+					isPlayed: g.is_played,
+					score1: g.score1,
+					score2: g.score2
+				}))
 				.sort((a, b) => a.round - b.round || a.id - b.id)
 		}))
 		.filter((d) => d.games.length > 0);

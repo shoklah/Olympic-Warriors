@@ -96,4 +96,33 @@ describe('GameRow', () => {
 
 		expect(screen.getByTestId('game-row')).toHaveTextContent(/Bisons\s*12 : 9\s*Unknown/);
 	});
+
+	it('puts the round label first when given', () => {
+		renderWith(GameRow, { ...played, roundLabel: 'R1' });
+
+		expect(screen.getByTestId('game-row')).toHaveTextContent(/^\s*R1\s*Bisons\s*12 : 9\s*Aigles/);
+		expect(screen.getByText('R1')).toHaveClass('round');
+	});
+
+	it('highlights the own team as plain text and keeps the other one a link', () => {
+		renderWith(GameRow, {
+			...played,
+			team1Id: 2,
+			team2Id: 1,
+			highlightId: 1,
+			team1Href: '/2026/teams/2',
+			team2Href: '/2026/teams/1'
+		});
+
+		expect(screen.queryByRole('link', { name: 'Aigles' })).toBeNull();
+		expect(screen.getByText('Aigles')).toHaveClass('own');
+		expect(screen.getByText('Aigles')).toHaveClass('loser');
+		expect(screen.getByRole('link', { name: 'Bisons' })).toHaveAttribute('href', '/2026/teams/2');
+		expect(screen.getByRole('link', { name: 'Bisons' })).not.toHaveClass('own');
+	});
+
+	it('highlights nothing without a highlightId', () => {
+		const { container } = renderWith(GameRow, { ...played, team1Id: 2, team2Id: 1 });
+		expect(container.querySelector('.own')).toBeNull();
+	});
 });

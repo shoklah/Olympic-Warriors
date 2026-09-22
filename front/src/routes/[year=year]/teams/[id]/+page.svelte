@@ -1,10 +1,14 @@
 <script>
 	import { iconFor } from '$lib/icons';
+	import { disciplineName, useLocale, useT } from '$lib/i18n';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import MedalRank from '$lib/components/MedalRank.svelte';
-	import TeamGameRow from '$lib/components/TeamGameRow.svelte';
+	import GameRow from '$lib/components/GameRow.svelte';
 
 	export let data;
+
+	const locale = useLocale();
+	const t = useT();
 
 	$: year = data.summary.edition.year;
 </script>
@@ -13,7 +17,7 @@
 	<Breadcrumb
 		items={[
 			{ label: String(year), href: `/${year}` },
-			{ label: 'Teams', href: `/${year}/teams` },
+			{ label: t('nav.teams'), href: `/${year}/teams` },
 			{ label: data.team.name }
 		]}
 	/>
@@ -22,9 +26,9 @@
 
 	<p class="standing" data-testid="standing">
 		<MedalRank rank={data.team.ranking} ordinal />
-		<span class="label">overall</span>
+		<span class="label">{t('team.overall')}</span>
 		<span class="num points">{data.team.total_points}</span>
-		<span class="label">pts</span>
+		<span class="label">{t('team.pts')}</span>
 	</p>
 
 	<div class="roster">
@@ -33,7 +37,7 @@
 		{/each}
 	</div>
 
-	<h2>Results</h2>
+	<h2>{t('team.results')}</h2>
 	<div class="tiles">
 		{#each data.results as row}
 			<div
@@ -45,17 +49,17 @@
 			>
 				<span class="discipline">
 					<img src={iconFor(row.disciplineName)} alt="" />
-					<span class="label name">{row.disciplineName}</span>
+					<span class="label name">{disciplineName(locale, row.disciplineName)}</span>
 				</span>
 				<MedalRank rank={row.ranking} ordinal />
 				<!-- `.num` on the revealed value only: the status is words, not a number. -->
 				<span class="value" class:num={row.revealed} class:muted={!row.revealed}>
 					{#if !row.revealed}
-						not revealed
+						{t('team.notRevealed')}
 					{:else if row.result_type === 'TIM'}
 						{row.time}
 					{:else}
-						{row.points} pts
+						{row.points} {t('team.pts')}
 					{/if}
 				</span>
 			</div>
@@ -64,20 +68,23 @@
 
 	{#if data.games.length > 0}
 		<section class="games">
-			<h2>Games</h2>
+			<h2>{t('team.games')}</h2>
 			{#each data.games as discipline}
-				<h3 class="label">{discipline.disciplineName}</h3>
+				<h3 class="label">{disciplineName(locale, discipline.disciplineName)}</h3>
 				{#each discipline.games as game}
-					<TeamGameRow
-						round={game.round}
-						role={game.role}
-						opponentName={game.opponentName}
+					<GameRow
+						roundLabel={t('discipline.roundShort', { n: game.round + 1 })}
+						highlightId={data.team.id}
+						team1Id={game.team1Id}
+						team2Id={game.team2Id}
 						team1Name={game.team1Name}
 						team2Name={game.team2Name}
+						team1Href="/{year}/teams/{game.team1Id}"
+						team2Href="/{year}/teams/{game.team2Id}"
+						score1={game.score1}
+						score2={game.score2}
 						isPlayed={game.isPlayed}
-						ownScore={game.ownScore}
-						theirScore={game.theirScore}
-						result={game.result}
+						refereeName={game.refereeName}
 					/>
 				{/each}
 			{/each}
