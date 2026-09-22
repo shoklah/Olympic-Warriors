@@ -1,6 +1,7 @@
 <script>
 	import { formatDifference, roundCount } from '$lib/edition';
 	import { iconFor } from '$lib/icons';
+	import { disciplineName, useLocale, useT } from '$lib/i18n';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import DisciplineRail from '$lib/components/DisciplineRail.svelte';
 	import MedalRank from '$lib/components/MedalRank.svelte';
@@ -8,7 +9,11 @@
 
 	export let data;
 
+	const locale = useLocale();
+	const t = useT();
+
 	$: year = data.summary.edition.year;
+	$: name = disciplineName(locale, data.discipline.name);
 	$: rounds = (data.schedule ?? []).filter((round) => round.games.length > 0);
 	// The difference is summed from game scores, so a discipline without rounds
 	// has nothing but zeroes to show.
@@ -19,14 +24,14 @@
 	<Breadcrumb
 		items={[
 			{ label: String(year), href: `/${year}` },
-			{ label: 'Disciplines', href: `/${year}/disciplines` },
-			{ label: data.discipline.name }
+			{ label: t('nav.disciplines'), href: `/${year}/disciplines` },
+			{ label: name }
 		]}
 	/>
 
 	<h1>
 		<img src={iconFor(data.discipline.name)} alt="" />
-		{data.discipline.name}
+		{name}
 	</h1>
 
 	<div class="rail">
@@ -34,7 +39,7 @@
 	</div>
 
 	{#if data.results === null}
-		<p class="not-revealed">Results not revealed yet</p>
+		<p class="not-revealed">{t('discipline.notRevealed')}</p>
 	{:else}
 		<div id="results">
 			{#each data.results as result}
@@ -52,7 +57,7 @@
 					href="/{year}/teams/{result.team}"
 				>
 					<MedalRank rank={result.ranking} />
-					<span class="name">{result.teamName}</span>
+					<span class="name">{result.teamName ?? t('team.unknown')}</span>
 					{#if difference !== null}
 						<span class="diff">{difference}</span>
 					{/if}
@@ -62,7 +67,7 @@
 						{:else if result.result_type === 'TIM'}
 							{result.time}
 						{:else}
-							{result.points} pts
+							{result.points} {t('team.pts')}
 						{/if}
 					</span>
 				</a>
@@ -72,12 +77,16 @@
 
 	{#if rounds.length > 0}
 		<section class="schedule">
-			<h2>Schedule</h2>
+			<h2>{t('discipline.schedule')}</h2>
 			{#each rounds as round}
 				{@const count = roundCount(round)}
 				<div class="round-header">
-					<h3>Round {round.order + 1}</h3>
-					<span class="label" class:todo={count.todo}>{count.text}</span>
+					<h3>{t('discipline.round', { n: round.order + 1 })}</h3>
+					<span class="label" class:todo={count.left > 0}>
+						{count.left > 0
+							? t('discipline.toPlay', { n: count.left })
+							: t('discipline.games', { n: count.total })}
+					</span>
 				</div>
 				{#each round.games as game}
 					<GameRow

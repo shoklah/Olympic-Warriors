@@ -1,34 +1,49 @@
 <script>
 	import { iconFor } from '$lib/icons';
 	import { disciplineSubtitle } from '$lib/edition';
+	import { disciplineName, useLocale, useT } from '$lib/i18n';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 
 	export let data;
 
+	const locale = useLocale();
+	const t = useT();
+
 	$: year = data.summary.edition.year;
 	$: disciplines = data.summary.disciplines;
+
+	/** "2 rounds · 3 games", or "points" / "time" / nothing for a discipline without rounds. */
+	const subtitle = (sub) => {
+		if ('rounds' in sub) {
+			return `${t('discipline.rounds', { n: sub.rounds })} · ${t('discipline.games', { n: sub.games })}`;
+		}
+		if (sub.resultType === 'PTS') return t('discipline.points');
+		if (sub.resultType === 'TIM') return t('discipline.time');
+		return '';
+	};
 </script>
 
 <div class="page">
-	<Breadcrumb items={[{ label: String(year), href: `/${year}` }, { label: 'Disciplines' }]} />
-	<h1>Disciplines</h1>
+	<Breadcrumb items={[{ label: String(year), href: `/${year}` }, { label: t('nav.disciplines') }]} />
+	<h1>{t('disciplines.title')}</h1>
 
 	<div class="grid">
 		{#each disciplines as discipline}
+			{@const name = disciplineName(locale, discipline.name)}
 			<!-- The whole card is the link, so its name is pinned to the bare discipline name.
 			     An unrevealed discipline stays reachable: its page still shows the pairings. -->
 			<a
 				class="card"
 				class:unrevealed={!discipline.reveal_score}
 				href="/{year}/disciplines/{discipline.id}"
-				aria-label={discipline.name}
+				aria-label={name}
 			>
 				<span class="icon">
 					<img src={iconFor(discipline.name)} alt="" />
 				</span>
 				<span class="text">
-					<span class="name">{discipline.name}</span>
-					<span class="label subtitle">{disciplineSubtitle(data.summary, discipline)}</span>
+					<span class="name">{name}</span>
+					<span class="label subtitle">{subtitle(disciplineSubtitle(data.summary, discipline))}</span>
 				</span>
 			</a>
 		{/each}

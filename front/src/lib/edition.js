@@ -32,8 +32,8 @@ export function disciplineResults(summary, disciplineId) {
 	const rank = (r) => r.ranking ?? Number.POSITIVE_INFINITY; // no score yet: sort last
 	return summary.results
 		.filter((r) => r.discipline === disciplineId)
-		.map((r) => ({ ...r, teamName: names.get(r.team) ?? 'Unknown' }))
-		.sort((a, b) => rank(a) - rank(b) || a.teamName.localeCompare(b.teamName));
+		.map((r) => ({ ...r, teamName: names.get(r.team) ?? null }))
+		.sort((a, b) => rank(a) - rank(b) || (a.teamName ?? '').localeCompare(b.teamName ?? ''));
 }
 
 /**
@@ -95,23 +95,34 @@ function parseDay(iso) {
 	return new Date(`${iso}T12:00:00`);
 }
 
-function dayMonth(date) {
-	return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' });
+/** BCP 47 tag behind each site locale, for Intl. */
+const DATE_TAGS = { fr: 'fr-FR', en: 'en-GB' };
+
+/** French writes the first of the month "1er"; Intl gives "1". */
+function frenchFirst(text, date, locale) {
+	return locale === 'fr' && date.getDate() === 1 ? text.replace(/^1\b/, '1er') : text;
+}
+
+function dayMonth(date, locale) {
+	const text = date.toLocaleDateString(DATE_TAGS[locale], { day: 'numeric', month: 'long' });
+	return frenchFirst(text, date, locale);
 }
 
 /**
- * The dates of an edition as one line: "19 September 2026" for a single day,
- * "19 - 20 September 2026" within a month, "30 September - 1 October 2026" across two.
+ * The dates of an edition as one line in `locale`: "19 September 2026" for a single day,
+ * "19 – 20 September 2026" within a month, "30 September – 1 October 2026" across two.
  */
-export function formatDateRange(start, end) {
+export function formatDateRange(start, end, locale) {
 	const to = parseDay(end);
 	const year = to.getFullYear();
-	if (start === end) return `${dayMonth(to)} ${year}`;
+	if (start === end) return `${dayMonth(to, locale)} ${year}`;
 
 	const from = parseDay(start);
 	const sameMonth = from.getFullYear() === year && from.getMonth() === to.getMonth();
-	const left = sameMonth ? from.toLocaleDateString('en-GB', { day: 'numeric' }) : dayMonth(from);
-	return `${left} – ${dayMonth(to)} ${year}`;
+	const left = sameMonth
+		? frenchFirst(from.toLocaleDateString(DATE_TAGS[locale], { day: 'numeric' }), from, locale)
+		: dayMonth(from, locale);
+	return `${left} – ${dayMonth(to, locale)} ${year}`;
 }
 
 /** +3, 0, -2 */
@@ -119,8 +130,12 @@ export function formatDifference(n) {
 	return n > 0 ? `+${n}` : `${n}`;
 }
 
-/** 1st, 2nd, 3rd, 4th, 11th, 21st — English ordinal of a rank. */
-export function ordinal(n) {
+/**
+ * Ordinal of a rank: 1st, 2nd, 3rd, 4th, 11th, 21st in English; 1re then 2e, 3e in French
+ * (the rank always describes a team, feminine).
+ */
+export function ordinal(n, locale) {
+	if (locale === 'fr') return n === 1 ? '1re' : `${n}e`;
 	const mod100 = n % 100;
 	if (mod100 >= 11 && mod100 <= 13) return `${n}th`;
 	const mod10 = n % 10;
@@ -141,7 +156,8 @@ export function switchYearPath(pathname, year) {
 }
 
 const teamNames = (summary) => new Map(summary.teams.map((t) => [t.id, t.name]));
-const nameOf = (names, id) => names.get(id) ?? 'Unknown';
+/** A team's name, or null when the id matches no team: the page prints the "unknown" label. */
+const nameOf = (names, id) => names.get(id) ?? null;
 
 /**
  * Rounds of a discipline in order, each with its games and team names joined.
@@ -172,30 +188,22 @@ export function disciplineSchedule(summary, disciplineId) {
 		}));
 }
 
-const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
-
-const RESULT_TYPE_LABELS = { PTS: 'points', TIM: 'time' };
-
 /**
- * One line under a discipline name: how many rounds and games it holds, or the
- * kind of result it produces when it has no round. `reveal_score` plays no part.
+ * What goes under a discipline name: its round and game counts, or the kind of result
+ * it produces when it has no round. `reveal_score` plays no part. The page words it.
  */
 export function disciplineSubtitle(summary, discipline) {
 	const rounds = summary.rounds.filter((r) => r.discipline === discipline.id).length;
-	if (rounds === 0) return RESULT_TYPE_LABELS[discipline.result_type] ?? '';
+	if (rounds === 0) return { resultType: discipline.result_type };
 
 	const games = summary.games.filter((g) => g.discipline === discipline.id).length;
-	return `${plural(rounds, 'round')} · ${plural(games, 'game')}`;
+	return { rounds, games };
 }
 
-/**
- * The line beside a round heading: how many games it holds, or how many are
- * still to play. `todo` marks the second shape, which the page colours.
- */
+/** Beside a round heading: how many games it holds and how many are still to play. */
 export function roundCount(round) {
 	const left = round.games.filter((g) => !g.isPlayed).length;
-	if (left > 0) return { text: `${left} to play`, todo: true };
-	return { text: plural(round.games.length, 'game'), todo: false };
+	return { left, total: round.games.length };
 }
 
 function gameResult(own, theirs) {

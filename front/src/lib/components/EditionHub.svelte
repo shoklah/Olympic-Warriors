@@ -4,9 +4,13 @@
 	import title from '$lib/img/title.svg';
 	import { iconFor } from '$lib/icons';
 	import { countdownParts, editionPhase, formatDateRange } from '$lib/edition';
+	import { disciplineName, useLocale, useT } from '$lib/i18n';
 
 	export let summary;
 	export let editions;
+
+	const locale = useLocale();
+	const t = useT();
 
 	$: edition = summary.edition;
 	$: half = Math.ceil(summary.disciplines.length / 2);
@@ -29,30 +33,30 @@
 	{#each columns.filter((c) => c.length > 0) as column}
 		<div class="sportcolumn">
 			{#each column as discipline}
-				<img src={iconFor(discipline.name)} alt={discipline.name} />
+				<img src={iconFor(discipline.name)} alt={disciplineName(locale, discipline.name)} />
 			{/each}
 		</div>
 	{/each}
 </div>
 
-<p class="where">{edition.host} · {formatDateRange(edition.start_date, edition.end_date)}</p>
+<p class="where">{edition.host} · {formatDateRange(edition.start_date, edition.end_date, locale)}</p>
 
 {#if phase === 'upcoming'}
 	<div id="countdown">
-		<div class="label"><span class="num">{parts.days}</span>Days</div>
-		<div class="label"><span class="num">{parts.hours}</span>Hours</div>
-		<div class="label"><span class="num">{parts.minutes}</span>Minutes</div>
-		<div class="label"><span class="num">{parts.seconds}</span>Seconds</div>
+		<div class="label"><span class="num">{parts.days}</span>{t('hub.days')}</div>
+		<div class="label"><span class="num">{parts.hours}</span>{t('hub.hours')}</div>
+		<div class="label"><span class="num">{parts.minutes}</span>{t('hub.minutes')}</div>
+		<div class="label"><span class="num">{parts.seconds}</span>{t('hub.seconds')}</div>
 	</div>
 {:else}
 	<div id="ranking">
-		<a href="/{edition.year}/ranking">Ranking</a>
+		<a href="/{edition.year}/ranking">{t('hub.ranking')}</a>
 	</div>
 {/if}
 
 {#if editions.length > 1}
 	<!-- Same rule as the discipline rail: every edition listed, the current one highlighted. -->
-	<nav class="editions" aria-label="Editions">
+	<nav class="editions" aria-label={t('hub.editions')}>
 		{#each editions as other}
 			<a
 				href="/{other.year}"

@@ -1,19 +1,21 @@
 <script>
 	import { ordinal as toOrdinal } from '$lib/edition';
+	import { useLocale } from '$lib/i18n';
 
 	/**
 	 * Rank of a team; null or 0 (the API's unrevealed value) renders as a dash.
 	 * @type {number | null}
 	 */
 	export let rank = null;
-	/** Render `2nd` instead of `2`. */
+	/** Render `2nd` (`2e` in French) instead of `2`. */
 	export let ordinal = false;
 
+	const locale = useLocale();
 	const MEDALS = { 1: 'gold', 2: 'silver', 3: 'bronze' };
 
 	$: unranked = rank === null || rank === 0;
 	$: medal = MEDALS[rank] ?? 'none';
-	$: text = unranked ? '—' : ordinal ? toOrdinal(rank) : `${rank}`;
+	$: text = unranked ? '—' : ordinal ? toOrdinal(rank, locale) : `${rank}`;
 </script>
 
 <span class="rank num {medal}">{text}</span>

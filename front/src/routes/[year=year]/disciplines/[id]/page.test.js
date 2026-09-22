@@ -1,5 +1,6 @@
-import { render, screen, within } from '@testing-library/svelte';
+import { screen, within } from '@testing-library/svelte';
 import { describe, expect, it } from 'vitest';
+import { renderWith } from '$lib/test-utils';
 import Page from './+page.svelte';
 import { disciplineResults, disciplineSchedule, findDiscipline } from '$lib/edition';
 import { summary, summaryAllRevealed } from '$lib/fixtures/summary.js';
@@ -13,7 +14,7 @@ const dataFor = (s, id) => ({
 
 describe('discipline page', () => {
 	it('shows points rows with the difference for a revealed points discipline', () => {
-		render(Page, { data: dataFor(summary, 10) });
+		renderWith(Page, { data: dataFor(summary, 10) });
 
 		expect(screen.getByRole('heading', { name: 'Relay' })).toBeInTheDocument();
 		const rows = screen.getAllByTestId('result-row');
@@ -29,7 +30,7 @@ describe('discipline page', () => {
 	});
 
 	it('marks the current discipline in the rail', () => {
-		render(Page, { data: dataFor(summary, 10) });
+		renderWith(Page, { data: dataFor(summary, 10) });
 
 		expect(screen.getByRole('link', { name: 'Relay' })).toHaveAttribute('aria-current', 'page');
 		expect(screen.getByRole('link', { name: 'Orienteering' })).not.toHaveAttribute(
@@ -38,7 +39,7 @@ describe('discipline page', () => {
 	});
 
 	it('shows times for a revealed timed discipline', () => {
-		render(Page, { data: dataFor(summaryAllRevealed, 11) });
+		renderWith(Page, { data: dataFor(summaryAllRevealed, 11) });
 
 		const rows = screen.getAllByTestId('result-row');
 		expect(rows[0]).toHaveTextContent('1 Aigles');
@@ -46,14 +47,14 @@ describe('discipline page', () => {
 	});
 
 	it('shows the not-revealed message instead of rows', () => {
-		render(Page, { data: dataFor(summary, 11) });
+		renderWith(Page, { data: dataFor(summary, 11) });
 
 		expect(screen.getByText('Results not revealed yet')).toBeInTheDocument();
 		expect(screen.queryAllByTestId('result-row')).toHaveLength(0);
 	});
 
 	it('shows the schedule by round with scores, dashes and referees', () => {
-		render(Page, { data: dataFor(summary, 10) });
+		renderWith(Page, { data: dataFor(summary, 10) });
 
 		expect(screen.getByRole('heading', { name: 'Schedule' })).toBeInTheDocument();
 		expect(screen.getByRole('heading', { name: 'Round 1' })).toBeInTheDocument();
@@ -70,7 +71,7 @@ describe('discipline page', () => {
 	});
 
 	it('counts what is left to play beside each round heading', () => {
-		render(Page, { data: dataFor(summary, 10) });
+		renderWith(Page, { data: dataFor(summary, 10) });
 
 		expect(screen.getByRole('heading', { name: 'Round 1' }).parentElement).toHaveTextContent(
 			'1 to play'
@@ -81,7 +82,7 @@ describe('discipline page', () => {
 	});
 
 	it('shows pairings without scores for an unrevealed discipline', () => {
-		render(Page, { data: dataFor(summary, 11) });
+		renderWith(Page, { data: dataFor(summary, 11) });
 
 		expect(screen.getByText('Results not revealed yet')).toBeInTheDocument();
 		expect(screen.getAllByTestId('game-row')[0]).toHaveTextContent(/Aigles\s*played\s*Bisons/);
@@ -89,17 +90,17 @@ describe('discipline page', () => {
 
 	it('has no schedule section when every round is empty', () => {
 		const empty = { ...summary, games: summary.games.filter((g) => g.discipline !== 10) };
-		render(Page, { data: dataFor(empty, 10) });
+		renderWith(Page, { data: dataFor(empty, 10) });
 		expect(screen.queryByRole('heading', { name: 'Schedule' })).toBeNull();
 	});
 
 	it('has no schedule section for a discipline without rounds', () => {
-		render(Page, { data: dataFor({ ...summary, rounds: [], games: [] }, 10) });
+		renderWith(Page, { data: dataFor({ ...summary, rounds: [], games: [] }, 10) });
 		expect(screen.queryByRole('heading', { name: 'Schedule' })).toBeNull();
 	});
 
 	it('skips rounds with no games', () => {
-		render(
+		renderWith(
 			Page,
 			{
 				data: dataFor(
@@ -112,5 +113,14 @@ describe('discipline page', () => {
 			}
 		);
 		expect(screen.queryByRole('heading', { name: 'Round 3' })).toBeNull();
+	});
+
+	it('speaks French under fr', () => {
+		renderWith(Page, { data: dataFor(summary, 10) }, 'fr');
+
+		expect(screen.getByRole('heading', { level: 1, name: 'Relais' })).toBeInTheDocument();
+		expect(screen.getByRole('heading', { name: 'Programme' })).toBeInTheDocument();
+		expect(screen.getByRole('heading', { name: 'Tour 1' }).parentElement).toHaveTextContent('1 à jouer');
+		expect(screen.getByRole('heading', { name: 'Tour 2' }).parentElement).toHaveTextContent('1 match');
 	});
 });

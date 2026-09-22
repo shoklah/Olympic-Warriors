@@ -1,5 +1,6 @@
-import { render, screen } from '@testing-library/svelte';
+import { screen } from '@testing-library/svelte';
 import { describe, expect, it } from 'vitest';
+import { renderWith } from '$lib/test-utils';
 import Page from './+page.svelte';
 import { load } from './+page.js';
 import { findTeam, teamGames, teamResults } from '$lib/edition';
@@ -14,7 +15,7 @@ const dataFor = (id) => ({
 
 describe('team page', () => {
 	it('shows the name, global rank, total points and the full roster', () => {
-		render(Page, { data: dataFor(1) });
+		renderWith(Page, { data: dataFor(1) });
 
 		expect(screen.getByRole('heading', { name: 'Aigles' })).toBeInTheDocument();
 		expect(screen.getByTestId('standing')).toHaveTextContent(/2nd\s*overall\s*3\s*pts/);
@@ -23,7 +24,7 @@ describe('team page', () => {
 	});
 
 	it('shows one tile per discipline with a dash when not revealed', () => {
-		render(Page, { data: dataFor(1) });
+		renderWith(Page, { data: dataFor(1) });
 
 		const rows = screen.getAllByTestId('discipline-row');
 		expect(rows).toHaveLength(2);
@@ -32,7 +33,7 @@ describe('team page', () => {
 	});
 
 	it('lists games per discipline with result, to play and referee rows', () => {
-		render(Page, { data: dataFor(1) });
+		renderWith(Page, { data: dataFor(1) });
 
 		expect(screen.getByRole('heading', { name: 'Games' })).toBeInTheDocument();
 		const rows = screen.getAllByTestId('game-row');
@@ -44,7 +45,7 @@ describe('team page', () => {
 	});
 
 	it('says to play for an unplayed game', () => {
-		render(Page, { data: dataFor(2) });
+		renderWith(Page, { data: dataFor(2) });
 		expect(screen.getAllByTestId('game-row')[1]).toHaveTextContent(/Round 1 · vs Cerfs · to play/);
 		expect(screen.getAllByTestId('game-row')[0]).toHaveTextContent(
 			/Round 1 · vs Aigles · 12 : 9 · won/
@@ -52,7 +53,7 @@ describe('team page', () => {
 	});
 
 	it('has no games section when the team has no games', () => {
-		render(Page, { data: { ...dataFor(1), games: [] } });
+		renderWith(Page, { data: { ...dataFor(1), games: [] } });
 		expect(screen.queryByRole('heading', { name: 'Games' })).toBeNull();
 	});
 });

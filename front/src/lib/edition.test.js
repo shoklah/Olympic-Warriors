@@ -187,25 +187,33 @@ describe('formatDifference', () => {
 });
 
 describe('ordinal', () => {
-	it('suffixes the usual ranks', () => {
-		expect(ordinal(1)).toBe('1st');
-		expect(ordinal(2)).toBe('2nd');
-		expect(ordinal(3)).toBe('3rd');
-		expect(ordinal(4)).toBe('4th');
+	it('suffixes the usual English ranks', () => {
+		expect(ordinal(1, 'en')).toBe('1st');
+		expect(ordinal(2, 'en')).toBe('2nd');
+		expect(ordinal(3, 'en')).toBe('3rd');
+		expect(ordinal(4, 'en')).toBe('4th');
 	});
 
-	it('keeps the teens in th', () => {
-		expect(ordinal(11)).toBe('11th');
-		expect(ordinal(12)).toBe('12th');
-		expect(ordinal(13)).toBe('13th');
+	it('keeps the English teens in th', () => {
+		expect(ordinal(11, 'en')).toBe('11th');
+		expect(ordinal(12, 'en')).toBe('12th');
+		expect(ordinal(13, 'en')).toBe('13th');
 	});
 
-	it('suffixes above twenty and above a hundred', () => {
-		expect(ordinal(21)).toBe('21st');
-		expect(ordinal(22)).toBe('22nd');
-		expect(ordinal(23)).toBe('23rd');
-		expect(ordinal(101)).toBe('101st');
-		expect(ordinal(111)).toBe('111th');
+	it('suffixes above twenty and above a hundred in English', () => {
+		expect(ordinal(21, 'en')).toBe('21st');
+		expect(ordinal(22, 'en')).toBe('22nd');
+		expect(ordinal(23, 'en')).toBe('23rd');
+		expect(ordinal(101, 'en')).toBe('101st');
+		expect(ordinal(111, 'en')).toBe('111th');
+	});
+
+	it('writes French ranks for a team: 1re then Ne', () => {
+		expect(ordinal(1, 'fr')).toBe('1re');
+		expect(ordinal(2, 'fr')).toBe('2e');
+		expect(ordinal(3, 'fr')).toBe('3e');
+		expect(ordinal(11, 'fr')).toBe('11e');
+		expect(ordinal(21, 'fr')).toBe('21e');
 	});
 });
 
@@ -225,15 +233,20 @@ describe('switchYearPath', () => {
 
 describe('formatDateRange', () => {
 	it('prints one date for a single-day edition', () => {
-		expect(formatDateRange('2026-09-19', '2026-09-19')).toBe('19 September 2026');
+		expect(formatDateRange('2026-09-19', '2026-09-19', 'en')).toBe('19 September 2026');
+		expect(formatDateRange('2026-09-19', '2026-09-19', 'fr')).toBe('19 septembre 2026');
 	});
 
 	it('names the month once within a month', () => {
-		expect(formatDateRange('2026-09-19', '2026-09-20')).toBe('19 – 20 September 2026');
+		expect(formatDateRange('2026-09-19', '2026-09-20', 'en')).toBe('19 – 20 September 2026');
+		expect(formatDateRange('2026-09-19', '2026-09-20', 'fr')).toBe('19 – 20 septembre 2026');
 	});
 
 	it('names both months across a month boundary', () => {
-		expect(formatDateRange('2026-09-30', '2026-10-01')).toBe('30 September – 1 October 2026');
+		expect(formatDateRange('2026-09-30', '2026-10-01', 'en')).toBe('30 September – 1 October 2026');
+		expect(formatDateRange('2026-09-30', '2026-10-01', 'fr')).toBe('30 septembre – 1er octobre 2026');
+		expect(formatDateRange('2026-10-01', '2026-10-01', 'fr')).toBe('1er octobre 2026');
+		expect(formatDateRange('2026-10-01', '2026-10-02', 'fr')).toBe('1er – 2 octobre 2026');
 	});
 });
 
@@ -267,9 +280,11 @@ describe('disciplineSchedule', () => {
 		expect(disciplineSchedule(summary, 999)).toBeNull();
 	});
 
-	it('names an unknown team Unknown', () => {
+	it('gives a null name to an unknown or missing referee', () => {
 		const odd = { ...summary, games: [{ ...summary.games[0], referees: 42 }] };
-		expect(disciplineSchedule(odd, 10)[0].games[0].refereeName).toBe('Unknown');
+		expect(disciplineSchedule(odd, 10)[0].games[0].refereeName).toBeNull();
+		const none = { ...summary, games: [{ ...summary.games[0], referees: null }] };
+		expect(disciplineSchedule(none, 10)[0].games[0].refereeName).toBeNull();
 	});
 
 	it('includes a round with no games as an empty entry', () => {
@@ -284,44 +299,35 @@ describe('disciplineSchedule', () => {
 
 describe('disciplineSubtitle', () => {
 	it('counts the rounds and the games of the discipline', () => {
-		expect(disciplineSubtitle(summary, summary.disciplines[0])).toBe('2 rounds · 3 games');
-	});
-
-	it('keeps a single round and a single game singular', () => {
-		expect(disciplineSubtitle(summary, summary.disciplines[1])).toBe('1 round · 1 game');
+		expect(disciplineSubtitle(summary, summary.disciplines[0])).toEqual({ rounds: 2, games: 3 });
+		expect(disciplineSubtitle(summary, summary.disciplines[1])).toEqual({ rounds: 1, games: 1 });
 	});
 
 	it('counts the games even when the discipline has none yet', () => {
 		const noGames = { ...summary, games: summary.games.filter((g) => g.discipline !== 10) };
-		expect(disciplineSubtitle(noGames, summary.disciplines[0])).toBe('2 rounds · 0 games');
+		expect(disciplineSubtitle(noGames, summary.disciplines[0])).toEqual({ rounds: 2, games: 0 });
 	});
 
-	it('falls back to the result type when the discipline has no round', () => {
+	it('gives the result type when the discipline has no round', () => {
 		const noRounds = { ...summary, rounds: [], games: [] };
-		expect(disciplineSubtitle(noRounds, { id: 10, result_type: 'PTS' })).toBe('points');
-		expect(disciplineSubtitle(noRounds, { id: 10, result_type: 'TIM' })).toBe('time');
-		expect(disciplineSubtitle(noRounds, { id: 10, result_type: 'NON' })).toBe('');
+		expect(disciplineSubtitle(noRounds, { id: 10, result_type: 'PTS' })).toEqual({ resultType: 'PTS' });
+		expect(disciplineSubtitle(noRounds, { id: 10, result_type: 'TIM' })).toEqual({ resultType: 'TIM' });
+		expect(disciplineSubtitle(noRounds, { id: 10, result_type: 'NON' })).toEqual({ resultType: 'NON' });
 	});
 
 	it('ignores reveal_score', () => {
 		const hidden = { ...summary.disciplines[0], reveal_score: false };
-		expect(disciplineSubtitle(summary, hidden)).toBe('2 rounds · 3 games');
+		expect(disciplineSubtitle(summary, hidden)).toEqual({ rounds: 2, games: 3 });
 	});
 });
 
 describe('roundCount', () => {
 	const round = (...played) => ({ games: played.map((isPlayed) => ({ isPlayed })) });
 
-	it('counts the games of a round once every one is played', () => {
-		expect(roundCount(round(true, true, true))).toEqual({ text: '3 games', todo: false });
-	});
-
-	it('keeps a single game singular', () => {
-		expect(roundCount(round(true))).toEqual({ text: '1 game', todo: false });
-	});
-
-	it('counts what is left to play while a game is unplayed', () => {
-		expect(roundCount(round(true, false, false))).toEqual({ text: '2 to play', todo: true });
+	it('counts the games and what is left to play', () => {
+		expect(roundCount(round(true, true, true))).toEqual({ left: 0, total: 3 });
+		expect(roundCount(round(true))).toEqual({ left: 0, total: 1 });
+		expect(roundCount(round(true, false, false))).toEqual({ left: 2, total: 3 });
 	});
 });
 
