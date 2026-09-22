@@ -188,6 +188,16 @@ export function disciplineSubtitle(summary, discipline) {
 	return `${plural(rounds, 'round')} · ${plural(games, 'game')}`;
 }
 
+/**
+ * The line beside a round heading: how many games it holds, or how many are
+ * still to play. `todo` marks the second shape, which the page colours.
+ */
+export function roundCount(round) {
+	const left = round.games.filter((g) => !g.isPlayed).length;
+	if (left > 0) return { text: `${left} to play`, todo: true };
+	return { text: plural(round.games.length, 'game'), todo: false };
+}
+
 function gameResult(own, theirs) {
 	if (own === null || theirs === null) return null;
 	if (own > theirs) return 'win';

@@ -1,5 +1,5 @@
 <script>
-	import { formatDifference } from '$lib/edition';
+	import { formatDifference, roundCount } from '$lib/edition';
 	import { iconFor } from '$lib/icons';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import MedalRank from '$lib/components/MedalRank.svelte';
@@ -12,13 +12,6 @@
 	// The difference is summed from game scores, so a discipline without rounds
 	// has nothing but zeroes to show.
 	$: showDifference = data.schedule !== null;
-
-	/** "3 games" once every game is played, "1 to play" while some are not. */
-	function roundCount(round) {
-		const left = round.games.filter((g) => !g.isPlayed).length;
-		if (left > 0) return `${left} to play`;
-		return `${round.games.length} game${round.games.length === 1 ? '' : 's'}`;
-	}
 </script>
 
 <div class="page">
@@ -40,8 +33,13 @@
 	{:else}
 		<div id="results">
 			{#each data.results as result}
+				{@const difference =
+					showDifference && result.result_type === 'PTS' && result.points_difference !== null
+						? formatDifference(result.points_difference)
+						: null}
 				<a
 					class="result-row"
+					class:no-diff={difference === null}
 					class:gold={result.ranking === 1}
 					class:silver={result.ranking === 2}
 					class:bronze={result.ranking === 3}
@@ -50,13 +48,9 @@
 				>
 					<MedalRank rank={result.ranking} />
 					<span class="name">{result.teamName}</span>
-					<span class="diff">
-						{showDifference &&
-						result.result_type === 'PTS' &&
-						result.points_difference !== null
-							? formatDifference(result.points_difference)
-							: ''}
-					</span>
+					{#if difference !== null}
+						<span class="diff">{difference}</span>
+					{/if}
 					<span class="num value">
 						{#if result.ranking === null}
 							—
@@ -75,11 +69,10 @@
 		<section class="schedule">
 			<h2>Schedule</h2>
 			{#each rounds as round}
+				{@const count = roundCount(round)}
 				<div class="round-header">
 					<h3>Round {round.order + 1}</h3>
-					<span class="label" class:todo={round.games.some((g) => !g.isPlayed)}>
-						{roundCount(round)}
-					</span>
+					<span class="label" class:todo={count.todo}>{count.text}</span>
 				</div>
 				{#each round.games as game}
 					<GameRow
@@ -124,11 +117,11 @@
 
 	.result-row {
 		display: grid;
-		grid-template-columns: 40px minmax(0, 1fr) auto auto;
+		grid-template-columns: 44px minmax(0, 1fr) auto auto;
 		align-items: center;
 		gap: 12px;
 		--medal-size: 1.9rem;
-		padding: 9px 12px;
+		padding: 10px 12px;
 		background: var(--bg-raised);
 		border-radius: var(--radius);
 		border-left: 4px solid var(--line-strong);
@@ -140,6 +133,11 @@
 	.result-row:hover {
 		background: var(--line);
 		text-decoration: none;
+	}
+
+	/* A timed result, or a discipline without games, has no difference to show. */
+	.result-row.no-diff {
+		grid-template-columns: 44px minmax(0, 1fr) auto;
 	}
 
 	.result-row:focus-visible {
@@ -162,7 +160,7 @@
 	.name {
 		min-width: 0;
 		font-weight: 600;
-		font-size: 0.95rem;
+		font-size: 1rem;
 		overflow-wrap: anywhere;
 	}
 
@@ -174,9 +172,9 @@
 	}
 
 	.value {
-		font-size: 1.5rem;
+		font-size: 1.6rem;
 		line-height: 1;
-		letter-spacing: 0.04em;
+		letter-spacing: 0.06em;
 		color: var(--ink);
 	}
 

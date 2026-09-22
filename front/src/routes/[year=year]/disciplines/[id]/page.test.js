@@ -60,6 +60,17 @@ describe('discipline page', () => {
 		);
 	});
 
+	it('counts what is left to play beside each round heading', () => {
+		render(Page, { data: dataFor(summary, 10) });
+
+		expect(screen.getByRole('heading', { name: 'Round 1' }).parentElement).toHaveTextContent(
+			'1 to play'
+		);
+		expect(screen.getByRole('heading', { name: 'Round 2' }).parentElement).toHaveTextContent(
+			'1 game'
+		);
+	});
+
 	it('shows pairings without scores for an unrevealed discipline', () => {
 		render(Page, { data: dataFor(summary, 11) });
 

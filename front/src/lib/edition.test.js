@@ -11,6 +11,7 @@ import {
 	formatDifference,
 	ordinal,
 	rankedTeams,
+	roundCount,
 	startInstant,
 	switchYearPath,
 	teamGames,
@@ -305,6 +306,22 @@ describe('disciplineSubtitle', () => {
 	it('ignores reveal_score', () => {
 		const hidden = { ...summary.disciplines[0], reveal_score: false };
 		expect(disciplineSubtitle(summary, hidden)).toBe('2 rounds · 3 games');
+	});
+});
+
+describe('roundCount', () => {
+	const round = (...played) => ({ games: played.map((isPlayed) => ({ isPlayed })) });
+
+	it('counts the games of a round once every one is played', () => {
+		expect(roundCount(round(true, true, true))).toEqual({ text: '3 games', todo: false });
+	});
+
+	it('keeps a single game singular', () => {
+		expect(roundCount(round(true))).toEqual({ text: '1 game', todo: false });
+	});
+
+	it('counts what is left to play while a game is unplayed', () => {
+		expect(roundCount(round(true, false, false))).toEqual({ text: '2 to play', todo: true });
 	});
 });
 

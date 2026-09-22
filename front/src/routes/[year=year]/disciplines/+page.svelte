@@ -15,10 +15,11 @@
 
 	<div class="grid">
 		{#each disciplines as discipline}
-			<!-- The whole card is the link, so its name is pinned to the bare discipline name. -->
+			<!-- The whole card is the link, so its name is pinned to the bare discipline name.
+			     An unrevealed discipline stays reachable: its page still shows the pairings. -->
 			<a
 				class="card"
-				class:dimmed={!discipline.reveal_score}
+				class:unrevealed={!discipline.reveal_score}
 				href="/{year}/disciplines/{discipline.id}"
 				aria-label={discipline.name}
 			>
@@ -87,6 +88,11 @@
 	.icon img {
 		height: 76%;
 		width: 76%;
+	}
+
+	/* Only the tile dims: the name and the subtitle stay readable. */
+	.unrevealed .icon {
+		opacity: 0.35;
 	}
 
 	.text {

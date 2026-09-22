@@ -89,7 +89,9 @@ inner page wraps its content in `.page`. The typo `view-transision-name` and
 the Fira Mono import are dropped. The `.app` wrapper gets
 `padding-bottom: var(--tabbar)` at 999 px and below only when it carries the
 `has-tabbar` class (see layout), so the hub and the login page keep no dead
-strip.
+strip. A global `@media (prefers-reduced-motion: reduce)` block cuts every
+transition and animation to `0.01ms`, so the page hover lifts stay off for
+visitors who ask for it.
 
 During the transition the file also keeps aliases `--color-bg-0: var(--bg)`,
 `--color-theme-1: var(--accent)`, `--color-theme-2: var(--accent)`,
@@ -181,17 +183,27 @@ name stays the bare name), icon tile (`alt=""`), name in the display face,
 subtitle in `.label`: `disciplineSubtitle(summary, discipline)` →
 `N rounds · M games` counting the discipline's rounds and games (singular
 for 1, `0 games` allowed) when it has rounds, else `points` / `time` / `` by
-`result_type`; `reveal_score` does not change the subtitle, it adds
-`.dimmed`.
+`result_type`; `reveal_score` does not change the subtitle. An unrevealed
+discipline stays an ordinary link — its page still shows the pairings — and
+carries `.unrevealed`, which dims the icon tile alone (`opacity: 0.35`); the
+name and the subtitle keep their colour, and the card is never
+`aria-disabled`.
 
 **Discipline:** `.page`; breadcrumb `[year] › Disciplines › [name]`; `h1`
 containing the icon as `<img alt="">` then the name; result rows keep
 `data-testid="result-row"`, the row is the `<a>` with the medal classes,
 content `MedalRank`, name, the difference in muted (`+4`), then `10 pts` in
-the display face (timed: the time); "Results not revealed yet" in muted when
-hidden; `h2 Schedule`; per round a flex header with `<h3>Round {n}</h3>` and
-a sibling `.label` with `k games` or `k to play` (count of unplayed), never
-inside the heading; then `GameRow`s. Rounds without games render nothing.
+the display face (timed: the time). The row metrics match the ranking page:
+`grid-template-columns: 44px minmax(0, 1fr) auto auto`, `padding: 10px 12px`,
+name at 1rem, value at 1.6rem. A row with no difference to show — a timed
+result, or a discipline without rounds, whose difference is summed from game
+scores and so is always 0 — drops the cell and carries `.no-diff`
+(`44px minmax(0, 1fr) auto`) instead of leaving an empty track. "Results not
+revealed yet" in muted when hidden; `h2 Schedule`; per round a flex header
+with `<h3>Round {n}</h3>` and a sibling `.label`, never inside the heading,
+whose text and `todo` flag come from `roundCount(round)` in `edition.js`
+(`3 games` / `1 game`, or `k to play` in `--todo` while any game is
+unplayed); then `GameRow`s. Rounds without games render nothing.
 
 **Teams:** `.page`; breadcrumb `[year] › Teams`; real `h1 Teams`; one card
 per team in rank order (`rankedTeams`), `data-testid="team-card"`, the card is
