@@ -6,9 +6,8 @@
     import {cubicOut, quintOut} from "svelte/easing";
 </script>
 
-<form class="form-login" method="POST" action="?/login" use:enhance
-      in:fly={{ delay: 200, x: -200, duration: 300, easing: cubicOut }}
-      out:fly={{ x: -200, duration: 200, easing: cubicOut }}>
+<form method="POST" action="?/login" use:enhance
+      in:fly={{ delay: 200, x: -200, duration: 300, easing: cubicOut }}>
 
     {#if form?.error }<p class="error" transition:slide={{ duration: 800, easing: quintOut }}>
         {form.error}
