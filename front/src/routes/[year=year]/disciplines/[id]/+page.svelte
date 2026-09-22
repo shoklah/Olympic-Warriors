@@ -34,7 +34,7 @@
 	</div>
 {/if}
 
-{#if data.schedule !== null}
+{#if data.schedule !== null && data.schedule.some((r) => r.games.length > 0)}
 	<section class="schedule">
 		<h2>Schedule</h2>
 		{#each data.schedule as round}

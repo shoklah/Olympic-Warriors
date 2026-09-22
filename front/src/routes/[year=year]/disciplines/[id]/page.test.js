@@ -67,6 +67,12 @@ describe('discipline page', () => {
 		expect(screen.getAllByTestId('game-row')[0]).toHaveTextContent(/Aigles\s*played\s*Bisons/);
 	});
 
+	it('has no schedule section when every round is empty', () => {
+		const empty = { ...summary, games: summary.games.filter((g) => g.discipline !== 10) };
+		render(Page, { data: dataFor(empty, 10) });
+		expect(screen.queryByRole('heading', { name: 'Schedule' })).toBeNull();
+	});
+
 	it('has no schedule section for a discipline without rounds', () => {
 		render(Page, { data: dataFor({ ...summary, rounds: [], games: [] }, 10) });
 		expect(screen.queryByRole('heading', { name: 'Schedule' })).toBeNull();

@@ -438,6 +438,21 @@ class TestGameIsPlayed(TestCase):
         }
         self.assertEqual(points_by_team, {"A": 3, "B": 3, "C": 0})
 
+    @override_settings(
+        STATICFILES_STORAGE="django.contrib.staticfiles.storage.StaticFilesStorage"
+    )
+    def test_admin_changelist_search_uses_related_names(self):
+        """search_fields must point at text columns: FK names alone raise FieldError."""
+        User.objects.create_superuser("root", "root@example.com", "pw")
+        self.client.force_login(User.objects.get(username="root"))
+        Game.objects.create(
+            discipline=self.darts, round=self.round, team1=self.a, team2=self.b,
+            referees=self.c, edition=self.edition,
+        )
+        response = self.client.get("/admin/olympic_warriors/game/", {"q": "Darts"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'name="form-0-is_played"')
+
     def test_negative_score_is_rejected(self):
         game = Game(
             discipline=self.darts, round=self.round, team1=self.a, team2=self.b,

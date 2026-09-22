@@ -46,6 +46,7 @@ describe('team page', () => {
 	it('says to play for an unplayed game', () => {
 		render(Page, { data: dataFor(2) });
 		expect(screen.getAllByTestId('game-row')[1]).toHaveTextContent(/Round 1 · vs Cerfs · to play/);
+		expect(screen.getAllByTestId('game-row')[0]).toHaveTextContent(/Round 1 · vs Aigles · 12 – 9 · won/);
 	});
 
 	it('has no games section when the team has no games', () => {
