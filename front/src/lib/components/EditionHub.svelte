@@ -173,6 +173,7 @@
 
 	.fullscreen {
 		position: relative;
+		isolation: isolate;
 		height: 65vh;
 		display: flex;
 		flex-direction: column;
