@@ -107,6 +107,6 @@
 	.referee {
 		margin: 0.25rem 0 0;
 		font-size: 0.8rem;
-		color: var(--faint);
+		color: var(--muted);
 	}
 </style>

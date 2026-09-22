@@ -40,7 +40,7 @@
 	}
 
 	.separator {
-		color: var(--faint);
+		color: var(--ghost);
 	}
 
 	.current {

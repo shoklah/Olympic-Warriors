@@ -53,11 +53,7 @@
 	}
 
 	.separator {
-		color: var(--faint);
-	}
-
-	.round {
-		color: var(--faint);
+		color: var(--ghost);
 	}
 
 	.opponent,
