@@ -2,10 +2,15 @@ import { render, screen } from '@testing-library/svelte';
 import { describe, expect, it } from 'vitest';
 import Page from './+page.svelte';
 import { load } from './+page.js';
-import { findTeam, teamResults } from '$lib/edition';
+import { findTeam, teamGames, teamResults } from '$lib/edition';
 import { summary } from '$lib/fixtures/summary.js';
 
-const dataFor = (id) => ({ summary, team: findTeam(summary, id), results: teamResults(summary, id) });
+const dataFor = (id) => ({
+	summary,
+	team: findTeam(summary, id),
+	results: teamResults(summary, id),
+	games: teamGames(summary, id)
+});
 
 describe('team page', () => {
 	it('shows the name, global rank, total points and the full roster', () => {
@@ -24,6 +29,23 @@ describe('team page', () => {
 		expect(rows).toHaveLength(2);
 		expect(rows[0]).toHaveTextContent(/Relay\s*2\s*5 pts/);
 		expect(rows[1]).toHaveTextContent(/Orienteering\s*—\s*—/);
+	});
+
+	it('lists games per discipline with result, to play and referee rows', () => {
+		render(Page, { data: dataFor(1) });
+
+		expect(screen.getByRole('heading', { name: 'Games' })).toBeInTheDocument();
+		const rows = screen.getAllByTestId('game-row');
+		expect(rows).toHaveLength(4);
+		expect(rows[0]).toHaveTextContent(/Round 1 · vs Bisons · 9 – 12 · lost/);
+		expect(rows[1]).toHaveTextContent(/Round 1 · referee · Cerfs vs Bisons/);
+		expect(rows[2]).toHaveTextContent(/Round 2 · vs Cerfs · 7 – 7 · draw/);
+		expect(rows[3]).toHaveTextContent(/Round 1 · vs Bisons · played/);
+	});
+
+	it('says to play for an unplayed game', () => {
+		render(Page, { data: dataFor(2) });
+		expect(screen.getAllByTestId('game-row')[1]).toHaveTextContent(/Round 1 · vs Cerfs · to play/);
 	});
 });
 

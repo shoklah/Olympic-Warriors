@@ -1,9 +1,9 @@
 import { error } from '@sveltejs/kit';
-import { findTeam, teamResults } from '$lib/edition';
+import { findTeam, teamGames, teamResults } from '$lib/edition';
 
 export const load = async ({ params, parent }) => {
 	const { summary } = await parent();
 	const team = findTeam(summary, Number(params.id));
 	if (!team) error(404, 'Team not found');
-	return { team, results: teamResults(summary, team.id) };
+	return { team, results: teamResults(summary, team.id), games: teamGames(summary, team.id) };
 };

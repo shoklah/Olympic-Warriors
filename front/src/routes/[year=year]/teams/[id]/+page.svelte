@@ -47,6 +47,30 @@
 	</tbody>
 </table>
 
+{#if data.games.length > 0}
+	<section class="games">
+		<h2>Games</h2>
+		{#each data.games as discipline}
+			<h3>{discipline.disciplineName}</h3>
+			<ul>
+				{#each discipline.games as game}
+					<li data-testid="game-row">
+						{#if game.role === 'referee'}
+							Round {game.round + 1} · referee · {game.team1Name} vs {game.team2Name}
+						{:else if !game.isPlayed}
+							Round {game.round + 1} · vs {game.opponentName} · to play
+						{:else if game.result === null}
+							Round {game.round + 1} · vs {game.opponentName} · played
+						{:else}
+							Round {game.round + 1} · vs {game.opponentName} · {game.ownScore} – {game.theirScore} · {game.result === 'win' ? 'won' : game.result === 'loss' ? 'lost' : 'draw'}
+						{/if}
+					</li>
+				{/each}
+			</ul>
+		{/each}
+	</section>
+{/if}
+
 <style>
 	.standing {
 		text-align: center;
@@ -101,5 +125,33 @@
 		text-transform: uppercase;
 		letter-spacing: 0.1em;
 		font-size: 0.8rem;
+	}
+
+	.games {
+		width: min(98%, 600px);
+		margin: 2rem auto;
+	}
+
+	.games h2 {
+		font-size: 1.3rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.1em;
+	}
+
+	.games h3 {
+		font-size: 1rem;
+		font-weight: 700;
+		margin: 1.5rem 0 0.5rem;
+	}
+
+	.games ul {
+		margin: 0;
+	}
+
+	.games li {
+		padding: 0.5rem 0;
+		border-bottom: 1px solid #ccc;
+		font-variant-numeric: tabular-nums;
 	}
 </style>
