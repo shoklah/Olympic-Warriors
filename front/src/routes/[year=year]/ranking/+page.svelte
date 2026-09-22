@@ -1,7 +1,7 @@
 <script>
-	import { iconFor } from '$lib/icons';
 	import { rankedTeams } from '$lib/edition';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
+	import DisciplineRail from '$lib/components/DisciplineRail.svelte';
 	import MedalRank from '$lib/components/MedalRank.svelte';
 
 	export let data;
@@ -16,20 +16,9 @@
 	<h1>Ranking</h1>
 
 	<div class="columns">
-		<nav id="disciplines" aria-label="Disciplines">
-			{#each disciplines as discipline}
-				<a
-					class="discipline-tile"
-					class:dimmed={!discipline.reveal_score}
-					href="/{year}/disciplines/{discipline.id}"
-					aria-disabled={discipline.reveal_score ? undefined : 'true'}
-					tabindex={discipline.reveal_score ? undefined : -1}
-					aria-label={discipline.name}
-				>
-					<img src={iconFor(discipline.name)} alt="" />
-				</a>
-			{/each}
-		</nav>
+		<div id="disciplines">
+			<DisciplineRail {year} {disciplines} />
+		</div>
 
 		<div id="teams">
 			{#each teams as team}
@@ -62,54 +51,6 @@
 		margin-bottom: 2rem;
 	}
 
-	#disciplines {
-		display: flex;
-		gap: 8px;
-		overflow-x: auto;
-		overflow-y: hidden;
-		scroll-snap-type: x proximity;
-		/* Room for the 2px hover lift, which `overflow-y: hidden` would clip. */
-		padding-top: 2px;
-		margin-top: -2px;
-		-ms-overflow-style: none;
-		scrollbar-width: none;
-	}
-
-	#disciplines::-webkit-scrollbar {
-		display: none;
-	}
-
-	.discipline-tile {
-		flex: none;
-		height: 44px;
-		width: 44px;
-		border-radius: var(--radius);
-		background: var(--bg-raised);
-		border: 1px solid var(--line);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		scroll-snap-align: start;
-		transition:
-			transform 0.2s ease,
-			background 0.2s ease;
-	}
-
-	.discipline-tile:not(.dimmed) {
-		border-color: var(--accent);
-	}
-
-	.discipline-tile img {
-		height: 76%;
-		width: 76%;
-	}
-
-	.discipline-tile:not(.dimmed):hover {
-		background: var(--line-strong);
-		transform: translateY(-2px);
-	}
-
-	.discipline-tile:focus-visible,
 	.team-row:focus-visible {
 		outline: 2px solid var(--accent);
 		outline-offset: -2px;
@@ -180,8 +121,11 @@
 
 		#disciplines {
 			order: 2;
+		}
+
+		/* The rail is the component's own <nav>: stack it beside the rows. */
+		#disciplines :global(nav) {
 			flex-direction: column;
-			gap: 8px;
 			overflow: visible;
 		}
 	}

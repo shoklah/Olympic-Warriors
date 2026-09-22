@@ -120,6 +120,20 @@ visitors who ask for it.
   class `rank` and sizes itself `font-size: var(--medal-size, 1.3rem)`, so a
   page scales the glyph by setting `--medal-size` on the row around it
   instead of reaching into the component's scoped styles.
+- `DisciplineRail.svelte`: props `year`, `disciplines`, `currentId = null`.
+  The `<nav aria-label="Disciplines">` strip of 44 px square tiles shared by
+  the ranking and the discipline pages — one `<a>` per discipline with
+  `aria-label` the name and the icon as `<img alt="">`, `--bg-raised`
+  background, `1px solid var(--line)` border, `--accent` border when the
+  discipline is revealed, `--line-strong` background and a 2 px lift on hover
+  of a revealed tile, `.dimmed` + `aria-disabled` + `tabindex=-1` when it is
+  not, `:focus-visible` accent ring. The component owns the horizontal scroll
+  (scroll snap, hidden scrollbar, 2 px top padding so the lift is not
+  clipped). The discipline whose id is `currentId` gets class `current` and
+  `aria-current="page"`: accent background and border with the white icon
+  inverted, and no hover lift. A page that wants another layout wraps the
+  component: the ranking page puts it in its `#disciplines` flex child and
+  turns the nav into a column from 1000 px up.
 - `GameRow.svelte` (discipline schedule): props `team1Name`, `team2Name`,
   `score1`, `score2`, `isPlayed`, `refereeName`, optional `team1Href`,
   `team2Href`. Root element carries `data-testid="game-row"`. Text order:
@@ -159,13 +173,10 @@ padding: .7rem 3rem; border-radius: var(--radius)` with the link text
 `Ranking` in sentence case; year chips bordered `--faint` in the display face.
 
 **Ranking:** `.page`; breadcrumb `[year] › Ranking`; `h1 Ranking`; the
-discipline rail as 44 px square tiles (`--bg-raised` background,
-`1px solid var(--line)` border, `--accent` border when the discipline is
-revealed, `--line-strong` background on hover of a revealed tile; the icons
-are white so they need the dark tile, `alt=""`, `aria-label` the discipline
-name, `.dimmed` + `aria-disabled` + `tabindex=-1` when unrevealed), DOM order
-rail then rows, desktop keeps the existing `order` swap so the rail sits to
-the right; rows keep `data-testid="team-row"`, the row is the `<a>` with
+discipline rail is `DisciplineRail` with no `currentId`, so no tile is
+current, wrapped in the `#disciplines` flex child; DOM order rail then rows,
+desktop keeps the existing `order` swap so the rail sits to the right and the
+nav inside stacks as a column; rows keep `data-testid="team-row"`, the row is the `<a>` with
 `class:gold/silver/bronze`, content `MedalRank` at `--medal-size: 1.9rem`,
 name, points as `33 pts` in the display face (the `pts` suffix stays),
 left border in the medal colour or `--line-strong`.
@@ -184,7 +195,10 @@ name and the subtitle keep their colour, and the card is never
 `aria-disabled`.
 
 **Discipline:** `.page`; breadcrumb `[year] › Disciplines › [name]`; `h1`
-containing the icon as `<img alt="">` then the name; result rows keep
+containing the icon as `<img alt="">` then the name; below it the same
+`DisciplineRail` as the ranking page with `currentId` set to this discipline,
+a horizontal strip at every width, so moving between disciplines is one tap;
+result rows keep
 `data-testid="result-row"`, the row is the `<a>` with the medal classes,
 content `MedalRank`, name, the difference in muted (`+4`), then `10 pts` in
 the display face (timed: the time). The row metrics match the ranking page:
@@ -258,6 +272,8 @@ the page, and only these:
   `GameRow` (three score states, winner/loser classes, draw, link), `TabBar`
   (three links, active by prefix on `/2026/teams/1`, nothing for `null`
   year, Photos item when `photosUrl`), `TeamGameRow` (five states),
+  `DisciplineRail` (revealed link, dimmed and `aria-disabled` unrevealed one,
+  `current` + `aria-current="page"` on `currentId` and on nothing without it),
   `ordinal` and `disciplineSubtitle` in `edition.test.js`.
 
 `Header` stays untested (reads `$page`), as today.

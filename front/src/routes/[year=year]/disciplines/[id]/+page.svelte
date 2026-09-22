@@ -2,6 +2,7 @@
 	import { formatDifference, roundCount } from '$lib/edition';
 	import { iconFor } from '$lib/icons';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
+	import DisciplineRail from '$lib/components/DisciplineRail.svelte';
 	import MedalRank from '$lib/components/MedalRank.svelte';
 	import GameRow from '$lib/components/GameRow.svelte';
 
@@ -27,6 +28,10 @@
 		<img src={iconFor(data.discipline.name)} alt="" />
 		{data.discipline.name}
 	</h1>
+
+	<div class="rail">
+		<DisciplineRail {year} disciplines={data.summary.disciplines} currentId={data.discipline.id} />
+	</div>
 
 	{#if data.results === null}
 		<p class="not-revealed">Results not revealed yet</p>
@@ -102,6 +107,10 @@
 	h1 img {
 		height: 40px;
 		width: 40px;
+	}
+
+	.rail {
+		margin-bottom: 14px;
 	}
 
 	.not-revealed {

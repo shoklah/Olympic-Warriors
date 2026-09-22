@@ -28,6 +28,16 @@ describe('discipline page', () => {
 		expect(rows[2]).toHaveClass('bronze');
 	});
 
+	it('marks the current discipline in the rail', () => {
+		render(Page, { data: dataFor(summary, 10) });
+
+		expect(screen.getByRole('link', { name: 'Relay' })).toHaveAttribute('aria-current', 'page');
+		expect(screen.getByRole('link', { name: 'Orienteering' })).toHaveAttribute(
+			'aria-disabled',
+			'true'
+		);
+	});
+
 	it('shows times for a revealed timed discipline', () => {
 		render(Page, { data: dataFor(summaryAllRevealed, 11) });
 
