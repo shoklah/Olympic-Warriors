@@ -3,12 +3,13 @@ Tests for the Edition model changes and the public edition summary endpoint.
 """
 
 import importlib
+import re
 
 from django.apps import apps
-from django.contrib import admin as django_admin
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from rest_framework.test import APITestCase
 
 from olympic_warriors.models import (
@@ -371,10 +372,79 @@ class TestGameIsPlayed(TestCase):
         )
         self.assertFalse(game.is_played)
 
-    def test_admin_edits_is_played_in_the_changelist(self):
-        game_admin = django_admin.site._registry[Game]
-        self.assertIn("is_played", game_admin.list_display)
-        self.assertEqual(list(game_admin.list_editable), ["score1", "score2", "is_played"])
+    @override_settings(
+        STATICFILES_STORAGE="django.contrib.staticfiles.storage.StaticFilesStorage"
+    )
+    def test_admin_edits_scores_and_is_played_in_the_changelist(self):
+        User.objects.create_superuser("root", "root@example.com", "pw")
+        self.client.force_login(User.objects.get(username="root"))
+
+        game_ab = Game.objects.create(
+            discipline=self.darts, round=self.round, team1=self.a, team2=self.b,
+            referees=self.c, edition=self.edition,
+        )
+        game_bc = Game.objects.create(
+            discipline=self.darts, round=self.round, team1=self.b, team2=self.c,
+            referees=self.a, edition=self.edition,
+        )
+
+        response = self.client.get("/admin/olympic_warriors/game/")
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        self.assertIn('name="form-0-is_played"', content)
+        self.assertIn("Score 1", content)
+
+        # Read the row order the changelist actually rendered rather than assuming it.
+        row_ids = dict(re.findall(r'name="form-(\d)-id" value="(\d+)"', content))
+        self.assertEqual(set(row_ids), {"0", "1"})
+        row_for_game = {game_ab.pk: None, game_bc.pk: None}
+        for row, pk in row_ids.items():
+            row_for_game[int(pk)] = row
+
+        edits = {
+            game_ab.pk: {"score1": 9, "score2": 1},
+            game_bc.pk: {"score1": 5, "score2": 3},
+        }
+        data = {
+            "form-TOTAL_FORMS": "2",
+            "form-INITIAL_FORMS": "2",
+            "form-MIN_NUM_FORMS": "0",
+            "form-MAX_NUM_FORMS": "1000",
+            "_save": "Save",
+        }
+        for pk, scores in edits.items():
+            row = row_for_game[pk]
+            data[f"form-{row}-id"] = str(pk)
+            data[f"form-{row}-score1"] = str(scores["score1"])
+            data[f"form-{row}-score2"] = str(scores["score2"])
+            data[f"form-{row}-is_played"] = "on"
+
+        response = self.client.post("/admin/olympic_warriors/game/", data)
+        self.assertEqual(response.status_code, 302)
+
+        game_ab.refresh_from_db()
+        game_bc.refresh_from_db()
+        self.assertTrue(game_ab.is_played)
+        self.assertTrue(game_bc.is_played)
+
+        # Game creation grants both teams the +1 draw point (see Game.save()); the edits
+        # above each move an old 0-0 draw to a > victory, i.e. +2/-1 (see Game.save()):
+        # A: +1 (created) +2 (9-1 win)          = 3
+        # B: +1 (created, game_ab) -1 (game_ab) +1 (created, game_bc) +2 (5-3 win) = 3
+        # C: +1 (created, game_bc) -1 (game_bc) = 0
+        points_by_team = {
+            r.team.name: r.points
+            for r in TeamResult.objects.filter(discipline=self.darts)
+        }
+        self.assertEqual(points_by_team, {"A": 3, "B": 3, "C": 0})
+
+    def test_negative_score_is_rejected(self):
+        game = Game(
+            discipline=self.darts, round=self.round, team1=self.a, team2=self.b,
+            referees=self.c, edition=self.edition, score1=-1,
+        )
+        with self.assertRaises(ValidationError):
+            game.full_clean()
 
     def test_backfill_marks_existing_games_played(self):
         migration = importlib.import_module("olympic_warriors.migrations.0028_game_is_played")
