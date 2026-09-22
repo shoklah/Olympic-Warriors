@@ -17,14 +17,9 @@
 
 	const HUB_ROUTES = new Set(['/', '/[year=year]']);
 	$: isHub = HUB_ROUTES.has($page.route.id);
-
-	$: if (typeof document !== 'undefined') {
-		document.documentElement.style.setProperty('--color-bg-0', isHub ? 'black' : 'white');
-		document.documentElement.style.setProperty('--color-theme-1', isHub ? '#F9F3C1' : 'black');
-	}
 </script>
 
-<div class="app">
+<div class="app" class:hub={isHub}>
 	<Header />
 
 	<main>
@@ -38,6 +33,7 @@
 		display: flex;
 		flex-direction: column;
 		min-height: 100vh;
+		background-color: var(--color-bg-0);
 	}
 
 	main {
