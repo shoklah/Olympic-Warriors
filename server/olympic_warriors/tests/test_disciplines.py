@@ -107,20 +107,17 @@ class TestDarts(DisciplineTestSetup):
         darts = self._create_round_robin_darts()
         game = Game.objects.filter(discipline=darts).order_by("round__order", "id").first()
 
-        # Scheduled games start 0-0, which Game.save() already counted as a draw (+1 each).
-        team1_before = TeamResult.objects.get(team=game.team1, discipline=darts).points
-        team2_before = TeamResult.objects.get(team=game.team2, discipline=darts).points
+        # Scheduled games are unplayed: nobody has points yet.
+        self.assertEqual(TeamResult.objects.get(team=game.team1, discipline=darts).points, 0)
+        self.assertEqual(TeamResult.objects.get(team=game.team2, discipline=darts).points, 0)
 
         game.score1 = 3
         game.score2 = 1
+        game.is_played = True
         game.save()
 
-        team1_after = TeamResult.objects.get(team=game.team1, discipline=darts).points
-        team2_after = TeamResult.objects.get(team=game.team2, discipline=darts).points
-
-        # Draw -> team1 win: winner goes from 1 to 3 (+2), loser from 1 to 0 (-1).
-        self.assertEqual(team1_after - team1_before, 2)
-        self.assertEqual(team2_after - team2_before, -1)
+        self.assertEqual(TeamResult.objects.get(team=game.team1, discipline=darts).points, 3)
+        self.assertEqual(TeamResult.objects.get(team=game.team2, discipline=darts).points, 0)
 
     def test_resaving_does_not_reschedule_or_rescore(self):
         darts = self._create_round_robin_darts()
