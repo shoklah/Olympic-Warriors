@@ -23,11 +23,11 @@
 			>
 				<span>{result.ranking === null ? '—' : `${result.ranking}.`} {result.teamName}</span>
 				{#if result.ranking === null}
-					<p>—</p>
+					<span>—</span>
 				{:else if result.result_type === 'TIM'}
-					<p>{result.time}</p>
+					<span>{result.time}</span>
 				{:else}
-					<p>{result.points} pts ({formatDifference(result.points_difference)})</p>
+					<span>{result.points} pts ({formatDifference(result.points_difference)})</span>
 				{/if}
 			</a>
 		{/each}
@@ -53,11 +53,12 @@
 		background-color: var(--color-bg-0);
 		border: 1px solid #ccc;
 		border-radius: 10px;
-		padding: 0 10px;
+		padding: 1em 10px;
 		box-shadow: 0 2px 4px #00000030;
 		transition: 0.3s;
 		display: flex;
 		justify-content: space-between;
+		align-items: center;
 		color: inherit;
 		text-decoration: none;
 	}
@@ -78,9 +79,9 @@
 		transform: translate(0, -4px);
 	}
 
-	.team-card span,
-	.team-card p {
+	.team-card span {
 		font-size: 1rem;
 		font-weight: 600;
+		margin: 0;
 	}
 </style>

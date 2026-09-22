@@ -36,7 +36,7 @@
 				href="/{year}/teams/{team.id}"
 			>
 				<span>{team.ranking}. {team.name}</span>
-				<p>{team.total_points} pts</p>
+				<span>{team.total_points} pts</span>
 			</a>
 		{/each}
 	</div>
@@ -101,7 +101,7 @@
 		background-color: var(--color-bg-0);
 		border: 1px solid #ccc;
 		border-radius: 10px;
-		padding: 0 10px;
+		padding: 1em 10px;
 		box-shadow: 0 2px 4px #00000030;
 		transition: 0.3s;
 		display: flex;
@@ -110,12 +110,11 @@
 		text-decoration: none;
 	}
 
-	.team-card span,
-	.team-card p {
+	.team-card span {
 		font-size: 1rem;
 		font-weight: 600;
 		color: var(--color-theme-1);
-		margin: 1em 0;
+		margin: 0;
 	}
 
 	.team-card.gold {
