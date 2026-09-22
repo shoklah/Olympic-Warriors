@@ -2,109 +2,87 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Implementers run ONE AT A TIME on this checkout (shared git index).
 
-**Goal:** Restyle the SvelteKit front into the dark "Scoreboard" identity: one theme, Bebas Neue + Inter, medal accents, breadcrumbs, a bottom tab bar on phones, compact schedule rows and result tiles.
+**Goal:** Restyle the SvelteKit front into the dark "Scoreboard" identity: one theme, self-hosted Bebas Neue + Inter, medal accents, breadcrumbs, a bottom tab bar on phones, compact schedule rows and result tiles.
 
-**Architecture:** Design tokens in `styles.css` drive every page; five small components (`Header`, `TabBar`, `Breadcrumb`, `MedalRank`, `GameRow`) carry the shared pieces; each page is restyled in its own commit against its existing tests. No API or data change.
+**Architecture:** Design tokens in `styles.css` drive every page; six small components (`Header`, `TabBar`, `Breadcrumb`, `MedalRank`, `GameRow`, `TeamGameRow`) carry the shared pieces; each page is restyled in its own commit against its existing tests, with the exact assertion rewrites listed in the spec. No API or data change.
 
-**Tech Stack:** SvelteKit 2 / Svelte 4, Vitest + Testing Library, Google Fonts.
+**Tech Stack:** SvelteKit 2 / Svelte 4, Vitest + Testing Library.
 
-**Spec:** `docs/superpowers/specs/2026-09-22-scoreboard-ui-design.md` (tokens, component contracts and per-page layout live there; this plan does not repeat them).
+**Spec:** `docs/superpowers/specs/2026-09-22-scoreboard-ui-design.md`. It is the contract: tokens, component props, per-page markup rules and the exact test rewrites live there and are not repeated below. Where a mockup and the spec disagree, the spec wins.
 
-**Reference mockups** (on the author's machine, gitignored): `.superpowers/brainstorm/91113-1790101156/content/direction.html` (card A), `discipline-page.html` (variant 1), `team-page-nav.html` (variants 2 and 4), `type-and-grids.html`. Copy their CSS values rather than reinventing.
+**Reference mockups** (author's machine, gitignored): `.superpowers/brainstorm/91113-1790101156/content/direction.html` (card A), `discipline-page.html` (variant 1), `team-page-nav.html` (variants 2 and 4), `type-and-grids.html`. Copy their CSS values for spacing, sizes and colours.
 
 ---
 
 ## Working environment
 
-Main checkout `/Users/shoklah/Work/Playground/Olympic-Warriors`, branch `claude/scoreboard-ui` (already created off `dev`). `front/.env` exists. Commands in `front/`: `npm test`, `npm run build`. The compose front on `http://localhost:5173` serves this checkout live for visual checks (`docker compose logs front` if it misbehaves).
+Main checkout `/Users/shoklah/Work/Playground/Olympic-Warriors`, branch `claude/scoreboard-ui`. `front/.env` exists. `node_modules` lives in the front container's anonymous volume, so run tests and builds INSIDE the container: `docker compose exec -T front npm test`, `docker compose exec -T front npm run build`. The compose front on `http://localhost:5173` serves this checkout live for visual checks.
 
-Commit prefix `[FEAT]`/`[FIX]`/`[TEST]`/`[DOCS]`, trailer `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`.
+Commit prefix `[FEAT]`/`[FIX]`/`[TEST]`/`[DOCS]`, trailer `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`. Never `git reset`, `git stash` or `git checkout`.
 
 ---
 
 ## File structure
 
-| File | Change |
-|---|---|
-| `front/src/app.html` | Google Fonts link (Bebas Neue, Inter), `<title>` |
-| `front/src/routes/styles.css` | tokens, base type, body padding for the tab bar; remove `.hub` and light theme |
-| `front/src/routes/+layout.svelte` | render `Header`, `TabBar`; drop the `hub` class logic |
-| `front/src/lib/components/Header.svelte` | moved from `routes/Header.svelte`, restyled |
-| `front/src/lib/components/TabBar.svelte`, `TabBar.test.js` | new |
-| `front/src/lib/components/Breadcrumb.svelte`, `Breadcrumb.test.js` | new |
-| `front/src/lib/components/MedalRank.svelte`, `MedalRank.test.js` | new |
-| `front/src/lib/components/GameRow.svelte`, `GameRow.test.js` | new |
-| `front/src/routes/menu.svelte` | delete |
-| `front/src/lib/components/EditionHub.svelte` | restyle |
-| `front/src/routes/[year=year]/ranking/+page.svelte` (+ test) | restyle |
-| `front/src/routes/[year=year]/disciplines/+page.svelte` (+ test) | restyle, subtitle |
-| `front/src/routes/[year=year]/disciplines/[id]/+page.svelte` (+ test) | restyle, `GameRow` |
-| `front/src/routes/[year=year]/teams/+page.svelte` (+ test) | rank order, roster inline |
-| `front/src/routes/[year=year]/teams/[id]/+page.svelte` (+ test) | tiles, games rows |
-| `front/src/routes/+error.svelte`, `front/src/error.html`, `front/src/routes/login/login.svelte` | tokens |
-| `CLAUDE.md` | theme paragraph, components |
+| File | Task | Change |
+|---|---|---|
+| `front/static/fonts/*.woff2`, `front/src/routes/styles.css` | 1 | self-hosted fonts, tokens, base type, utilities; aliases kept until Task 8 |
+| `front/src/app.html` | 1 | `<title>`, preload of the two font files |
+| `front/src/routes/+layout.svelte` | 1, 2 | Task 1: drop the `hub` class logic; Task 2: import `Header` from `$lib/components/Header.svelte`, add `TabBar` and `has-tabbar` |
+| `front/src/lib/edition.js` (+ test) | 2, 5 | `ordinal(n)` (Task 2), `disciplineSubtitle` (Task 5) |
+| `front/src/lib/components/Header.svelte` | 2 | `git mv` from `routes/`, restyled, no mobile menu |
+| `front/src/lib/components/{TabBar,Breadcrumb,MedalRank,GameRow,TeamGameRow}.svelte` (+ tests) | 2 | new |
+| `front/src/routes/menu.svelte` | 2 | delete (only `Header` imports it) |
+| `front/src/lib/components/EditionHub.svelte` | 3 | restyle, test unchanged |
+| `front/src/routes/[year=year]/ranking/+page.svelte` (+ test) | 4 | restyle |
+| `front/src/routes/[year=year]/disciplines/+page.svelte`, `disciplines/[id]/+page.svelte` (+ tests) | 5 | restyle, subtitle, `GameRow` |
+| `front/src/routes/[year=year]/teams/+page.svelte`, `teams/[id]/+page.svelte` (+ tests) | 6 | rank order, tiles, `TeamGameRow` |
+| `front/src/routes/+error.svelte`, `front/src/error.html`, `front/src/routes/login/login.svelte` | 7 | tokens |
+| `CLAUDE.md` | 8 | presentation paragraph |
 
 ---
 
-## Task 1: Tokens, fonts, base styles, layout
+## Task 1: Fonts, tokens, base styles
 
-**Files:** `front/src/app.html`, `front/src/routes/styles.css`, `front/src/routes/+layout.svelte`.
+- [ ] **Fonts.** Download the latin woff2 files into `front/static/fonts/`: Bebas Neue 400 and Inter 400, 500, 600, 700. Obtain the URLs from `curl -A "Mozilla/5.0 (Macintosh) AppleWebKit/537.36 Chrome/120 Safari/537.36" "https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap"` (the latin `@font-face` blocks, `unicode-range` starting `U+0000-00FF`) and `curl -o` each file as `bebas-neue-400.woff2`, `inter-400.woff2`, … Both families are OFL; add `front/static/fonts/OFL.txt` with the licence text from either family's GitHub repo (or a one-line pointer to it if fetching fails; report which). Total should be under 500 KB; report the sizes.
+- [ ] **`styles.css`:** rewrite per the spec's token section: `@font-face` rules (`font-display: swap`, `src: url('/fonts/…') format('woff2')`), `:root` tokens, the four transition aliases, body, headings, `a`, `ul`, `.label`, `.num`, `.dimmed`, `.page`, `.visually-hidden`, `.app.has-tabbar` padding at `max-width: 999px`. No `.hub`, no Fira Mono import, no `view-transision-name`.
+- [ ] **`app.html`:** `<title>Olympic Warriors</title>` and `<link rel="preload" as="font" type="font/woff2" crossorigin href="%sveltekit.assets%/fonts/bebas-neue-400.woff2">` (same for `inter-400.woff2`).
+- [ ] **`+layout.svelte`:** remove `HUB_ROUTES`, `isHub` and `class:hub`; keep the `page` import (Task 2 uses it); `.app` keeps `min-height: 100vh` but loses its background rule.
+- [ ] Verify: `docker compose exec -T front npm test` green (nothing asserts on colours), `npm run build` ok, `http://localhost:5173/2026/ranking` renders dark with the new fonts (`document.fonts.check("1em 'Bebas Neue'")` true in the browser console), `curl -sI http://localhost:5173/fonts/inter-400.woff2` 200. Commit `[FEAT] front: scoreboard tokens, self-hosted fonts and base styles`.
 
-- [ ] **Step 1:** In `app.html` add before `%sveltekit.head%`:
-  `<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">` and `<title>Olympic Warriors</title>`.
-- [ ] **Step 2:** Rewrite `styles.css`: the `:root` block from the spec (drop the Fira Mono import and the old `--color-*` names; keep a `--color-bg-0: var(--bg)` and `--color-theme-1: var(--accent)` alias for one commit so pages not yet migrated still render, remove the aliases in Task 8), `body` (background, colour, font, `margin: 0`, `min-height: 100vh`), `h1, h2, h3 { font-family: var(--font-display); letter-spacing: 0.06em; font-weight: 400; color: var(--ink); margin: 0 }` with sizes 2.75rem / 1.4rem / 1.1rem, `a { color: inherit; text-decoration: none }`, `a:hover { color: var(--accent) }`, `ul { list-style: none; padding: 0; margin: 0 }`, a `.label` utility (`font: 600 0.75rem/1 var(--font-body); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted)`), a `.num` utility (`font-family: var(--font-display); font-variant-numeric: tabular-nums`), `@media (max-width: 999px) { body { padding-bottom: var(--tabbar) } }`, keep `.visually-hidden`. Delete the `.hub` rule.
-- [ ] **Step 3:** In `+layout.svelte` remove `HUB_ROUTES`/`isHub`/`class:hub`; keep `onNavigate`; render `<Header />` and `<TabBar />` (imported from `$lib/components`, created in Task 2; for this commit keep importing the existing `./Header.svelte` and skip `TabBar`). `.app` loses its background rule (body has it).
-- [ ] **Step 4:** `npm test` (all green: nothing asserts on colours), `npm run build`, open `http://localhost:5173/2026/ranking`: dark background, new fonts, pages readable even if unstyled. Commit `[FEAT] front: scoreboard tokens, fonts and base styles`.
+## Task 2: Components (TDD) and layout wiring
 
-## Task 2: Header, TabBar, Breadcrumb, MedalRank, GameRow (TDD)
-
-**Files:** the five components and four tests under `front/src/lib/components/`; delete `front/src/routes/menu.svelte`; move `front/src/routes/Header.svelte` to `front/src/lib/components/Header.svelte` (`git mv`); update the import in `+layout.svelte` and add `<TabBar />`.
-
-- [ ] **Step 1 (tests first):**
-  - `Breadcrumb.test.js`: `render(Breadcrumb, { items: [{ label: '2026', href: '/2026' }, { label: 'Disciplines', href: '/2026/disciplines' }, { label: 'Rugby' }] })` → links `2026` and `Disciplines` with those hrefs, `Rugby` present and not a link, `nav` has `aria-label="Breadcrumb"`.
-  - `MedalRank.test.js`: `render(MedalRank, { rank: 1 })` element has class `gold` and text `1`; rank 2 `silver`, 3 `bronze`, 4 none of them; `rank: null` renders `—` with class `none`.
-  - `GameRow.test.js`: played 12–9 → text matches `/Bisons\s*12 : 9\s*Aigles/`, `Bisons` has class `winner`, `Aigles` has `loser`, `ref: Cerfs` present; unplayed → `— : —`; played with null scores → `played`; draw → neither name has `winner`; with `team1Href` the name is a link.
-  - `TabBar.test.js`: `render(TabBar, { year: 2026, pathname: '/2026/teams' })` → three links `Ranking`, `Teams`, `Disciplines` with hrefs `/2026/ranking` etc., `Teams` has `aria-current="page"`; with `year: null` renders nothing.
-- [ ] **Step 2:** run, see them fail on missing modules.
-- [ ] **Step 3:** implement per the spec contracts. `TabBar` takes props (`year`, `pathname`) so it is testable; `+layout.svelte` passes `$page.params.year ?? $page.data.latestYear` and `$page.url.pathname`, and hides it with `{#if !isHub}` where `isHub = ['/', '/[year=year]', '/login'].includes($page.route.id)` (this is the only place route ids are read). `Header` drops the mobile menu and the `Menu` import, keeps the `<select>` with `selected`, styles per the mockup top bar (padding 12px 18px, bottom rule `--line`, logo image 2.2rem high, year pill in the display face, tabs hidden under 1000px).
-- [ ] **Step 4:** `npm test`, `npm run build`, check `/2026/ranking` at phone width in the browser: tab bar visible, hamburger gone. Commit `[FEAT] front: header, tab bar, breadcrumb, medal rank and game row components`.
+- [ ] **Tests first**, per the spec's Tests section: `Breadcrumb.test.js`, `MedalRank.test.js` (1 → `gold` and text `1`; 2 `silver`; 3 `bronze`; 4 `none`; `null` → `—` with `none`; `{rank: 2, ordinal: true}` → `2nd`), `GameRow.test.js`, `TabBar.test.js` (`{year: 2026, pathname: '/2026/teams/1'}` → `Teams` has `aria-current="page"`, hrefs `/2026/ranking` `/2026/teams` `/2026/disciplines`; `year: null` renders nothing; `photosUrl: 'https://x'` adds a `Photos` link with `target="_blank"`), `TeamGameRow.test.js` (the five text shapes from the spec, `won` has class `won`), and in `edition.test.js` the `ordinal` cases 1 → `1st`, 2 → `2nd`, 3 → `3rd`, 4 → `4th`, 11 → `11th`, 12 → `12th`, 13 → `13th`, 21 → `21st`, 22 → `22nd`, 23 → `23rd`, 101 → `101st`, 111 → `111th`.
+- [ ] Run: fail on missing modules.
+- [ ] **Implement** per the spec's component contracts. `ordinal(n)` moves from `teams/[id]/+page.svelte` into `edition.js` (exported); the team page imports it until Task 6 rewrites it. `git mv front/src/routes/Header.svelte front/src/lib/components/Header.svelte`, remove the `Menu` import and markup, keep the `<select>` with `selected` and its comment, restyle to the tokens (top bar padding 12px 18px, bottom rule `--line`, logo 2.2rem high, year pill display face bordered accent, tabs display face 1.1rem letter-spaced, active in accent, hidden at `max-width: 999px`). `git rm front/src/routes/menu.svelte`. `+layout.svelte`: import `Header` and `TabBar` by explicit path, `const HUB_OR_LOGIN = new Set(['/', '/[year=year]', '/login'])`, `$: showTabBar = !HUB_OR_LOGIN.has($page.route.id)`, `$: year = ($page.error ? null : $page.params.year) ?? $page.data.latestYear`, `$: photosUrl = ($page.data.editions ?? []).find((e) => e.year === Number(year))?.photos_url ?? null`, render `<TabBar {year} pathname={$page.url.pathname} {photosUrl} />` inside `{#if showTabBar}` and `class:has-tabbar={showTabBar}` on `.app`.
+- [ ] Verify: tests green, build ok, phone width on `/2026/ranking`: tab bar with three items, no hamburger, top bar with logo and year; `/` and `/login`: no tab bar, no bottom padding. Commit `[FEAT] front: header, tab bar, breadcrumb, medal rank and game row components`.
 
 ## Task 3: Hub
 
-**Files:** `EditionHub.svelte`, `EditionHub.test.js` (should not change).
-
-- [ ] Restyle: `.where` in the display face 1.1rem letter-spaced accent; countdown digits in the display face 3rem, labels `.label`; Ranking button as the mock (`background: var(--accent); color: var(--bg); font-family: var(--font-display); font-size: 1.6rem; letter-spacing: 0.15em; padding: .7rem 3rem; border-radius: var(--radius)`); year chips bordered `--faint`, display face. Keep eclipse, title image, icon columns. Tests unchanged and green. Commit `[FEAT] front: hub in the scoreboard style`.
+- [ ] Restyle `EditionHub.svelte` per the spec's Hub paragraph (keep eclipse, title image, icon columns; countdown structure exactly `<div class="label"><span class="num">{parts.days}</span>Days</div>`). `EditionHub.test.js` unchanged and green. Commit `[FEAT] front: hub in the scoreboard style`.
 
 ## Task 4: Ranking page
 
-**Files:** `ranking/+page.svelte`, `ranking/page.test.js`.
-
-- [ ] Add `Breadcrumb` (`[{label: year, href: /year}, {label: 'Ranking'}]`), `h1 Ranking`, rows per spec using `MedalRank` (keep `data-testid="team-row"`, the row is still the `<a>`, keep `class:gold/silver/bronze` on the row because the test asserts them), rail tiles (keep `aria-label`, `aria-disabled`, `tabindex`). Test unchanged except nothing. Commit `[FEAT] front: ranking page in the scoreboard style`.
+- [ ] Restyle per the spec's Ranking paragraph; rewrite the three row regexes in `ranking/page.test.js` as listed in the spec's Tests section; everything else in that test unchanged. Commit `[FEAT] front: ranking page in the scoreboard style`.
 
 ## Task 5: Disciplines grid and discipline page
 
-**Files:** `disciplines/+page.svelte`, `disciplines/page.test.js`, `disciplines/[id]/+page.svelte`, `disciplines/[id]/page.test.js`, `front/src/lib/edition.js` (+ test) for the subtitle.
-
-- [ ] `edition.js`: add `disciplineSubtitle(summary, discipline)` → `'5 rounds · 15 games'` (rounds and games of that discipline, singular when 1) or `'points'` / `'time'` / `''` by `result_type`; test it in `edition.test.js` with the fixture (Relay → `2 rounds · 3 games`, Orienteering → `1 round · 1 game`, a discipline without rounds → `points`).
-- [ ] Grid: breadcrumb, cards per spec (`class:dimmed={!discipline.reveal_score}`), test adds an assertion on the Relay subtitle.
-- [ ] Discipline page: breadcrumb with three items, `h1` with icon tile, rows with `MedalRank` and the difference (`formatDifference`) in muted before the points, schedule rendered with `GameRow` per game, round header `ROUND N` + `k games` / `k to play`; tests: update the schedule regexes to the colon form (`/Bisons\s*12 : 9\s*Aigles/`, `/Cerfs\s*— : —\s*Bisons/`, `/Aigles\s*played\s*Bisons/`), keep every other assertion. Commit `[FEAT] front: disciplines grid and discipline page in the scoreboard style`.
+- [ ] `edition.js`: `disciplineSubtitle(summary, discipline)` with tests (fixture: Relay → `2 rounds · 3 games`, Orienteering → `1 round · 1 game`, a discipline without rounds and `result_type: 'PTS'` → `points`, `'TIM'` → `time`, `'NON'` → ``).
+- [ ] Grid per the spec's Disciplines paragraph (`aria-label` on the card link, `alt=""` icon, real `h1`); add the Relay subtitle assertion.
+- [ ] Discipline page per the spec's Discipline paragraph (`h1` icon `alt=""`, `<h3>Round {n}</h3>` with the count in a sibling, `GameRow` per game, `ref: ` prefix comes from `GameRow`); rewrite the six regexes listed in the spec's Tests section, keep the rest. Commit `[FEAT] front: disciplines grid and discipline page in the scoreboard style`.
 
 ## Task 6: Teams grid and team page
 
-**Files:** `teams/+page.svelte`, `teams/page.test.js`, `teams/[id]/+page.svelte`, `teams/[id]/page.test.js`.
-
-- [ ] Grid: rank order via `rankedTeams`, card per spec with `MedalRank`, roster inline `A · B · C`; test: links now in rank order (`Bisons`, `Aigles`, `Cerfs`), update the assertion.
-- [ ] Team page: breadcrumb, `h1`, standing line, roster chips, tiles per spec (keep `data-testid="discipline-row"` on each tile so the existing two-row test holds: `Relay 2 5 pts` → make the tile text `Relay 2nd 5 pts` and update the regex to `/Relay\s*2nd\s*5 pts/`, unrevealed `/Orienteering\s*—/`), games rows per spec keeping `data-testid="game-row"` and the text shape `Round 1 · vs Bisons · 9 : 12 · lost` (update the four regexes to colons). Commit `[FEAT] front: teams grid and team page in the scoreboard style`.
+- [ ] Grid per the spec's Teams paragraph (`data-testid="team-card"`, each player in its own `<span>`); rewrite the link assertion to `getAllByTestId('team-card')` hrefs in rank order; `Ana Lopez` assertion unchanged.
+- [ ] Team page per the spec's Team paragraph (`data-testid="standing"`, tiles with `data-testid="discipline-row"`, `TeamGameRow`s); rewrite the standing, tile and game-row assertions exactly as listed in the spec's Tests section; the `load` 404 test unchanged. Commit `[FEAT] front: teams grid and team page in the scoreboard style`.
 
 ## Task 7: Error page, login, static fallback
 
-**Files:** `+error.svelte`, `error.html`, `login/login.svelte`.
-
-- [ ] Tokens only: backgrounds, accent button, display-face `h1`, Inter inputs with a `--line` bottom border and accent focus. `error.html` inline colours `#0a0a0a` / `#F9F3C1` / Inter fallback. Commit `[FEAT] front: error and login pages on the tokens`.
+- [ ] Tokens only (`+error.svelte`, `login/login.svelte`: Inter inputs with a `--line` bottom border and accent focus, accent button; `error.html`: inline `#0a0a0a` / `#F9F3C1`, system fonts). Commit `[FEAT] front: error and login pages on the tokens`.
 
 ## Task 8: Cleanup, smoke, docs, PR
 
-- [ ] Remove the `--color-*` aliases from `styles.css`; `grep -rn "color-theme\|color-bg" front/src` must be empty. `npm test`, `npm run build`.
-- [ ] Browser smoke on `http://localhost:5173`: hub, ranking, disciplines, Rugby, teams, LOS TIGRES, `/1999`, `/login`, each at desktop and 375 px (tab bar present on inner pages only, breadcrumb links work, year switch keeps the section).
-- [ ] CLAUDE.md: Presentation paragraph rewritten (tokens in `styles.css`, one dark theme, components list, tab bar and breadcrumb), remove the `.hub` sentence.
-- [ ] Push `claude/scoreboard-ui`, `gh pr create --base dev` with a before/after note and the mockup filenames.
+- [ ] Remove the four aliases from `styles.css`; `grep -rn -- "--color-\|--font-mono\|--column-width" front/src` must be empty; tests and build green.
+- [ ] Browser smoke on `http://localhost:5173`: hub, ranking, disciplines, Rugby, teams, LOS TIGRES, `/1999`, `/login`, each at desktop and 375 px (tab bar on inner pages only, Photos item when the edition has a URL, breadcrumb links, year switch keeps the section, fonts loaded from `/fonts/`).
+- [ ] CLAUDE.md: Presentation paragraph rewritten (tokens in `styles.css`, one dark theme, self-hosted fonts, the six components, tab bar and breadcrumb), remove the `.hub` sentence.
+- [ ] Push `claude/scoreboard-ui`, `gh pr create --base dev` with a before/after note.
