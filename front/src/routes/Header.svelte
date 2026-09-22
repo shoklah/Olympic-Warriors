@@ -6,14 +6,20 @@
 	import Menu from './menu.svelte';
 
 	$: editions = $page.data.editions ?? [];
-	$: year = Number($page.params.year ?? $page.data.latestYear);
+	// On an error page the year in the URL may be one with no edition, so fall back to the latest.
+	$: year = Number(($page.error ? null : $page.params.year) ?? $page.data.latestYear);
 	$: edition = editions.find((e) => e.year === year);
-	$: tabs = [
-		{ name: 'Ranking', url: `/${year}/ranking` },
-		{ name: 'Teams', url: `/${year}/teams` },
-		{ name: 'Disciplines', url: `/${year}/disciplines` },
-		...(edition?.photos_url ? [{ name: 'Photos', url: edition.photos_url, external: true }] : [])
-	];
+	$: tabs = year
+		? [
+				{ name: 'Ranking', url: `/${year}/ranking` },
+				{ name: 'Teams', url: `/${year}/teams` },
+				{ name: 'Disciplines', url: `/${year}/disciplines` },
+				...(edition?.photos_url
+					? [{ name: 'Photos', url: edition.photos_url, external: true }]
+					: [])
+			]
+		: [];
+	$: years = editions.map((e) => ({ year: e.year, url: switchYearPath($page.url.pathname, e.year) }));
 
 	const switchYear = (event) => goto(switchYearPath($page.url.pathname, event.target.value));
 </script>
@@ -26,7 +32,8 @@
 		{#if editions.length > 0}
 			<select aria-label="Edition" value={year} on:change={switchYear}>
 				{#each editions as e}
-					<option value={e.year}>{e.year}</option>
+					<!-- Svelte 4 SSR ignores `value` on the select, so mark the option itself. -->
+					<option value={e.year} selected={e.year === year}>{e.year}</option>
 				{/each}
 			</select>
 		{/if}
@@ -34,18 +41,24 @@
 
 	<nav>
 		<ul>
-			{#each tabs as tab}
-				<li aria-current={$page.url.pathname === tab.url ? 'page' : undefined}>
-					{#if tab.external}
-						<a href={tab.url} target="_blank" rel="noopener">{tab.name}</a>
-					{:else}
-						<a href={tab.url}>{tab.name}</a>
-					{/if}
-				</li>
-			{/each}
+			{#if year}
+				{#each tabs as tab}
+					<li
+						aria-current={!tab.external && $page.url.pathname.startsWith(tab.url)
+							? 'page'
+							: undefined}
+					>
+						{#if tab.external}
+							<a href={tab.url} target="_blank" rel="noopener">{tab.name}</a>
+						{:else}
+							<a href={tab.url}>{tab.name}</a>
+						{/if}
+					</li>
+				{/each}
+			{/if}
 		</ul>
 	</nav>
-	<Menu {tabs} {editions} {year} />
+	<Menu {tabs} {years} {year} />
 </header>
 
 <style>

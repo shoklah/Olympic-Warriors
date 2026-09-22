@@ -3,7 +3,7 @@
 	import { quintOut } from 'svelte/easing';
 
 	export let tabs;
-	export let editions = [];
+	export let years = [];
 	export let year = null;
 
 	let menuOpen = false;
@@ -30,8 +30,8 @@
 			{/if}
 		{/each}
 		<div class="years">
-			{#each editions as e}
-				<a href="/{e.year}" class:current={e.year === year} on:click={() => (menuOpen = false)}>{e.year}</a>
+			{#each years as y}
+				<a href={y.url} class:current={y.year === year} on:click={() => (menuOpen = false)}>{y.year}</a>
 			{/each}
 		</div>
 	</div>
