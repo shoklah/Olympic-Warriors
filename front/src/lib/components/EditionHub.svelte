@@ -22,17 +22,26 @@
 		return () => clearInterval(interval);
 	});
 
-	const formatDate = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString('fr-FR', {
-		day: 'numeric',
-		month: 'long'
-	});
+	/** Noon anchoring keeps the calendar day whatever the renderer's timezone. */
+	const parseDay = (iso) => new Date(`${iso}T12:00:00`);
+	const dayMonth = (date) =>
+		date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' });
+
+	/** "19 - 20 September 2026", or "30 September - 1 October 2026" across months. */
+	const formatRange = (start, end) => {
+		const from = parseDay(start);
+		const to = parseDay(end);
+		const sameMonth = from.getFullYear() === to.getFullYear() && from.getMonth() === to.getMonth();
+		const left = sameMonth ? from.toLocaleDateString('en-GB', { day: 'numeric' }) : dayMonth(from);
+		return `${left} – ${dayMonth(to)} ${to.getFullYear()}`;
+	};
 </script>
 
 <div class="fullscreen">
-	<img id="eclipse" src={eclipse} alt="eclipse" />
+	<img id="eclipse" src={eclipse} alt="" />
 	<img id="title" src={title} alt="OLYMPIC WARRIORS" />
 
-	{#each columns as column}
+	{#each columns.filter((c) => c.length > 0) as column}
 		<div class="sportcolumn">
 			{#each column as discipline}
 				<img src={iconFor(discipline.name)} alt={discipline.name} />
@@ -41,7 +50,7 @@
 	{/each}
 </div>
 
-<p class="where">{edition.host} · {formatDate(edition.start_date)} – {formatDate(edition.end_date)} {edition.year}</p>
+<p class="where">{edition.host} · {formatRange(edition.start_date, edition.end_date)}</p>
 
 {#if phase === 'upcoming'}
 	<div id="countdown">
@@ -67,17 +76,19 @@
 <style>
 	.sportcolumn {
 		position: absolute;
+		top: 0;
+		bottom: 0;
 		display: flex;
 		flex-direction: column;
+		justify-content: space-around;
 		opacity: 0.3;
-		gap: 180px;
 	}
 
 	.sportcolumn:first-of-type {
 		left: 20vw;
 	}
 
-	.sportcolumn:first-of-type :nth-child(2) {
+	.sportcolumn:first-of-type :nth-child(even) {
 		transform: translate(-80px, 0);
 	}
 
@@ -85,7 +96,7 @@
 		right: 20vw;
 	}
 
-	.sportcolumn:last-of-type :nth-child(2) {
+	.sportcolumn:last-of-type :nth-child(even) {
 		transform: translate(80px, 0);
 	}
 
@@ -184,10 +195,6 @@
 	}
 
 	@media (max-width: 1000px) {
-		.sportcolumn {
-			gap: 100px;
-		}
-
 		.sportcolumn img {
 			width: min(100px, 20vw);
 		}

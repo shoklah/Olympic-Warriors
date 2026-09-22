@@ -17,7 +17,7 @@ describe('EditionHub', () => {
 		vi.setSystemTime(new Date('2026-09-17T07:00:00Z'));
 		render(EditionHub, { summary, editions });
 
-		expect(screen.getByText('Days').querySelector('span')).toHaveTextContent('2');
+		expect(screen.getByText('Days').querySelector('span')).toHaveTextContent(/^2$/);
 		expect(screen.queryByRole('link', { name: 'Ranking' })).toBeNull();
 	});
 
@@ -33,11 +33,23 @@ describe('EditionHub', () => {
 		vi.setSystemTime(new Date('2026-09-19T08:00:00Z'));
 		render(EditionHub, { summary, editions });
 
-		expect(screen.getByText(/Paris/)).toBeInTheDocument();
-		expect(screen.getByAltText('Relay')).toHaveAttribute('src', expect.stringMatching(/relay\.svg|default\.svg/));
+		expect(screen.getByText('Paris · 19 – 20 September 2026')).toBeInTheDocument();
+		expect(screen.getByAltText('Relay')).toHaveAttribute('src', expect.stringMatching(/default\.svg$/));
 		expect(screen.getByAltText('Orienteering')).toHaveAttribute('src', expect.stringMatching(/orienteering\.svg$/));
 		expect(screen.getByRole('link', { name: '2025' })).toHaveAttribute('href', '/2025');
 		expect(screen.getByRole('link', { name: '2024' })).toHaveAttribute('href', '/2024');
 		expect(screen.queryByRole('link', { name: '2026' })).toBeNull();
+	});
+
+	it('ticks and flips to the ranking button when the start passes', async () => {
+		vi.setSystemTime(new Date('2026-09-19T06:59:59Z'));
+		render(EditionHub, { summary, editions });
+
+		expect(screen.getByText('Seconds').querySelector('span')).toHaveTextContent(/^1$/);
+
+		await vi.advanceTimersByTimeAsync(1000);
+
+		expect(screen.getByRole('link', { name: 'Ranking' })).toBeInTheDocument();
+		expect(screen.queryByText('Days')).toBeNull();
 	});
 });
