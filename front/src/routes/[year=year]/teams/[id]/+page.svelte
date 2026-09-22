@@ -1,6 +1,8 @@
 <script>
 	export let data;
 
+	const OUTCOME = { win: 'won', loss: 'lost', draw: 'draw' };
+
 	const ordinal = (n) => {
 		const mod100 = n % 100;
 		if (mod100 >= 11 && mod100 <= 13) return `${n}th`;
@@ -62,7 +64,7 @@
 						{:else if game.result === null}
 							Round {game.round + 1} · vs {game.opponentName} · played
 						{:else}
-							Round {game.round + 1} · vs {game.opponentName} · {game.ownScore} – {game.theirScore} · {game.result === 'win' ? 'won' : game.result === 'loss' ? 'lost' : 'draw'}
+							Round {game.round + 1} · vs {game.opponentName} · {game.ownScore} – {game.theirScore} · {OUTCOME[game.result]}
 						{/if}
 					</li>
 				{/each}

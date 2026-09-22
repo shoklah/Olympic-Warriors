@@ -47,6 +47,11 @@ describe('team page', () => {
 		render(Page, { data: dataFor(2) });
 		expect(screen.getAllByTestId('game-row')[1]).toHaveTextContent(/Round 1 · vs Cerfs · to play/);
 	});
+
+	it('has no games section when the team has no games', () => {
+		render(Page, { data: { ...dataFor(1), games: [] } });
+		expect(screen.queryByRole('heading', { name: 'Games' })).toBeNull();
+	});
 });
 
 describe('team page load', () => {

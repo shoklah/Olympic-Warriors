@@ -38,17 +38,25 @@
 	<section class="schedule">
 		<h2>Schedule</h2>
 		{#each data.schedule as round}
-			<h3>Round {round.order + 1}</h3>
-			{#each round.games as game}
-				<div class="game" data-testid="game-row">
-					<p class="teams">
-						<a href="/{year}/teams/{game.team1Id}">{game.team1Name}</a>
-						<span class="score">{game.isPlayed && game.score1 !== null ? `${game.score1} – ${game.score2}` : '—'}</span>
-						<a href="/{year}/teams/{game.team2Id}">{game.team2Name}</a>
-					</p>
-					<p class="referee">ref: {game.refereeName}</p>
-				</div>
-			{/each}
+			{#if round.games.length > 0}
+				<h3>Round {round.order + 1}</h3>
+				{#each round.games as game}
+					<div class="game" data-testid="game-row">
+						<p class="teams">
+							<a href="/{year}/teams/{game.team1Id}">{game.team1Name}</a>
+							<span class="score"
+								>{!game.isPlayed
+									? '—'
+									: game.score1 === null
+										? 'played'
+										: `${game.score1} – ${game.score2}`}</span
+							>
+							<a href="/{year}/teams/{game.team2Id}">{game.team2Name}</a>
+						</p>
+						<p class="referee">ref: {game.refereeName}</p>
+					</div>
+				{/each}
+			{/if}
 		{/each}
 	</section>
 {/if}
@@ -141,9 +149,11 @@
 	.game .teams a {
 		color: inherit;
 		flex: 1;
+		min-width: 0;
+		overflow-wrap: anywhere;
 	}
 
-	.game .teams a:last-child {
+	.game .teams a:last-of-type {
 		text-align: right;
 	}
 

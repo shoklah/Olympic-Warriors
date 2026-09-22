@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/svelte';
+import { render, screen, within } from '@testing-library/svelte';
 import { describe, expect, it } from 'vitest';
 import Page from './+page.svelte';
 import { disciplineResults, disciplineSchedule, findDiscipline } from '$lib/edition';
@@ -54,17 +54,37 @@ describe('discipline page', () => {
 		expect(games[0]).toHaveTextContent('ref: Cerfs');
 		expect(games[1]).toHaveTextContent(/Cerfs\s*—\s*Bisons/);
 		expect(games[2]).toHaveTextContent(/Aigles\s*7 – 7\s*Cerfs/);
+		expect(within(games[0]).getByRole('link', { name: 'Bisons' })).toHaveAttribute(
+			'href',
+			'/2026/teams/2'
+		);
 	});
 
 	it('shows pairings without scores for an unrevealed discipline', () => {
 		render(Page, { data: dataFor(summary, 11) });
 
 		expect(screen.getByText('Results not revealed yet')).toBeInTheDocument();
-		expect(screen.getAllByTestId('game-row')[0]).toHaveTextContent(/Aigles\s*—\s*Bisons/);
+		expect(screen.getAllByTestId('game-row')[0]).toHaveTextContent(/Aigles\s*played\s*Bisons/);
 	});
 
 	it('has no schedule section for a discipline without rounds', () => {
 		render(Page, { data: dataFor({ ...summary, rounds: [], games: [] }, 10) });
 		expect(screen.queryByRole('heading', { name: 'Schedule' })).toBeNull();
+	});
+
+	it('skips rounds with no games', () => {
+		render(
+			Page,
+			{
+				data: dataFor(
+					{
+						...summary,
+						rounds: [...summary.rounds, { id: 23, discipline: 10, order: 2, is_over: false }]
+					},
+					10
+				)
+			}
+		);
+		expect(screen.queryByRole('heading', { name: 'Round 3' })).toBeNull();
 	});
 });
