@@ -17,18 +17,18 @@ describe('team page', () => {
 		render(Page, { data: dataFor(1) });
 
 		expect(screen.getByRole('heading', { name: 'Aigles' })).toBeInTheDocument();
-		expect(screen.getByText('2nd · 3 pts')).toBeInTheDocument();
+		expect(screen.getByTestId('standing')).toHaveTextContent(/2nd\s*overall\s*3\s*pts/);
 		expect(screen.getByText('Ana Lopez')).toBeInTheDocument();
 		expect(screen.getByText('Bob Martin')).toBeInTheDocument();
 	});
 
-	it('shows one row per discipline with a dash when not revealed', () => {
+	it('shows one tile per discipline with a dash when not revealed', () => {
 		render(Page, { data: dataFor(1) });
 
 		const rows = screen.getAllByTestId('discipline-row');
 		expect(rows).toHaveLength(2);
-		expect(rows[0]).toHaveTextContent(/Relay\s*2\s*5 pts/);
-		expect(rows[1]).toHaveTextContent(/Orienteering\s*—\s*—/);
+		expect(rows[0]).toHaveTextContent(/Relay\s*2nd\s*5 pts/);
+		expect(rows[1]).toHaveTextContent(/Orienteering\s*—/);
 	});
 
 	it('lists games per discipline with result, to play and referee rows', () => {
@@ -37,16 +37,18 @@ describe('team page', () => {
 		expect(screen.getByRole('heading', { name: 'Games' })).toBeInTheDocument();
 		const rows = screen.getAllByTestId('game-row');
 		expect(rows).toHaveLength(4);
-		expect(rows[0]).toHaveTextContent(/Round 1 · vs Bisons · 9 – 12 · lost/);
+		expect(rows[0]).toHaveTextContent(/Round 1 · vs Bisons · 9 : 12 · lost/);
 		expect(rows[1]).toHaveTextContent(/Round 1 · referee · Cerfs vs Bisons/);
-		expect(rows[2]).toHaveTextContent(/Round 2 · vs Cerfs · 7 – 7 · draw/);
+		expect(rows[2]).toHaveTextContent(/Round 2 · vs Cerfs · 7 : 7 · draw/);
 		expect(rows[3]).toHaveTextContent(/Round 1 · vs Bisons · played/);
 	});
 
 	it('says to play for an unplayed game', () => {
 		render(Page, { data: dataFor(2) });
 		expect(screen.getAllByTestId('game-row')[1]).toHaveTextContent(/Round 1 · vs Cerfs · to play/);
-		expect(screen.getAllByTestId('game-row')[0]).toHaveTextContent(/Round 1 · vs Aigles · 12 – 9 · won/);
+		expect(screen.getAllByTestId('game-row')[0]).toHaveTextContent(
+			/Round 1 · vs Aigles · 12 : 9 · won/
+		);
 	});
 
 	it('has no games section when the team has no games', () => {

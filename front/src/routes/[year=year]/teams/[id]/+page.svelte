@@ -1,151 +1,200 @@
 <script>
-	import { ordinal } from '$lib/edition';
+	import { iconFor } from '$lib/icons';
+	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
+	import MedalRank from '$lib/components/MedalRank.svelte';
+	import TeamGameRow from '$lib/components/TeamGameRow.svelte';
 
 	export let data;
 
-	const OUTCOME = { win: 'won', loss: 'lost', draw: 'draw' };
+	$: year = data.summary.edition.year;
 </script>
 
-<h1>{data.team.name}</h1>
-<p class="standing">{ordinal(data.team.ranking)} · {data.team.total_points} pts</p>
+<div class="page">
+	<Breadcrumb
+		items={[
+			{ label: String(year), href: `/${year}` },
+			{ label: 'Teams', href: `/${year}/teams` },
+			{ label: data.team.name }
+		]}
+	/>
 
-<div class="players">
-	{#each data.team.players as player}
-		<div class="player-card">
-			<p>{player.first_name} {player.last_name}</p>
-		</div>
-	{/each}
+	<h1>{data.team.name}</h1>
+
+	<p class="standing" data-testid="standing">
+		<MedalRank rank={data.team.ranking} ordinal />
+		<span class="label">overall</span>
+		<span class="num points">{data.team.total_points}</span>
+		<span class="label">pts</span>
+	</p>
+
+	<div class="roster">
+		{#each data.team.players as player}
+			<span class="chip">{player.first_name} {player.last_name}</span>
+		{/each}
+	</div>
+
+	<h2>Results</h2>
+	<div class="tiles">
+		{#each data.results as row}
+			<div
+				class="tile"
+				class:gold={row.ranking === 1}
+				class:silver={row.ranking === 2}
+				class:bronze={row.ranking === 3}
+				data-testid="discipline-row"
+			>
+				<span class="discipline">
+					<img src={iconFor(row.disciplineName)} alt="" />
+					<span class="label name">{row.disciplineName}</span>
+				</span>
+				<MedalRank rank={row.ranking} ordinal />
+				<span class="num value" class:muted={!row.revealed}>
+					{#if !row.revealed}
+						not revealed
+					{:else if row.result_type === 'TIM'}
+						{row.time}
+					{:else}
+						{row.points} pts
+					{/if}
+				</span>
+			</div>
+		{/each}
+	</div>
+
+	{#if data.games.length > 0}
+		<section class="games">
+			<h2>Games</h2>
+			{#each data.games as discipline}
+				<h3 class="label">{discipline.disciplineName}</h3>
+				{#each discipline.games as game}
+					<TeamGameRow
+						round={game.round}
+						role={game.role}
+						opponentName={game.opponentName}
+						team1Name={game.team1Name}
+						team2Name={game.team2Name}
+						isPlayed={game.isPlayed}
+						ownScore={game.ownScore}
+						theirScore={game.theirScore}
+						result={game.result}
+					/>
+				{/each}
+			{/each}
+		</section>
+	{/if}
 </div>
 
-<table>
-	<thead>
-		<tr>
-			<th scope="col">Discipline</th>
-			<th scope="col">Rank</th>
-			<th scope="col">Result</th>
-		</tr>
-	</thead>
-	<tbody>
-		{#each data.results as row}
-			<tr data-testid="discipline-row">
-				<td>{row.disciplineName}</td>
-				{#if row.revealed}
-					<td>{row.ranking}</td>
-					<td>{row.result_type === 'TIM' ? row.time : `${row.points} pts`}</td>
-				{:else}
-					<td>—</td>
-					<td>—</td>
-				{/if}
-			</tr>
-		{/each}
-	</tbody>
-</table>
-
-{#if data.games.length > 0}
-	<section class="games">
-		<h2>Games</h2>
-		{#each data.games as discipline}
-			<h3>{discipline.disciplineName}</h3>
-			<ul>
-				{#each discipline.games as game}
-					<li data-testid="game-row">
-						{#if game.role === 'referee'}
-							Round {game.round + 1} · referee · {game.team1Name} vs {game.team2Name}
-						{:else if !game.isPlayed}
-							Round {game.round + 1} · vs {game.opponentName} · to play
-						{:else if game.result === null}
-							Round {game.round + 1} · vs {game.opponentName} · played
-						{:else}
-							Round {game.round + 1} · vs {game.opponentName} · {game.ownScore} – {game.theirScore} · {OUTCOME[game.result]}
-						{/if}
-					</li>
-				{/each}
-			</ul>
-		{/each}
-	</section>
-{/if}
-
 <style>
-	.standing {
-		text-align: center;
-		font-weight: 600;
-		margin: 0;
+	h1 {
+		margin: 0 0 0.4rem;
+		overflow-wrap: anywhere;
 	}
 
-	.players {
+	h2 {
+		margin: 1.6rem 0 0.6rem;
+	}
+
+	.standing {
 		display: flex;
 		flex-wrap: wrap;
-		justify-content: center;
-		gap: 20px;
-		margin: 20px 1rem;
+		align-items: baseline;
+		gap: 10px;
+		--medal-size: 2.1rem;
+		margin: 0 0 0.9rem;
 	}
 
-	.player-card {
-		background: var(--color-theme-2);
-		color: black;
-		padding: 20px 40px;
-		border-radius: 10px;
-		width: 200px;
-		text-align: center;
-		box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-		transition: transform 0.3s;
+	.points {
+		font-size: 2.1rem;
+		line-height: 1;
+		letter-spacing: 0.04em;
+		color: var(--ink);
 	}
 
-	.player-card p {
-		font-size: 1.2rem;
-		font-weight: 600;
-		margin: 0;
+	.roster {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
 	}
 
-	.player-card:hover {
-		transform: scale(1.05);
-	}
-
-	table {
-		width: min(98%, 600px);
-		margin: 2rem auto;
-		border-collapse: collapse;
-	}
-
-	th,
-	td {
-		padding: 0.6rem 1rem;
-		text-align: left;
-		border-bottom: 1px solid #ccc;
-	}
-
-	th {
-		font-weight: 700;
-		text-transform: uppercase;
-		letter-spacing: 0.1em;
+	.chip {
+		padding: 6px 12px;
+		border-radius: var(--radius-pill);
+		background: var(--bg-raised);
+		border: 1px solid var(--line-strong);
 		font-size: 0.8rem;
+		min-width: 0;
+		overflow-wrap: anywhere;
+	}
+
+	.tiles {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 8px;
+	}
+
+	.tile {
+		min-width: 0;
+		--medal-size: 1.9rem;
+		padding: 10px 12px;
+		background: var(--bg-raised);
+		border: 1px solid var(--line);
+		border-top: 3px solid var(--line-strong);
+		border-radius: var(--radius);
+	}
+
+	.tile.gold {
+		border-top-color: var(--gold);
+	}
+
+	.tile.silver {
+		border-top-color: var(--silver);
+	}
+
+	.tile.bronze {
+		border-top-color: var(--bronze);
+	}
+
+	.discipline {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		min-width: 0;
+	}
+
+	.discipline img {
+		flex: none;
+		height: 16px;
+		width: 16px;
+	}
+
+	.name {
+		min-width: 0;
+		overflow-wrap: anywhere;
+	}
+
+	.value {
+		display: block;
+		margin-top: 2px;
+		font-size: 0.85rem;
+		letter-spacing: 0.04em;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.value.muted {
+		color: var(--muted);
 	}
 
 	.games {
-		width: min(98%, 600px);
-		margin: 2rem auto;
-	}
-
-	.games h2 {
-		font-size: 1.3rem;
-		font-weight: 700;
-		text-transform: uppercase;
-		letter-spacing: 0.1em;
+		margin-bottom: 2rem;
 	}
 
 	.games h3 {
-		font-size: 1rem;
-		font-weight: 700;
-		margin: 1.5rem 0 0.5rem;
+		margin: 1.2rem 0 0.3rem;
 	}
 
-	.games ul {
-		margin: 0;
-	}
-
-	.games li {
-		padding: 0.5rem 0;
-		border-bottom: 1px solid #ccc;
-		font-variant-numeric: tabular-nums;
+	@media (max-width: 580px) {
+		.tiles {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
 	}
 </style>
