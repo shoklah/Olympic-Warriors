@@ -65,15 +65,15 @@ mockups were drawn before the test contract was checked.
 	--ink: #ffffff;           /* headings, winners */
 	--text: #f2ecc8;          /* body */
 	--muted: #8a8674;         /* secondary */
-	--faint: #6f6b5c;         /* tertiary, unranked digits */
-	--ghost: #4f4c40;         /* placeholders (dashes) */
+	--faint: #6f6b5c;        /* tertiary, large text (1.2rem+) only */
+	--ghost: #6a6658;        /* purely decorative, never carries meaning */
 	--accent: #F9F3C1;        /* brand */
 	--gold: #e6b800;  --silver: #c9c9c9;  --bronze: #cd7f32;
 	--win: #7bd88f;   --loss: #d87b7b;    --todo: #4f8cff;
 	--font-display: 'Bebas Neue', 'Arial Narrow', Impact, sans-serif;
 	--font-body: Inter, -apple-system, 'Segoe UI', Roboto, sans-serif;
 	--radius: 6px;  --radius-lg: 10px;  --radius-pill: 999px;
-	--page: min(96%, 900px);  /* every inner page's content column */
+	--page: min(100% - 2rem, 900px);  /* content column, 1rem phone gutter */
 	--tabbar: 64px;           /* bottom tab bar height on phones */
 }
 ```
@@ -84,7 +84,7 @@ margin: 0`. `h1`–`h3` in the display face, `letter-spacing: 0.06em`,
 `.label` (Inter 600 0.75rem, `letter-spacing: 0.1em`, uppercase, `--muted`),
 `.num` (display face, `font-variant-numeric: tabular-nums`), `.dimmed`
 (`opacity: 0.35`, and `pointer-events: none` when on a link), `.page`
-(`width: var(--page); margin-inline: auto`), `.visually-hidden` kept. Every
+(`width: var(--page); margin-inline: auto`), `.visually-hidden` kept, plus a global `border-box` reset. Every
 inner page wraps its content in `.page`. The typo `view-transision-name` and
 the Fira Mono import are dropped. The `.app` wrapper gets
 `padding-bottom: var(--tabbar)` at 999 px and below only when it carries the
