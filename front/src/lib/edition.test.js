@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	countdownParts,
 	disciplineResults,
+	disciplineSchedule,
 	editionPhase,
 	findDiscipline,
 	findTeam,
@@ -10,6 +11,7 @@ import {
 	rankedTeams,
 	startInstant,
 	switchYearPath,
+	teamGames,
 	teamResults
 } from './edition.js';
 import { summary, summaryAllRevealed } from './fixtures/summary.js';
@@ -206,5 +208,68 @@ describe('formatDateRange', () => {
 
 	it('names both months across a month boundary', () => {
 		expect(formatDateRange('2026-09-30', '2026-10-01')).toBe('30 September – 1 October 2026');
+	});
+});
+
+describe('disciplineSchedule', () => {
+	it('groups games by round in order with names joined', () => {
+		const rounds = disciplineSchedule(summary, 10);
+		expect(rounds.map((r) => [r.order, r.isOver, r.games.length])).toEqual([
+			[0, true, 2],
+			[1, false, 1]
+		]);
+		expect(rounds[0].games[0]).toEqual({
+			id: 200,
+			team1Id: 2,
+			team1Name: 'Bisons',
+			team2Id: 1,
+			team2Name: 'Aigles',
+			refereeName: 'Cerfs',
+			isPlayed: true,
+			score1: 12,
+			score2: 9
+		});
+	});
+
+	it('keeps null scores for an unrevealed discipline', () => {
+		const [round] = disciplineSchedule(summary, 11);
+		expect(round.games[0]).toMatchObject({ team1Name: 'Aigles', team2Name: 'Bisons', isPlayed: true, score1: null, score2: null });
+	});
+
+	it('is null for a discipline without rounds', () => {
+		expect(disciplineSchedule({ ...summary, rounds: [], games: [] }, 10)).toBeNull();
+		expect(disciplineSchedule(summary, 999)).toBeNull();
+	});
+
+	it('names an unknown team Unknown', () => {
+		const odd = { ...summary, games: [{ ...summary.games[0], referees: 42 }] };
+		expect(disciplineSchedule(odd, 10)[0].games[0].refereeName).toBe('Unknown');
+	});
+});
+
+describe('teamGames', () => {
+	it('lists play and referee rows per discipline, own score first', () => {
+		const [relay, orienteering] = teamGames(summary, 1);
+		expect(relay.disciplineName).toBe('Relay');
+		expect(relay.games).toEqual([
+			{ id: 200, round: 0, role: 'play', opponentId: 2, opponentName: 'Bisons', team1Name: 'Bisons', team2Name: 'Aigles', isPlayed: true, ownScore: 9, theirScore: 12, result: 'loss' },
+			{ id: 201, round: 0, role: 'referee', opponentId: null, opponentName: null, team1Name: 'Cerfs', team2Name: 'Bisons', isPlayed: false, ownScore: null, theirScore: null, result: null },
+			{ id: 202, round: 1, role: 'play', opponentId: 3, opponentName: 'Cerfs', team1Name: 'Aigles', team2Name: 'Cerfs', isPlayed: true, ownScore: 7, theirScore: 7, result: 'draw' }
+		]);
+		expect(orienteering.games[0]).toMatchObject({ role: 'play', opponentName: 'Bisons', isPlayed: true, ownScore: null, result: null });
+	});
+
+	it('reports a win and an unplayed game', () => {
+		const [relay] = teamGames(summary, 2);
+		expect(relay.games.map((g) => [g.role, g.isPlayed, g.result])).toEqual([
+			['play', true, 'win'],
+			['play', false, null],
+			['referee', true, null]
+		]);
+	});
+
+	it('omits disciplines where the team has no game', () => {
+		const none = { ...summary, games: summary.games.filter((g) => g.discipline !== 11) };
+		expect(teamGames(none, 3).map((d) => d.disciplineName)).toEqual(['Relay']);
 	});
 });
