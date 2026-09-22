@@ -57,7 +57,7 @@ mockups were drawn before the test contract was checked.
 
 ```css
 :root {
-	--bg: #0a0a0a;            /* page */
+	--bg: #000000;            /* page, same black as the eclipse image */
 	--bg-raised: #141414;     /* rows, cards, tiles */
 	--bg-sunken: #121212;     /* schedule rows */
 	--line: #262626;          /* borders, rules */

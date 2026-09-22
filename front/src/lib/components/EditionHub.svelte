@@ -163,11 +163,24 @@
 		background-color: var(--accent);
 	}
 
+	/* Fills the hero and never overflows it: object-fit keeps the eclipse whole. */
 	#eclipse {
-		width: min(98%, 1200px);
-		margin: 0 auto;
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
 		transform: translate(1%, 0);
-		z-index: -10;
+		z-index: -1;
+	}
+
+	/* Everything after the hero paints above it, whatever the hero overflows. */
+	.where,
+	#countdown,
+	#ranking,
+	.editions {
+		position: relative;
+		z-index: 1;
 	}
 
 	#title {
@@ -190,9 +203,6 @@
 			width: min(100px, 20vw);
 		}
 
-		#eclipse {
-			width: min(98%, 800px);
-		}
 
 		#title {
 			width: min(25%, 200px);
