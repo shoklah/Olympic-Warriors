@@ -1,7 +1,7 @@
-import { requestAPI } from "$lib/utils.js";
-import { API_URL } from "$env/static/private";
+import { error, redirect } from '@sveltejs/kit';
 
-export async function load({ cookies }) {
-    const disciplines = await requestAPI(`${API_URL}/disciplines`, "GET", null, null);
-    return { disciplines };
-}
+export const load = async ({ parent }) => {
+	const { latestYear } = await parent();
+	if (latestYear === null) error(404, 'No edition yet');
+	redirect(302, `/${latestYear}/disciplines`);
+};

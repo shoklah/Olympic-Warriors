@@ -21,11 +21,14 @@ class Edition(models.Model):
     An edition is a year in which the Olympic Warriors take place.
     """
 
-    year = models.IntegerField(validators=[MinValueValidator(2020), MaxValueValidator(2030)])
+    year = models.IntegerField(
+        unique=True, validators=[MinValueValidator(2020), MaxValueValidator(2030)]
+    )
     host = models.CharField(max_length=100)
     start_date = models.DateField()
     end_date = models.DateField()
     registration_form = models.FileField(upload_to="registration_forms/", null=True, blank=True)
+    photos_url = models.URLField(blank=True, null=True)
     is_active = models.BooleanField(default=True)
 
     def __str__(self) -> str:

@@ -23,6 +23,7 @@ from .serializer import (
     BlindtestGuessSerializer,
     BlindtestGuessUpdateSerializer,
     BlindtestRoundSerializer,
+    EditionSummarySerializer,
 )
 from .models import (
     Player,
@@ -204,6 +205,25 @@ def getEdition(request, edition_id):
 def getEditions(request):
     editions = Edition.objects.filter(is_active=True)
     serializer = EditionSerializer(editions, many=True)
+    return Response(serializer.data)
+
+
+@extend_schema(
+    summary="Everything the public front needs for one edition, by year",
+    responses={
+        "200": EditionSummarySerializer,
+        "404": OpenApiResponse(description="Edition not found"),
+        "500": OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def getEditionSummary(request, year):
+    try:
+        edition = Edition.objects.get(year=year, is_active=True)
+    except Edition.DoesNotExist:
+        return Response({"error": "Edition not found"}, status=404)
+    serializer = EditionSummarySerializer(edition)
     return Response(serializer.data)
 
 
@@ -773,7 +793,9 @@ def getTeamResultsByTeam(request, team_id):
 )
 @api_view(["GET"])
 def getTeamResultsByEdition(request, edition_id):
-    team_results = TeamResult.objects.filter(edition=edition_id, is_active=True)
+    team_results = TeamResult.objects.filter(
+        discipline__edition=edition_id, is_active=True
+    ).select_related("team", "discipline")
     serializer = TeamResultSerializer(team_results, many=True)
     return Response(serializer.data)
 

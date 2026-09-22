@@ -6,19 +6,18 @@
     import {cubicOut, quintOut} from "svelte/easing";
 </script>
 
-<form class="form-login" method="POST" action="?/login" use:enhance
-      in:fly={{ delay: 200, x: -200, duration: 300, easing: cubicOut }}
-      out:fly={{ x: -200, duration: 200, easing: cubicOut }}>
+<form method="POST" action="?/login" use:enhance
+      in:fly={{ delay: 200, x: -200, duration: 300, easing: cubicOut }}>
 
     {#if form?.error }<p class="error" transition:slide={{ duration: 800, easing: quintOut }}>
         {form.error}
     </p>{/if}
 
     {#if form?.missing && form?.missing.username}<p class="error" transition:slide={{ duration: 800, easing: quintOut }}>
-        The email field is required
+        The username field is required
     </p>{/if}
-    <input name="username" placeholder="Username" value={form?.email ?? ''}
-           style="border-bottom: {(form?.missing && form?.missing.email) ? '#ff0000' : 'var(--color-theme-1)'} 2px solid;" autofocus>
+    <input name="username" placeholder="Username" value={form?.username ?? ''}
+           style="border-bottom: {(form?.missing && form?.missing.username) ? '#ff0000' : 'var(--color-theme-1)'} 2px solid;" autofocus>
 
     {#if form?.missing && form?.missing.password}<p class="error" transition:slide={{ duration: 800, easing: quintOut }}>
         You forgot the password...
