@@ -34,6 +34,25 @@
 	</div>
 {/if}
 
+{#if data.schedule !== null}
+	<section class="schedule">
+		<h2>Schedule</h2>
+		{#each data.schedule as round}
+			<h3>Round {round.order + 1}</h3>
+			{#each round.games as game}
+				<div class="game" data-testid="game-row">
+					<p class="teams">
+						<a href="/{year}/teams/{game.team1Id}">{game.team1Name}</a>
+						<span class="score">{game.isPlayed && game.score1 !== null ? `${game.score1} – ${game.score2}` : '—'}</span>
+						<a href="/{year}/teams/{game.team2Id}">{game.team2Name}</a>
+					</p>
+					<p class="referee">ref: {game.refereeName}</p>
+				</div>
+			{/each}
+		{/each}
+	</section>
+{/if}
+
 <style>
 	.not-revealed {
 		text-align: center;
@@ -83,5 +102,59 @@
 		font-size: 1rem;
 		font-weight: 600;
 		margin: 0;
+	}
+
+	.schedule {
+		width: min(98%, 800px);
+		margin: 2rem auto;
+	}
+
+	.schedule h2 {
+		font-size: 1.3rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.1em;
+	}
+
+	.schedule h3 {
+		font-size: 1rem;
+		font-weight: 700;
+		margin: 1.5rem 0 0.5rem;
+	}
+
+	.game {
+		border: 1px solid #ccc;
+		border-radius: 10px;
+		padding: 0.6rem 10px;
+		margin-bottom: 8px;
+	}
+
+	.game .teams {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		gap: 1rem;
+		margin: 0;
+		font-weight: 600;
+	}
+
+	.game .teams a {
+		color: inherit;
+		flex: 1;
+	}
+
+	.game .teams a:last-child {
+		text-align: right;
+	}
+
+	.game .score {
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+	}
+
+	.game .referee {
+		margin: 0.2rem 0 0;
+		font-size: 0.85rem;
+		opacity: 0.7;
 	}
 </style>

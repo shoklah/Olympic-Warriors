@@ -276,15 +276,55 @@ class SummaryResultSerializer(serializers.ModelSerializer):
         return hidden
 
 
+class SummaryRoundSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TeamSportRound
+        fields = ("id", "discipline", "order", "is_over")
+
+
+class SummaryGameSerializer(serializers.ModelSerializer):
+    """
+    A scheduled game. Pairings, referee and the played flag are always visible;
+    the scores are null while the discipline's reveal_score is off.
+    """
+
+    score1 = serializers.IntegerField(read_only=True, allow_null=True)
+    score2 = serializers.IntegerField(read_only=True, allow_null=True)
+
+    class Meta:
+        model = Game
+        fields = (
+            "id",
+            "discipline",
+            "round",
+            "team1",
+            "team2",
+            "referees",
+            "is_played",
+            "score1",
+            "score2",
+        )
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if not instance.discipline.reveal_score:
+            data["score1"] = None
+            data["score2"] = None
+        return data
+
+
 class EditionSummarySerializer(serializers.Serializer):
     """
-    Serialize an Edition into {edition, disciplines, teams, results}, active rows only.
+    Serialize an Edition into {edition, disciplines, teams, results, rounds, games},
+    active rows only.
     """
 
     edition = SummaryEditionSerializer()
     disciplines = SummaryDisciplineSerializer(many=True)
     teams = SummaryTeamSerializer(many=True)
     results = SummaryResultSerializer(many=True)
+    rounds = SummaryRoundSerializer(many=True)
+    games = SummaryGameSerializer(many=True)
 
     def to_representation(self, instance):
         disciplines = Discipline.objects.filter(edition=instance, is_active=True).order_by("id")
@@ -312,9 +352,24 @@ class EditionSummarySerializer(serializers.Serializer):
             .select_related("discipline", "team")
             .order_by("id")
         )
+        rounds = TeamSportRound.objects.filter(
+            discipline__edition=instance, discipline__is_active=True, is_active=True
+        ).order_by("discipline_id", "order")
+        games = (
+            Game.objects.filter(
+                discipline__edition=instance,
+                discipline__is_active=True,
+                round__is_active=True,
+                is_active=True,
+            )
+            .select_related("discipline", "round")
+            .order_by("round__order", "id")
+        )
         return {
             "edition": SummaryEditionSerializer(instance).data,
             "disciplines": SummaryDisciplineSerializer(disciplines, many=True).data,
             "teams": SummaryTeamSerializer(teams, many=True, context={"totals": totals}).data,
             "results": SummaryResultSerializer(results, many=True).data,
+            "rounds": SummaryRoundSerializer(rounds, many=True).data,
+            "games": SummaryGameSerializer(games, many=True).data,
         }

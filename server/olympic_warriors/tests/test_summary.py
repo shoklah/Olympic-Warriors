@@ -17,6 +17,7 @@ from olympic_warriors.models import (
     Edition,
     Game,
     Orienteering,
+    Petanque,
     Player,
     Relay,
     Team,
@@ -133,6 +134,39 @@ class SummarySetup:
 
     def summary(self):
         return EditionSummarySerializer(self.edition).data
+
+
+class ScheduleSetup(SummarySetup):
+    """SummarySetup plus a revealed Darts schedule and a hidden Petanque game."""
+
+    def setUp(self):
+        super().setUp()
+        # Team sport with a schedule: Darts, revealed, two rounds, three games.
+        self.darts = Darts.objects.create(edition=self.edition, reveal_score=True)
+        self.darts_r1 = TeamSportRound.objects.create(discipline=self.darts, order=0)
+        self.darts_r2 = TeamSportRound.objects.create(discipline=self.darts, order=1)
+        self.g1 = Game.objects.create(
+            discipline=self.darts, round=self.darts_r1, team1=self.team_b, score1=12,
+            team2=self.team_a, score2=9, referees=self.team_c, edition=self.edition,
+            is_played=True,
+        )
+        self.g2 = Game.objects.create(
+            discipline=self.darts, round=self.darts_r1, team1=self.team_c, score1=0,
+            team2=self.team_b, score2=0, referees=self.team_a, edition=self.edition,
+        )
+        self.g3 = Game.objects.create(
+            discipline=self.darts, round=self.darts_r2, team1=self.team_a, score1=7,
+            team2=self.team_c, score2=7, referees=self.team_b, edition=self.edition,
+            is_played=True,
+        )
+        # Hidden team sport: one round, one played game whose score must not leak.
+        self.petanque = Petanque.objects.create(edition=self.edition, reveal_score=False)
+        self.petanque_r1 = TeamSportRound.objects.create(discipline=self.petanque, order=0)
+        self.g4 = Game.objects.create(
+            discipline=self.petanque, round=self.petanque_r1, team1=self.team_a, score1=13,
+            team2=self.team_b, score2=4, referees=self.team_c, edition=self.edition,
+            is_played=True,
+        )
 
 
 class TestEditionSummarySerializer(SummarySetup, TestCase):
@@ -297,7 +331,10 @@ class TestEditionSummaryEndpoint(APITestCase):
     def test_public_without_token(self):
         response = self.client.get("/edition/year/2026/summary/")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(set(response.data.keys()), {"edition", "disciplines", "teams", "results"})
+        self.assertEqual(
+            set(response.data.keys()),
+            {"edition", "disciplines", "teams", "results", "rounds", "games"},
+        )
         self.assertEqual(response.data["edition"]["year"], 2026)
         self.assertEqual(response.data["teams"][0]["name"], "Aigles")
         self.assertEqual(response.data["results"][0]["ranking"], 1)
@@ -349,3 +386,60 @@ class TestGameIsPlayed(TestCase):
         migration.mark_existing_games_played(apps, None)
         game.refresh_from_db()
         self.assertTrue(game.is_played)
+
+
+class TestSummarySchedule(ScheduleSetup, TestCase):
+    """Rounds and games in the summary; scores hidden until the discipline is revealed."""
+
+    def test_rounds_in_discipline_and_order(self):
+        rounds = self.summary()["rounds"]
+        self.assertEqual(
+            rounds,
+            [
+                {"id": self.darts_r1.id, "discipline": self.darts.id, "order": 0, "is_over": False},
+                {"id": self.darts_r2.id, "discipline": self.darts.id, "order": 1, "is_over": False},
+                {
+                    "id": self.petanque_r1.id,
+                    "discipline": self.petanque.id,
+                    "order": 0,
+                    "is_over": False,
+                },
+            ],
+        )
+
+    def test_games_in_round_order_with_scores_when_revealed(self):
+        games = [g for g in self.summary()["games"] if g["discipline"] == self.darts.id]
+        self.assertEqual([g["id"] for g in games], [self.g1.id, self.g2.id, self.g3.id])
+        self.assertEqual(
+            games[0],
+            {
+                "id": self.g1.id,
+                "discipline": self.darts.id,
+                "round": self.darts_r1.id,
+                "team1": self.team_b.id,
+                "team2": self.team_a.id,
+                "referees": self.team_c.id,
+                "is_played": True,
+                "score1": 12,
+                "score2": 9,
+            },
+        )
+        self.assertFalse(games[1]["is_played"])
+
+    def test_hidden_discipline_game_keeps_pairing_but_not_scores(self):
+        game = next(g for g in self.summary()["games"] if g["discipline"] == self.petanque.id)
+        self.assertEqual(
+            (game["team1"], game["team2"], game["referees"]),
+            (self.team_a.id, self.team_b.id, self.team_c.id),
+        )
+        self.assertTrue(game["is_played"])
+        self.assertIsNone(game["score1"])
+        self.assertIsNone(game["score2"])
+
+    def test_inactive_round_and_game_excluded(self):
+        self.darts_r2.is_active = False
+        self.darts_r2.save()
+        Game.objects.filter(pk=self.g2.pk).update(is_active=False)
+        data = self.summary()
+        self.assertEqual([r["id"] for r in data["rounds"]], [self.darts_r1.id, self.petanque_r1.id])
+        self.assertEqual([g["id"] for g in data["games"]], [self.g1.id, self.g4.id])
