@@ -1072,12 +1072,12 @@ export const summary = {
 			total_points: 5,
 			players: [{ id: 3, first_name: 'Chloé', last_name: 'Nguyen' }]
 		},
-		{ id: 3, name: 'Cerfs', ranking: 3, total_points: 1, players: [] }
+		{ id: 3, name: 'Cerfs', ranking: 3, total_points: 2, players: [] }
 	],
 	results: [
 		{ id: 100, team: 1, discipline: 10, result_type: 'PTS', ranking: 2, points: 5, time: null, points_difference: -2, global_points: 3 },
 		{ id: 101, team: 2, discipline: 10, result_type: 'PTS', ranking: 1, points: 10, time: null, points_difference: 4, global_points: 5 },
-		{ id: 102, team: 3, discipline: 10, result_type: 'PTS', ranking: 3, points: 0, time: null, points_difference: -2, global_points: 1 },
+		{ id: 102, team: 3, discipline: 10, result_type: 'PTS', ranking: 3, points: 0, time: null, points_difference: -2, global_points: 2 },
 		{ id: 103, team: 1, discipline: 11, result_type: 'TIM', ranking: null, points: null, time: null, points_difference: null, global_points: null },
 		{ id: 104, team: 2, discipline: 11, result_type: 'TIM', ranking: null, points: null, time: null, points_difference: null, global_points: null },
 		{ id: 105, team: 3, discipline: 11, result_type: 'TIM', ranking: null, points: null, time: null, points_difference: null, global_points: null }
@@ -1094,7 +1094,7 @@ export const summaryAllRevealed = {
 	results: [
 		...summary.results.slice(0, 3),
 		{ id: 103, team: 1, discipline: 11, result_type: 'TIM', ranking: 1, points: null, time: '00:12:30', points_difference: 0, global_points: 5 },
-		{ id: 104, team: 2, discipline: 11, result_type: 'TIM', ranking: 3, points: null, time: '00:15:02', points_difference: 0, global_points: 1 },
+		{ id: 104, team: 2, discipline: 11, result_type: 'TIM', ranking: 3, points: null, time: '00:15:02', points_difference: 0, global_points: 2 },
 		{ id: 105, team: 3, discipline: 11, result_type: 'TIM', ranking: 2, points: null, time: '00:13:45', points_difference: 0, global_points: 3 }
 	]
 };
@@ -2380,7 +2380,7 @@ describe('ranking page', () => {
 		expect(rows).toHaveLength(3);
 		expect(rows[0]).toHaveTextContent(/1\. Bisons\s*5 pts/);
 		expect(rows[1]).toHaveTextContent(/2\. Aigles\s*3 pts/);
-		expect(rows[2]).toHaveTextContent(/3\. Cerfs\s*1 pts/);
+		expect(rows[2]).toHaveTextContent(/3\. Cerfs\s*2 pts/);
 		expect(within(rows[0]).getByRole('link')).toHaveAttribute('href', '/2026/teams/2');
 	});
 
