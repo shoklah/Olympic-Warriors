@@ -110,7 +110,13 @@ class PlayerAdmin(ModelAdmin):
 
     list_display = ["user", "rating", "team", "edition"]
     list_filter = ["team", "edition", "is_active"]
-    search_fields = ["name", "team", "user", "edition"]
+    search_fields = [
+        "user__first_name",
+        "user__last_name",
+        "user__username",
+        "team__name",
+        "edition__year",
+    ]
     inlines = [PlayerRatingInline]
 
     def changelist_view(self, request, extra_context=None):
@@ -128,7 +134,12 @@ class PlayerRatingAdmin(ModelAdmin):
 
     list_display = ["player", "name", "identifier", "rating"]
     list_filter = ["player__user", "name", "identifier", "player__edition", "is_active"]
-    search_fields = ["player", "name", "identifier"]
+    search_fields = [
+        "player__user__first_name",
+        "player__user__last_name",
+        "name",
+        "identifier",
+    ]
 
     def changelist_view(self, request, extra_context=None):
         """
@@ -145,7 +156,7 @@ class TeamAdmin(ModelAdmin):
 
     list_display = ["name", "edition", "total_points", "ranking"]
     list_filter = ["edition", "is_active"]
-    search_fields = ["name", "edition"]
+    search_fields = ["name", "edition__year"]
     inlines = [PlayerInline]
 
     def changelist_view(self, request, extra_context=None):
@@ -181,7 +192,7 @@ class DisciplineAdmin(ModelAdmin):
     readonly_fields = ["name", "result_type"]
     list_display = ["name", "edition", "reveal_score"]
     list_filter = ["is_active", "edition", "name"]
-    search_fields = ["name", "edition"]
+    search_fields = ["name", "edition__year"]
 
     def changelist_view(self, request, extra_context=None):
         """
@@ -213,7 +224,7 @@ class BlindtestGuessAdmin(ModelAdmin):
         "is_song_correct",
     ]
     list_filter = ["team", "blindtest_round", "is_artist_correct", "is_song_correct", "is_active"]
-    search_fields = ["team", "blindtest_round", "artist", "song"]
+    search_fields = ["team__name", "artist", "song"]
 
     def changelist_view(self, request, extra_context=None):
         """
@@ -230,7 +241,7 @@ class BlindtestRoundAdmin(ModelAdmin):
 
     list_display = ["blindtest", "order", "is_active"]
     list_filter = ["blindtest", "order", "is_active"]
-    search_fields = ["blindtest", "order"]
+    search_fields = ["blindtest__name", "order"]
 
     inlines = [BlindtestGuessInline]
 
@@ -257,7 +268,7 @@ class TeamResultAdmin(ModelAdmin):
         "global_points",
     ]
     list_filter = ["team", "discipline", "is_active"]
-    search_fields = ["team", "discipline"]
+    search_fields = ["team__name", "discipline__name"]
 
     def changelist_view(self, request, extra_context=None):
         """
@@ -274,7 +285,7 @@ class TeamSportRoundAdmin(ModelAdmin):
 
     list_display = ["discipline", "order"]
     list_filter = ["discipline", "order"]
-    search_fields = ["discipline", "order"]
+    search_fields = ["discipline__name", "order"]
 
     def changelist_view(self, request, extra_context=None):
         """
@@ -332,7 +343,14 @@ class GameEventAdmin(ModelAdmin):
 
     list_display = ["game", "player1", "player2", "time"]
     list_filter = ["game", "player1", "player2", "is_active"]
-    search_fields = ["game", "player1", "player2"]
+    search_fields = [
+        "game__team1__name",
+        "game__team2__name",
+        "player1__user__first_name",
+        "player1__user__last_name",
+        "player2__user__first_name",
+        "player2__user__last_name",
+    ]
 
     def changelist_view(self, request, extra_context=None):
         """
@@ -349,7 +367,15 @@ class RugbyEventAdmin(GameEventAdmin):
 
     list_display = ["game", "player1", "player2", "time", "event_type"]
     list_filter = ["game", "player1", "player2", "event_type", "is_active"]
-    search_fields = ["game", "player1", "player2", "event_type"]
+    search_fields = [
+        "game__team1__name",
+        "game__team2__name",
+        "player1__user__first_name",
+        "player1__user__last_name",
+        "player2__user__first_name",
+        "player2__user__last_name",
+        "event_type",
+    ]
 
     def changelist_view(self, request, extra_context=None):
         """
@@ -366,7 +392,15 @@ class DodgeballEventAdmin(GameEventAdmin):
 
     list_display = ["game", "player1", "player2", "time", "event_type"]
     list_filter = ["game", "player1", "player2", "event_type", "is_active"]
-    search_fields = ["game", "player1", "player2", "event_type"]
+    search_fields = [
+        "game__team1__name",
+        "game__team2__name",
+        "player1__user__first_name",
+        "player1__user__last_name",
+        "player2__user__first_name",
+        "player2__user__last_name",
+        "event_type",
+    ]
 
     def changelist_view(self, request, extra_context=None):
         """
