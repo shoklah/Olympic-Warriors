@@ -25,10 +25,12 @@ describe('Header', () => {
 
 		const form = screen.getByRole('form', { name: 'Language' });
 		expect(form).toHaveAttribute('action', '/lang');
+		expect(form).toHaveAttribute('method', 'POST');
 		expect(form.querySelector('input[name="redirectTo"]')).toHaveValue('/2026/ranking');
 		expect(screen.getByRole('button', { name: 'EN' })).toHaveAttribute('aria-current', 'true');
 		expect(screen.getByRole('button', { name: 'FR' })).not.toHaveAttribute('aria-current');
 		expect(screen.getByRole('button', { name: 'FR' })).toHaveValue('fr');
+		expect(screen.getByRole('button', { name: 'EN' })).toHaveValue('en');
 	});
 
 	it('marks French and translates the tabs under fr', () => {

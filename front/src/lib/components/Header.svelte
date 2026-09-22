@@ -120,14 +120,14 @@
 		border: 1px solid var(--accent);
 		border-radius: var(--radius-pill);
 		overflow: hidden;
+		/* Same height as the year select beside it, border included. */
+		min-height: 44px;
 	}
 
 	.lang button {
 		background: transparent;
 		border: 0;
 		color: var(--muted);
-		/* Same touch height as the year select beside it. */
-		min-height: 44px;
 		padding: 0 0.9em;
 		font-family: var(--font-display);
 		font-size: 1.1rem;
@@ -139,6 +139,15 @@
 		color: var(--accent);
 		background: var(--bg-raised);
 		cursor: default;
+	}
+
+	/* Round the outer ends so the focus ring follows the pill instead of being clipped. */
+	.lang button:first-child {
+		border-radius: var(--radius-pill) 0 0 var(--radius-pill);
+	}
+
+	.lang button:last-child {
+		border-radius: 0 var(--radius-pill) var(--radius-pill) 0;
 	}
 
 	.lang button:focus-visible {
