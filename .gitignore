@@ -183,3 +183,6 @@ server/edition-*.json
 
 # graphify extraction cache is local, machine-specific state
 graphify-out/cache/
+
+# brainstorming visual companion sessions
+.superpowers/
