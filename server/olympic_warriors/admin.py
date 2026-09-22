@@ -295,10 +295,12 @@ class GameAdmin(ModelAdmin):
         "score1",
         "score2",
         "team2",
+        "is_played",
         "referees",
         "round",
         "edition",
     ]
+    list_editable = ["score1", "score2", "is_played"]
     list_filter = ["discipline", "team1", "team2", "edition", "is_active"]
     search_fields = ["discipline", "team1", "team2", "edition"]
 

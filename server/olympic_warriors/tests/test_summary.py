@@ -2,19 +2,26 @@
 Tests for the Edition model changes and the public edition summary endpoint.
 """
 
+import importlib
+
+from django.apps import apps
+from django.contrib import admin as django_admin
 from django.contrib.auth.models import User
 from django.db import IntegrityError, transaction
 from django.test import TestCase
 from rest_framework.test import APITestCase
 
 from olympic_warriors.models import (
+    Darts,
     Discipline,
     Edition,
+    Game,
     Orienteering,
     Player,
     Relay,
     Team,
     TeamResult,
+    TeamSportRound,
 )
 from olympic_warriors.serializer import EditionSummarySerializer
 
@@ -305,3 +312,40 @@ class TestEditionSummaryEndpoint(APITestCase):
         self.edition.save()
         response = self.client.get("/edition/year/2026/summary/")
         self.assertEqual(response.status_code, 404)
+
+
+class TestGameIsPlayed(TestCase):
+    """A game starts unplayed; the admin edits the flag in the changelist."""
+
+    def setUp(self):
+        self.edition = Edition.objects.create(
+            year=2026, host="Paris", start_date="2026-09-19", end_date="2026-09-20"
+        )
+        self.a = Team.objects.create(name="A", edition=self.edition)
+        self.b = Team.objects.create(name="B", edition=self.edition)
+        self.c = Team.objects.create(name="C", edition=self.edition)
+        self.darts = Darts.objects.create(edition=self.edition, reveal_score=True)
+        self.round = TeamSportRound.objects.create(discipline=self.darts, order=0)
+
+    def test_defaults_to_not_played(self):
+        game = Game.objects.create(
+            discipline=self.darts, round=self.round, team1=self.a, team2=self.b,
+            referees=self.c, edition=self.edition,
+        )
+        self.assertFalse(game.is_played)
+
+    def test_admin_edits_is_played_in_the_changelist(self):
+        game_admin = django_admin.site._registry[Game]
+        self.assertIn("is_played", game_admin.list_display)
+        self.assertEqual(list(game_admin.list_editable), ["score1", "score2", "is_played"])
+
+    def test_backfill_marks_existing_games_played(self):
+        migration = importlib.import_module("olympic_warriors.migrations.0028_game_is_played")
+
+        game = Game.objects.create(
+            discipline=self.darts, round=self.round, team1=self.a, team2=self.b,
+            referees=self.c, edition=self.edition,
+        )
+        migration.mark_existing_games_played(apps, None)
+        game.refresh_from_db()
+        self.assertTrue(game.is_played)

@@ -51,6 +51,7 @@ class Game(models.Model):
     score2 = models.IntegerField(MinValueValidator(0), default=0)
     referees = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="referees")
     edition = models.ForeignKey(Edition, on_delete=models.CASCADE)
+    is_played = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
 
     def __str__(self) -> str:
