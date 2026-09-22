@@ -262,6 +262,7 @@ class SummaryResultSerializer(serializers.ModelSerializer):
             (instance.result_type == ResultTypes.POINTS and instance.points is None)
             or (instance.result_type == ResultTypes.TIME and instance.time is None)
             or instance.result_type == ResultTypes.NONE
+            or not instance.result_type
         )
         if instance.discipline.reveal_score and not missing_score:
             return super().to_representation(instance)

@@ -7,7 +7,15 @@ from django.db import IntegrityError, transaction
 from django.test import TestCase
 from rest_framework.test import APITestCase
 
-from olympic_warriors.models import Edition, Orienteering, Player, Relay, Team, TeamResult
+from olympic_warriors.models import (
+    Discipline,
+    Edition,
+    Orienteering,
+    Player,
+    Relay,
+    Team,
+    TeamResult,
+)
 from olympic_warriors.serializer import EditionSummarySerializer
 
 
@@ -233,6 +241,14 @@ class TestEditionSummarySerializer(SummarySetup, TestCase):
         self.assertEqual(by_team[self.team_b.id]["global_points"], 5)
         self.assertEqual(by_team[self.team_a.id]["ranking"], 2)
         self.assertEqual(by_team[self.team_a.id]["global_points"], 3)
+
+    def test_empty_result_type_is_treated_as_no_score(self):
+        Discipline.objects.filter(pk=self.relay.pk).update(result_type="")
+
+        results = [r for r in self.summary()["results"] if r["discipline"] == self.relay.id]
+        for result in results:
+            for field in ("ranking", "points", "time", "points_difference", "global_points"):
+                self.assertIsNone(result[field], field)
 
 
 class TestRankingWithoutScore(TestCase):
