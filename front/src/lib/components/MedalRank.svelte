@@ -2,7 +2,7 @@
 	import { ordinal as toOrdinal } from '$lib/edition';
 
 	/**
-	 * Rank of a team, or null when it has none yet (rendered as a dash).
+	 * Rank of a team; null or 0 (the API's unrevealed value) renders as a dash.
 	 * @type {number | null}
 	 */
 	export let rank = null;
@@ -11,8 +11,9 @@
 
 	const MEDALS = { 1: 'gold', 2: 'silver', 3: 'bronze' };
 
+	$: unranked = rank === null || rank === 0;
 	$: medal = MEDALS[rank] ?? 'none';
-	$: text = rank === null ? '—' : ordinal ? toOrdinal(rank) : `${rank}`;
+	$: text = unranked ? '—' : ordinal ? toOrdinal(rank) : `${rank}`;
 </script>
 
 <span class="rank num {medal}">{text}</span>

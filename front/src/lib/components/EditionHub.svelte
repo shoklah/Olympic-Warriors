@@ -203,7 +203,6 @@
 			width: min(100px, 20vw);
 		}
 
-
 		#title {
 			width: min(25%, 200px);
 		}

@@ -76,6 +76,12 @@
 		text-align: right;
 	}
 
+	.team:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
+		border-radius: 2px;
+	}
+
 	.winner {
 		color: var(--ink);
 		font-weight: 600;

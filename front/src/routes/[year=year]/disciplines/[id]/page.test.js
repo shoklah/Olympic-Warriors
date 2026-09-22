@@ -32,9 +32,8 @@ describe('discipline page', () => {
 		render(Page, { data: dataFor(summary, 10) });
 
 		expect(screen.getByRole('link', { name: 'Relay' })).toHaveAttribute('aria-current', 'page');
-		expect(screen.getByRole('link', { name: 'Orienteering' })).toHaveAttribute(
-			'aria-disabled',
-			'true'
+		expect(screen.getByRole('link', { name: 'Orienteering' })).not.toHaveAttribute(
+			'aria-current'
 		);
 	});
 

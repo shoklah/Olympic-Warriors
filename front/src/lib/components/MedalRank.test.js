@@ -26,6 +26,13 @@ describe('MedalRank', () => {
 		expect(container.querySelector('.none')).toHaveTextContent('—');
 	});
 
+	it('treats rank 0, the unrevealed value, as no rank', () => {
+		const { container } = render(MedalRank, { rank: 0 });
+
+		expect(container.querySelector('.none')).toHaveTextContent('—');
+		expect(container.querySelector('.none')).not.toHaveTextContent('0');
+	});
+
 	it('renders the ordinal when asked', () => {
 		const { container } = render(MedalRank, { rank: 2, ordinal: true });
 

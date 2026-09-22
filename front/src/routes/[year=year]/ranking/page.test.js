@@ -25,7 +25,7 @@ describe('ranking page', () => {
 		expect(rows[2]).toHaveClass('bronze');
 	});
 
-	it('links revealed disciplines and disables hidden ones', () => {
+	it('links every discipline and dims the hidden ones', () => {
 		render(Page, { data: { summary } });
 
 		const relay = screen.getByRole('link', { name: 'Relay' });
@@ -33,7 +33,8 @@ describe('ranking page', () => {
 		expect(relay).not.toHaveAttribute('aria-disabled');
 
 		const orienteering = screen.getByRole('link', { name: 'Orienteering' });
-		expect(orienteering).toHaveAttribute('aria-disabled', 'true');
-		expect(orienteering).toHaveAttribute('tabindex', '-1');
+		expect(orienteering).toHaveAttribute('href', '/2026/disciplines/11');
+		expect(orienteering).not.toHaveAttribute('aria-disabled');
+		expect(orienteering).toHaveClass('unrevealed');
 	});
 });

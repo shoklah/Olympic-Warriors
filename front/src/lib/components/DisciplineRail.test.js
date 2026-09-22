@@ -14,9 +14,10 @@ describe('DisciplineRail', () => {
 		expect(relay).not.toHaveAttribute('aria-disabled');
 
 		const orienteering = screen.getByRole('link', { name: 'Orienteering' });
-		expect(orienteering).toHaveAttribute('aria-disabled', 'true');
-		expect(orienteering).toHaveAttribute('tabindex', '-1');
-		expect(orienteering).toHaveClass('dimmed');
+		expect(orienteering).toHaveAttribute('href', '/2026/disciplines/11');
+		expect(orienteering).not.toHaveAttribute('aria-disabled');
+		expect(orienteering).not.toHaveAttribute('tabindex');
+		expect(orienteering).toHaveClass('unrevealed');
 	});
 
 	it('marks the current discipline and nothing else', () => {

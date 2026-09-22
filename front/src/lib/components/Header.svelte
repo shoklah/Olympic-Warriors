@@ -139,12 +139,18 @@
 		outline-offset: -2px;
 	}
 
+	select:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
+	}
+
 	a[aria-current='page'] {
 		color: var(--accent);
 	}
 
+	/* The tab bar takes over on phones: hide the whole landmark, not just its list. */
 	@media (max-width: 999.98px) {
-		ul {
+		nav {
 			display: none;
 		}
 	}

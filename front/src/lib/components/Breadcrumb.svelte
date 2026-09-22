@@ -39,6 +39,12 @@
 		text-decoration: none;
 	}
 
+	a:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
+		border-radius: 2px;
+	}
+
 	.separator {
 		color: var(--ghost);
 	}

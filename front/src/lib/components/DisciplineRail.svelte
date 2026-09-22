@@ -11,12 +11,10 @@
 	{#each disciplines as discipline}
 		<a
 			class="tile"
-			class:dimmed={!discipline.reveal_score}
+			class:unrevealed={!discipline.reveal_score}
 			class:current={discipline.id === currentId}
 			href="/{year}/disciplines/{discipline.id}"
-			aria-disabled={discipline.reveal_score ? undefined : 'true'}
 			aria-current={discipline.id === currentId ? 'page' : undefined}
-			tabindex={discipline.reveal_score ? undefined : -1}
 			aria-label={discipline.name}
 		>
 			<img src={iconFor(discipline.name)} alt="" />
@@ -58,8 +56,13 @@
 			background 0.2s ease;
 	}
 
-	.tile:not(.dimmed) {
+	.tile:not(.unrevealed) {
 		border-color: var(--accent);
+	}
+
+	/* Same rule as the disciplines grid: dimmed, but still a link to the pairings. */
+	.tile.unrevealed {
+		opacity: 0.35;
 	}
 
 	.tile img {
@@ -67,7 +70,7 @@
 		width: 76%;
 	}
 
-	.tile:not(.dimmed):not(.current):hover {
+	.tile:not(.current):hover {
 		background: var(--line-strong);
 		transform: translateY(-2px);
 	}

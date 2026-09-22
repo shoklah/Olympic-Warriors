@@ -126,8 +126,9 @@ visitors who ask for it.
   `aria-label` the name and the icon as `<img alt="">`, `--bg-raised`
   background, `1px solid var(--line)` border, `--accent` border when the
   discipline is revealed, `--line-strong` background and a 2 px lift on hover
-  of a revealed tile, `.dimmed` + `aria-disabled` + `tabindex=-1` when it is
-  not, `:focus-visible` accent ring. The component owns the horizontal scroll
+  of a revealed tile, `.unrevealed` (`opacity: 0.35`, no accent border) when
+  it is not — still an ordinary link, never `aria-disabled`, same rule as the
+  disciplines grid — `:focus-visible` accent ring. The component owns the horizontal scroll
   (scroll snap, hidden scrollbar, 2 px top padding so the lift is not
   clipped). The discipline whose id is `currentId` gets class `current` and
   `aria-current="page"`: accent background and border with the white icon
@@ -272,7 +273,7 @@ the page, and only these:
   `GameRow` (three score states, winner/loser classes, draw, link), `TabBar`
   (three links, active by prefix on `/2026/teams/1`, nothing for `null`
   year, Photos item when `photosUrl`), `TeamGameRow` (five states),
-  `DisciplineRail` (revealed link, dimmed and `aria-disabled` unrevealed one,
+  `DisciplineRail` (revealed link, `.unrevealed` link with no `aria-disabled`,
   `current` + `aria-current="page"` on `currentId` and on nothing without it),
   `ordinal` and `disciplineSubtitle` in `edition.test.js`.
 
