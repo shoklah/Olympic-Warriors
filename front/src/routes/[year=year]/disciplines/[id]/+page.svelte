@@ -1,170 +1,206 @@
 <script>
 	import { formatDifference } from '$lib/edition';
+	import { iconFor } from '$lib/icons';
+	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
+	import MedalRank from '$lib/components/MedalRank.svelte';
+	import GameRow from '$lib/components/GameRow.svelte';
 
 	export let data;
 
 	$: year = data.summary.edition.year;
+	$: rounds = (data.schedule ?? []).filter((round) => round.games.length > 0);
+	// The difference is summed from game scores, so a discipline without rounds
+	// has nothing but zeroes to show.
+	$: showDifference = data.schedule !== null;
+
+	/** "3 games" once every game is played, "1 to play" while some are not. */
+	function roundCount(round) {
+		const left = round.games.filter((g) => !g.isPlayed).length;
+		if (left > 0) return `${left} to play`;
+		return `${round.games.length} game${round.games.length === 1 ? '' : 's'}`;
+	}
 </script>
 
-<h1>{data.discipline.name}</h1>
+<div class="page">
+	<Breadcrumb
+		items={[
+			{ label: String(year), href: `/${year}` },
+			{ label: 'Disciplines', href: `/${year}/disciplines` },
+			{ label: data.discipline.name }
+		]}
+	/>
 
-{#if data.results === null}
-	<p class="not-revealed">Results not revealed yet</p>
-{:else}
-	<div id="results">
-		{#each data.results as result}
-			<a
-				class="team-card"
-				class:gold={result.ranking === 1}
-				class:silver={result.ranking === 2}
-				class:bronze={result.ranking === 3}
-				data-testid="result-row"
-				href="/{year}/teams/{result.team}"
-			>
-				<span>{result.ranking === null ? '—' : `${result.ranking}.`} {result.teamName}</span>
-				{#if result.ranking === null}
-					<span>—</span>
-				{:else if result.result_type === 'TIM'}
-					<span>{result.time}</span>
-				{:else}
-					<span>{result.points} pts ({formatDifference(result.points_difference)})</span>
-				{/if}
-			</a>
-		{/each}
-	</div>
-{/if}
+	<h1>
+		<img src={iconFor(data.discipline.name)} alt="" />
+		{data.discipline.name}
+	</h1>
 
-{#if data.schedule !== null && data.schedule.some((r) => r.games.length > 0)}
-	<section class="schedule">
-		<h2>Schedule</h2>
-		{#each data.schedule as round}
-			{#if round.games.length > 0}
-				<h3>Round {round.order + 1}</h3>
+	{#if data.results === null}
+		<p class="not-revealed">Results not revealed yet</p>
+	{:else}
+		<div id="results">
+			{#each data.results as result}
+				<a
+					class="result-row"
+					class:gold={result.ranking === 1}
+					class:silver={result.ranking === 2}
+					class:bronze={result.ranking === 3}
+					data-testid="result-row"
+					href="/{year}/teams/{result.team}"
+				>
+					<MedalRank rank={result.ranking} />
+					<span class="name">{result.teamName}</span>
+					<span class="diff">
+						{showDifference &&
+						result.result_type === 'PTS' &&
+						result.points_difference !== null
+							? formatDifference(result.points_difference)
+							: ''}
+					</span>
+					<span class="num value">
+						{#if result.ranking === null}
+							—
+						{:else if result.result_type === 'TIM'}
+							{result.time}
+						{:else}
+							{result.points} pts
+						{/if}
+					</span>
+				</a>
+			{/each}
+		</div>
+	{/if}
+
+	{#if rounds.length > 0}
+		<section class="schedule">
+			<h2>Schedule</h2>
+			{#each rounds as round}
+				<div class="round-header">
+					<h3>Round {round.order + 1}</h3>
+					<span class="label" class:todo={round.games.some((g) => !g.isPlayed)}>
+						{roundCount(round)}
+					</span>
+				</div>
 				{#each round.games as game}
-					<div class="game" data-testid="game-row">
-						<p class="teams">
-							<a href="/{year}/teams/{game.team1Id}">{game.team1Name}</a>
-							<span class="score"
-								>{!game.isPlayed
-									? '—'
-									: game.score1 === null
-										? 'played'
-										: `${game.score1} – ${game.score2}`}</span
-							>
-							<a href="/{year}/teams/{game.team2Id}">{game.team2Name}</a>
-						</p>
-						<p class="referee">ref: {game.refereeName}</p>
-					</div>
+					<GameRow
+						team1Name={game.team1Name}
+						team2Name={game.team2Name}
+						team1Href="/{year}/teams/{game.team1Id}"
+						team2Href="/{year}/teams/{game.team2Id}"
+						score1={game.score1}
+						score2={game.score2}
+						isPlayed={game.isPlayed}
+						refereeName={game.refereeName}
+					/>
 				{/each}
-			{/if}
-		{/each}
-	</section>
-{/if}
+			{/each}
+		</section>
+	{/if}
+</div>
 
 <style>
+	h1 {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		margin: 0 0 0.8rem;
+	}
+
+	h1 img {
+		height: 40px;
+		width: 40px;
+	}
+
 	.not-revealed {
-		text-align: center;
-		font-weight: 600;
-		margin: 3rem 1rem;
+		margin: 1rem 0 2rem;
+		color: var(--muted);
 	}
 
 	#results {
 		display: flex;
 		flex-direction: column;
-		gap: 10px;
-		margin: 0 auto;
-		width: min(98%, 800px);
+		gap: 6px;
 	}
 
-	.team-card {
-		background-color: var(--color-bg-0);
-		border: 1px solid #ccc;
-		border-radius: 10px;
-		padding: 1em 10px;
-		box-shadow: 0 2px 4px #00000030;
-		transition: 0.3s;
-		display: flex;
-		justify-content: space-between;
+	.result-row {
+		display: grid;
+		grid-template-columns: 40px minmax(0, 1fr) auto auto;
 		align-items: center;
-		color: inherit;
+		gap: 12px;
+		--medal-size: 1.9rem;
+		padding: 9px 12px;
+		background: var(--bg-raised);
+		border-radius: var(--radius);
+		border-left: 4px solid var(--line-strong);
+		color: var(--text);
+		text-decoration: none;
+		transition: background 0.2s ease;
+	}
+
+	.result-row:hover {
+		background: var(--line);
 		text-decoration: none;
 	}
 
-	.team-card.gold {
-		background: linear-gradient(45deg, #e6b800, #f2d06b, #e6b800, #e6ac00);
+	.result-row:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: -2px;
 	}
 
-	.team-card.silver {
-		background: linear-gradient(45deg, #e0e0e0, #cfcfcf, #b0b0b0, #d1d1d1, #f7f7f7);
+	.result-row.gold {
+		border-left-color: var(--gold);
 	}
 
-	.team-card.bronze {
-		background: linear-gradient(45deg, #cd7f32, #b87333, #8c5311);
+	.result-row.silver {
+		border-left-color: var(--silver);
 	}
 
-	.team-card:hover {
-		transform: translate(0, -4px);
+	.result-row.bronze {
+		border-left-color: var(--bronze);
 	}
 
-	.team-card span {
-		font-size: 1rem;
-		font-weight: 600;
-		margin: 0;
-	}
-
-	.schedule {
-		width: min(98%, 800px);
-		margin: 2rem auto;
-	}
-
-	.schedule h2 {
-		font-size: 1.3rem;
-		font-weight: 700;
-		text-transform: uppercase;
-		letter-spacing: 0.1em;
-	}
-
-	.schedule h3 {
-		font-size: 1rem;
-		font-weight: 700;
-		margin: 1.5rem 0 0.5rem;
-	}
-
-	.game {
-		border: 1px solid #ccc;
-		border-radius: 10px;
-		padding: 0.6rem 10px;
-		margin-bottom: 8px;
-	}
-
-	.game .teams {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		gap: 1rem;
-		margin: 0;
-		font-weight: 600;
-	}
-
-	.game .teams a {
-		color: inherit;
-		flex: 1;
+	.name {
 		min-width: 0;
+		font-weight: 600;
+		font-size: 0.95rem;
 		overflow-wrap: anywhere;
 	}
 
-	.game .teams a:last-of-type {
-		text-align: right;
-	}
-
-	.game .score {
+	.diff {
+		font-size: 0.75rem;
 		font-variant-numeric: tabular-nums;
-		white-space: nowrap;
+		text-align: right;
+		color: var(--muted);
 	}
 
-	.game .referee {
-		margin: 0.2rem 0 0;
-		font-size: 0.85rem;
-		opacity: 0.7;
+	.value {
+		font-size: 1.5rem;
+		line-height: 1;
+		letter-spacing: 0.04em;
+		color: var(--ink);
+	}
+
+	.schedule {
+		margin: 1.6rem 0 2rem;
+	}
+
+	.schedule h2 {
+		margin: 0 0 0.6rem;
+	}
+
+	.round-header {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 1rem;
+		margin: 1rem 0 0.4rem;
+	}
+
+	.round-header h3 {
+		margin: 0;
+	}
+
+	.round-header .todo {
+		color: var(--todo);
 	}
 </style>

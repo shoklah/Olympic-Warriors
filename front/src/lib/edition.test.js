@@ -3,6 +3,7 @@ import {
 	countdownParts,
 	disciplineResults,
 	disciplineSchedule,
+	disciplineSubtitle,
 	editionPhase,
 	findDiscipline,
 	findTeam,
@@ -277,6 +278,33 @@ describe('disciplineSchedule', () => {
 		};
 		const rounds = disciplineSchedule(withEmptyRound, 10);
 		expect(rounds[2]).toEqual({ order: 2, isOver: false, games: [] });
+	});
+});
+
+describe('disciplineSubtitle', () => {
+	it('counts the rounds and the games of the discipline', () => {
+		expect(disciplineSubtitle(summary, summary.disciplines[0])).toBe('2 rounds · 3 games');
+	});
+
+	it('keeps a single round and a single game singular', () => {
+		expect(disciplineSubtitle(summary, summary.disciplines[1])).toBe('1 round · 1 game');
+	});
+
+	it('counts the games even when the discipline has none yet', () => {
+		const noGames = { ...summary, games: summary.games.filter((g) => g.discipline !== 10) };
+		expect(disciplineSubtitle(noGames, summary.disciplines[0])).toBe('2 rounds · 0 games');
+	});
+
+	it('falls back to the result type when the discipline has no round', () => {
+		const noRounds = { ...summary, rounds: [], games: [] };
+		expect(disciplineSubtitle(noRounds, { id: 10, result_type: 'PTS' })).toBe('points');
+		expect(disciplineSubtitle(noRounds, { id: 10, result_type: 'TIM' })).toBe('time');
+		expect(disciplineSubtitle(noRounds, { id: 10, result_type: 'NON' })).toBe('');
+	});
+
+	it('ignores reveal_score', () => {
+		const hidden = { ...summary.disciplines[0], reveal_score: false };
+		expect(disciplineSubtitle(summary, hidden)).toBe('2 rounds · 3 games');
 	});
 });
 

@@ -18,9 +18,9 @@ describe('discipline page', () => {
 		expect(screen.getByRole('heading', { name: 'Relay' })).toBeInTheDocument();
 		const rows = screen.getAllByTestId('result-row');
 		expect(rows).toHaveLength(3);
-		expect(rows[0]).toHaveTextContent(/1\.\s*Bisons\s*10 pts \(\+4\)/);
-		expect(rows[1]).toHaveTextContent(/2\.\s*Aigles\s*5 pts \(-2\)/);
-		expect(rows[2]).toHaveTextContent(/3\.\s*Cerfs\s*0 pts \(-2\)/);
+		expect(rows[0]).toHaveTextContent(/1\s*Bisons\s*\+4\s*10 pts/);
+		expect(rows[1]).toHaveTextContent(/2\s*Aigles\s*-2\s*5 pts/);
+		expect(rows[2]).toHaveTextContent(/3\s*Cerfs\s*-2\s*0 pts/);
 		// the whole row is the link, so its name carries the rank and the score too
 		expect(rows[0]).toHaveAttribute('href', '/2026/teams/2');
 		expect(rows[0]).toHaveClass('gold');
@@ -32,7 +32,7 @@ describe('discipline page', () => {
 		render(Page, { data: dataFor(summaryAllRevealed, 11) });
 
 		const rows = screen.getAllByTestId('result-row');
-		expect(rows[0]).toHaveTextContent('1. Aigles');
+		expect(rows[0]).toHaveTextContent('1 Aigles');
 		expect(rows[0]).toHaveTextContent('00:12:30');
 	});
 
@@ -50,10 +50,10 @@ describe('discipline page', () => {
 		expect(screen.getByRole('heading', { name: 'Round 1' })).toBeInTheDocument();
 		const games = screen.getAllByTestId('game-row');
 		expect(games).toHaveLength(3);
-		expect(games[0]).toHaveTextContent(/Bisons\s*12 – 9\s*Aigles/);
+		expect(games[0]).toHaveTextContent(/Bisons\s*12 : 9\s*Aigles/);
 		expect(games[0]).toHaveTextContent('ref: Cerfs');
-		expect(games[1]).toHaveTextContent(/Cerfs\s*—\s*Bisons/);
-		expect(games[2]).toHaveTextContent(/Aigles\s*7 – 7\s*Cerfs/);
+		expect(games[1]).toHaveTextContent(/Cerfs\s*— : —\s*Bisons/);
+		expect(games[2]).toHaveTextContent(/Aigles\s*7 : 7\s*Cerfs/);
 		expect(within(games[0]).getByRole('link', { name: 'Bisons' })).toHaveAttribute(
 			'href',
 			'/2026/teams/2'

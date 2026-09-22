@@ -172,6 +172,22 @@ export function disciplineSchedule(summary, disciplineId) {
 		}));
 }
 
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+const RESULT_TYPE_LABELS = { PTS: 'points', TIM: 'time' };
+
+/**
+ * One line under a discipline name: how many rounds and games it holds, or the
+ * kind of result it produces when it has no round. `reveal_score` plays no part.
+ */
+export function disciplineSubtitle(summary, discipline) {
+	const rounds = summary.rounds.filter((r) => r.discipline === discipline.id).length;
+	if (rounds === 0) return RESULT_TYPE_LABELS[discipline.result_type] ?? '';
+
+	const games = summary.games.filter((g) => g.discipline === discipline.id).length;
+	return `${plural(rounds, 'round')} · ${plural(games, 'game')}`;
+}
+
 function gameResult(own, theirs) {
 	if (own === null || theirs === null) return null;
 	if (own > theirs) return 'win';

@@ -1,81 +1,116 @@
 <script>
 	import { iconFor } from '$lib/icons';
+	import { disciplineSubtitle } from '$lib/edition';
+	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 
 	export let data;
 
 	$: year = data.summary.edition.year;
+	$: disciplines = data.summary.disciplines;
 </script>
 
-<h1>Disciplines</h1>
-<div class="grid-container">
-	{#each data.summary.disciplines as discipline}
-		<a href="/{year}/disciplines/{discipline.id}">
-			<div class="card">
-				<img src={iconFor(discipline.name)} alt="" />
-				<h2>{discipline.name}</h2>
-			</div>
-		</a>
-	{/each}
+<div class="page">
+	<Breadcrumb items={[{ label: String(year), href: `/${year}` }, { label: 'Disciplines' }]} />
+	<h1>Disciplines</h1>
+
+	<div class="grid">
+		{#each disciplines as discipline}
+			<!-- The whole card is the link, so its name is pinned to the bare discipline name. -->
+			<a
+				class="card"
+				class:dimmed={!discipline.reveal_score}
+				href="/{year}/disciplines/{discipline.id}"
+				aria-label={discipline.name}
+			>
+				<span class="icon">
+					<img src={iconFor(discipline.name)} alt="" />
+				</span>
+				<span class="text">
+					<span class="name">{discipline.name}</span>
+					<span class="label subtitle">{disciplineSubtitle(data.summary, discipline)}</span>
+				</span>
+			</a>
+		{/each}
+	</div>
 </div>
 
 <style>
 	h1 {
-		visibility: hidden;
+		margin: 0 0 0.8rem;
 	}
 
-	img {
-		position: absolute;
-		height: 90%;
-		width: 50%;
-		right: 0;
-	}
-
-	.grid-container {
+	.grid {
 		display: grid;
-		width: min(90%, 1400px);
-		grid-template-columns: repeat(auto-fill, minmax(500px, 1fr));
-		gap: 16px;
-		padding: 16px;
-		margin: 0 auto;
+		grid-template-columns: 1fr 1fr;
+		gap: 8px;
+		margin-bottom: 2rem;
 	}
 
 	.card {
-		position: relative;
-		height: 160px;
-		background-color: var(--color-theme-1);
-		border-radius: 8px;
-		border: 2px solid #999999;
-		padding: 16px;
-		transition: 0.2s;
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		padding: 12px;
+		background: var(--bg-raised);
+		border: 1px solid var(--line);
+		border-radius: var(--radius);
+		color: var(--text);
+		text-decoration: none;
+		transition:
+			transform 0.2s ease,
+			background 0.2s ease;
 	}
 
 	.card:hover {
-		transform: translate(0, -4px);
-	}
-
-	h2 {
-		color: var(--color-theme-2);
-		font-size: 1.5rem;
-		font-weight: 600;
-	}
-
-	a:hover {
+		background: var(--line);
+		transform: translateY(-2px);
 		text-decoration: none;
 	}
 
-	@media (max-width: 1000px) {
-		h1 {
-			display: none;
-		}
+	.card:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: -2px;
+	}
+
+	.icon {
+		flex: none;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		height: 44px;
+		width: 44px;
+		border-radius: var(--radius);
+		background: var(--bg-sunken);
+		border: 1px solid var(--line);
+	}
+
+	.icon img {
+		height: 76%;
+		width: 76%;
+	}
+
+	.text {
+		min-width: 0;
+	}
+
+	.name {
+		display: block;
+		font-family: var(--font-display);
+		font-size: 1.4rem;
+		letter-spacing: 0.06em;
+		line-height: 1;
+		color: var(--ink);
+		overflow-wrap: anywhere;
+	}
+
+	.subtitle {
+		display: block;
+		margin-top: 4px;
 	}
 
 	@media (max-width: 580px) {
-		.grid-container {
+		.grid {
 			grid-template-columns: 1fr;
-		}
-
-		.card {
-			height: 100px;
 		}
 	}
 </style>

@@ -16,4 +16,10 @@ describe('disciplines grid', () => {
 			'/2026/disciplines/11'
 		);
 	});
+
+	it('subtitles a card with its rounds and games', () => {
+		render(Page, { data: { summary } });
+
+		expect(screen.getByRole('link', { name: 'Relay' })).toHaveTextContent('2 rounds · 3 games');
+	});
 });
