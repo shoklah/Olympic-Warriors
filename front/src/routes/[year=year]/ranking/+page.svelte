@@ -1,6 +1,8 @@
 <script>
-	import { iconFor } from '$lib/icons';
 	import { rankedTeams } from '$lib/edition';
+	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
+	import DisciplineRail from '$lib/components/DisciplineRail.svelte';
+	import MedalRank from '$lib/components/MedalRank.svelte';
 
 	export let data;
 
@@ -9,154 +11,122 @@
 	$: disciplines = data.summary.disciplines;
 </script>
 
-<div class="flex-box">
-	<div id="disciplines">
-		{#each disciplines as discipline}
-			<a
-				class="discipline-card"
-				class:dimmed={!discipline.reveal_score}
-				href="/{year}/disciplines/{discipline.id}"
-				aria-disabled={discipline.reveal_score ? undefined : 'true'}
-				tabindex={discipline.reveal_score ? undefined : -1}
-				aria-label={discipline.name}
-			>
-				<img src={iconFor(discipline.name)} alt="" />
-			</a>
-		{/each}
-	</div>
+<div class="page">
+	<Breadcrumb items={[{ label: String(year), href: `/${year}` }, { label: 'Ranking' }]} />
+	<h1>Ranking</h1>
 
-	<div id="teams">
-		{#each teams as team}
-			<a
-				class="team-card"
-				class:gold={team.ranking === 1}
-				class:silver={team.ranking === 2}
-				class:bronze={team.ranking === 3}
-				data-testid="team-row"
-				href="/{year}/teams/{team.id}"
-			>
-				<span>{team.ranking}. {team.name}</span>
-				<span>{team.total_points} pts</span>
-			</a>
-		{/each}
+	<div class="columns">
+		<div id="disciplines">
+			<DisciplineRail {year} {disciplines} />
+		</div>
+
+		<div id="teams">
+			{#each teams as team}
+				<a
+					class="team-row"
+					class:gold={team.ranking === 1}
+					class:silver={team.ranking === 2}
+					class:bronze={team.ranking === 3}
+					data-testid="team-row"
+					href="/{year}/teams/{team.id}"
+				>
+					<MedalRank rank={team.ranking} />
+					<span class="name">{team.name}</span>
+					<span class="num pts">{team.total_points} pts</span>
+				</a>
+			{/each}
+		</div>
 	</div>
 </div>
 
 <style>
-	.flex-box {
+	h1 {
+		margin: 0 0 0.8rem;
+	}
+
+	.columns {
 		display: flex;
 		flex-direction: column;
-		gap: 20px;
+		gap: 14px;
+		margin-bottom: 2rem;
 	}
 
-	#disciplines {
-		display: flex;
-		gap: clamp(5px, 3vw, 40px);
-		margin: 0 clamp(10px, 4vw, 40px);
-		overflow-x: auto;
-		overflow-y: hidden;
-		flex-wrap: nowrap;
-		-ms-overflow-style: none;
-		scrollbar-width: none;
-	}
-
-	#disciplines::-webkit-scrollbar {
-		display: none;
-	}
-
-	.discipline-card {
-		height: clamp(70px, 12vw, 100px);
-		width: clamp(70px, 12vw, 100px);
-		flex: none;
-		border-radius: 50%;
-		background-color: var(--color-theme-1);
-		display: flex;
-		justify-content: center;
-		align-items: center;
-		transition: 0.3s;
-	}
-
-	.discipline-card.dimmed {
-		opacity: 0.2;
-		pointer-events: none;
-	}
-
-	.discipline-card img {
-		height: 80%;
-		width: 80%;
-	}
-
-	.discipline-card:hover {
-		transform: translate(0, -4px);
+	.team-row:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: -2px;
 	}
 
 	#teams {
 		display: flex;
 		flex-direction: column;
-		gap: 10px;
-		margin: 0 1vw;
+		gap: 6px;
 	}
 
-	.team-card {
-		background-color: var(--color-bg-0);
-		border: 1px solid #ccc;
-		border-radius: 10px;
-		padding: 1em 10px;
-		box-shadow: 0 2px 4px #00000030;
-		transition: 0.3s;
-		display: flex;
-		justify-content: space-between;
+	.team-row {
+		display: grid;
+		grid-template-columns: 44px minmax(0, 1fr) auto;
 		align-items: center;
+		gap: 12px;
+		--medal-size: 1.9rem;
+		padding: 10px 12px;
+		background: var(--bg-raised);
+		border-radius: var(--radius);
+		border-left: 4px solid var(--line-strong);
+		color: var(--text);
+		text-decoration: none;
+		transition: background 0.2s ease;
+	}
+
+	.team-row:hover {
+		background: var(--line);
 		text-decoration: none;
 	}
 
-	.team-card span {
-		font-size: 1rem;
+	.team-row.gold {
+		border-left-color: var(--gold);
+	}
+
+	.team-row.silver {
+		border-left-color: var(--silver);
+	}
+
+	.team-row.bronze {
+		border-left-color: var(--bronze);
+	}
+
+	.name {
 		font-weight: 600;
-		color: var(--color-theme-1);
-		margin: 0;
+		font-size: 1rem;
+		min-width: 0;
+		overflow-wrap: anywhere;
 	}
 
-	.team-card.gold {
-		background: linear-gradient(45deg, #e6b800, #f2d06b, #e6b800, #e6ac00);
-	}
-
-	.team-card.silver {
-		background: linear-gradient(45deg, #e0e0e0, #cfcfcf, #b0b0b0, #d1d1d1, #f7f7f7);
-	}
-
-	.team-card.bronze {
-		background: linear-gradient(45deg, #cd7f32, #b87333, #8c5311);
-	}
-
-	.team-card:hover {
-		transform: translate(0, -4px);
+	.pts {
+		font-size: 1.6rem;
+		line-height: 1;
+		letter-spacing: 0.06em;
 	}
 
 	@media (min-width: 1000px) {
-		.flex-box {
+		.columns {
 			flex-direction: row;
-			justify-content: center;
+			align-items: flex-start;
 			gap: 20px;
-			margin: 80px 0;
 		}
 
 		#teams {
 			order: 1;
-			width: min(65%, 800px);
+			flex: 1;
 		}
 
 		#disciplines {
 			order: 2;
-			flex-direction: column;
-			gap: 15px;
-			overflow: visible;
 		}
 
-		.discipline-card {
-			border-radius: 10px;
-			height: 100px;
-			width: 100px;
+		/* The rail is the component's own <nav>: stack it beside the rows. */
+		#disciplines :global(nav) {
+			flex-direction: column;
+			overflow: visible;
 		}
 	}
 </style>

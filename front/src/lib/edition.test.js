@@ -3,12 +3,15 @@ import {
 	countdownParts,
 	disciplineResults,
 	disciplineSchedule,
+	disciplineSubtitle,
 	editionPhase,
 	findDiscipline,
 	findTeam,
 	formatDateRange,
 	formatDifference,
+	ordinal,
 	rankedTeams,
+	roundCount,
 	startInstant,
 	switchYearPath,
 	teamGames,
@@ -183,6 +186,29 @@ describe('formatDifference', () => {
 	});
 });
 
+describe('ordinal', () => {
+	it('suffixes the usual ranks', () => {
+		expect(ordinal(1)).toBe('1st');
+		expect(ordinal(2)).toBe('2nd');
+		expect(ordinal(3)).toBe('3rd');
+		expect(ordinal(4)).toBe('4th');
+	});
+
+	it('keeps the teens in th', () => {
+		expect(ordinal(11)).toBe('11th');
+		expect(ordinal(12)).toBe('12th');
+		expect(ordinal(13)).toBe('13th');
+	});
+
+	it('suffixes above twenty and above a hundred', () => {
+		expect(ordinal(21)).toBe('21st');
+		expect(ordinal(22)).toBe('22nd');
+		expect(ordinal(23)).toBe('23rd');
+		expect(ordinal(101)).toBe('101st');
+		expect(ordinal(111)).toBe('111th');
+	});
+});
+
 describe('switchYearPath', () => {
 	it('replaces the year segment and keeps the section', () => {
 		expect(switchYearPath('/2026/teams', 2025)).toBe('/2025/teams');
@@ -253,6 +279,49 @@ describe('disciplineSchedule', () => {
 		};
 		const rounds = disciplineSchedule(withEmptyRound, 10);
 		expect(rounds[2]).toEqual({ order: 2, isOver: false, games: [] });
+	});
+});
+
+describe('disciplineSubtitle', () => {
+	it('counts the rounds and the games of the discipline', () => {
+		expect(disciplineSubtitle(summary, summary.disciplines[0])).toBe('2 rounds · 3 games');
+	});
+
+	it('keeps a single round and a single game singular', () => {
+		expect(disciplineSubtitle(summary, summary.disciplines[1])).toBe('1 round · 1 game');
+	});
+
+	it('counts the games even when the discipline has none yet', () => {
+		const noGames = { ...summary, games: summary.games.filter((g) => g.discipline !== 10) };
+		expect(disciplineSubtitle(noGames, summary.disciplines[0])).toBe('2 rounds · 0 games');
+	});
+
+	it('falls back to the result type when the discipline has no round', () => {
+		const noRounds = { ...summary, rounds: [], games: [] };
+		expect(disciplineSubtitle(noRounds, { id: 10, result_type: 'PTS' })).toBe('points');
+		expect(disciplineSubtitle(noRounds, { id: 10, result_type: 'TIM' })).toBe('time');
+		expect(disciplineSubtitle(noRounds, { id: 10, result_type: 'NON' })).toBe('');
+	});
+
+	it('ignores reveal_score', () => {
+		const hidden = { ...summary.disciplines[0], reveal_score: false };
+		expect(disciplineSubtitle(summary, hidden)).toBe('2 rounds · 3 games');
+	});
+});
+
+describe('roundCount', () => {
+	const round = (...played) => ({ games: played.map((isPlayed) => ({ isPlayed })) });
+
+	it('counts the games of a round once every one is played', () => {
+		expect(roundCount(round(true, true, true))).toEqual({ text: '3 games', todo: false });
+	});
+
+	it('keeps a single game singular', () => {
+		expect(roundCount(round(true))).toEqual({ text: '1 game', todo: false });
+	});
+
+	it('counts what is left to play while a game is unplayed', () => {
+		expect(roundCount(round(true, false, false))).toEqual({ text: '2 to play', todo: true });
 	});
 });
 

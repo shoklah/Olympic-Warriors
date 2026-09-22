@@ -9,9 +9,9 @@ describe('ranking page', () => {
 
 		const rows = screen.getAllByTestId('team-row');
 		expect(rows).toHaveLength(3);
-		expect(rows[0]).toHaveTextContent(/1\. Bisons\s*5 pts/);
-		expect(rows[1]).toHaveTextContent(/2\. Aigles\s*3 pts/);
-		expect(rows[2]).toHaveTextContent(/3\. Cerfs\s*2 pts/);
+		expect(rows[0]).toHaveTextContent(/1\s*Bisons\s*5 pts/);
+		expect(rows[1]).toHaveTextContent(/2\s*Aigles\s*3 pts/);
+		expect(rows[2]).toHaveTextContent(/3\s*Cerfs\s*2 pts/);
 		// the whole row is the link
 		expect(rows[0]).toHaveAttribute('href', '/2026/teams/2');
 	});
@@ -25,7 +25,7 @@ describe('ranking page', () => {
 		expect(rows[2]).toHaveClass('bronze');
 	});
 
-	it('links revealed disciplines and disables hidden ones', () => {
+	it('links every discipline and dims the hidden ones', () => {
 		render(Page, { data: { summary } });
 
 		const relay = screen.getByRole('link', { name: 'Relay' });
@@ -33,7 +33,8 @@ describe('ranking page', () => {
 		expect(relay).not.toHaveAttribute('aria-disabled');
 
 		const orienteering = screen.getByRole('link', { name: 'Orienteering' });
-		expect(orienteering).toHaveAttribute('aria-disabled', 'true');
-		expect(orienteering).toHaveAttribute('tabindex', '-1');
+		expect(orienteering).toHaveAttribute('href', '/2026/disciplines/11');
+		expect(orienteering).not.toHaveAttribute('aria-disabled');
+		expect(orienteering).toHaveClass('unrevealed');
 	});
 });

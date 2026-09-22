@@ -40,10 +40,10 @@
 
 {#if phase === 'upcoming'}
 	<div id="countdown">
-		<div><span>{parts.days}</span>Days</div>
-		<div><span>{parts.hours}</span>Hours</div>
-		<div><span>{parts.minutes}</span>Minutes</div>
-		<div><span>{parts.seconds}</span>Seconds</div>
+		<div class="label"><span class="num">{parts.days}</span>Days</div>
+		<div class="label"><span class="num">{parts.hours}</span>Hours</div>
+		<div class="label"><span class="num">{parts.minutes}</span>Minutes</div>
+		<div class="label"><span class="num">{parts.seconds}</span>Seconds</div>
 	</div>
 {:else}
 	<div id="ranking">
@@ -92,9 +92,10 @@
 
 	.where {
 		text-align: center;
-		color: var(--color-theme-1);
-		font-weight: 600;
+		font-family: var(--font-display);
+		font-size: 1.1rem;
 		letter-spacing: 0.1em;
+		color: var(--accent);
 		margin: 0 1rem 1rem;
 	}
 
@@ -103,37 +104,39 @@
 		display: flex;
 		justify-content: center;
 		gap: 2rem;
-		font-size: 1rem;
 		margin: 1rem 0;
-		color: var(--color-theme-1);
 	}
 
 	#ranking a {
-		color: var(--color-bg-0);
-		background-color: var(--color-theme-1);
-		padding: 0.6rem 4rem;
-		border-radius: 2em;
-		font-weight: 700;
-		font-size: 2rem;
+		background: var(--accent);
+		color: var(--bg);
+		font-family: var(--font-display);
+		font-size: 1.6rem;
+		letter-spacing: 0.15em;
+		padding: 0.7rem 3rem;
+		border-radius: var(--radius);
 		transition: 0.3s;
 		text-decoration: none;
 	}
 
-	#ranking a:hover {
+	#ranking a:hover,
+	#ranking a:focus-visible {
 		opacity: 0.8;
 	}
 
-	#countdown div {
+	#countdown .label {
 		display: flex;
 		flex-direction: column;
 		align-items: center;
 		width: 75px;
 	}
 
-	#countdown span {
-		font-size: 2.5rem;
-		font-weight: 600;
-		margin-bottom: 1rem;
+	#countdown .num {
+		font-size: 3rem;
+		margin-bottom: 0.25rem;
+		color: var(--ink);
+		font-weight: 400;
+		letter-spacing: 0.02em;
 	}
 
 	.editions {
@@ -144,26 +147,40 @@
 	}
 
 	.editions a {
-		color: var(--color-theme-1);
-		border: 2px solid var(--color-theme-1);
-		border-radius: 2em;
-		padding: 0.4rem 1.2rem;
-		font-weight: 700;
+		font-family: var(--font-display);
 		letter-spacing: 0.1em;
+		color: var(--accent);
+		border: 2px solid var(--faint);
+		border-radius: var(--radius-pill);
+		padding: 0.4rem 1.2rem;
 		text-decoration: none;
 		transition: 0.2s;
 	}
 
-	.editions a:hover {
-		color: var(--color-bg-0);
-		background-color: var(--color-theme-1);
+	.editions a:hover,
+	.editions a:focus-visible {
+		color: var(--bg);
+		background-color: var(--accent);
 	}
 
+	/* Fills the hero and never overflows it: object-fit keeps the eclipse whole. */
 	#eclipse {
-		width: min(98%, 1200px);
-		margin: 0 auto;
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
 		transform: translate(1%, 0);
-		z-index: -10;
+		z-index: -1;
+	}
+
+	/* Everything after the hero paints above it, whatever the hero overflows. */
+	.where,
+	#countdown,
+	#ranking,
+	.editions {
+		position: relative;
+		z-index: 1;
 	}
 
 	#title {
@@ -181,13 +198,9 @@
 		align-items: center;
 	}
 
-	@media (max-width: 1000px) {
+	@media (max-width: 999.98px) {
 		.sportcolumn img {
 			width: min(100px, 20vw);
-		}
-
-		#eclipse {
-			width: min(98%, 800px);
 		}
 
 		#title {
@@ -201,6 +214,11 @@
 		#ranking a {
 			padding: 0.6rem 2rem;
 			font-size: 1.2rem;
+		}
+
+		#countdown {
+			gap: 1rem;
+			padding: 0 1rem;
 		}
 	}
 </style>

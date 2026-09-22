@@ -119,6 +119,17 @@ export function formatDifference(n) {
 	return n > 0 ? `+${n}` : `${n}`;
 }
 
+/** 1st, 2nd, 3rd, 4th, 11th, 21st — English ordinal of a rank. */
+export function ordinal(n) {
+	const mod100 = n % 100;
+	if (mod100 >= 11 && mod100 <= 13) return `${n}th`;
+	const mod10 = n % 10;
+	if (mod10 === 1) return `${n}st`;
+	if (mod10 === 2) return `${n}nd`;
+	if (mod10 === 3) return `${n}rd`;
+	return `${n}th`;
+}
+
 /**
  * Where the year switcher sends the visitor: same section under the other year
  * (a detail page falls back to its list), the hub for anything else.
@@ -159,6 +170,32 @@ export function disciplineSchedule(summary, disciplineId) {
 					score2: g.score2
 				}))
 		}));
+}
+
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+const RESULT_TYPE_LABELS = { PTS: 'points', TIM: 'time' };
+
+/**
+ * One line under a discipline name: how many rounds and games it holds, or the
+ * kind of result it produces when it has no round. `reveal_score` plays no part.
+ */
+export function disciplineSubtitle(summary, discipline) {
+	const rounds = summary.rounds.filter((r) => r.discipline === discipline.id).length;
+	if (rounds === 0) return RESULT_TYPE_LABELS[discipline.result_type] ?? '';
+
+	const games = summary.games.filter((g) => g.discipline === discipline.id).length;
+	return `${plural(rounds, 'round')} · ${plural(games, 'game')}`;
+}
+
+/**
+ * The line beside a round heading: how many games it holds, or how many are
+ * still to play. `todo` marks the second shape, which the page colours.
+ */
+export function roundCount(round) {
+	const left = round.games.filter((g) => !g.isPlayed).length;
+	if (left > 0) return { text: `${left} to play`, todo: true };
+	return { text: plural(round.games.length, 'game'), todo: false };
 }
 
 function gameResult(own, theirs) {
