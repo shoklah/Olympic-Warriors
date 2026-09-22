@@ -91,6 +91,8 @@ class TeamResult(models.Model):
             return 0
 
         if self.discipline.result_type == ResultTypes.TIME:
+            if self.time is None:
+                return 0
             return (
                 TeamResult.objects.filter(
                     discipline=self.discipline, time__lt=self.time, is_active=True
@@ -98,6 +100,8 @@ class TeamResult(models.Model):
                 + 1
             )
         elif self.discipline.result_type == ResultTypes.POINTS:
+            if self.points is None:
+                return 0
             results = annotate_points_difference(
                 TeamResult.objects.filter(discipline=self.discipline, is_active=True)
             )

@@ -4,6 +4,7 @@ Serializers for the Olympic Warriors app
 
 from rest_framework import serializers
 from django.contrib.auth.models import User
+from django.db.models import Prefetch
 from drf_spectacular.utils import extend_schema_field
 from olympic_warriors.models import (
     Player,
@@ -17,6 +18,7 @@ from olympic_warriors.models import (
     TeamResult,
     BlindtestRound,
     BlindtestGuess,
+    ResultTypes,
 )
 
 
@@ -199,36 +201,47 @@ class SummaryPlayerSerializer(serializers.ModelSerializer):
 
 
 class SummaryTeamSerializer(serializers.ModelSerializer):
-    ranking = serializers.ReadOnlyField()
-    total_points = serializers.ReadOnlyField()
+    """
+    A team's summary row. `ranking` and `total_points` are computed once by the parent
+    EditionSummarySerializer and handed in through context["totals"] instead of each
+    team recomputing Team.ranking/total_points (which would fan out per result).
+    """
+
+    ranking = serializers.SerializerMethodField()
+    total_points = serializers.SerializerMethodField()
     players = serializers.SerializerMethodField()
 
     class Meta:
         model = Team
         fields = ("id", "name", "ranking", "total_points", "players")
 
+    @extend_schema_field(serializers.IntegerField())
+    def get_ranking(self, obj):
+        totals = self.context["totals"]
+        return 1 + sum(1 for points in totals.values() if points > totals[obj.id])
+
+    @extend_schema_field(serializers.IntegerField())
+    def get_total_points(self, obj):
+        return self.context["totals"][obj.id]
+
     @extend_schema_field(SummaryPlayerSerializer(many=True))
     def get_players(self, obj):
-        players = (
-            Player.objects.filter(team=obj, is_active=True)
-            .select_related("user")
-            .order_by("user__last_name", "user__first_name")
-        )
-        return SummaryPlayerSerializer(players, many=True).data
+        return SummaryPlayerSerializer(obj.active_players, many=True).data
 
 
 class SummaryResultSerializer(serializers.ModelSerializer):
     """
     A team's result in a discipline. Score fields are null while the discipline's
-    reveal_score is off: the summary is public and must not leak a score early.
+    reveal_score is off, or while the result itself has no score yet for its type:
+    the summary is public and must not leak a score early, nor 500 on a NULL score.
     """
 
     HIDDEN_FIELDS = ("ranking", "points", "time", "points_difference", "global_points")
 
     result_type = serializers.ReadOnlyField()
-    ranking = serializers.ReadOnlyField()
-    points_difference = serializers.ReadOnlyField()
-    global_points = serializers.ReadOnlyField()
+    ranking = serializers.IntegerField(read_only=True, allow_null=True)
+    points_difference = serializers.IntegerField(read_only=True, allow_null=True)
+    global_points = serializers.IntegerField(read_only=True, allow_null=True)
 
     class Meta:
         model = TeamResult
@@ -245,7 +258,12 @@ class SummaryResultSerializer(serializers.ModelSerializer):
         )
 
     def to_representation(self, instance):
-        if instance.discipline.reveal_score:
+        missing_score = (
+            (instance.result_type == ResultTypes.POINTS and instance.points is None)
+            or (instance.result_type == ResultTypes.TIME and instance.time is None)
+            or instance.result_type == ResultTypes.NONE
+        )
+        if instance.discipline.reveal_score and not missing_score:
             return super().to_representation(instance)
         hidden = {
             "id": instance.id,
@@ -269,7 +287,20 @@ class EditionSummarySerializer(serializers.Serializer):
 
     def to_representation(self, instance):
         disciplines = Discipline.objects.filter(edition=instance, is_active=True).order_by("id")
-        teams = Team.objects.filter(edition=instance, is_active=True).order_by("name")
+        teams = list(
+            Team.objects.filter(edition=instance, is_active=True)
+            .order_by("name")
+            .prefetch_related(
+                Prefetch(
+                    "player_set",
+                    queryset=Player.objects.filter(is_active=True, edition=instance)
+                    .select_related("user")
+                    .order_by("user__last_name", "user__first_name"),
+                    to_attr="active_players",
+                )
+            )
+        )
+        totals = {team.id: team.total_points for team in teams}
         results = (
             TeamResult.objects.filter(
                 discipline__edition=instance,
@@ -283,6 +314,6 @@ class EditionSummarySerializer(serializers.Serializer):
         return {
             "edition": SummaryEditionSerializer(instance).data,
             "disciplines": SummaryDisciplineSerializer(disciplines, many=True).data,
-            "teams": SummaryTeamSerializer(teams, many=True).data,
+            "teams": SummaryTeamSerializer(teams, many=True, context={"totals": totals}).data,
             "results": SummaryResultSerializer(results, many=True).data,
         }

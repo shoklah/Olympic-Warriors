@@ -5,7 +5,7 @@ Tests for the Edition model changes and the public edition summary endpoint.
 from django.contrib.auth.models import User
 from django.db import IntegrityError, transaction
 from django.test import TestCase
-from rest_framework.test import APIClient, APITestCase
+from rest_framework.test import APITestCase
 
 from olympic_warriors.models import Edition, Orienteering, Player, Relay, Team, TeamResult
 from olympic_warriors.serializer import EditionSummarySerializer
@@ -78,7 +78,7 @@ class TestTeamResultsByEdition(APITestCase):
         self.assertNotIn("B", [r["team_name"] for r in response.data])
 
 
-class SummarySetup(TestCase):
+class SummarySetup:
     """
     One 2026 edition with three teams, a revealed Relay (points 10/5/0) and a hidden
     Orienteering, plus a 2025 edition that must never leak into the 2026 summary.
@@ -120,7 +120,7 @@ class SummarySetup(TestCase):
         return EditionSummarySerializer(self.edition).data
 
 
-class TestEditionSummarySerializer(SummarySetup):
+class TestEditionSummarySerializer(SummarySetup, TestCase):
 
     def test_edition_fields(self):
         edition = self.summary()["edition"]
@@ -177,10 +177,11 @@ class TestEditionSummarySerializer(SummarySetup):
     def test_revealed_results_carry_scores(self):
         results = [r for r in self.summary()["results"] if r["discipline"] == self.relay.id]
         by_team = {r["team"]: r for r in results}
+        row = by_team[self.team_b.id]
+        row.pop("id")
         self.assertEqual(
-            by_team[self.team_b.id],
+            row,
             {
-                "id": by_team[self.team_b.id]["id"],
                 "team": self.team_b.id,
                 "discipline": self.relay.id,
                 "result_type": "PTS",
@@ -218,12 +219,52 @@ class TestEditionSummarySerializer(SummarySetup):
         self.assertNotIn("Zèbres", [t["name"] for t in data["teams"]])
         self.assertEqual(len(data["results"]), 6)
 
+    def test_missing_score_in_revealed_discipline_is_null(self):
+        TeamResult.objects.filter(discipline=self.relay, team=self.team_c).update(points=None)
 
-class TestEditionSummaryEndpoint(APITestCase):
-    """GET /edition/year/<year>/summary/ is public and 404s on unknown or inactive years."""
+        results = self.summary()["results"]  # must not raise
+
+        results = [r for r in results if r["discipline"] == self.relay.id]
+        by_team = {r["team"]: r for r in results}
+        for field in ("ranking", "points", "time", "points_difference", "global_points"):
+            self.assertIsNone(by_team[self.team_c.id][field], field)
+
+        self.assertEqual(by_team[self.team_b.id]["ranking"], 1)
+        self.assertEqual(by_team[self.team_b.id]["global_points"], 5)
+        self.assertEqual(by_team[self.team_a.id]["ranking"], 2)
+        self.assertEqual(by_team[self.team_a.id]["global_points"], 3)
+
+
+class TestRankingWithoutScore(TestCase):
+    """TeamResult.ranking returns 0, never crashes, when the score for its type is NULL."""
 
     def setUp(self):
-        self.client = APIClient()  # no credentials on purpose
+        self.edition = Edition.objects.create(
+            year=2026, host="Paris", start_date="2026-09-19", end_date="2026-09-20"
+        )
+        self.team = Team.objects.create(name="Solo", edition=self.edition)
+
+    def test_points_discipline_without_points(self):
+        relay = Relay.objects.create(edition=self.edition, reveal_score=True)
+        result = TeamResult.objects.get(discipline=relay, team=self.team)
+        result.points = None
+        self.assertEqual(result.ranking, 0)
+        self.assertEqual(result.global_points, 0)
+
+    def test_time_discipline_without_time(self):
+        orienteering = Orienteering.objects.create(edition=self.edition, reveal_score=True)
+        result = TeamResult.objects.get(discipline=orienteering, team=self.team)
+        result.time = None
+        self.assertEqual(result.ranking, 0)
+
+
+class TestEditionSummaryEndpoint(APITestCase):
+    """
+    GET /edition/year/<year>/summary/ is public and 404s on unknown or inactive years.
+    APITestCase's self.client already carries no credentials by default.
+    """
+
+    def setUp(self):
         self.edition = Edition.objects.create(
             year=2026, host="Paris", start_date="2026-09-19", end_date="2026-09-20"
         )
