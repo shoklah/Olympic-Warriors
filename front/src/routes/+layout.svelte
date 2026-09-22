@@ -8,7 +8,8 @@
 	// The hub and the login page carry no section, so they get no bottom tab bar.
 	const HUB_OR_LOGIN = new Set(['/', '/[year=year]', '/login']);
 
-	$: showTabBar = !HUB_OR_LOGIN.has($page.route.id);
+	// An unmatched 404 has no route id: no section to show, so no tab bar either.
+	$: showTabBar = $page.route.id !== null && !HUB_OR_LOGIN.has($page.route.id);
 	// On an error page the year in the URL may be one with no edition, so fall back to the latest.
 	$: year = ($page.error ? null : $page.params.year) ?? $page.data.latestYear;
 	$: photosUrl =

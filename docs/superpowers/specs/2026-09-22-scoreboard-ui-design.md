@@ -128,7 +128,7 @@ is empty.
   `score1`, `score2`, `isPlayed`, `refereeName`, optional `team1Href`,
   `team2Href`. Root element carries `data-testid="game-row"`. Text order:
   team1, score, team2, then `ref: {refereeName}` on its own line. Score cell:
-  `13 : 0` in the display face when played with scores; `— : —` in ghost when
+  `13 : 0` in the display face when played with scores; `— : —` in muted when
   unplayed; `played` in muted when played but scores null. Winner name gets
   class `winner` (ink, weight 600), loser `loser` (muted); on a draw or
   without scores neither.

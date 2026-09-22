@@ -70,6 +70,12 @@ describe('GameRow', () => {
 		expect(screen.getByRole('link', { name: 'Aigles' })).toHaveAttribute('href', '/2026/teams/1');
 	});
 
+	it('omits the referee line when there is no referee', () => {
+		render(GameRow, { ...played, refereeName: null });
+
+		expect(screen.getByTestId('game-row')).not.toHaveTextContent('ref:');
+	});
+
 	it('renders plain names without a href', () => {
 		render(GameRow, played);
 

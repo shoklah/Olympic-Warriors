@@ -31,7 +31,7 @@
 		{#if hasScore}
 			<span class="score num">{score1} : {score2}</span>
 		{:else if !isPlayed}
-			<span class="score num ghost">— : —</span>
+			<span class="score num unplayed">— : —</span>
 		{:else}
 			<span class="score pending">played</span>
 		{/if}
@@ -92,8 +92,8 @@
 		color: var(--ink);
 	}
 
-	.score.ghost {
-		color: var(--ghost);
+	.score.unplayed {
+		color: var(--muted);
 	}
 
 	.score.pending {

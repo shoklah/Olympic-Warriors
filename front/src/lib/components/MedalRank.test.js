@@ -38,6 +38,12 @@ describe('MedalRank', () => {
 		expect(container.querySelector('.gold')).toHaveClass('rank');
 	});
 
+	it('keeps the medal in ordinal mode', () => {
+		const { container } = render(MedalRank, { rank: 1, ordinal: true });
+
+		expect(container.querySelector('.gold')).toHaveTextContent('1st');
+	});
+
 	it('keeps the dash in ordinal mode', () => {
 		const { container } = render(MedalRank, { rank: null, ordinal: true });
 

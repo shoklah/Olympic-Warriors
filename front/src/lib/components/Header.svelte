@@ -37,19 +37,20 @@
 		{/if}
 	</div>
 
-	<nav>
+	<nav aria-label="Sections">
 		<ul>
 			{#if year}
 				{#each tabs as tab}
-					<li
-						aria-current={!tab.external && $page.url.pathname.startsWith(tab.url)
-							? 'page'
-							: undefined}
-					>
+					<li>
 						{#if tab.external}
 							<a href={tab.url} target="_blank" rel="noopener">{tab.name}</a>
 						{:else}
-							<a href={tab.url}>{tab.name}</a>
+							<a
+								href={tab.url}
+								aria-current={$page.url.pathname.startsWith(tab.url) ? 'page' : undefined}
+							>
+								{tab.name}
+							</a>
 						{/if}
 					</li>
 				{/each}
@@ -90,6 +91,8 @@
 		color: var(--accent);
 		border: 1px solid var(--accent);
 		border-radius: var(--radius-pill);
+		/* The only control in the phone top bar: keep a 44px touch target. */
+		min-height: 44px;
 		padding: 0.15em 0.9em;
 		font-family: var(--font-display);
 		font-size: 1.1rem;
@@ -131,11 +134,16 @@
 		text-decoration: none;
 	}
 
-	li[aria-current='page'] a {
+	a:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: -2px;
+	}
+
+	a[aria-current='page'] {
 		color: var(--accent);
 	}
 
-	@media (max-width: 999px) {
+	@media (max-width: 999.98px) {
 		ul {
 			display: none;
 		}

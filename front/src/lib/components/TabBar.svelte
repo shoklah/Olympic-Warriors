@@ -72,6 +72,11 @@
 		text-decoration: none;
 	}
 
+	a:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: -2px;
+	}
+
 	a[aria-current='page'] {
 		color: var(--accent);
 	}

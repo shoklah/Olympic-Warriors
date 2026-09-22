@@ -33,6 +33,18 @@ describe('TabBar', () => {
 		expect(container.querySelector('nav')).toBeNull();
 	});
 
+	it('renders nothing when the year is missing', () => {
+		const { container } = render(TabBar, { year: undefined, pathname: '/' });
+
+		expect(container.querySelector('nav')).toBeNull();
+	});
+
+	it('renders nothing when the year is not a number', () => {
+		const { container } = render(TabBar, { year: 'abc', pathname: '/abc/teams' });
+
+		expect(container.querySelector('nav')).toBeNull();
+	});
+
 	it('adds an external photos item when the edition has an album', () => {
 		render(TabBar, {
 			year: 2026,

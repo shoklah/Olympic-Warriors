@@ -21,7 +21,7 @@
 </script>
 
 <div class="game-row" data-testid="game-row">
-	<span class="label round">Round {round + 1}</span>
+	<span class="label">Round {round + 1}</span>
 	<span class="separator" aria-hidden="true">{' · '}</span>
 	{#if role === 'referee'}
 		<span class="referee">referee</span>
