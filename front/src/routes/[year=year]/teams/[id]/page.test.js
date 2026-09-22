@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/svelte';
 import { describe, expect, it } from 'vitest';
 import Page from './+page.svelte';
+import { load } from './+page.js';
 import { findTeam, teamResults } from '$lib/edition';
 import { summary } from '$lib/fixtures/summary.js';
 
@@ -23,5 +24,13 @@ describe('team page', () => {
 		expect(rows).toHaveLength(2);
 		expect(rows[0]).toHaveTextContent(/Relay\s*2\s*5 pts/);
 		expect(rows[1]).toHaveTextContent(/Orienteering\s*—\s*—/);
+	});
+});
+
+describe('team page load', () => {
+	it('404s on an id that matches no team', async () => {
+		await expect(
+			load({ params: { id: 'abc' }, parent: async () => ({ summary }) })
+		).rejects.toMatchObject({ status: 404 });
 	});
 });

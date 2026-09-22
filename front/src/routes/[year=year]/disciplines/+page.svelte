@@ -11,7 +11,7 @@
 	{#each data.summary.disciplines as discipline}
 		<a href="/{year}/disciplines/{discipline.id}">
 			<div class="card">
-				<img src={iconFor(discipline.name)} alt={discipline.name} />
+				<img src={iconFor(discipline.name)} alt="" />
 				<h2>{discipline.name}</h2>
 			</div>
 		</a>

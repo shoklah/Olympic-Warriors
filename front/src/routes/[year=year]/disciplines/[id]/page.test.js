@@ -20,7 +20,11 @@ describe('discipline page', () => {
 		expect(rows[0]).toHaveTextContent(/1\.\s*Bisons\s*10 pts \(\+4\)/);
 		expect(rows[1]).toHaveTextContent(/2\.\s*Aigles\s*5 pts \(-2\)/);
 		expect(rows[2]).toHaveTextContent(/3\.\s*Cerfs\s*0 pts \(-2\)/);
-		expect(screen.getByRole('link', { name: 'Bisons' })).toHaveAttribute('href', '/2026/teams/2');
+		// the whole row is the link, so its name carries the rank and the score too
+		expect(screen.getByRole('link', { name: /Bisons/ })).toHaveAttribute('href', '/2026/teams/2');
+		expect(rows[0]).toHaveClass('gold');
+		expect(rows[1]).toHaveClass('silver');
+		expect(rows[2]).toHaveClass('bronze');
 	});
 
 	it('shows times for a revealed timed discipline', () => {

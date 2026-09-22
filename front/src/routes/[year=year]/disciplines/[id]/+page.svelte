@@ -9,12 +9,19 @@
 <h1>{data.discipline.name}</h1>
 
 {#if data.results === null}
-	<p class="hidden">Results not revealed yet</p>
+	<p class="not-revealed">Results not revealed yet</p>
 {:else}
 	<div id="results">
 		{#each data.results as result}
-			<div class="team-card" data-testid="result-row">
-				<p>{result.ranking === null ? '—' : `${result.ranking}.`} <a href="/{year}/teams/{result.team}">{result.teamName}</a></p>
+			<a
+				class="team-card"
+				class:gold={result.ranking === 1}
+				class:silver={result.ranking === 2}
+				class:bronze={result.ranking === 3}
+				data-testid="result-row"
+				href="/{year}/teams/{result.team}"
+			>
+				<span>{result.ranking === null ? '—' : `${result.ranking}.`} {result.teamName}</span>
 				{#if result.ranking === null}
 					<p>—</p>
 				{:else if result.result_type === 'TIM'}
@@ -22,13 +29,13 @@
 				{:else}
 					<p>{result.points} pts ({formatDifference(result.points_difference)})</p>
 				{/if}
-			</div>
+			</a>
 		{/each}
 	</div>
 {/if}
 
 <style>
-	.hidden {
+	.not-revealed {
 		text-align: center;
 		font-weight: 600;
 		margin: 3rem 1rem;
@@ -51,21 +58,19 @@
 		transition: 0.3s;
 		display: flex;
 		justify-content: space-between;
-	}
-
-	.team-card a {
 		color: inherit;
+		text-decoration: none;
 	}
 
-	#results .team-card:nth-of-type(1) {
+	.team-card.gold {
 		background: linear-gradient(45deg, #e6b800, #f2d06b, #e6b800, #e6ac00);
 	}
 
-	#results .team-card:nth-of-type(2) {
+	.team-card.silver {
 		background: linear-gradient(45deg, #e0e0e0, #cfcfcf, #b0b0b0, #d1d1d1, #f7f7f7);
 	}
 
-	#results .team-card:nth-of-type(3) {
+	.team-card.bronze {
 		background: linear-gradient(45deg, #cd7f32, #b87333, #8c5311);
 	}
 
@@ -73,6 +78,7 @@
 		transform: translate(0, -4px);
 	}
 
+	.team-card span,
 	.team-card p {
 		font-size: 1rem;
 		font-weight: 600;

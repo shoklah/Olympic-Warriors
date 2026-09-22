@@ -14,9 +14,10 @@
 		{#each disciplines as discipline}
 			<a
 				class="discipline-card"
-				class:hidden={!discipline.reveal_score}
+				class:dimmed={!discipline.reveal_score}
 				href="/{year}/disciplines/{discipline.id}"
 				aria-disabled={discipline.reveal_score ? undefined : 'true'}
+				tabindex={discipline.reveal_score ? undefined : -1}
 				aria-label={discipline.name}
 			>
 				<img src={iconFor(discipline.name)} alt="" />
@@ -26,10 +27,17 @@
 
 	<div id="teams">
 		{#each teams as team}
-			<div class="team-card" data-testid="team-row">
-				<a href="/{year}/teams/{team.id}">{team.ranking}. {team.name}</a>
+			<a
+				class="team-card"
+				class:gold={team.ranking === 1}
+				class:silver={team.ranking === 2}
+				class:bronze={team.ranking === 3}
+				data-testid="team-row"
+				href="/{year}/teams/{team.id}"
+			>
+				<span>{team.ranking}. {team.name}</span>
 				<p>{team.total_points} pts</p>
-			</div>
+			</a>
 		{/each}
 	</div>
 </div>
@@ -68,7 +76,7 @@
 		transition: 0.3s;
 	}
 
-	.discipline-card.hidden {
+	.discipline-card.dimmed {
 		opacity: 0.2;
 		pointer-events: none;
 	}
@@ -99,9 +107,10 @@
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
+		text-decoration: none;
 	}
 
-	.team-card a,
+	.team-card span,
 	.team-card p {
 		font-size: 1rem;
 		font-weight: 600;
@@ -109,15 +118,15 @@
 		margin: 1em 0;
 	}
 
-	#teams .team-card:nth-of-type(1) {
+	.team-card.gold {
 		background: linear-gradient(45deg, #e6b800, #f2d06b, #e6b800, #e6ac00);
 	}
 
-	#teams .team-card:nth-of-type(2) {
+	.team-card.silver {
 		background: linear-gradient(45deg, #e0e0e0, #cfcfcf, #b0b0b0, #d1d1d1, #f7f7f7);
 	}
 
-	#teams .team-card:nth-of-type(3) {
+	.team-card.bronze {
 		background: linear-gradient(45deg, #cd7f32, #b87333, #8c5311);
 	}
 
