@@ -34,7 +34,7 @@ describe('EditionHub', () => {
 		render(EditionHub, { summary, editions });
 
 		expect(screen.getByText('Paris · 19 – 20 September 2026')).toBeInTheDocument();
-		expect(screen.getByAltText('Relay')).toHaveAttribute('src', expect.stringMatching(/default\.svg$/));
+		expect(screen.getByAltText('Relay')).toHaveAttribute('src', expect.stringMatching(/relay\.svg$/));
 		expect(screen.getByAltText('Orienteering')).toHaveAttribute('src', expect.stringMatching(/orienteering\.svg$/));
 		expect(screen.getByRole('link', { name: '2025' })).toHaveAttribute('href', '/2025');
 		expect(screen.getByRole('link', { name: '2024' })).toHaveAttribute('href', '/2024');

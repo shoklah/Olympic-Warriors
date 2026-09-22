@@ -21,3 +21,27 @@ describe('iconFor', () => {
 		expect(iconFor('Underwater Chess')).toMatch(/default\.svg$/);
 	});
 });
+
+/** Every `self.name = '...'` in server/olympic_warriors/models/*.py. Keep in sync by hand. */
+const DISCIPLINE_NAMES = [
+	'Basketball',
+	'Blindtest',
+	'Crossfit',
+	'Darts',
+	'Dodgeball',
+	'Fair',
+	'General Culture Quizz',
+	'Geography Quizz',
+	'Hide and Seek',
+	'Obstacle Course',
+	'Orienteering',
+	'Petanque',
+	'Relay',
+	'Rugby'
+];
+
+describe('every discipline model has an icon', () => {
+	it.each(DISCIPLINE_NAMES)('%s', (name) => {
+		expect(iconFor(name)).not.toMatch(/default\.svg$/);
+	});
+});
