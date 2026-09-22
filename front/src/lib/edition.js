@@ -58,10 +58,19 @@ export function teamResults(summary, teamId) {
 	});
 }
 
-/** The event starts at 09:00 local time on start_date. */
+const EVENT_TZ = 'Europe/Paris';
+
+/** UTC offset of EVENT_TZ on that day at 09:00 UTC, as "+02:00" (DST-aware, no library). */
+function eventOffset(isoDate) {
+	const parts = new Intl.DateTimeFormat('en-US', { timeZone: EVENT_TZ, timeZoneName: 'longOffset' })
+		.formatToParts(new Date(`${isoDate}T09:00:00Z`));
+	const name = parts.find((p) => p.type === 'timeZoneName').value; // "GMT+02:00" or "GMT"
+	return name === 'GMT' ? '+00:00' : name.slice(3);
+}
+
+/** The event starts at 09:00 Europe/Paris on start_date, whatever timezone renders it. */
 export function startInstant(edition) {
-	const [year, month, day] = edition.start_date.split('-').map(Number);
-	return new Date(year, month - 1, day, 9, 0, 0);
+	return new Date(`${edition.start_date}T09:00:00${eventOffset(edition.start_date)}`);
 }
 
 /** "upcoming" before the start instant, "started" from then on. */

@@ -25,10 +25,19 @@ async function request(fetch, url, options) {
 	}
 
 	const isJson = (response.headers.get('content-type') ?? '').includes('application/json');
-	const body = isJson ? await response.json() : await response.text();
+	let body = null;
+	try {
+		body = isJson ? await response.json() : await response.text();
+	} catch {
+		body = null;
+	}
 
 	if (!response.ok) {
-		error(response.status, messageFrom(isJson ? body : null, response.statusText || 'API error'));
+		// SvelteKit's error() only accepts 400-599; anything else (e.g. a stray 3xx) becomes a 502.
+		const inRange = response.status >= 400 && response.status <= 599;
+		const status = inRange ? response.status : 502;
+		const fallback = inRange ? response.statusText || 'API error' : 'API error';
+		error(status, messageFrom(isJson ? body : null, fallback));
 	}
 	return body;
 }

@@ -47,6 +47,35 @@ describe('apiGet', () => {
 			body: { message: 'API unreachable' }
 		});
 	});
+
+	it('resolves to null for a 200 labelled JSON with an empty body', async () => {
+		const fetch = vi.fn().mockResolvedValue(
+			new Response('', { status: 200, headers: { 'content-type': 'application/json' } })
+		);
+		await expect(apiGet(fetch, 'http://api/x')).resolves.toBeNull();
+	});
+
+	it('falls back to the status text for a 500 labelled JSON with an unparsable body', async () => {
+		const fetch = vi.fn().mockResolvedValue(
+			new Response('<h1>oops</h1>', {
+				status: 500,
+				statusText: 'Internal Server Error',
+				headers: { 'content-type': 'application/json' }
+			})
+		);
+		await expect(apiGet(fetch, 'http://api/x')).rejects.toMatchObject({
+			status: 500,
+			body: { message: 'Internal Server Error' }
+		});
+	});
+
+	it('maps a non-error-range status (304) to 502', async () => {
+		const fetch = vi.fn().mockResolvedValue(new Response(null, { status: 304 }));
+		await expect(apiGet(fetch, 'http://api/x')).rejects.toMatchObject({
+			status: 502,
+			body: { message: 'API error' }
+		});
+	});
 });
 
 describe('apiPost', () => {

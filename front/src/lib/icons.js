@@ -1,3 +1,5 @@
+import fallback from './img/icons/default.svg?url';
+
 /**
  * Discipline name to icon URL. Every SVG in ./img/icons is bundled; the file stem is
  * the slug of the discipline name ("Hide and Seek" -> hideandseek.svg).
@@ -9,9 +11,9 @@ const icons = Object.fromEntries(
 );
 
 export function iconSlug(name) {
-	return name.toLowerCase().replace(/[\s']/g, '');
+	return name.toLowerCase().replace(/[\s'’]/g, '');
 }
 
 export function iconFor(name) {
-	return icons[iconSlug(name)] ?? icons.default;
+	return icons[iconSlug(name)] ?? fallback;
 }

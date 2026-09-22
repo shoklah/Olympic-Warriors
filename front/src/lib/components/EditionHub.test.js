@@ -14,7 +14,7 @@ describe('EditionHub', () => {
 	afterEach(() => vi.useRealTimers());
 
 	it('shows a countdown before the start', () => {
-		vi.setSystemTime(new Date(2026, 8, 17, 9, 0, 0));
+		vi.setSystemTime(new Date('2026-09-17T07:00:00Z'));
 		render(EditionHub, { summary, editions });
 
 		expect(screen.getByText('Days').querySelector('span')).toHaveTextContent('2');
@@ -22,7 +22,7 @@ describe('EditionHub', () => {
 	});
 
 	it('shows the ranking button once started', () => {
-		vi.setSystemTime(new Date(2026, 8, 19, 10, 0, 0));
+		vi.setSystemTime(new Date('2026-09-19T08:00:00Z'));
 		render(EditionHub, { summary, editions });
 
 		expect(screen.getByRole('link', { name: 'Ranking' })).toHaveAttribute('href', '/2026/ranking');
@@ -30,7 +30,7 @@ describe('EditionHub', () => {
 	});
 
 	it('shows host, dates, discipline icons and the other editions', () => {
-		vi.setSystemTime(new Date(2026, 8, 19, 10, 0, 0));
+		vi.setSystemTime(new Date('2026-09-19T08:00:00Z'));
 		render(EditionHub, { summary, editions });
 
 		expect(screen.getByText(/Paris/)).toBeInTheDocument();

@@ -5,6 +5,7 @@ describe('iconSlug', () => {
 	it('lowercases and strips spaces and apostrophes', () => {
 		expect(iconSlug('Hide and Seek')).toBe('hideandseek');
 		expect(iconSlug("Course d'orientation")).toBe('coursedorientation');
+		expect(iconSlug('Course d’orientation')).toBe('coursedorientation');
 		expect(iconSlug('Rugby')).toBe('rugby');
 	});
 });
@@ -17,6 +18,6 @@ describe('iconFor', () => {
 	});
 
 	it('falls back to default.svg for an unknown discipline', () => {
-		expect(iconFor('General Culture Quizz')).toMatch(/default\.svg$/);
+		expect(iconFor('Underwater Chess')).toMatch(/default\.svg$/);
 	});
 });

@@ -7,6 +7,7 @@ import {
 	findTeam,
 	formatDifference,
 	rankedTeams,
+	startInstant,
 	switchYearPath,
 	teamResults
 } from './edition.js';
@@ -71,6 +72,18 @@ describe('disciplineResults', () => {
 		};
 		expect(disciplineResults(partial, 10).map((r) => r.teamName)).toEqual(['Aigles', 'Cerfs', 'Bisons']);
 	});
+
+	it('sorts two unranked rows after the ranked one, by name', () => {
+		const partial = {
+			...summary,
+			results: summary.results.map((r) =>
+				r.id === 100 || r.id === 102
+					? { ...r, ranking: null, points: null, points_difference: null, global_points: null }
+					: r
+			)
+		};
+		expect(disciplineResults(partial, 10).map((r) => r.teamName)).toEqual(['Bisons', 'Aigles', 'Cerfs']);
+	});
 });
 
 describe('teamResults', () => {
@@ -115,23 +128,33 @@ describe('findTeam / findDiscipline', () => {
 	});
 });
 
-describe('editionPhase', () => {
-	it('is upcoming before 09:00 on start_date', () => {
-		expect(editionPhase(summary.edition, new Date(2026, 8, 19, 8, 59))).toBe('upcoming');
+describe('startInstant', () => {
+	it('anchors to 09:00 Europe/Paris (CEST, UTC+2) for the fixture edition', () => {
+		expect(startInstant(summary.edition).toISOString()).toBe('2026-09-19T07:00:00.000Z');
 	});
 
-	it('is started from 09:00 on start_date', () => {
-		expect(editionPhase(summary.edition, new Date(2026, 8, 19, 9, 0))).toBe('started');
+	it('anchors to 09:00 Europe/Paris (CET, UTC+1) in winter', () => {
+		expect(startInstant({ start_date: '2026-01-10' }).toISOString()).toBe('2026-01-10T08:00:00.000Z');
+	});
+});
+
+describe('editionPhase', () => {
+	it('is upcoming before 09:00 Europe/Paris on start_date', () => {
+		expect(editionPhase(summary.edition, new Date('2026-09-19T06:59:00Z'))).toBe('upcoming');
+	});
+
+	it('is started from 09:00 Europe/Paris on start_date', () => {
+		expect(editionPhase(summary.edition, new Date('2026-09-19T07:00:00Z'))).toBe('started');
 	});
 
 	it('is started long after', () => {
-		expect(editionPhase(summary.edition, new Date(2027, 0, 1))).toBe('started');
+		expect(editionPhase(summary.edition, new Date('2027-01-01T00:00:00Z'))).toBe('started');
 	});
 });
 
 describe('countdownParts', () => {
 	it('splits the remaining time', () => {
-		expect(countdownParts(summary.edition, new Date(2026, 8, 17, 7, 58, 30))).toEqual({
+		expect(countdownParts(summary.edition, new Date('2026-09-17T05:58:30Z'))).toEqual({
 			days: 2,
 			hours: 1,
 			minutes: 1,
@@ -140,7 +163,7 @@ describe('countdownParts', () => {
 	});
 
 	it('is all zeros once started', () => {
-		expect(countdownParts(summary.edition, new Date(2026, 8, 19, 9, 0, 1))).toEqual({
+		expect(countdownParts(summary.edition, new Date('2026-09-19T07:00:01Z'))).toEqual({
 			days: 0,
 			hours: 0,
 			minutes: 0,
