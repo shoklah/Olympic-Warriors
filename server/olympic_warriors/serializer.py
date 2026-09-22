@@ -363,7 +363,7 @@ class EditionSummarySerializer(serializers.Serializer):
                 is_active=True,
             )
             .select_related("discipline", "round")
-            .order_by("round__order", "id")
+            .order_by("discipline_id", "round__order", "id")
         )
         return {
             "edition": SummaryEditionSerializer(instance).data,

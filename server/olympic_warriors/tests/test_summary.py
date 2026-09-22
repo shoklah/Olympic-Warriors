@@ -513,3 +513,22 @@ class TestSummarySchedule(ScheduleSetup, TestCase):
         data = self.summary()
         self.assertEqual([r["id"] for r in data["rounds"]], [self.darts_r1.id, self.petanque_r1.id])
         self.assertEqual([g["id"] for g in data["games"]], [self.g1.id, self.g4.id])
+
+    def test_inactive_discipline_rounds_and_games_excluded(self):
+        Discipline.objects.filter(pk=self.darts.pk).update(is_active=False)
+        data = self.summary()
+        self.assertEqual([r["id"] for r in data["rounds"]], [self.petanque_r1.id])
+        self.assertEqual([g["id"] for g in data["games"]], [self.g4.id])
+
+    def test_other_edition_rounds_and_games_never_leak(self):
+        other_relay = Relay.objects.get(edition=self.other)
+        team_y = Team.objects.create(name="Ypres", edition=self.other)
+        TeamResult.objects.create(team=team_y, discipline=other_relay, points=0)
+        TeamSportRound.objects.create(discipline=other_relay, order=0)
+        Game.objects.create(
+            discipline=other_relay, round=TeamSportRound.objects.get(discipline=other_relay),
+            team1=self.team_z, team2=team_y, referees=self.team_z, edition=self.other,
+        )
+        data = self.summary()
+        self.assertNotIn(other_relay.id, [r["discipline"] for r in data["rounds"]])
+        self.assertNotIn(other_relay.id, [g["discipline"] for g in data["games"]])
