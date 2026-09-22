@@ -217,3 +217,34 @@ class TestEditionSummarySerializer(SummarySetup):
         data = self.summary()
         self.assertNotIn("Zèbres", [t["name"] for t in data["teams"]])
         self.assertEqual(len(data["results"]), 6)
+
+
+class TestEditionSummaryEndpoint(APITestCase):
+    """GET /edition/year/<year>/summary/ is public and 404s on unknown or inactive years."""
+
+    def setUp(self):
+        self.client = APIClient()  # no credentials on purpose
+        self.edition = Edition.objects.create(
+            year=2026, host="Paris", start_date="2026-09-19", end_date="2026-09-20"
+        )
+        Team.objects.create(name="Aigles", edition=self.edition)
+        Relay.objects.create(edition=self.edition, reveal_score=True)
+
+    def test_public_without_token(self):
+        response = self.client.get("/edition/year/2026/summary/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(set(response.data.keys()), {"edition", "disciplines", "teams", "results"})
+        self.assertEqual(response.data["edition"]["year"], 2026)
+        self.assertEqual(response.data["teams"][0]["name"], "Aigles")
+        self.assertEqual(response.data["results"][0]["ranking"], 1)
+
+    def test_unknown_year_is_404(self):
+        response = self.client.get("/edition/year/1999/summary/")
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.data, {"error": "Edition not found"})
+
+    def test_inactive_edition_is_404(self):
+        self.edition.is_active = False
+        self.edition.save()
+        response = self.client.get("/edition/year/2026/summary/")
+        self.assertEqual(response.status_code, 404)
