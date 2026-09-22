@@ -9,6 +9,7 @@ describe('dictionaries', () => {
 
 	it('give every plural message a one and an other form in both languages', () => {
 		for (const [key, message] of Object.entries(fr)) {
+			expect(typeof en[key], key).toBe(typeof message);
 			if (typeof message === 'string') continue;
 			expect(message, key).toEqual({ one: expect.any(String), other: expect.any(String) });
 			expect(en[key], key).toEqual({ one: expect.any(String), other: expect.any(String) });
@@ -16,10 +17,8 @@ describe('dictionaries', () => {
 	});
 
 	it('use the same placeholders in both languages', () => {
-		const names = (message) =>
-			[...(typeof message === 'string' ? message : message.other).matchAll(/\{(\w+)\}/g)]
-				.map((m) => m[1])
-				.sort();
+		const forms = (m) => (typeof m === 'string' ? [m] : [m.one, m.other]);
+		const names = (m) => forms(m).map((f) => [...f.matchAll(/\{(\w+)\}/g)].map((x) => x[1]).sort());
 		for (const key of Object.keys(fr)) {
 			expect(names(en[key]), key).toEqual(names(fr[key]));
 		}

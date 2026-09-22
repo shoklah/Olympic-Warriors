@@ -15,6 +15,13 @@ describe('t', () => {
 
 	it('leaves an unknown placeholder in place', () => {
 		expect(t('en', 'game.referee', {})).toBe('ref: {name}');
+		expect(t('en', 'game.referee', { name: null })).toBe('ref: {name}');
+		expect(t('en', 'game.referee', { name: undefined })).toBe('ref: {name}');
+	});
+
+	it('ignores inherited object keys', () => {
+		expect(t('en', 'toString')).toBe('toString');
+		expect(disciplineName('fr', 'constructor')).toBe('constructor');
 	});
 
 	it('picks the plural form of the locale', () => {

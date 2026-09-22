@@ -11,7 +11,7 @@ export const FRENCH_NAMES = {
 	Dodgeball: 'Balle au prisonnier',
 	'Obstacle Course': "Parcours d'obstacles",
 	'Geography Quizz': 'Quiz de géographie',
-	'General Culture Quizz': 'Quiz culture générale',
+	'General Culture Quizz': 'Quiz de culture générale',
 	Petanque: 'Pétanque',
 	Darts: 'Fléchettes'
 };

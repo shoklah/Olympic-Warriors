@@ -103,7 +103,7 @@ returns for the locale (`one` and `other` are enough for both languages).
 | Dodgeball | Balle au prisonnier |
 | Obstacle Course | Parcours d'obstacles |
 | Geography Quizz | Quiz de géographie |
-| General Culture Quizz | Quiz culture générale |
+| General Culture Quizz | Quiz de culture générale |
 | Petanque | Pétanque |
 | Darts | Fléchettes |
 | Rugby, Basketball, Crossfit, Blindtest | unchanged (absent from the map) |

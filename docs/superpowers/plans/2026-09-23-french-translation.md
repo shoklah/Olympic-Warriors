@@ -331,7 +331,7 @@ export const FRENCH_NAMES = {
 	Dodgeball: 'Balle au prisonnier',
 	'Obstacle Course': "Parcours d'obstacles",
 	'Geography Quizz': 'Quiz de géographie',
-	'General Culture Quizz': 'Quiz culture générale',
+	'General Culture Quizz': 'Quiz de culture générale',
 	Petanque: 'Pétanque',
 	Darts: 'Fléchettes'
 };
@@ -797,7 +797,7 @@ Expected: PASS (3 tests).
 
 In `front/src/lib/components/TabBar.svelte`, add to the script after the props: `import { useT } from '$lib/i18n';` at the top and `const t = useT();` after the last `export let`; then replace the four literal names with `t('nav.ranking')`, `t('nav.teams')`, `t('nav.disciplines')`, `t('nav.photos')`, and `aria-label="Sections"` with `aria-label={t('nav.sections')}`.
 
-In `front/src/lib/components/TabBar.test.js`: replace `import { render, screen } from '@testing-library/svelte';` with `import { screen } from '@testing-library/svelte';` and `import { renderWith } from '$lib/test-utils';`, and every `render(TabBar, X)` with `renderWith(TabBar, X)` (7 places; the default locale of the helper is `en`, so the assertions stay). Append one test inside the describe:
+In `front/src/lib/components/TabBar.test.js`: add `import { renderWith } from '$lib/test-utils';` alongside the existing `import { render, screen } from '@testing-library/svelte';` (keep `render` imported — see below), and every existing `render(TabBar, X)` with `renderWith(TabBar, X)` (7 places; the default locale of the helper is `en`, so the assertions stay). Append two tests inside the describe:
 
 ```js
 	it('speaks French under fr', () => {
@@ -806,7 +806,15 @@ In `front/src/lib/components/TabBar.test.js`: replace `import { render, screen }
 		expect(screen.getByRole('navigation', { name: 'Rubriques' })).toBeInTheDocument();
 		expect(screen.getByRole('link', { name: 'Équipes' })).toHaveAttribute('aria-current', 'page');
 	});
+
+	it('speaks French without any locale in context', () => {
+		render(TabBar, { year: 2026, pathname: '/2026/ranking' });
+
+		expect(screen.getByRole('link', { name: 'Classement' })).toBeInTheDocument();
+	});
 ```
+
+`render` from `@testing-library/svelte` therefore stays imported in that file: the last test calls it directly (with no `i18n` context) to check the component falls back to French, while every other test uses `renderWith` to opt into English.
 
 - [ ] **Step 7: Run the suite and check the header in the browser**
 
