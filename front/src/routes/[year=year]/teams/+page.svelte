@@ -13,7 +13,7 @@
 	<Breadcrumb items={[{ label: String(year), href: `/${year}` }, { label: 'Teams' }]} />
 	<h1>Teams</h1>
 
-	<div class="grid">
+	<div class="list">
 		{#each teams as team}
 			<a
 				class="team-card"
@@ -26,10 +26,13 @@
 				<MedalRank rank={team.ranking} />
 				<span class="text">
 					<span class="name">{team.name}</span>
-					<!-- One span per player so each name stays a single text node; CSS adds the dots. -->
+					<!-- One span per player so each name stays a single text node, with real
+					     separator spans so copied text keeps the dots. -->
 					<span class="roster">
-						{#each team.players as player}
-							<span>{player.first_name} {player.last_name}</span>
+						{#each team.players as player, i}
+							{#if i > 0}<span class="sep" aria-hidden="true">{' · '}</span>{/if}<span
+								>{player.first_name} {player.last_name}</span
+							>
 						{/each}
 					</span>
 				</span>
@@ -44,7 +47,7 @@
 		margin: 0 0 0.8rem;
 	}
 
-	.grid {
+	.list {
 		display: flex;
 		flex-direction: column;
 		gap: 6px;
@@ -53,11 +56,11 @@
 
 	.team-card {
 		display: grid;
-		grid-template-columns: 36px minmax(0, 1fr) auto;
+		grid-template-columns: 44px minmax(0, 1fr) auto;
 		align-items: center;
 		gap: 12px;
-		--medal-size: 1.6rem;
-		padding: 12px;
+		--medal-size: 1.9rem;
+		padding: 10px 12px;
 		background: var(--bg-raised);
 		border: 1px solid var(--line);
 		border-left: 4px solid var(--line-strong);
@@ -110,15 +113,13 @@
 		overflow-wrap: anywhere;
 	}
 
-	.roster span + span::before {
-		content: ' · ';
+	.sep {
 		color: var(--ghost);
 	}
 
 	.pts {
-		font-size: 1.5rem;
+		font-size: 1.6rem;
 		line-height: 1;
 		letter-spacing: 0.06em;
-		color: var(--ink);
 	}
 </style>

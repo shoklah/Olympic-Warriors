@@ -48,7 +48,8 @@
 					<span class="label name">{row.disciplineName}</span>
 				</span>
 				<MedalRank rank={row.ranking} ordinal />
-				<span class="num value" class:muted={!row.revealed}>
+				<!-- `.num` on the revealed value only: the status is words, not a number. -->
+				<span class="value" class:num={row.revealed} class:muted={!row.revealed}>
 					{#if !row.revealed}
 						not revealed
 					{:else if row.result_type === 'TIM'}
@@ -176,8 +177,11 @@
 		display: block;
 		margin-top: 2px;
 		font-size: 0.85rem;
+	}
+
+	/* The display face wants the tracking; the "not revealed" words do not. */
+	.value.num {
 		letter-spacing: 0.04em;
-		font-variant-numeric: tabular-nums;
 	}
 
 	.value.muted {

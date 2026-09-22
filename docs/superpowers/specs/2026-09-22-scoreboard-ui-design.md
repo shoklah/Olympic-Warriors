@@ -202,8 +202,11 @@ unplayed); then `GameRow`s. Rounds without games render nothing.
 **Teams:** `.page`; breadcrumb `[year] › Teams`; real `h1 Teams`; one card
 per team in rank order (`rankedTeams`), `data-testid="team-card"`, the card is
 the `<a>`: `MedalRank`, name (weight 600), roster with each player in its own
-`<span>` and the `·` added by CSS (`span + span::before { content: ' · ' }`),
-points as `33 pts` in the display face.
+`<span>` and a real `<span class="sep" aria-hidden="true">{' · '}</span>`
+between them, as `TeamGameRow` does, so copied text keeps the separators;
+points as `33 pts` in the display face. Row metrics match the ranking rows:
+`44px minmax(0, 1fr) auto`, `--medal-size: 1.9rem`, `padding: 10px 12px`,
+value at 1.6rem.
 
 **Team:** `.page`; breadcrumb `[year] › Teams › [name]`; `h1` name; standing
 line with `data-testid="standing"`: `2nd` (gold/silver/bronze/text by rank,
