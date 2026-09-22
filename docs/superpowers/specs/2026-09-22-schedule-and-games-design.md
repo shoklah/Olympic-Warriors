@@ -33,7 +33,10 @@ edition-aware frontend spec (`2026-09-22-edition-aware-frontend-design.md`).
 - **Reveal:** while a discipline's `reveal_score` is off, games keep their
   pairings, referee and played flag but `score1` and `score2` are null.
 - **Played state:** a new `Game.is_played` boolean, set by hand in the admin
-  changelist, editable in place next to the scores. Two states only.
+  changelist, editable in place next to the scores. Two states only. Note that
+  `Game.save()` grants the 0-0 draw point to both teams when a game is
+  created, so unplayed games already sit inside the ranking's league points;
+  reconciling that is out of scope here.
 - **Backfill:** every existing game is marked played by the migration, since
   every edition in the database (2024, 2026) is over.
 - **Out of scope:** per-player events, live "in progress" state, kick-off
@@ -48,7 +51,7 @@ edition-aware frontend spec (`2026-09-22-edition-aware-frontend-design.md`).
   `RunPython` step that sets `is_played=True` on every existing game (reverse:
   no-op). New games created by the schedulers start unplayed.
 - `GameAdmin` (`admin.py`): add `"is_played"` to `list_display` after
-  `"score2"` and set `list_editable = ["score1", "score2", "is_played"]`, so a
+  `"team2"` and set `list_editable = ["score1", "score2", "is_played"]`, so a
   game is closed with one click in the changelist. `list_display` must start
   with a non-editable column (it does, `discipline`).
 - `Game.save()` is unchanged; `is_played` has no side effect.
@@ -69,10 +72,13 @@ Two arrays added to `EditionSummarySerializer`, active rows only:
   discipline__is_active=True, is_active=True).order_by("discipline_id",
   "order")`.
 - `games`: `Game.objects.filter(discipline__edition=edition,
-  discipline__is_active=True, round__is_active=True, is_active=True,
-  team1__is_active=True, team2__is_active=True)
+  discipline__is_active=True, round__is_active=True, is_active=True)
   .select_related("discipline", "round").order_by("round__order", "id")`.
-  A game whose referee team is inactive is kept; the front shows "Unknown".
+  Games are not filtered on their teams' `is_active`: the ranking's points and
+  points difference count those games regardless, so hiding them would desync
+  the two sections; the front names an inactive team "Unknown". Excluding
+  inactive rounds is the one deliberate divergence, because the front keys
+  games by round.
 - `SummaryGameSerializer.to_representation`: when
   `instance.discipline.reveal_score` is False, `score1` and `score2` are null.
   Declared `IntegerField(read_only=True, allow_null=True)` so the schema says

@@ -226,7 +226,12 @@ class TestSummarySchedule(ScheduleSetup, TestCase):
             [
                 {"id": self.darts_r1.id, "discipline": self.darts.id, "order": 0, "is_over": False},
                 {"id": self.darts_r2.id, "discipline": self.darts.id, "order": 1, "is_over": False},
-                {"id": self.petanque_r1.id, "discipline": self.petanque.id, "order": 0, "is_over": False},
+                {
+                    "id": self.petanque_r1.id,
+                    "discipline": self.petanque.id,
+                    "order": 0,
+                    "is_over": False,
+                },
             ],
         )
 
@@ -251,7 +256,10 @@ class TestSummarySchedule(ScheduleSetup, TestCase):
 
     def test_hidden_discipline_game_keeps_pairing_but_not_scores(self):
         game = next(g for g in self.summary()["games"] if g["discipline"] == self.petanque.id)
-        self.assertEqual((game["team1"], game["team2"], game["referees"]), (self.team_a.id, self.team_b.id, self.team_c.id))
+        self.assertEqual(
+            (game["team1"], game["team2"], game["referees"]),
+            (self.team_a.id, self.team_b.id, self.team_c.id),
+        )
         self.assertTrue(game["is_played"])
         self.assertIsNone(game["score1"])
         self.assertIsNone(game["score2"])
@@ -267,7 +275,7 @@ class TestSummarySchedule(ScheduleSetup, TestCase):
 
 - [ ] **Step 3: Run** `... test olympic_warriors.tests.test_summary -v 2`. Expected: the four new tests fail with `KeyError: 'rounds'` / `'games'`; every existing test still passes.
 
-- [ ] **Step 4: Serializers.** In `serializer.py`, add `TeamSportRound, Game` to the models import if missing (they are), then insert before `EditionSummarySerializer`:
+- [ ] **Step 4: Serializers.** In `serializer.py`, `TeamSportRound` and `Game` are already in the models import, no change there; insert before `EditionSummarySerializer`:
 
 ```python
 class SummaryRoundSerializer(serializers.ModelSerializer):
@@ -318,8 +326,6 @@ In `EditionSummarySerializer`: declare `rounds = SummaryRoundSerializer(many=Tru
                 discipline__edition=instance,
                 discipline__is_active=True,
                 round__is_active=True,
-                team1__is_active=True,
-                team2__is_active=True,
                 is_active=True,
             )
             .select_related("discipline", "round")
@@ -329,7 +335,9 @@ In `EditionSummarySerializer`: declare `rounds = SummaryRoundSerializer(many=Tru
 
 and two keys in the returned dict: `"rounds": SummaryRoundSerializer(rounds, many=True).data`, `"games": SummaryGameSerializer(games, many=True).data`.
 
-- [ ] **Step 5: Run the module tests and the full suite.** Expected OK. Also `test_public_without_token` in `TestEditionSummaryEndpoint` asserts the key set: update it to `{"edition", "disciplines", "teams", "results", "rounds", "games"}`.
+In the same step, update `test_public_without_token` in `TestEditionSummaryEndpoint`, which asserts the key set, to `{"edition", "disciplines", "teams", "results", "rounds", "games"}`.
+
+- [ ] **Step 5: Run the module tests and the full suite.** Expected OK.
 
 - [ ] **Step 6: Commit** `[FEAT] summary: rounds and games, scores hidden until revealed`.
 
@@ -525,7 +533,7 @@ export function teamGames(summary, teamId) {
 **Files:**
 - Modify: `front/src/routes/[year=year]/disciplines/[id]/+page.js`, `+page.svelte`, `page.test.js`
 
-- [ ] **Step 1: Failing test.** In `page.test.js`, extend `dataFor` with `schedule: disciplineSchedule(s, id)` (import it) and add:
+- [ ] **Step 1: Failing test.** In `page.test.js`, extend `dataFor` with `schedule: disciplineSchedule(s, id)` (import it). The schedule adds more links named `Bisons`, so in the first test replace `expect(screen.getByRole('link', { name: /Bisons/ })).toHaveAttribute('href', '/2026/teams/2');` with `expect(rows[0]).toHaveAttribute('href', '/2026/teams/2');` (the result row is the anchor). Then add:
 
 ```js
 	it('shows the schedule by round with scores, dashes and referees', () => {
@@ -667,7 +675,7 @@ and styles:
 **Files:**
 - Modify: `front/src/routes/[year=year]/teams/[id]/+page.js`, `+page.svelte`, `page.test.js`
 
-- [ ] **Step 1: Failing test.** In `page.test.js`, extend `dataFor` with `games: teamGames(summary, id)` and add:
+- [ ] **Step 1: Failing test.** In `page.test.js`, extend `dataFor` with `games: teamGames(summary, id)` (import `teamGames` from `$lib/edition`) and add:
 
 ```js
 	it('lists games per discipline with result, to play and referee rows', () => {
