@@ -124,9 +124,12 @@ assertions are untouched by the league points those games add. Cases:
 `+page.js` adds `schedule: disciplineSchedule(summary, discipline.id)`. The
 page renders, after the ranking (or after the "Results not revealed yet"
 line), a `Schedule` heading and one block per round: `Round N`, then each
-game as a row `Team A  12 – 9  Team B` with `ref: Team C` beneath, or `Team A
-—  Team B` when unplayed or unrevealed. No section when `schedule` is null.
-Team names link to the team pages.
+game as a row `Team A  12 – 9  Team B` with `ref: Team C` beneath, `Team A
+—  Team B` when unplayed, and `Team A  played  Team B` when played but the
+discipline is unrevealed (the played flag is public, only the score is not, and
+the team page makes the same distinction). Rounds without games render
+nothing. No section when `schedule` is null. Team names link to the team
+pages.
 
 ### Team page (`routes/[year=year]/teams/[id]`)
 
