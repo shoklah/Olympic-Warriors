@@ -18,8 +18,9 @@
 <span class="rank num {medal}">{text}</span>
 
 <style>
+	/* `--medal-size` lets a page scale the glyph without reaching into this component. */
 	.rank {
-		font-size: 1.3rem;
+		font-size: var(--medal-size, 1.3rem);
 		line-height: 1;
 		letter-spacing: 0.04em;
 	}

@@ -32,6 +32,12 @@ describe('MedalRank', () => {
 		expect(container.querySelector('.silver')).toHaveTextContent('2nd');
 	});
 
+	it('carries the rank class pages size through --medal-size', () => {
+		const { container } = render(MedalRank, { rank: 1 });
+
+		expect(container.querySelector('.gold')).toHaveClass('rank');
+	});
+
 	it('keeps the dash in ordinal mode', () => {
 		const { container } = render(MedalRank, { rank: null, ordinal: true });
 

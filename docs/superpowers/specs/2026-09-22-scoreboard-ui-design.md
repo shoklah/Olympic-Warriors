@@ -120,7 +120,10 @@ is empty.
   display face with class `gold` / `silver` / `bronze` for 1, 2, 3, `none`
   for other numbers and for `null` (rendered as `—`). With `ordinal`, renders
   `1st`, `2nd`, `3rd`, `4th`, `11th`… using `ordinal(n)` from `edition.js`
-  (moved there from the team page, unit-tested).
+  (moved there from the team page, unit-tested). The root `<span>` keeps the
+  class `rank` and sizes itself `font-size: var(--medal-size, 1.3rem)`, so a
+  page scales the glyph by setting `--medal-size` on the row around it
+  instead of reaching into the component's scoped styles.
 - `GameRow.svelte` (discipline schedule): props `team1Name`, `team2Name`,
   `score1`, `score2`, `isPlayed`, `refereeName`, optional `team1Href`,
   `team2Href`. Root element carries `data-testid="game-row"`. Text order:
@@ -160,11 +163,14 @@ padding: .7rem 3rem; border-radius: var(--radius)` with the link text
 `Ranking` in sentence case; year chips bordered `--faint` in the display face.
 
 **Ranking:** `.page`; breadcrumb `[year] › Ranking`; `h1 Ranking`; the
-discipline rail as 44 px square tiles (accent background, icon `alt=""`,
-`aria-label` the discipline name, `.dimmed` + `aria-disabled` + `tabindex=-1`
-when unrevealed), DOM order rail then rows, desktop keeps the existing
-`order` swap so the rail sits to the right; rows keep `data-testid="team-row"`,
-the row is the `<a>` with `class:gold/silver/bronze`, content `MedalRank`,
+discipline rail as 44 px square tiles (`--bg-raised` background,
+`1px solid var(--line)` border, `--accent` border when the discipline is
+revealed, `--line-strong` background on hover of a revealed tile; the icons
+are white so they need the dark tile, `alt=""`, `aria-label` the discipline
+name, `.dimmed` + `aria-disabled` + `tabindex=-1` when unrevealed), DOM order
+rail then rows, desktop keeps the existing `order` swap so the rail sits to
+the right; rows keep `data-testid="team-row"`, the row is the `<a>` with
+`class:gold/silver/bronze`, content `MedalRank` at `--medal-size: 1.9rem`,
 name, points as `33 pts` in the display face (the `pts` suffix stays),
 left border in the medal colour or `--line-strong`.
 

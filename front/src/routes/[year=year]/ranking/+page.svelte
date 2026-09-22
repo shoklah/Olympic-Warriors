@@ -81,11 +81,18 @@
 		height: 44px;
 		width: 44px;
 		border-radius: var(--radius);
-		background: var(--accent);
+		background: var(--bg-raised);
+		border: 1px solid var(--line);
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		transition: transform 0.2s ease;
+		transition:
+			transform 0.2s ease,
+			background 0.2s ease;
+	}
+
+	.discipline-tile:not(.dimmed) {
+		border-color: var(--accent);
 	}
 
 	.discipline-tile img {
@@ -93,7 +100,8 @@
 		width: 76%;
 	}
 
-	.discipline-tile:hover {
+	.discipline-tile:not(.dimmed):hover {
+		background: var(--line-strong);
 		transform: translateY(-2px);
 	}
 
@@ -108,6 +116,7 @@
 		grid-template-columns: 44px 1fr auto;
 		align-items: center;
 		gap: 12px;
+		--medal-size: 1.9rem;
 		padding: 10px 12px;
 		background: var(--bg-raised);
 		border-left: 4px solid var(--line-strong);
