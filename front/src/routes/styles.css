@@ -58,12 +58,6 @@
 	--radius: 6px;  --radius-lg: 10px;  --radius-pill: 999px;
 	--page: min(100% - 2rem, 900px);  /* content column, 1rem phone gutter */
 	--tabbar: 64px;           /* bottom tab bar height on phones */
-
-	/* Transition aliases: pages not yet migrated still read these. */
-	--color-bg-0: var(--bg);
-	--color-theme-1: var(--accent);
-	--color-theme-2: var(--accent);
-	--color-text: var(--text);
 }
 
 *,

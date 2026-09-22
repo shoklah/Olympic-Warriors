@@ -93,12 +93,6 @@ strip. A global `@media (prefers-reduced-motion: reduce)` block cuts every
 transition and animation to `0.01ms`, so the page hover lifts stay off for
 visitors who ask for it.
 
-During the transition the file also keeps aliases `--color-bg-0: var(--bg)`,
-`--color-theme-1: var(--accent)`, `--color-theme-2: var(--accent)`,
-`--color-text: var(--text)` so pages not yet migrated still render; the last
-task removes them and checks `grep -rn -- "--color-\|--font-mono\|--column-width" front/src`
-is empty.
-
 ## Components (`front/src/lib/components/`, imported by explicit path)
 
 - `Header.svelte` (moved from `routes/`): logo, year pill (`<select>` styled
