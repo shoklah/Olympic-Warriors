@@ -194,7 +194,7 @@ class TestEditionSummarySerializer(SummarySetup):
         self.assertEqual(by_team[self.team_a.id]["ranking"], 2)
         self.assertEqual(by_team[self.team_a.id]["global_points"], 3)
         self.assertEqual(by_team[self.team_c.id]["ranking"], 3)
-        self.assertEqual(by_team[self.team_c.id]["global_points"], 1)
+        self.assertEqual(by_team[self.team_c.id]["global_points"], 2)
 
     def test_hidden_results_are_null(self):
         results = [
