@@ -1,21 +1,8 @@
-export const load = async ({cookies}) => {
-    const auth = cookies.get('Authorization');
+import { apiGet } from '$lib/api';
+import { api } from '$lib/server/urls';
 
-    if (auth) {
-        const sections = [
-            { name: 'Home', url: '/' },
-            { name: 'Teams', url: '/teams' },
-            { name: 'Disciplines', url: '/disciplines' },
-            { name: 'Photos', url: '/photos' },
-            { name: 'Profile', url: '/profile' }
-        ];
-        return {sections};
-    }
-
-    const sections = [
-        { name: 'Home', url: '/' },
-        { name: 'Disciplines', url: '/disciplines' },
-        { name: 'Login', url: '/login' }
-    ];
-    return {sections};
+/** Every active edition, newest first, plus the year the bare URLs default to. */
+export const load = async ({ fetch }) => {
+	const editions = (await apiGet(fetch, api('/editions/'))).sort((a, b) => b.year - a.year);
+	return { editions, latestYear: editions[0]?.year ?? null };
 };
