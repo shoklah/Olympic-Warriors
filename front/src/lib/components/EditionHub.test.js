@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/svelte';
+import { render, screen, within } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import EditionHub from './EditionHub.svelte';
 import { summary } from '../fixtures/summary.js';
@@ -29,16 +29,32 @@ describe('EditionHub', () => {
 		expect(screen.queryByText('Days')).toBeNull();
 	});
 
-	it('shows host, dates, discipline icons and the other editions', () => {
+	it('shows host, dates, discipline icons and every edition with the current one marked', () => {
 		vi.setSystemTime(new Date('2026-09-19T08:00:00Z'));
 		render(EditionHub, { summary, editions });
 
 		expect(screen.getByText('Paris · 19 – 20 September 2026')).toBeInTheDocument();
 		expect(screen.getByAltText('Relay')).toHaveAttribute('src', expect.stringMatching(/relay\.svg$/));
 		expect(screen.getByAltText('Orienteering')).toHaveAttribute('src', expect.stringMatching(/orienteering\.svg$/));
+		const pills = screen.getByRole('navigation', { name: 'Editions' });
+		expect(within(pills).getAllByRole('link').map((a) => a.textContent.trim())).toEqual([
+			'2026',
+			'2025',
+			'2024'
+		]);
+		const current = screen.getByRole('link', { name: '2026' });
+		expect(current).toHaveAttribute('href', '/2026');
+		expect(current).toHaveAttribute('aria-current', 'page');
+		expect(current).toHaveClass('current');
 		expect(screen.getByRole('link', { name: '2025' })).toHaveAttribute('href', '/2025');
-		expect(screen.getByRole('link', { name: '2024' })).toHaveAttribute('href', '/2024');
-		expect(screen.queryByRole('link', { name: '2026' })).toBeNull();
+		expect(screen.getByRole('link', { name: '2025' })).not.toHaveAttribute('aria-current');
+	});
+
+	it('hides the edition pills when there is a single edition', () => {
+		vi.setSystemTime(new Date('2026-09-19T08:00:00Z'));
+		render(EditionHub, { summary, editions: [editions[0]] });
+
+		expect(screen.queryByRole('navigation', { name: 'Editions' })).toBeNull();
 	});
 
 	it('prints one date when the edition lasts a single day', () => {

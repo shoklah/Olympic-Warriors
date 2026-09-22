@@ -11,7 +11,6 @@
 	$: edition = summary.edition;
 	$: half = Math.ceil(summary.disciplines.length / 2);
 	$: columns = [summary.disciplines.slice(0, half), summary.disciplines.slice(half)];
-	$: others = editions.filter((e) => e.year !== edition.year);
 
 	let now = new Date();
 	$: phase = editionPhase(edition, now);
@@ -51,10 +50,17 @@
 	</div>
 {/if}
 
-{#if others.length > 0}
-	<nav class="editions" aria-label="Other editions">
-		{#each others as other}
-			<a href="/{other.year}">{other.year}</a>
+{#if editions.length > 1}
+	<!-- Same rule as the discipline rail: every edition listed, the current one highlighted. -->
+	<nav class="editions" aria-label="Editions">
+		{#each editions as other}
+			<a
+				href="/{other.year}"
+				class:current={other.year === edition.year}
+				aria-current={other.year === edition.year ? 'page' : undefined}
+			>
+				{other.year}
+			</a>
 		{/each}
 	</nav>
 {/if}
@@ -161,6 +167,12 @@
 	.editions a:focus-visible {
 		color: var(--bg);
 		background-color: var(--accent);
+	}
+
+	.editions a.current {
+		color: var(--bg);
+		background-color: var(--accent);
+		border-color: var(--accent);
 	}
 
 	/* Fills the hero and never overflows it: object-fit keeps the eclipse whole. */
