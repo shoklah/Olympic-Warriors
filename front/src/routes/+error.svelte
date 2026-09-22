@@ -38,5 +38,11 @@
 	a:hover,
 	a:focus-visible {
 		opacity: 0.8;
+		text-decoration: none;
+	}
+
+	a:focus-visible {
+		outline: 2px solid var(--ink);
+		outline-offset: 2px;
 	}
 </style>

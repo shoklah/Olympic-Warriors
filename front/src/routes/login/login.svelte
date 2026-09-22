@@ -17,13 +17,13 @@
         The username field is required
     </p>{/if}
     <input name="username" placeholder="Username" value={form?.username ?? ''}
-           style="border-bottom: {(form?.missing && form?.missing.username) ? '#ff0000' : 'var(--accent)'} 2px solid;" autofocus>
+           class:missing={form?.missing?.username} autofocus>
 
     {#if form?.missing && form?.missing.password}<p class="error" transition:slide={{ duration: 800, easing: quintOut }}>
         You forgot the password...
     </p>{/if}
     <input type="password" name="password" placeholder="Password"
-           style="border-bottom: {(form?.missing && form?.missing.password) ? '#ff0000' : 'var(--accent)'} 2px solid;">
+           class:missing={form?.missing?.password}>
 
     <button>Log In</button>
 </form>
@@ -64,12 +64,16 @@
         border-bottom-color: var(--accent);
     }
 
+    input.missing,
+    input.missing:focus-visible {
+        border-bottom-color: var(--loss);
+    }
+
     button {
         background: var(--accent);
         color: var(--bg);
         font-family: var(--font-display);
         letter-spacing: .15em;
-        margin-left: .5rem;
         padding: .7rem 3rem;
         border: none;
         border-radius: var(--radius);
@@ -81,5 +85,10 @@
     button:hover,
     button:focus-visible {
         opacity: .8;
+    }
+
+    button:focus-visible {
+        outline: 2px solid var(--ink);
+        outline-offset: 2px;
     }
 </style>
