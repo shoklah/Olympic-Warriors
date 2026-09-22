@@ -46,11 +46,16 @@ class Game(models.Model):
     )
     round = models.ForeignKey(TeamSportRound, on_delete=models.CASCADE, related_name="round")
     team1 = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="team1")
-    score1 = models.IntegerField(MinValueValidator(0), default=0)
+    score1 = models.IntegerField(
+        default=0, verbose_name="score 1", validators=[MinValueValidator(0)]
+    )
     team2 = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="team2")
-    score2 = models.IntegerField(MinValueValidator(0), default=0)
+    score2 = models.IntegerField(
+        default=0, verbose_name="score 2", validators=[MinValueValidator(0)]
+    )
     referees = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="referees")
     edition = models.ForeignKey(Edition, on_delete=models.CASCADE)
+    is_played = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
 
     def __str__(self) -> str:

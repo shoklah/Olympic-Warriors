@@ -42,6 +42,17 @@ export const summary = {
 		{ id: 103, team: 1, discipline: 11, result_type: 'TIM', ranking: null, points: null, time: null, points_difference: null, global_points: null },
 		{ id: 104, team: 2, discipline: 11, result_type: 'TIM', ranking: null, points: null, time: null, points_difference: null, global_points: null },
 		{ id: 105, team: 3, discipline: 11, result_type: 'TIM', ranking: null, points: null, time: null, points_difference: null, global_points: null }
+	],
+	rounds: [
+		{ id: 20, discipline: 10, order: 0, is_over: true },
+		{ id: 21, discipline: 10, order: 1, is_over: false },
+		{ id: 22, discipline: 11, order: 0, is_over: false }
+	],
+	games: [
+		{ id: 200, discipline: 10, round: 20, team1: 2, team2: 1, referees: 3, is_played: true, score1: 12, score2: 9 },
+		{ id: 201, discipline: 10, round: 20, team1: 3, team2: 2, referees: 1, is_played: false, score1: 0, score2: 0 },
+		{ id: 202, discipline: 10, round: 21, team1: 1, team2: 3, referees: 2, is_played: true, score1: 7, score2: 7 },
+		{ id: 203, discipline: 11, round: 22, team1: 1, team2: 2, referees: 3, is_played: true, score1: null, score2: null }
 	]
 };
 
@@ -57,5 +68,6 @@ export const summaryAllRevealed = {
 		{ id: 103, team: 1, discipline: 11, result_type: 'TIM', ranking: 1, points: null, time: '00:12:30', points_difference: 0, global_points: 5 },
 		{ id: 104, team: 2, discipline: 11, result_type: 'TIM', ranking: 3, points: null, time: '00:15:02', points_difference: 0, global_points: 2 },
 		{ id: 105, team: 3, discipline: 11, result_type: 'TIM', ranking: 2, points: null, time: '00:13:45', points_difference: 0, global_points: 3 }
-	]
+	],
+	games: [...summary.games.slice(0, 3), { ...summary.games[3], score1: 3, score2: 1 }]
 };

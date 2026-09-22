@@ -128,3 +128,84 @@ export function switchYearPath(pathname, year) {
 	if (!match) return `/${year}`;
 	return match[1] ? `/${year}/${match[1]}` : `/${year}`;
 }
+
+const teamNames = (summary) => new Map(summary.teams.map((t) => [t.id, t.name]));
+const nameOf = (names, id) => names.get(id) ?? 'Unknown';
+
+/**
+ * Rounds of a discipline in order, each with its games and team names joined.
+ * Null when the discipline has no round. Scores are null while unrevealed.
+ */
+export function disciplineSchedule(summary, disciplineId) {
+	const rounds = summary.rounds.filter((r) => r.discipline === disciplineId);
+	if (rounds.length === 0) return null;
+	const names = teamNames(summary);
+	return [...rounds]
+		.sort((a, b) => a.order - b.order)
+		.map((round) => ({
+			order: round.order,
+			isOver: round.is_over,
+			games: summary.games
+				.filter((g) => g.round === round.id)
+				.map((g) => ({
+					id: g.id,
+					team1Id: g.team1,
+					team1Name: nameOf(names, g.team1),
+					team2Id: g.team2,
+					team2Name: nameOf(names, g.team2),
+					refereeName: nameOf(names, g.referees),
+					isPlayed: g.is_played,
+					score1: g.score1,
+					score2: g.score2
+				}))
+		}));
+}
+
+function gameResult(own, theirs) {
+	if (own === null || theirs === null) return null;
+	if (own > theirs) return 'win';
+	if (own < theirs) return 'loss';
+	return 'draw';
+}
+
+/**
+ * Every game a team plays or referees, grouped by discipline in id order,
+ * with the team's own score first. Disciplines without a game are omitted.
+ */
+export function teamGames(summary, teamId) {
+	const names = teamNames(summary);
+	const roundOrder = new Map(summary.rounds.map((r) => [r.id, r.order]));
+	return summary.disciplines
+		.map((discipline) => ({
+			disciplineId: discipline.id,
+			disciplineName: discipline.name,
+			games: summary.games
+				.filter(
+					(g) =>
+						g.discipline === discipline.id &&
+						(g.team1 === teamId || g.team2 === teamId || g.referees === teamId)
+				)
+				.map((g) => {
+					const plays = g.team1 === teamId || g.team2 === teamId;
+					const isTeam1 = g.team1 === teamId;
+					const opponentId = plays ? (isTeam1 ? g.team2 : g.team1) : null;
+					const ownScore = plays ? (isTeam1 ? g.score1 : g.score2) : null;
+					const theirScore = plays ? (isTeam1 ? g.score2 : g.score1) : null;
+					return {
+						id: g.id,
+						round: roundOrder.get(g.round) ?? 0,
+						role: plays ? 'play' : 'referee',
+						opponentId,
+						opponentName: opponentId === null ? null : nameOf(names, opponentId),
+						team1Name: nameOf(names, g.team1),
+						team2Name: nameOf(names, g.team2),
+						isPlayed: g.is_played,
+						ownScore,
+						theirScore,
+						result: plays && g.is_played ? gameResult(ownScore, theirScore) : null
+					};
+				})
+				.sort((a, b) => a.round - b.round || a.id - b.id)
+		}))
+		.filter((d) => d.games.length > 0);
+}

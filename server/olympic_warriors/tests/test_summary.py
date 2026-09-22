@@ -2,19 +2,28 @@
 Tests for the Edition model changes and the public edition summary endpoint.
 """
 
+import importlib
+import re
+
+from django.apps import apps
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from rest_framework.test import APITestCase
 
 from olympic_warriors.models import (
+    Darts,
     Discipline,
     Edition,
+    Game,
     Orienteering,
+    Petanque,
     Player,
     Relay,
     Team,
     TeamResult,
+    TeamSportRound,
 )
 from olympic_warriors.serializer import EditionSummarySerializer
 
@@ -126,6 +135,39 @@ class SummarySetup:
 
     def summary(self):
         return EditionSummarySerializer(self.edition).data
+
+
+class ScheduleSetup(SummarySetup):
+    """SummarySetup plus a revealed Darts schedule and a hidden Petanque game."""
+
+    def setUp(self):
+        super().setUp()
+        # Team sport with a schedule: Darts, revealed, two rounds, three games.
+        self.darts = Darts.objects.create(edition=self.edition, reveal_score=True)
+        self.darts_r1 = TeamSportRound.objects.create(discipline=self.darts, order=0)
+        self.darts_r2 = TeamSportRound.objects.create(discipline=self.darts, order=1)
+        self.g1 = Game.objects.create(
+            discipline=self.darts, round=self.darts_r1, team1=self.team_b, score1=12,
+            team2=self.team_a, score2=9, referees=self.team_c, edition=self.edition,
+            is_played=True,
+        )
+        self.g2 = Game.objects.create(
+            discipline=self.darts, round=self.darts_r1, team1=self.team_c, score1=0,
+            team2=self.team_b, score2=0, referees=self.team_a, edition=self.edition,
+        )
+        self.g3 = Game.objects.create(
+            discipline=self.darts, round=self.darts_r2, team1=self.team_a, score1=7,
+            team2=self.team_c, score2=7, referees=self.team_b, edition=self.edition,
+            is_played=True,
+        )
+        # Hidden team sport: one round, one played game whose score must not leak.
+        self.petanque = Petanque.objects.create(edition=self.edition, reveal_score=False)
+        self.petanque_r1 = TeamSportRound.objects.create(discipline=self.petanque, order=0)
+        self.g4 = Game.objects.create(
+            discipline=self.petanque, round=self.petanque_r1, team1=self.team_a, score1=13,
+            team2=self.team_b, score2=4, referees=self.team_c, edition=self.edition,
+            is_played=True,
+        )
 
 
 class TestEditionSummarySerializer(SummarySetup, TestCase):
@@ -290,7 +332,10 @@ class TestEditionSummaryEndpoint(APITestCase):
     def test_public_without_token(self):
         response = self.client.get("/edition/year/2026/summary/")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(set(response.data.keys()), {"edition", "disciplines", "teams", "results"})
+        self.assertEqual(
+            set(response.data.keys()),
+            {"edition", "disciplines", "teams", "results", "rounds", "games"},
+        )
         self.assertEqual(response.data["edition"]["year"], 2026)
         self.assertEqual(response.data["teams"][0]["name"], "Aigles")
         self.assertEqual(response.data["results"][0]["ranking"], 1)
@@ -305,3 +350,200 @@ class TestEditionSummaryEndpoint(APITestCase):
         self.edition.save()
         response = self.client.get("/edition/year/2026/summary/")
         self.assertEqual(response.status_code, 404)
+
+
+class TestGameIsPlayed(TestCase):
+    """A game starts unplayed; the admin edits the flag in the changelist."""
+
+    def setUp(self):
+        self.edition = Edition.objects.create(
+            year=2026, host="Paris", start_date="2026-09-19", end_date="2026-09-20"
+        )
+        self.a = Team.objects.create(name="A", edition=self.edition)
+        self.b = Team.objects.create(name="B", edition=self.edition)
+        self.c = Team.objects.create(name="C", edition=self.edition)
+        self.darts = Darts.objects.create(edition=self.edition, reveal_score=True)
+        self.round = TeamSportRound.objects.create(discipline=self.darts, order=0)
+
+    def test_defaults_to_not_played(self):
+        game = Game.objects.create(
+            discipline=self.darts, round=self.round, team1=self.a, team2=self.b,
+            referees=self.c, edition=self.edition,
+        )
+        self.assertFalse(game.is_played)
+
+    @override_settings(
+        STATICFILES_STORAGE="django.contrib.staticfiles.storage.StaticFilesStorage"
+    )
+    def test_admin_edits_scores_and_is_played_in_the_changelist(self):
+        User.objects.create_superuser("root", "root@example.com", "pw")
+        self.client.force_login(User.objects.get(username="root"))
+
+        game_ab = Game.objects.create(
+            discipline=self.darts, round=self.round, team1=self.a, team2=self.b,
+            referees=self.c, edition=self.edition,
+        )
+        game_bc = Game.objects.create(
+            discipline=self.darts, round=self.round, team1=self.b, team2=self.c,
+            referees=self.a, edition=self.edition,
+        )
+
+        response = self.client.get("/admin/olympic_warriors/game/")
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        self.assertIn('name="form-0-is_played"', content)
+        self.assertIn("Score 1", content)
+
+        # Read the row order the changelist actually rendered rather than assuming it.
+        row_ids = dict(re.findall(r'name="form-(\d)-id" value="(\d+)"', content))
+        self.assertEqual(set(row_ids), {"0", "1"})
+        row_for_game = {game_ab.pk: None, game_bc.pk: None}
+        for row, pk in row_ids.items():
+            row_for_game[int(pk)] = row
+
+        edits = {
+            game_ab.pk: {"score1": 9, "score2": 1},
+            game_bc.pk: {"score1": 5, "score2": 3},
+        }
+        data = {
+            "form-TOTAL_FORMS": "2",
+            "form-INITIAL_FORMS": "2",
+            "form-MIN_NUM_FORMS": "0",
+            "form-MAX_NUM_FORMS": "1000",
+            "_save": "Save",
+        }
+        for pk, scores in edits.items():
+            row = row_for_game[pk]
+            data[f"form-{row}-id"] = str(pk)
+            data[f"form-{row}-score1"] = str(scores["score1"])
+            data[f"form-{row}-score2"] = str(scores["score2"])
+            data[f"form-{row}-is_played"] = "on"
+
+        response = self.client.post("/admin/olympic_warriors/game/", data)
+        self.assertEqual(response.status_code, 302)
+
+        game_ab.refresh_from_db()
+        game_bc.refresh_from_db()
+        self.assertTrue(game_ab.is_played)
+        self.assertTrue(game_bc.is_played)
+
+        # Game creation grants both teams the +1 draw point (see Game.save()); the edits
+        # above each move an old 0-0 draw to a > victory, i.e. +2/-1 (see Game.save()):
+        # A: +1 (created) +2 (9-1 win)          = 3
+        # B: +1 (created, game_ab) -1 (game_ab) +1 (created, game_bc) +2 (5-3 win) = 3
+        # C: +1 (created, game_bc) -1 (game_bc) = 0
+        points_by_team = {
+            r.team.name: r.points
+            for r in TeamResult.objects.filter(discipline=self.darts)
+        }
+        self.assertEqual(points_by_team, {"A": 3, "B": 3, "C": 0})
+
+    @override_settings(
+        STATICFILES_STORAGE="django.contrib.staticfiles.storage.StaticFilesStorage"
+    )
+    def test_admin_changelist_search_uses_related_names(self):
+        """search_fields must point at text columns: FK names alone raise FieldError."""
+        User.objects.create_superuser("root", "root@example.com", "pw")
+        self.client.force_login(User.objects.get(username="root"))
+        Game.objects.create(
+            discipline=self.darts, round=self.round, team1=self.a, team2=self.b,
+            referees=self.c, edition=self.edition,
+        )
+        response = self.client.get("/admin/olympic_warriors/game/", {"q": "Darts"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'name="form-0-is_played"')
+
+    def test_negative_score_is_rejected(self):
+        game = Game(
+            discipline=self.darts, round=self.round, team1=self.a, team2=self.b,
+            referees=self.c, edition=self.edition, score1=-1,
+        )
+        with self.assertRaises(ValidationError):
+            game.full_clean()
+
+    def test_backfill_marks_existing_games_played(self):
+        migration = importlib.import_module("olympic_warriors.migrations.0028_game_is_played")
+
+        game = Game.objects.create(
+            discipline=self.darts, round=self.round, team1=self.a, team2=self.b,
+            referees=self.c, edition=self.edition,
+        )
+        migration.mark_existing_games_played(apps, None)
+        game.refresh_from_db()
+        self.assertTrue(game.is_played)
+
+
+class TestSummarySchedule(ScheduleSetup, TestCase):
+    """Rounds and games in the summary; scores hidden until the discipline is revealed."""
+
+    def test_rounds_in_discipline_and_order(self):
+        rounds = self.summary()["rounds"]
+        self.assertEqual(
+            rounds,
+            [
+                {"id": self.darts_r1.id, "discipline": self.darts.id, "order": 0, "is_over": False},
+                {"id": self.darts_r2.id, "discipline": self.darts.id, "order": 1, "is_over": False},
+                {
+                    "id": self.petanque_r1.id,
+                    "discipline": self.petanque.id,
+                    "order": 0,
+                    "is_over": False,
+                },
+            ],
+        )
+
+    def test_games_in_round_order_with_scores_when_revealed(self):
+        games = [g for g in self.summary()["games"] if g["discipline"] == self.darts.id]
+        self.assertEqual([g["id"] for g in games], [self.g1.id, self.g2.id, self.g3.id])
+        self.assertEqual(
+            games[0],
+            {
+                "id": self.g1.id,
+                "discipline": self.darts.id,
+                "round": self.darts_r1.id,
+                "team1": self.team_b.id,
+                "team2": self.team_a.id,
+                "referees": self.team_c.id,
+                "is_played": True,
+                "score1": 12,
+                "score2": 9,
+            },
+        )
+        self.assertFalse(games[1]["is_played"])
+
+    def test_hidden_discipline_game_keeps_pairing_but_not_scores(self):
+        game = next(g for g in self.summary()["games"] if g["discipline"] == self.petanque.id)
+        self.assertEqual(
+            (game["team1"], game["team2"], game["referees"]),
+            (self.team_a.id, self.team_b.id, self.team_c.id),
+        )
+        self.assertTrue(game["is_played"])
+        self.assertIsNone(game["score1"])
+        self.assertIsNone(game["score2"])
+
+    def test_inactive_round_and_game_excluded(self):
+        self.darts_r2.is_active = False
+        self.darts_r2.save()
+        Game.objects.filter(pk=self.g2.pk).update(is_active=False)
+        data = self.summary()
+        self.assertEqual([r["id"] for r in data["rounds"]], [self.darts_r1.id, self.petanque_r1.id])
+        self.assertEqual([g["id"] for g in data["games"]], [self.g1.id, self.g4.id])
+
+    def test_inactive_discipline_rounds_and_games_excluded(self):
+        Discipline.objects.filter(pk=self.darts.pk).update(is_active=False)
+        data = self.summary()
+        self.assertEqual([r["id"] for r in data["rounds"]], [self.petanque_r1.id])
+        self.assertEqual([g["id"] for g in data["games"]], [self.g4.id])
+
+    def test_other_edition_rounds_and_games_never_leak(self):
+        other_relay = Relay.objects.get(edition=self.other)
+        team_y = Team.objects.create(name="Ypres", edition=self.other)
+        TeamResult.objects.create(team=team_y, discipline=other_relay, points=0)
+        TeamSportRound.objects.create(discipline=other_relay, order=0)
+        Game.objects.create(
+            discipline=other_relay, round=TeamSportRound.objects.get(discipline=other_relay),
+            team1=self.team_z, team2=team_y, referees=self.team_z, edition=self.other,
+        )
+        data = self.summary()
+        self.assertNotIn(other_relay.id, [r["discipline"] for r in data["rounds"]])
+        self.assertNotIn(other_relay.id, [g["discipline"] for g in data["games"]])

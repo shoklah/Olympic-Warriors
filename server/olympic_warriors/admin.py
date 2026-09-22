@@ -295,12 +295,14 @@ class GameAdmin(ModelAdmin):
         "score1",
         "score2",
         "team2",
+        "is_played",
         "referees",
         "round",
         "edition",
     ]
-    list_filter = ["discipline", "team1", "team2", "edition", "is_active"]
-    search_fields = ["discipline", "team1", "team2", "edition"]
+    list_editable = ["score1", "score2", "is_played"]
+    list_filter = ["discipline", "team1", "team2", "edition", "is_played", "is_active"]
+    search_fields = ["discipline__name", "team1__name", "team2__name", "edition__year"]
 
     def get_inline_instances(self, request: HttpRequest, obj=None):
         """
