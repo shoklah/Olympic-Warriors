@@ -46,7 +46,7 @@ Domain: `Edition` owns `Team`s, `Player`s (wraps `auth.User` plus rating facets)
 2. Export it from `models/__init__.py`.
 3. `site.register(<Name>, DisciplineAdmin)` in `admin.py`.
 4. `makemigrations` (each discipline gets its own table).
-5. Add a matching SVG in `front/src/lib/img/icons/` — `iconFor()` in `front/src/lib/icons.js` derives the file stem from the discipline name, so a missing icon falls back to `default.svg`.
+5. Add a matching SVG in `front/src/lib/img/icons/` — `iconFor()` in `front/src/lib/icons.js` derives the file stem from the discipline name, so a missing icon falls back to `default.svg`. Add the name to `DISCIPLINE_NAMES` in `front/src/lib/icons.test.js`, which fails until the icon exists.
 
 The base `Discipline.save()` creates a `TeamResult` per active team on first save and dispatches scheduling by `pairing_system`, both on creation and when the pairing system is later set on a discipline with no round yet: round robin (`schedule/round_robin.py`, a full circle-method round robin up front with referee assignment, `max_rounds` defaulting to a single round robin) or Swiss (`schedule/swiss.py`, next round only, re-triggered when a `TeamSportRound.is_over` flips, `max_rounds` defaulting to log2 of the team count). The schedulers use `apps.get_model()` to avoid circular imports.
 
