@@ -70,6 +70,10 @@
 		display: flex;
 		padding-top: 6rem;
 		flex-direction: column;
+		/* Keep the ::after backdrop in the menu's own stacking context, so it stays
+		   behind the links but above the page background. */
+		isolation: isolate;
+		z-index: 10;
 		-webkit-backdrop-filter: blur(8px);
 		backdrop-filter: blur(8px);
 	}
