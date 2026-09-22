@@ -30,7 +30,7 @@
 	<div class="grid">
 		{#each disciplines as discipline}
 			{@const name = disciplineName(locale, discipline.name)}
-			<!-- The whole card is the link, so its name is pinned to the bare discipline name.
+			<!-- The whole card is the link, so its accessible name is pinned to the discipline name.
 			     An unrevealed discipline stays reachable: its page still shows the pairings. -->
 			<a
 				class="card"

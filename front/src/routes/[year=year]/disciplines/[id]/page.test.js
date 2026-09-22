@@ -115,6 +115,20 @@ describe('discipline page', () => {
 		expect(screen.queryByRole('heading', { name: 'Round 3' })).toBeNull();
 	});
 
+	it('names an unknown team and hides the results in French', () => {
+		const orphan = {
+			...summary,
+			results: [...summary.results, { ...summary.results[0], id: 199, team: 42, ranking: 4, points: 0 }]
+		};
+		renderWith(Page, { data: dataFor(orphan, 10) }, 'fr');
+
+		const rows = screen.getAllByTestId('result-row');
+		expect(rows[3]).toHaveTextContent(/4\s*Inconnue/);
+
+		renderWith(Page, { data: dataFor(summary, 11) }, 'fr');
+		expect(screen.getByText('Résultats non dévoilés')).toBeInTheDocument();
+	});
+
 	it('speaks French under fr', () => {
 		renderWith(Page, { data: dataFor(summary, 10) }, 'fr');
 

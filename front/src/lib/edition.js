@@ -95,8 +95,9 @@ function parseDay(iso) {
 	return new Date(`${iso}T12:00:00`);
 }
 
-/** BCP 47 tag behind each site locale, for Intl. */
+/** BCP 47 tag behind each site locale, for Intl; French for anything else, like `t`. */
 const DATE_TAGS = { fr: 'fr-FR', en: 'en-GB' };
+const tagFor = (locale) => DATE_TAGS[locale] ?? DATE_TAGS.fr;
 
 /** French writes the first of the month "1er"; Intl gives "1". */
 function frenchFirst(text, date, locale) {
@@ -104,7 +105,7 @@ function frenchFirst(text, date, locale) {
 }
 
 function dayMonth(date, locale) {
-	const text = date.toLocaleDateString(DATE_TAGS[locale], { day: 'numeric', month: 'long' });
+	const text = date.toLocaleDateString(tagFor(locale), { day: 'numeric', month: 'long' });
 	return frenchFirst(text, date, locale);
 }
 
@@ -120,7 +121,7 @@ export function formatDateRange(start, end, locale) {
 	const from = parseDay(start);
 	const sameMonth = from.getFullYear() === year && from.getMonth() === to.getMonth();
 	const left = sameMonth
-		? frenchFirst(from.toLocaleDateString(DATE_TAGS[locale], { day: 'numeric' }), from, locale)
+		? frenchFirst(from.toLocaleDateString(tagFor(locale), { day: 'numeric' }), from, locale)
 		: dayMonth(from, locale);
 	return `${left} – ${dayMonth(to, locale)} ${year}`;
 }
@@ -132,10 +133,10 @@ export function formatDifference(n) {
 
 /**
  * Ordinal of a rank: 1st, 2nd, 3rd, 4th, 11th, 21st in English; 1re then 2e, 3e in French
- * (the rank always describes a team, feminine).
+ * (the rank always describes a team, feminine). Anything but `en` is French, like `t`.
  */
 export function ordinal(n, locale) {
-	if (locale === 'fr') return n === 1 ? '1re' : `${n}e`;
+	if (locale !== 'en') return n === 1 ? '1re' : `${n}e`;
 	const mod100 = n % 100;
 	if (mod100 >= 11 && mod100 <= 13) return `${n}th`;
 	const mod10 = n % 10;

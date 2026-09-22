@@ -215,6 +215,11 @@ describe('ordinal', () => {
 		expect(ordinal(11, 'fr')).toBe('11e');
 		expect(ordinal(21, 'fr')).toBe('21e');
 	});
+
+	it('falls back to French for an unknown locale', () => {
+		expect(ordinal(2, 'de')).toBe('2e');
+		expect(ordinal(2)).toBe('2e');
+	});
 });
 
 describe('switchYearPath', () => {
@@ -247,6 +252,11 @@ describe('formatDateRange', () => {
 		expect(formatDateRange('2026-09-30', '2026-10-01', 'fr')).toBe('30 septembre – 1er octobre 2026');
 		expect(formatDateRange('2026-10-01', '2026-10-01', 'fr')).toBe('1er octobre 2026');
 		expect(formatDateRange('2026-10-01', '2026-10-02', 'fr')).toBe('1er – 2 octobre 2026');
+	});
+
+	it('falls back to French for an unknown locale', () => {
+		expect(formatDateRange('2026-09-19', '2026-09-19', 'de')).toBe('19 septembre 2026');
+		expect(formatDateRange('2026-09-19', '2026-09-19')).toBe('19 septembre 2026');
 	});
 });
 
