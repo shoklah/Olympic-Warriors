@@ -245,6 +245,15 @@ describe('disciplineSchedule', () => {
 		const odd = { ...summary, games: [{ ...summary.games[0], referees: 42 }] };
 		expect(disciplineSchedule(odd, 10)[0].games[0].refereeName).toBe('Unknown');
 	});
+
+	it('includes a round with no games as an empty entry', () => {
+		const withEmptyRound = {
+			...summary,
+			rounds: [...summary.rounds, { id: 23, discipline: 10, order: 2, is_over: false }]
+		};
+		const rounds = disciplineSchedule(withEmptyRound, 10);
+		expect(rounds[2]).toEqual({ order: 2, isOver: false, games: [] });
+	});
 });
 
 describe('teamGames', () => {
@@ -271,5 +280,16 @@ describe('teamGames', () => {
 	it('omits disciplines where the team has no game', () => {
 		const none = { ...summary, games: summary.games.filter((g) => g.discipline !== 11) };
 		expect(teamGames(none, 3).map((d) => d.disciplineName)).toEqual(['Relay']);
+	});
+
+	it('returns an empty array for an unknown team', () => {
+		expect(teamGames(summary, 999)).toEqual([]);
+	});
+
+	it('treats a team that is both player and referee in one game as playing', () => {
+		const odd = { ...summary, games: [{ ...summary.games[0], referees: 2 }] };
+		const [discipline] = teamGames(odd, 2);
+		expect(discipline.games).toHaveLength(1);
+		expect(discipline.games[0].role).toBe('play');
 	});
 });
