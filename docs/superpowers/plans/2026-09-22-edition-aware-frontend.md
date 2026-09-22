@@ -1168,6 +1168,16 @@ describe('disciplineResults', () => {
 	it('returns null for an unknown discipline', () => {
 		expect(disciplineResults(summary, 999)).toBeNull();
 	});
+
+	it('sorts a row without a score last', () => {
+		const partial = {
+			...summary,
+			results: summary.results.map((r) =>
+				r.id === 101 ? { ...r, ranking: null, points: null, points_difference: null, global_points: null } : r
+			)
+		};
+		expect(disciplineResults(partial, 10).map((r) => r.teamName)).toEqual(['Aigles', 'Cerfs', 'Bisons']);
+	});
 });
 
 describe('teamResults', () => {
@@ -1313,10 +1323,11 @@ export function disciplineResults(summary, disciplineId) {
 	if (!discipline || !discipline.reveal_score) return null;
 
 	const names = new Map(summary.teams.map((t) => [t.id, t.name]));
+	const rank = (r) => r.ranking ?? Number.POSITIVE_INFINITY; // no score yet: sort last
 	return summary.results
 		.filter((r) => r.discipline === disciplineId)
 		.map((r) => ({ ...r, teamName: names.get(r.team) ?? 'Unknown' }))
-		.sort((a, b) => a.ranking - b.ranking || a.teamName.localeCompare(b.teamName));
+		.sort((a, b) => rank(a) - rank(b) || a.teamName.localeCompare(b.teamName));
 }
 
 /**
@@ -2684,8 +2695,10 @@ Create `front/src/routes/[year=year]/disciplines/[id]/+page.svelte`:
 	<div id="results">
 		{#each data.results as result}
 			<div class="team-card" data-testid="result-row">
-				<p>{result.ranking}. <a href="/{year}/teams/{result.team}">{result.teamName}</a></p>
-				{#if result.result_type === 'TIM'}
+				<p>{result.ranking === null ? '—' : `${result.ranking}.`} <a href="/{year}/teams/{result.team}">{result.teamName}</a></p>
+				{#if result.ranking === null}
+					<p>—</p>
+				{:else if result.result_type === 'TIM'}
 					<p>{result.time}</p>
 				{:else}
 					<p>{result.points} pts ({formatDifference(result.points_difference)})</p>
