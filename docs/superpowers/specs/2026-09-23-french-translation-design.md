@@ -102,7 +102,7 @@ returns for the locale (`one` and `other` are enough for both languages).
 | Fair | Fête foraine |
 | Dodgeball | Balle au prisonnier |
 | Obstacle Course | Parcours d'obstacles |
-| Geography Quizz | Quiz géographie |
+| Geography Quizz | Quiz de géographie |
 | General Culture Quizz | Quiz culture générale |
 | Petanque | Pétanque |
 | Darts | Fléchettes |
@@ -142,7 +142,7 @@ sentence case and accents.
 | `discipline.schedule` | Programme | Schedule |
 | `discipline.round` | Tour {n} | Round {n} |
 | `discipline.roundShort` | T{n} | R{n} |
-| `discipline.notRevealed` | Résultats pas encore dévoilés | Results not revealed yet |
+| `discipline.notRevealed` | Résultats non dévoilés | Results not revealed yet |
 | `game.played` | joué | played |
 | `game.referee` | arbitre : {name} | ref: {name} |
 | `teams.title` | Équipes | Teams |
@@ -186,7 +186,8 @@ rule and photo URLs) are not translated.
 - The `plural` helper is deleted.
 - `formatDateRange(start, end, locale)` uses `toLocaleDateString(locale, …)`
   with the same three shapes: `19 – 20 septembre 2026`,
-  `19 septembre 2026`, `30 septembre – 1 octobre 2026`; English unchanged
+  `19 septembre 2026`, `30 septembre – 1er octobre 2026` (the first of a month is
+  `1er` in French); English unchanged
   (`19 – 20 September 2026`).
 - `ordinal(n, locale)`: French `1re` for 1 (the rank describes a team,
   feminine) and `{n}e` otherwise; English as today. `MedalRank` takes the

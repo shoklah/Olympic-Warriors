@@ -244,7 +244,7 @@ export default {
 	'discipline.schedule': 'Programme',
 	'discipline.round': 'Tour {n}',
 	'discipline.roundShort': 'T{n}',
-	'discipline.notRevealed': 'Résultats pas encore dévoilés',
+	'discipline.notRevealed': 'Résultats non dévoilés',
 	'game.played': 'joué',
 	'game.referee': 'arbitre : {name}',
 	'teams.title': 'Équipes',
@@ -330,7 +330,7 @@ export const FRENCH_NAMES = {
 	Fair: 'Fête foraine',
 	Dodgeball: 'Balle au prisonnier',
 	'Obstacle Course': "Parcours d'obstacles",
-	'Geography Quizz': 'Quiz géographie',
+	'Geography Quizz': 'Quiz de géographie',
 	'General Culture Quizz': 'Quiz culture générale',
 	Petanque: 'Pétanque',
 	Darts: 'Fléchettes'
@@ -855,7 +855,9 @@ describe('formatDateRange', () => {
 
 	it('names both months across a month boundary', () => {
 		expect(formatDateRange('2026-09-30', '2026-10-01', 'en')).toBe('30 September – 1 October 2026');
-		expect(formatDateRange('2026-09-30', '2026-10-01', 'fr')).toBe('30 septembre – 1 octobre 2026');
+		expect(formatDateRange('2026-09-30', '2026-10-01', 'fr')).toBe('30 septembre – 1er octobre 2026');
+		expect(formatDateRange('2026-10-01', '2026-10-01', 'fr')).toBe('1er octobre 2026');
+		expect(formatDateRange('2026-10-01', '2026-10-02', 'fr')).toBe('1er – 2 octobre 2026');
 	});
 });
 ```
@@ -940,13 +942,15 @@ describe('roundCount', () => {
 In `describe('disciplineSchedule', …)`, the test `names an unknown team Unknown` becomes:
 
 ```js
-	it('gives a null name to an unknown team', () => {
+	it('gives a null name to an unknown or missing referee', () => {
 		const odd = { ...summary, games: [{ ...summary.games[0], referees: 42 }] };
 		expect(disciplineSchedule(odd, 10)[0].games[0].refereeName).toBeNull();
+		const none = { ...summary, games: [{ ...summary.games[0], referees: null }] };
+		expect(disciplineSchedule(none, 10)[0].games[0].refereeName).toBeNull();
 	});
 ```
 
-That is the only `Unknown` assertion in the file (`grep -n Unknown front/src/lib/edition.test.js`). The `teamGames` block is untouched here: `teamGames` still builds `opponentName` from `nameOf`, whose null now only matters for an unknown id, which its tests do not exercise. Task 6 rewrites it.
+(`GameRow` then omits its referee line for a null name, instead of printing `ref: Unknown`.) That is the only `Unknown` assertion in the file (`grep -n Unknown front/src/lib/edition.test.js`). The `teamGames` block is untouched here: `teamGames` still builds `opponentName` from `nameOf`, whose null now only matters for an unknown id, which its tests do not exercise. Task 6 rewrites it.
 
 - [ ] **Step 2: Run the helper tests to verify the rewritten ones fail**
 
@@ -972,8 +976,14 @@ Replace the `dayMonth` function and `formatDateRange` with:
 /** BCP 47 tag behind each site locale, for Intl. */
 const DATE_TAGS = { fr: 'fr-FR', en: 'en-GB' };
 
+/** French writes the first of the month "1er"; Intl gives "1". */
+function frenchFirst(text, date, locale) {
+	return locale === 'fr' && date.getDate() === 1 ? text.replace(/^1\b/, '1er') : text;
+}
+
 function dayMonth(date, locale) {
-	return date.toLocaleDateString(DATE_TAGS[locale], { day: 'numeric', month: 'long' });
+	const text = date.toLocaleDateString(DATE_TAGS[locale], { day: 'numeric', month: 'long' });
+	return frenchFirst(text, date, locale);
 }
 
 /**
@@ -988,7 +998,7 @@ export function formatDateRange(start, end, locale) {
 	const from = parseDay(start);
 	const sameMonth = from.getFullYear() === year && from.getMonth() === to.getMonth();
 	const left = sameMonth
-		? from.toLocaleDateString(DATE_TAGS[locale], { day: 'numeric' })
+		? frenchFirst(from.toLocaleDateString(DATE_TAGS[locale], { day: 'numeric' }), from, locale)
 		: dayMonth(from, locale);
 	return `${left} – ${dayMonth(to, locale)} ${year}`;
 }
@@ -1075,14 +1085,16 @@ In `front/src/lib/components/MedalRank.test.js`: replace the `render` import wit
 	});
 ```
 
-Run: `docker compose exec -T front npx vitest run src/lib/components/MedalRank`
+Also in `front/src/routes/[year=year]/teams/[id]/page.test.js` (rewritten fully in Task 6, but its `2nd` assertions would turn into `2e` now): replace the import line with `import { screen } from '@testing-library/svelte';` plus `import { renderWith } from '$lib/test-utils';` and every `render(Page, X)` with `renderWith(Page, X)` (5 places).
+
+Run: `docker compose exec -T front npx vitest run src/lib/components/MedalRank "src/routes/\[year=year\]/teams/\[id\]"`
 Expected: PASS.
 
 - [ ] **Step 6: EditionHub (it is the only caller of `formatDateRange`, whose signature just changed)**
 
 In `front/src/lib/components/EditionHub.svelte` script add `import { disciplineName, useLocale, useT } from '$lib/i18n';`, `const locale = useLocale();`, `const t = useT();`. In the markup: `alt={discipline.name}` becomes `alt={disciplineName(locale, discipline.name)}`; the `.where` line becomes `{edition.host} · {formatDateRange(edition.start_date, edition.end_date, locale)}`; the four countdown words become `{t('hub.days')}`, `{t('hub.hours')}`, `{t('hub.minutes')}`, `{t('hub.seconds')}`; the button text becomes `{t('hub.ranking')}`; `aria-label="Editions"` becomes `aria-label={t('hub.editions')}`.
 
-In `EditionHub.test.js`: switch to `renderWith(EditionHub, { summary, editions })` (5 places; the `within` import stays) and add:
+In `EditionHub.test.js`: the first line becomes `import { screen, within } from '@testing-library/svelte';` plus `import { renderWith } from '$lib/test-utils';`, every `render(EditionHub, …)` becomes `renderWith(EditionHub, …)` (6 places), and add:
 
 ```js
 	it('speaks French under fr', () => {
@@ -1127,7 +1139,7 @@ In `EditionHub.test.js`: switch to `renderWith(EditionHub, { summary, editions }
 </script>
 
 <div class="page">
-	<Breadcrumb items={[{ label: String(year), href: `/${year}` }, { label: t('disciplines.title') }]} />
+	<Breadcrumb items={[{ label: String(year), href: `/${year}` }, { label: t('nav.disciplines') }]} />
 	<h1>{t('disciplines.title')}</h1>
 
 	<div class="grid">
@@ -1197,7 +1209,7 @@ In `front/src/routes/[year=year]/disciplines/page.test.js`: switch the import to
 	<Breadcrumb
 		items={[
 			{ label: String(year), href: `/${year}` },
-			{ label: t('disciplines.title'), href: `/${year}/disciplines` },
+			{ label: t('nav.disciplines'), href: `/${year}/disciplines` },
 			{ label: name }
 		]}
 	/>
@@ -1306,7 +1318,7 @@ Browser: `http://localhost:5173/2026/disciplines` in French shows `ÉPREUVES`, `
 - [ ] **Step 10: Commit**
 
 ```bash
-git add front/src/lib/edition.js front/src/lib/edition.test.js front/src/lib/components/MedalRank.svelte front/src/lib/components/MedalRank.test.js front/src/lib/components/EditionHub.svelte front/src/lib/components/EditionHub.test.js "front/src/routes/[year=year]/disciplines"
+git add front/src/lib/edition.js front/src/lib/edition.test.js front/src/lib/components/MedalRank.svelte front/src/lib/components/MedalRank.test.js front/src/lib/components/EditionHub.svelte front/src/lib/components/EditionHub.test.js "front/src/routes/[year=year]/disciplines" "front/src/routes/[year=year]/teams/[id]/page.test.js"
 git commit -m "[FEAT] front: locale-free helpers, French ordinals and dates, hub and disciplines pages translated
 
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
@@ -1387,7 +1399,7 @@ In `ranking/page.test.js`: switch to `renderWith` (3 places) and add:
 
 - [ ] **Step 5: Teams grid**
 
-In `front/src/routes/[year=year]/teams/+page.svelte` script add `import { useT } from '$lib/i18n';` and `const t = useT();`; the breadcrumb's last label becomes `t('teams.title')`, the `h1` `{t('teams.title')}`, and `{team.total_points} pts` becomes `{team.total_points} {t('team.pts')}`.
+In `front/src/routes/[year=year]/teams/+page.svelte` script add `import { useT } from '$lib/i18n';` and `const t = useT();`; the breadcrumb's last label becomes `t('nav.teams')`, the `h1` `{t('teams.title')}`, and `{team.total_points} pts` becomes `{team.total_points} {t('team.pts')}`.
 
 In `teams/page.test.js`: switch to `renderWith` (1 place) and add:
 
@@ -1426,7 +1438,7 @@ In `front/src/routes/login/login.svelte`: add `import { useT } from '$lib/i18n';
 - [ ] **Step 7: Grep for leftovers, run the suite and build**
 
 Run: `grep -rn -E ">(Ranking|Teams|Disciplines|Results|Schedule|Games|Days|Hours|Minutes|Seconds|Log In|played|overall|referee|to play)<|aria-label=\"[A-Z]" front/src/lib/components front/src/routes --include=*.svelte`
-Expected: no output except `TeamGameRow.svelte` and `teams/[id]/+page.svelte` (Task 6) and `alt="OLYMPIC WARRIORS"` / `alt="OW"` (brand, kept).
+Expected: no output except hits in `TeamGameRow.svelte` and `teams/[id]/+page.svelte` (Task 6).
 
 Run: `docker compose exec -T front npm test` → green. `docker compose exec -T front npm run build` → `✓ built`.
 
@@ -1476,8 +1488,10 @@ describe('teamGames', () => {
 	});
 
 	it('omits disciplines where the team has no game', () => {
+		// Cerfs only referee the Orienteering game, so that discipline is not listed for them.
+		expect(teamGames(summary, 3).map((d) => d.disciplineName)).toEqual(['Relay']);
 		const none = { ...summary, games: summary.games.filter((g) => g.discipline !== 11) };
-		expect(teamGames(none, 3).map((d) => d.disciplineName)).toEqual(['Relay']);
+		expect(teamGames(none, 1).map((d) => d.disciplineName)).toEqual(['Relay']);
 	});
 
 	it('returns an empty array for an unknown team', () => {
@@ -1703,7 +1717,8 @@ describe('team page', () => {
 		expect(rows).toHaveLength(3);
 		expect(rows[0]).toHaveTextContent(/R1\s*Bisons\s*12 : 9\s*Aigles/);
 		expect(rows[1]).toHaveTextContent(/R1\s*Cerfs\s*— : —\s*Bisons/);
-		expect(screen.queryByText(/referee/)).toBeNull();
+		// Game 203 (Orienteering) is the third row; the refereed Relay game of Aigles never shows for Bisons.
+		expect(rows[2]).toHaveTextContent(/R1\s*Aigles\s*played\s*Bisons/);
 	});
 
 	it('has no games section when the team has no games', () => {
@@ -1758,7 +1773,7 @@ Expected: the game and French tests FAIL.
 	<Breadcrumb
 		items={[
 			{ label: String(year), href: `/${year}` },
-			{ label: t('teams.title'), href: `/${year}/teams` },
+			{ label: t('nav.teams'), href: `/${year}/teams` },
 			{ label: data.team.name }
 		]}
 	/>
@@ -1924,8 +1939,8 @@ Run: `docker compose exec -T front npm test` → green (report the count). `dock
 Browser smoke on `http://localhost:5173`, desktop then 375 px, French then English (switch via the header, confirm the cookie holds across pages):
 - `/`: French date line, `CLASSEMENT` button or `JOURS…`, edition pills.
 - `/2026/ranking`: `CLASSEMENT`, rail `Épreuves`, rows `… pts`.
-- `/2026/disciplines`: French names and subtitles, accented capitals render in Bebas Neue (`ÉPREUVES`).
-- a discipline page: `RÉSULTATS`/`Résultats pas encore dévoilés`, `PROGRAMME`, `TOUR 1`, `arbitre : …`.
+- `/2026/disciplines`: French names (`Quiz de géographie` if present) and subtitles, accented capitals render in Bebas Neue (`ÉPREUVES`).
+- a discipline page: `RÉSULTATS`/`Résultats non dévoilés`, `PROGRAMME`, `TOUR 1`, `arbitre : …`.
 - `/2026/teams` and a team page: `ÉQUIPES`, `1re AU GÉNÉRAL` shape, `MATCHS`, `T1` rows, own team in accent, no refereed row.
 - `/1999`: `Page introuvable`, `RETOUR AUX OLYMPIC WARRIORS`.
 - `/login`: `Identifiant`, `Mot de passe`, `CONNEXION`.
