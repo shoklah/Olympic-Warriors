@@ -773,7 +773,7 @@ def getTeamResultsByTeam(request, team_id):
 )
 @api_view(["GET"])
 def getTeamResultsByEdition(request, edition_id):
-    team_results = TeamResult.objects.filter(edition=edition_id, is_active=True)
+    team_results = TeamResult.objects.filter(discipline__edition=edition_id, is_active=True)
     serializer = TeamResultSerializer(team_results, many=True)
     return Response(serializer.data)
 
