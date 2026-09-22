@@ -54,9 +54,9 @@ Facts verified in the container before this plan was written:
 | `front/src/routes/lang/+page.server.js` (+ test) | 2 | the switch action |
 | `front/src/lib/components/Header.svelte` (+ new test), `TabBar.svelte` (+ test) | 3 | switch, translated tabs |
 | `front/src/lib/edition.js` (+ test) | 4 | locale-free subtitle/count, `formatDateRange`/`ordinal` with locale, `nameOf` null |
-| `front/src/lib/components/MedalRank.svelte` (+ test) | 4 | locale-aware ordinal |
+| `front/src/lib/components/MedalRank.svelte` (+ test), `EditionHub.svelte` (+ test) | 4 | locale-aware ordinal; hub dates and words |
 | `front/src/routes/[year=year]/disciplines/+page.svelte`, `disciplines/[id]/+page.svelte` (+ tests) | 4 | translated, new helper shapes |
-| `front/src/lib/components/{Breadcrumb,DisciplineRail,GameRow,EditionHub}.svelte` (+ tests) | 5 | translated |
+| `front/src/lib/components/{Breadcrumb,DisciplineRail,GameRow}.svelte` (+ tests) | 5 | translated |
 | `front/src/routes/[year=year]/ranking/+page.svelte`, `teams/+page.svelte`, `+error.svelte`, `login/login.svelte` (+ tests) | 5 | translated |
 | `front/src/lib/edition.js` `teamGames` (+ test), `GameRow.svelte` props (+ test), `teams/[id]/+page.svelte` (+ test), delete `TeamGameRow.svelte` (+ test) | 6 | team page games |
 | `front/src/error.html`, `front/src/lib/icons.test.js`, `CLAUDE.md`, scoreboard spec | 7 | fallback, coverage, docs, smoke, PR |
@@ -826,11 +826,12 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 
 ---
 
-## Task 4: Locale-free helpers, MedalRank, disciplines grid and discipline page
+## Task 4: Locale-free helpers, MedalRank, hub, disciplines grid and discipline page
 
 **Files:**
 - Modify: `front/src/lib/edition.js` (`nameOf`, `disciplineResults`, `formatDateRange`, `ordinal`, `plural`, `disciplineSubtitle`, `roundCount`), `front/src/lib/edition.test.js`
 - Modify: `front/src/lib/components/MedalRank.svelte`, `MedalRank.test.js`
+- Modify: `front/src/lib/components/EditionHub.svelte`, `EditionHub.test.js`
 - Modify: `front/src/routes/[year=year]/disciplines/+page.svelte`, `page.test.js`
 - Modify: `front/src/routes/[year=year]/disciplines/[id]/+page.svelte`, `page.test.js`
 
@@ -1077,7 +1078,25 @@ In `front/src/lib/components/MedalRank.test.js`: replace the `render` import wit
 Run: `docker compose exec -T front npx vitest run src/lib/components/MedalRank`
 Expected: PASS.
 
-- [ ] **Step 6: Disciplines grid**
+- [ ] **Step 6: EditionHub (it is the only caller of `formatDateRange`, whose signature just changed)**
+
+In `front/src/lib/components/EditionHub.svelte` script add `import { disciplineName, useLocale, useT } from '$lib/i18n';`, `const locale = useLocale();`, `const t = useT();`. In the markup: `alt={discipline.name}` becomes `alt={disciplineName(locale, discipline.name)}`; the `.where` line becomes `{edition.host} · {formatDateRange(edition.start_date, edition.end_date, locale)}`; the four countdown words become `{t('hub.days')}`, `{t('hub.hours')}`, `{t('hub.minutes')}`, `{t('hub.seconds')}`; the button text becomes `{t('hub.ranking')}`; `aria-label="Editions"` becomes `aria-label={t('hub.editions')}`.
+
+In `EditionHub.test.js`: switch to `renderWith(EditionHub, { summary, editions })` (5 places; the `within` import stays) and add:
+
+```js
+	it('speaks French under fr', () => {
+		vi.setSystemTime(new Date('2026-09-17T07:00:00Z'));
+		renderWith(EditionHub, { summary, editions }, 'fr');
+
+		expect(screen.getByText('Paris · 19 – 20 septembre 2026')).toBeInTheDocument();
+		expect(screen.getByText('Jours').querySelector('span')).toHaveTextContent(/^2$/);
+		expect(screen.getByAltText('Relais')).toBeInTheDocument();
+		expect(screen.getByRole('navigation', { name: 'Éditions' })).toBeInTheDocument();
+	});
+```
+
+- [ ] **Step 7: Disciplines grid**
 
 `front/src/routes/[year=year]/disciplines/+page.svelte` script and markup become (keep the style):
 
@@ -1147,7 +1166,7 @@ In `front/src/routes/[year=year]/disciplines/page.test.js`: switch the import to
 	});
 ```
 
-- [ ] **Step 7: Discipline page**
+- [ ] **Step 8: Discipline page**
 
 `front/src/routes/[year=year]/disciplines/[id]/+page.svelte` script and markup become (keep the style):
 
@@ -1277,18 +1296,18 @@ In `front/src/routes/[year=year]/disciplines/[id]/page.test.js`: switch to `impo
 
 (If the existing `h1` assertion uses `getByRole('heading', { name: 'Relay' })` with the icon inside, keep it as is; it renders under `en`.)
 
-- [ ] **Step 8: Run the suite and the build**
+- [ ] **Step 9: Run the suite and the build**
 
 Run: `docker compose exec -T front npm test`
 Expected: green. If a page test asserts `'Unknown'` anywhere, that page must print `t('team.unknown')`; grep `Unknown` under `front/src` to check nothing else relied on the helper string.
 
 Browser: `http://localhost:5173/2026/disciplines` in French shows `ÉPREUVES`, `Relais`, `2 tours · 3 matchs` (with the live data: the real counts); a discipline page shows `PROGRAMME`, `TOUR 1`.
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
-git add front/src/lib/edition.js front/src/lib/edition.test.js front/src/lib/components/MedalRank.svelte front/src/lib/components/MedalRank.test.js "front/src/routes/[year=year]/disciplines"
-git commit -m "[FEAT] front: locale-free helpers, French ordinals and dates, disciplines pages translated
+git add front/src/lib/edition.js front/src/lib/edition.test.js front/src/lib/components/MedalRank.svelte front/src/lib/components/MedalRank.test.js front/src/lib/components/EditionHub.svelte front/src/lib/components/EditionHub.test.js "front/src/routes/[year=year]/disciplines"
+git commit -m "[FEAT] front: locale-free helpers, French ordinals and dates, hub and disciplines pages translated
 
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ```
@@ -1298,7 +1317,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ## Task 5: Remaining components and pages
 
 **Files:**
-- Modify: `front/src/lib/components/Breadcrumb.svelte` (+ test), `DisciplineRail.svelte` (+ test), `GameRow.svelte` (+ test), `EditionHub.svelte` (+ test)
+- Modify: `front/src/lib/components/Breadcrumb.svelte` (+ test), `DisciplineRail.svelte` (+ test), `GameRow.svelte` (+ test)
 - Modify: `front/src/routes/[year=year]/ranking/+page.svelte` (+ test), `teams/+page.svelte` (+ test), `front/src/routes/+error.svelte`, `front/src/routes/login/login.svelte`
 
 - [ ] **Step 1: Breadcrumb**
@@ -1350,25 +1369,7 @@ In `GameRow.test.js`: switch to `renderWith` (9 places; `render(GameRow, played)
 	});
 ```
 
-- [ ] **Step 4: EditionHub**
-
-In `front/src/lib/components/EditionHub.svelte` script add `import { disciplineName, useLocale, useT } from '$lib/i18n';`, `const locale = useLocale();`, `const t = useT();`. In the markup: `alt={discipline.name}` becomes `alt={disciplineName(locale, discipline.name)}`; the `.where` line becomes `{edition.host} · {formatDateRange(edition.start_date, edition.end_date, locale)}`; the four countdown words become `{t('hub.days')}`, `{t('hub.hours')}`, `{t('hub.minutes')}`, `{t('hub.seconds')}`; the button text becomes `{t('hub.ranking')}`; `aria-label="Editions"` becomes `aria-label={t('hub.editions')}`.
-
-In `EditionHub.test.js`: switch to `renderWith(EditionHub, { summary, editions })` (5 places; the `within` import stays) and add:
-
-```js
-	it('speaks French under fr', () => {
-		vi.setSystemTime(new Date('2026-09-17T07:00:00Z'));
-		renderWith(EditionHub, { summary, editions }, 'fr');
-
-		expect(screen.getByText('Paris · 19 – 20 septembre 2026')).toBeInTheDocument();
-		expect(screen.getByText('Jours').querySelector('span')).toHaveTextContent(/^2$/);
-		expect(screen.getByAltText('Relais')).toBeInTheDocument();
-		expect(screen.getByRole('navigation', { name: 'Éditions' })).toBeInTheDocument();
-	});
-```
-
-- [ ] **Step 5: Ranking page**
+- [ ] **Step 4: Ranking page**
 
 In `front/src/routes/[year=year]/ranking/+page.svelte` script add `import { useT } from '$lib/i18n';` and `const t = useT();`; the breadcrumb's last label becomes `t('nav.ranking')`, the `h1` becomes `{t('ranking.title')}`, and `{team.total_points} pts` becomes `{team.total_points} {t('team.pts')}`.
 
@@ -1384,7 +1385,7 @@ In `ranking/page.test.js`: switch to `renderWith` (3 places) and add:
 	});
 ```
 
-- [ ] **Step 6: Teams grid**
+- [ ] **Step 5: Teams grid**
 
 In `front/src/routes/[year=year]/teams/+page.svelte` script add `import { useT } from '$lib/i18n';` and `const t = useT();`; the breadcrumb's last label becomes `t('teams.title')`, the `h1` `{t('teams.title')}`, and `{team.total_points} pts` becomes `{team.total_points} {t('team.pts')}`.
 
@@ -1397,7 +1398,7 @@ In `teams/page.test.js`: switch to `renderWith` (1 place) and add:
 	});
 ```
 
-- [ ] **Step 7: Error page and login form**
+- [ ] **Step 6: Error page and login form**
 
 `front/src/routes/+error.svelte` script and markup become (keep the style):
 
@@ -1422,7 +1423,7 @@ In `teams/page.test.js`: switch to `renderWith` (1 place) and add:
 
 In `front/src/routes/login/login.svelte`: add `import { useT } from '$lib/i18n';` and `const t = useT();` to the script; replace `The username field is required` and `You forgot the password...` with `{t('login.missing')}`, `placeholder="Username"` with `placeholder={t('login.username')}`, `placeholder="Password"` with `placeholder={t('login.password')}`, and `<button>Log In</button>` with `<button>{t('login.title')}</button>`. Leave the rest of the file untouched (its formatting is legacy).
 
-- [ ] **Step 8: Grep for leftovers, run the suite and build**
+- [ ] **Step 7: Grep for leftovers, run the suite and build**
 
 Run: `grep -rn -E ">(Ranking|Teams|Disciplines|Results|Schedule|Games|Days|Hours|Minutes|Seconds|Log In|played|overall|referee|to play)<|aria-label=\"[A-Z]" front/src/lib/components front/src/routes --include=*.svelte`
 Expected: no output except `TeamGameRow.svelte` and `teams/[id]/+page.svelte` (Task 6) and `alt="OLYMPIC WARRIORS"` / `alt="OW"` (brand, kept).
@@ -1431,11 +1432,11 @@ Run: `docker compose exec -T front npm test` → green. `docker compose exec -T 
 
 Browser: `http://localhost:5173/` shows `Paris · 19 – 20 septembre 2026`-style French date and `JOURS` or `CLASSEMENT`; `/2026/ranking` and `/2026/teams` in French; `/1999` shows `Page introuvable` and `RETOUR AUX OLYMPIC WARRIORS`; switch to EN and reload each.
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add front/src/lib/components/Breadcrumb.svelte front/src/lib/components/Breadcrumb.test.js front/src/lib/components/DisciplineRail.svelte front/src/lib/components/DisciplineRail.test.js front/src/lib/components/GameRow.svelte front/src/lib/components/GameRow.test.js front/src/lib/components/EditionHub.svelte front/src/lib/components/EditionHub.test.js "front/src/routes/[year=year]/ranking" "front/src/routes/[year=year]/teams/+page.svelte" "front/src/routes/[year=year]/teams/page.test.js" front/src/routes/+error.svelte front/src/routes/login/login.svelte
-git commit -m "[FEAT] front: hub, ranking, teams, rail, breadcrumb, game row, error and login through the dictionary
+git add front/src/lib/components/Breadcrumb.svelte front/src/lib/components/Breadcrumb.test.js front/src/lib/components/DisciplineRail.svelte front/src/lib/components/DisciplineRail.test.js front/src/lib/components/GameRow.svelte front/src/lib/components/GameRow.test.js "front/src/routes/[year=year]/ranking" "front/src/routes/[year=year]/teams/+page.svelte" "front/src/routes/[year=year]/teams/page.test.js" front/src/routes/+error.svelte front/src/routes/login/login.svelte
+git commit -m "[FEAT] front: ranking, teams, rail, breadcrumb, game row, error and login through the dictionary
 
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ```
