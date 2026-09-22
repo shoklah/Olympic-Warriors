@@ -41,6 +41,17 @@ describe('EditionHub', () => {
 		expect(screen.queryByRole('link', { name: '2026' })).toBeNull();
 	});
 
+	it('prints one date when the edition lasts a single day', () => {
+		vi.setSystemTime(new Date(2026, 8, 19, 10, 0, 0));
+		const oneDay = {
+			...summary,
+			edition: { ...summary.edition, start_date: '2026-09-19', end_date: '2026-09-19' }
+		};
+		render(EditionHub, { summary: oneDay, editions });
+
+		expect(screen.getByText('Paris · 19 September 2026')).toBeInTheDocument();
+	});
+
 	it('ticks and flips to the ranking button when the start passes', async () => {
 		vi.setSystemTime(new Date('2026-09-19T06:59:59Z'));
 		render(EditionHub, { summary, editions });

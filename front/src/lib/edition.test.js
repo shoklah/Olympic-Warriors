@@ -5,6 +5,7 @@ import {
 	editionPhase,
 	findDiscipline,
 	findTeam,
+	formatDateRange,
 	formatDifference,
 	rankedTeams,
 	startInstant,
@@ -191,5 +192,19 @@ describe('switchYearPath', () => {
 	it('goes to the hub from a non-edition page', () => {
 		expect(switchYearPath('/', 2025)).toBe('/2025');
 		expect(switchYearPath('/login', 2025)).toBe('/2025');
+	});
+});
+
+describe('formatDateRange', () => {
+	it('prints one date for a single-day edition', () => {
+		expect(formatDateRange('2026-09-19', '2026-09-19')).toBe('19 September 2026');
+	});
+
+	it('names the month once within a month', () => {
+		expect(formatDateRange('2026-09-19', '2026-09-20')).toBe('19 – 20 September 2026');
+	});
+
+	it('names both months across a month boundary', () => {
+		expect(formatDateRange('2026-09-30', '2026-10-01')).toBe('30 September – 1 October 2026');
 	});
 });

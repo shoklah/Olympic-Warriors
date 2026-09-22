@@ -90,6 +90,30 @@ export function countdownParts(edition, now = new Date()) {
 	};
 }
 
+/** Noon anchoring keeps the calendar day whatever the renderer's timezone. */
+function parseDay(iso) {
+	return new Date(`${iso}T12:00:00`);
+}
+
+function dayMonth(date) {
+	return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' });
+}
+
+/**
+ * The dates of an edition as one line: "19 September 2026" for a single day,
+ * "19 - 20 September 2026" within a month, "30 September - 1 October 2026" across two.
+ */
+export function formatDateRange(start, end) {
+	const to = parseDay(end);
+	const year = to.getFullYear();
+	if (start === end) return `${dayMonth(to)} ${year}`;
+
+	const from = parseDay(start);
+	const sameMonth = from.getFullYear() === year && from.getMonth() === to.getMonth();
+	const left = sameMonth ? from.toLocaleDateString('en-GB', { day: 'numeric' }) : dayMonth(from);
+	return `${left} – ${dayMonth(to)} ${year}`;
+}
+
 /** +3, 0, -2 */
 export function formatDifference(n) {
 	return n > 0 ? `+${n}` : `${n}`;

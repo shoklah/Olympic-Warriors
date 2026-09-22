@@ -3,7 +3,7 @@
 	import eclipse from '$lib/img/eclipse.png';
 	import title from '$lib/img/title.svg';
 	import { iconFor } from '$lib/icons';
-	import { countdownParts, editionPhase } from '$lib/edition';
+	import { countdownParts, editionPhase, formatDateRange } from '$lib/edition';
 
 	export let summary;
 	export let editions;
@@ -21,20 +21,6 @@
 		const interval = setInterval(() => (now = new Date()), 1000);
 		return () => clearInterval(interval);
 	});
-
-	/** Noon anchoring keeps the calendar day whatever the renderer's timezone. */
-	const parseDay = (iso) => new Date(`${iso}T12:00:00`);
-	const dayMonth = (date) =>
-		date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' });
-
-	/** "19 - 20 September 2026", or "30 September - 1 October 2026" across months. */
-	const formatRange = (start, end) => {
-		const from = parseDay(start);
-		const to = parseDay(end);
-		const sameMonth = from.getFullYear() === to.getFullYear() && from.getMonth() === to.getMonth();
-		const left = sameMonth ? from.toLocaleDateString('en-GB', { day: 'numeric' }) : dayMonth(from);
-		return `${left} – ${dayMonth(to)} ${to.getFullYear()}`;
-	};
 </script>
 
 <div class="fullscreen">
@@ -50,7 +36,7 @@
 	{/each}
 </div>
 
-<p class="where">{edition.host} · {formatRange(edition.start_date, edition.end_date)}</p>
+<p class="where">{edition.host} · {formatDateRange(edition.start_date, edition.end_date)}</p>
 
 {#if phase === 'upcoming'}
 	<div id="countdown">
