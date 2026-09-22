@@ -40,10 +40,10 @@
 
 {#if phase === 'upcoming'}
 	<div id="countdown">
-		<div><span>{parts.days}</span>Days</div>
-		<div><span>{parts.hours}</span>Hours</div>
-		<div><span>{parts.minutes}</span>Minutes</div>
-		<div><span>{parts.seconds}</span>Seconds</div>
+		<div class="label"><span class="num">{parts.days}</span>Days</div>
+		<div class="label"><span class="num">{parts.hours}</span>Hours</div>
+		<div class="label"><span class="num">{parts.minutes}</span>Minutes</div>
+		<div class="label"><span class="num">{parts.seconds}</span>Seconds</div>
 	</div>
 {:else}
 	<div id="ranking">
@@ -92,9 +92,10 @@
 
 	.where {
 		text-align: center;
-		color: var(--color-theme-1);
-		font-weight: 600;
+		font-family: var(--font-display);
+		font-size: 1.1rem;
 		letter-spacing: 0.1em;
+		color: var(--accent);
 		margin: 0 1rem 1rem;
 	}
 
@@ -103,18 +104,17 @@
 		display: flex;
 		justify-content: center;
 		gap: 2rem;
-		font-size: 1rem;
 		margin: 1rem 0;
-		color: var(--color-theme-1);
 	}
 
 	#ranking a {
-		color: var(--color-bg-0);
-		background-color: var(--color-theme-1);
-		padding: 0.6rem 4rem;
-		border-radius: 2em;
-		font-weight: 700;
-		font-size: 2rem;
+		background: var(--accent);
+		color: var(--bg);
+		font-family: var(--font-display);
+		font-size: 1.6rem;
+		letter-spacing: 0.15em;
+		padding: 0.7rem 3rem;
+		border-radius: var(--radius);
 		transition: 0.3s;
 		text-decoration: none;
 	}
@@ -123,17 +123,16 @@
 		opacity: 0.8;
 	}
 
-	#countdown div {
+	#countdown .label {
 		display: flex;
 		flex-direction: column;
 		align-items: center;
 		width: 75px;
 	}
 
-	#countdown span {
-		font-size: 2.5rem;
-		font-weight: 600;
-		margin-bottom: 1rem;
+	#countdown .num {
+		font-size: 3rem;
+		margin-bottom: 0.25rem;
 	}
 
 	.editions {
@@ -144,19 +143,19 @@
 	}
 
 	.editions a {
-		color: var(--color-theme-1);
-		border: 2px solid var(--color-theme-1);
-		border-radius: 2em;
-		padding: 0.4rem 1.2rem;
-		font-weight: 700;
+		font-family: var(--font-display);
 		letter-spacing: 0.1em;
+		color: var(--accent);
+		border: 2px solid var(--faint);
+		border-radius: var(--radius-pill);
+		padding: 0.4rem 1.2rem;
 		text-decoration: none;
 		transition: 0.2s;
 	}
 
 	.editions a:hover {
-		color: var(--color-bg-0);
-		background-color: var(--color-theme-1);
+		color: var(--bg);
+		background-color: var(--accent);
 	}
 
 	#eclipse {
