@@ -49,6 +49,7 @@ urlpatterns = [
     path("players/team/<int:team_id>/", views.getPlayersByTeam),
     # editions
     path("edition/<int:edition_id>/", views.getEdition),
+    path("edition/year/<int:year>/summary/", views.getEditionSummary),
     path("editions/", views.getEditions),
     # teams
     path("team/<int:team_id>/", views.getTeam),

@@ -6,32 +6,31 @@
     import {cubicOut, quintOut} from "svelte/easing";
 </script>
 
-<form class="form-login" method="POST" action="?/login" use:enhance
-      in:fly={{ delay: 200, x: -200, duration: 300, easing: cubicOut }}
-      out:fly={{ x: -200, duration: 200, easing: cubicOut }}>
+<form method="POST" action="?/login" use:enhance
+      in:fly={{ delay: 200, x: -200, duration: 300, easing: cubicOut }}>
 
     {#if form?.error }<p class="error" transition:slide={{ duration: 800, easing: quintOut }}>
         {form.error}
     </p>{/if}
 
     {#if form?.missing && form?.missing.username}<p class="error" transition:slide={{ duration: 800, easing: quintOut }}>
-        The email field is required
+        The username field is required
     </p>{/if}
-    <input name="username" placeholder="Username" value={form?.email ?? ''}
-           style="border-bottom: {(form?.missing && form?.missing.email) ? '#ff0000' : 'var(--color-theme-1)'} 2px solid;" autofocus>
+    <input name="username" placeholder="Username" value={form?.username ?? ''}
+           class:missing={form?.missing?.username} autofocus>
 
     {#if form?.missing && form?.missing.password}<p class="error" transition:slide={{ duration: 800, easing: quintOut }}>
         You forgot the password...
     </p>{/if}
     <input type="password" name="password" placeholder="Password"
-           style="border-bottom: {(form?.missing && form?.missing.password) ? '#ff0000' : 'var(--color-theme-1)'} 2px solid;">
+           class:missing={form?.missing?.password}>
 
     <button>Log In</button>
 </form>
 
 <style>
     .error {
-        color: red;
+        color: var(--loss);
         font-size: 1rem;
         font-weight: 600;
         margin: 0;
@@ -48,36 +47,48 @@
     }
 
     input {
-        background-color: var(--color-bg-0);
-        color: var(--color-text);
-        border: none;
-        border-bottom: var(--color-theme-1) 2px solid;
+        background: transparent;
+        color: var(--text);
+        border: 0;
+        border-bottom: 2px solid var(--line);
         width: 100%;
         padding: .5rem 1rem;
-        font-size: 1.5rem;
+        font-family: inherit;
+        font-size: 1.25rem;
         font-weight: 600;
         transition: .5s;
     }
 
+    input:focus-visible {
+        outline: none;
+        border-bottom-color: var(--accent);
+    }
+
+    input.missing,
+    input.missing:focus-visible {
+        border-bottom-color: var(--loss);
+    }
+
     button {
-        background-color: var(--color-theme-1);
-        color: var(--color-bg-0);
-        margin-left: .5rem;
-        padding: .9rem;
+        background: var(--accent);
+        color: var(--bg);
+        font-family: var(--font-display);
+        letter-spacing: .15em;
+        padding: .7rem 3rem;
         border: none;
-        border-radius: 5px;
+        border-radius: var(--radius);
         font-size: 1.2rem;
-        font-weight: 600;
         cursor: pointer;
-        transform: translate(0, -1px);
-        transition: .2s;
+        transition: .3s;
     }
 
-    button:hover {
-        opacity: .6;
+    button:hover,
+    button:focus-visible {
+        opacity: .8;
     }
 
-    button:active {
-        transform: translate(0, 3px);
+    button:focus-visible {
+        outline: 2px solid var(--ink);
+        outline-offset: 2px;
     }
 </style>

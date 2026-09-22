@@ -46,61 +46,51 @@ class Game(models.Model):
     )
     round = models.ForeignKey(TeamSportRound, on_delete=models.CASCADE, related_name="round")
     team1 = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="team1")
-    score1 = models.IntegerField(MinValueValidator(0), default=0)
+    score1 = models.IntegerField(
+        default=0, verbose_name="score 1", validators=[MinValueValidator(0)]
+    )
     team2 = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="team2")
-    score2 = models.IntegerField(MinValueValidator(0), default=0)
+    score2 = models.IntegerField(
+        default=0, verbose_name="score 2", validators=[MinValueValidator(0)]
+    )
     referees = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="referees")
     edition = models.ForeignKey(Edition, on_delete=models.CASCADE)
+    is_played = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
 
     def __str__(self) -> str:
         return self.discipline.name + ": " + self.team1.name + " vs " + self.team2.name
 
-    def _update_points(self, team1_points=None, team2_points=None):
+    def league_points(self, team_id):
         """
-        Update team results with the points of the game.
+        League points of a team in this game's discipline: 3 per win, 1 per draw, over the
+        discipline's active, played games. Unplayed games count for nothing.
         """
-        team1_result = TeamResult.objects.get(team=self.team1, discipline=self.discipline)
-        team2_result = TeamResult.objects.get(team=self.team2, discipline=self.discipline)
-        team1_result.points += team1_points
-        team2_result.points += team2_points
-        team1_result.save()
-        team2_result.save()
+        games = Game.objects.filter(discipline=self.discipline, is_active=True, is_played=True)
+        points = 0
+        for game in games.filter(team1_id=team_id):
+            points += 3 if game.score1 > game.score2 else (1 if game.score1 == game.score2 else 0)
+        for game in games.filter(team2_id=team_id):
+            points += 3 if game.score2 > game.score1 else (1 if game.score1 == game.score2 else 0)
+        return points
 
     def save(self, *args, **kwargs):
         """
-        Override save method to update team result if score is updated.
+        Save, then recompute the league points of every team the game touches (its current
+        teams, and its previous ones when a team was changed) from the played games.
         """
+        team_ids = {self.team1_id, self.team2_id}
         if self.pk:
-            old_game = Game.objects.get(pk=self.pk)
-            score_changed = self.score1 != old_game.score1 or self.score2 != old_game.score2
-
-            if score_changed:
-                if self.score1 > self.score2:
-                    if old_game.score1 == old_game.score2:
-                        self._update_points(team1_points=+2, team2_points=-1)
-                    elif old_game.score1 < old_game.score2:
-                        self._update_points(team1_points=+3, team2_points=-3)
-                elif self.score1 < self.score2:
-                    if old_game.score1 == old_game.score2:
-                        self._update_points(team2_points=+2, team1_points=-1)
-                    elif old_game.score1 > old_game.score2:
-                        self._update_points(team2_points=+3, team1_points=-3)
-                else:  # self.score1 == self.score2
-                    if old_game.score1 > old_game.score2:
-                        self._update_points(team1_points=-2, team2_points=+1)
-                    elif old_game.score1 < old_game.score2:
-                        self._update_points(team2_points=-2, team1_points=+1)
-
-        else:
-            if self.score1 > self.score2:
-                self._update_points(team1_points=+3, team2_points=0)
-            elif self.score1 < self.score2:
-                self._update_points(team2_points=+3, team1_points=0)
-            else:  # self.score1 == self.score2
-                self._update_points(team1_points=+1, team2_points=+1)
+            previous = Game.objects.filter(pk=self.pk).values_list("team1_id", "team2_id").first()
+            if previous:
+                team_ids.update(previous)
 
         super().save(*args, **kwargs)
+
+        for team_id in team_ids:
+            TeamResult.objects.filter(team_id=team_id, discipline=self.discipline).update(
+                points=self.league_points(team_id)
+            )
 
 
 class Discipline(models.Model):

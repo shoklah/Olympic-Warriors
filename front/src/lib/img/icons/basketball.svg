@@ -1,0 +1,6 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<circle cx="1000" cy="720" r="500" stroke="white" stroke-width="110"/>
+<path d="M1000 220V1220M500 720H1500M650 330Q1010 720 650 1110M1350 330Q990 720 1350 1110" stroke="white" stroke-width="80" stroke-linecap="round"/>
+<ellipse cx="1000" cy="1400" rx="560" ry="110" stroke="white" stroke-width="100"/>
+<path d="M560 1470L700 1900M780 1500L850 1900M1000 1510V1900M1220 1500L1150 1900M1440 1470L1300 1900M700 1900H1300" stroke="white" stroke-width="70" stroke-linecap="round"/>
+</svg>

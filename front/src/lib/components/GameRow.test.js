@@ -1,0 +1,85 @@
+import { render, screen } from '@testing-library/svelte';
+import { describe, expect, it } from 'vitest';
+import GameRow from './GameRow.svelte';
+
+const played = {
+	team1Name: 'Bisons',
+	team2Name: 'Aigles',
+	score1: 12,
+	score2: 9,
+	isPlayed: true,
+	refereeName: 'Cerfs'
+};
+
+describe('GameRow', () => {
+	it('shows both teams, the score and the referee', () => {
+		render(GameRow, played);
+
+		expect(screen.getByTestId('game-row')).toHaveTextContent(/Bisons\s*12 : 9\s*Aigles/);
+		expect(screen.getByTestId('game-row')).toHaveTextContent('ref: Cerfs');
+	});
+
+	it('dashes the score of an unplayed game', () => {
+		render(GameRow, {
+			...played,
+			team1Name: 'Cerfs',
+			team2Name: 'Bisons',
+			score1: null,
+			score2: null,
+			isPlayed: false,
+			refereeName: 'Aigles'
+		});
+
+		expect(screen.getByTestId('game-row')).toHaveTextContent(/Cerfs\s*— : —\s*Bisons/);
+	});
+
+	it('says played when a played game has no score', () => {
+		render(GameRow, { ...played, score1: null, score2: null });
+
+		expect(screen.getByTestId('game-row')).toHaveTextContent(/Bisons\s*played\s*Aigles/);
+	});
+
+	it('marks the winner and the loser', () => {
+		const { container } = render(GameRow, played);
+
+		expect(container.querySelector('.winner')).toHaveTextContent('Bisons');
+		expect(container.querySelector('.loser')).toHaveTextContent('Aigles');
+	});
+
+	it('marks neither team on a draw', () => {
+		const { container } = render(GameRow, { ...played, score1: 7, score2: 7 });
+
+		expect(container.querySelector('.winner')).toBeNull();
+		expect(container.querySelector('.loser')).toBeNull();
+	});
+
+	it('marks neither team without a score', () => {
+		const { container } = render(GameRow, { ...played, score1: null, score2: null });
+
+		expect(container.querySelector('.winner')).toBeNull();
+		expect(container.querySelector('.loser')).toBeNull();
+	});
+
+	it('links the team names when a href is given', () => {
+		render(GameRow, { ...played, team1Href: '/2026/teams/2', team2Href: '/2026/teams/1' });
+
+		expect(screen.getByRole('link', { name: 'Bisons' })).toHaveAttribute(
+			'href',
+			'/2026/teams/2'
+		);
+		expect(screen.getByRole('link', { name: 'Aigles' })).toHaveAttribute('href', '/2026/teams/1');
+	});
+
+	it('omits the referee line when there is no referee', () => {
+		render(GameRow, { ...played, refereeName: null });
+
+		expect(screen.getByTestId('game-row')).not.toHaveTextContent('ref:');
+	});
+
+	it('renders plain names without a href', () => {
+		render(GameRow, played);
+
+		expect(screen.queryByRole('link', { name: 'Bisons' })).toBeNull();
+		expect(screen.getByText('Bisons')).toBeInTheDocument();
+	});
+});
