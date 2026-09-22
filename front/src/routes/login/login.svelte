@@ -4,6 +4,9 @@
     import { fly } from "svelte/transition";
     import {slide} from "svelte/transition";
     import {cubicOut, quintOut} from "svelte/easing";
+    import { useT } from '$lib/i18n';
+
+    const t = useT();
 </script>
 
 <form method="POST" action="?/login" use:enhance
@@ -14,18 +17,18 @@
     </p>{/if}
 
     {#if form?.missing && form?.missing.username}<p class="error" transition:slide={{ duration: 800, easing: quintOut }}>
-        The username field is required
+        {t('login.missing')}
     </p>{/if}
-    <input name="username" placeholder="Username" value={form?.username ?? ''}
+    <input name="username" placeholder={t('login.username')} value={form?.username ?? ''}
            class:missing={form?.missing?.username} autofocus>
 
     {#if form?.missing && form?.missing.password}<p class="error" transition:slide={{ duration: 800, easing: quintOut }}>
-        You forgot the password...
+        {t('login.missing')}
     </p>{/if}
-    <input type="password" name="password" placeholder="Password"
+    <input type="password" name="password" placeholder={t('login.password')}
            class:missing={form?.missing?.password}>
 
-    <button>Log In</button>
+    <button>{t('login.title')}</button>
 </form>
 
 <style>

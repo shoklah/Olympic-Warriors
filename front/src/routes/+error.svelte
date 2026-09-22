@@ -1,11 +1,18 @@
 <script>
 	import { page } from '$app/stores';
+	import { useT } from '$lib/i18n';
+
+	const t = useT();
+
+	// The loaders throw their 404s with an English message; the page words it.
+	$: message =
+		$page.status === 404 ? t('error.notFound') : ($page.error?.message ?? t('error.generic'));
 </script>
 
 <section>
 	<h1>{$page.status}</h1>
-	<p>{$page.error?.message ?? 'Something went wrong'}</p>
-	<a href="/">Back to the Olympic Warriors</a>
+	<p>{message}</p>
+	<a href="/">{t('error.back')}</a>
 </section>
 
 <style>

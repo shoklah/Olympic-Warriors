@@ -3,8 +3,11 @@
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import DisciplineRail from '$lib/components/DisciplineRail.svelte';
 	import MedalRank from '$lib/components/MedalRank.svelte';
+	import { useT } from '$lib/i18n';
 
 	export let data;
+
+	const t = useT();
 
 	$: year = data.summary.edition.year;
 	$: teams = rankedTeams(data.summary);
@@ -12,8 +15,8 @@
 </script>
 
 <div class="page">
-	<Breadcrumb items={[{ label: String(year), href: `/${year}` }, { label: 'Ranking' }]} />
-	<h1>Ranking</h1>
+	<Breadcrumb items={[{ label: String(year), href: `/${year}` }, { label: t('nav.ranking') }]} />
+	<h1>{t('ranking.title')}</h1>
 
 	<div class="columns">
 		<div id="disciplines">
@@ -32,7 +35,7 @@
 				>
 					<MedalRank rank={team.ranking} />
 					<span class="name">{team.name}</span>
-					<span class="num pts">{team.total_points} pts</span>
+					<span class="num pts">{team.total_points} {t('team.pts')}</span>
 				</a>
 			{/each}
 		</div>

@@ -1,4 +1,6 @@
 <script>
+	import { useT } from '$lib/i18n';
+
 	/** Home team name. */
 	export let team1Name;
 	/** Away team name. */
@@ -15,6 +17,8 @@
 	/** @type {string | null} */
 	export let team2Href = null;
 
+	const t = useT();
+
 	$: hasScore = isPlayed && score1 !== null && score2 !== null;
 	$: team1Class = !hasScore || score1 === score2 ? '' : score1 > score2 ? 'winner' : 'loser';
 	$: team2Class = !hasScore || score1 === score2 ? '' : score2 > score1 ? 'winner' : 'loser';
@@ -23,9 +27,9 @@
 <div class="game-row" data-testid="game-row">
 	<p class="teams">
 		{#if team1Href}
-			<a class="team {team1Class}" href={team1Href}>{team1Name}</a>
+			<a class="team {team1Class}" href={team1Href}>{team1Name ?? t('team.unknown')}</a>
 		{:else}
-			<span class="team {team1Class}">{team1Name}</span>
+			<span class="team {team1Class}">{team1Name ?? t('team.unknown')}</span>
 		{/if}
 
 		{#if hasScore}
@@ -33,17 +37,17 @@
 		{:else if !isPlayed}
 			<span class="score num unplayed">— : —</span>
 		{:else}
-			<span class="score pending">played</span>
+			<span class="score pending">{t('game.played')}</span>
 		{/if}
 
 		{#if team2Href}
-			<a class="team right {team2Class}" href={team2Href}>{team2Name}</a>
+			<a class="team right {team2Class}" href={team2Href}>{team2Name ?? t('team.unknown')}</a>
 		{:else}
-			<span class="team right {team2Class}">{team2Name}</span>
+			<span class="team right {team2Class}">{team2Name ?? t('team.unknown')}</span>
 		{/if}
 	</p>
 	{#if refereeName}
-		<p class="referee">ref: {refereeName}</p>
+		<p class="referee">{t('game.referee', { name: refereeName })}</p>
 	{/if}
 </div>
 
