@@ -1,75 +1,40 @@
-import {fail, redirect} from '@sveltejs/kit';
-import {requestAPI, setAuthToken} from '$lib/utils';
-import { API_URL } from '$env/static/private';
+import { fail, redirect } from '@sveltejs/kit';
+import { apiPost } from '$lib/api';
+import { api } from '$lib/server/urls';
 
-export const actions = {
-    login: async ({cookies, request}) => {
-        const formData = Object.fromEntries(await request.formData());
-        const { username, password } = formData;
-
-        // Validation
-        const errors = {};
-        if (!username) errors.username = 'username required';
-        if (!password) errors.password = 'Password required';
-
-        if (Object.keys(errors).length > 0) {
-            return fail(400, { errors, username });
-        }
-
-        const {error, token} = await requestAPI(
-            `${API_URL}/auth/token/`,
-            'POST',
-            null,
-            {
-                username: username,
-                password: password
-            }
-        );
-
-        if (error) {
-            return fail(500, { error: error.message || 'Invalid username or password' });
-        }
-
-        if (!token) {
-            return fail(500, { error: 'Authentication failed: token not received' });
-        }
-
-        setAuthToken({cookies, token});
-        throw redirect(302, "/")
-    }
+const setAuthToken = ({ cookies, token }) => {
+	cookies.set('Authorization', `Bearer ${token}`, {
+		httpOnly: true,
+		secure: true,
+		sameSite: 'strict',
+		maxAge: 60 * 60 * 24 * 7, // 1 week
+		path: '/'
+	});
 };
 
-    // register:  async ({cookies, request}) => {
-    //     const formData = Object.fromEntries(await request.formData());
-    //     const {email, password, first_name, last_name, password_conf} = formData;
-    //
-    //     if (!first_name) {
-    //         return fail(400, { email, missing: {first_name: true }});
-    //     }
-    //     if (!last_name) {
-    //         return fail(400, { email, missing: {last_name: true }});
-    //     }
-    //     if (!email) {
-    //         return fail(400, { email, missing : {email: true }});
-    //     }
-    //     if (!password) {
-    //         return fail(400, { email, missing: {password: true }});
-    //     }
-    //     if (!password_conf) {
-    //         return fail(400, { email, missing: {password_conf: true }});
-    //     }
-    //     if (password !== password_conf) {
-    //         return fail(400, { email, error: "Passwords do not match" });
-    //     }
-    //
-    //     // const {error, token} = await createUser(email, password, city);
-    //
-    //     // if (error) {
-    //     //     console.log({error});
-    //     //     return fail(500, {error});
-    //     // }
-    //
-    //     // setAuthToken({cookies, token});
-    //
-    //     // throw  redirect(302, "/");
-    // }
+export const actions = {
+	login: async ({ cookies, request, fetch }) => {
+		const { username, password } = Object.fromEntries(await request.formData());
+
+		const missing = {};
+		if (!username) missing.username = true;
+		if (!password) missing.password = true;
+		if (Object.keys(missing).length > 0) {
+			return fail(400, { missing, username });
+		}
+
+		let token;
+		try {
+			({ token } = await apiPost(fetch, api('/auth/token/'), { username, password }));
+		} catch (err) {
+			return fail(err?.status ?? 500, { username, error: err?.body?.message ?? 'Login failed' });
+		}
+
+		if (!token) {
+			return fail(500, { username, error: 'Authentication failed: token not received' });
+		}
+
+		setAuthToken({ cookies, token });
+		redirect(302, '/');
+	}
+};

@@ -1,16 +1,7 @@
-import {requestAPI} from "$lib/utils.js";
-import {API_URL} from "$env/static/private";
-import {redirect} from "@sveltejs/kit";
+import { error, redirect } from '@sveltejs/kit';
 
-export const load = async ({ cookies }) => {
-    const authCookie = cookies.get('Authorization');
-
-    if (authCookie) {
-        const token = authCookie.split(' ')[1];
-        const teams = await requestAPI(`${API_URL}/teams`, "GET", token, null);
-        teams.sort(() => Math.random() - 0.5);
-        return {teams};
-    } else {
-        redirect(302, "/login");
-    }
+export const load = async ({ parent }) => {
+	const { latestYear } = await parent();
+	if (latestYear === null) error(404, 'No edition yet');
+	redirect(301, `/${latestYear}/teams`);
 };

@@ -15,10 +15,10 @@
     </p>{/if}
 
     {#if form?.missing && form?.missing.username}<p class="error" transition:slide={{ duration: 800, easing: quintOut }}>
-        The email field is required
+        The username field is required
     </p>{/if}
-    <input name="username" placeholder="Username" value={form?.email ?? ''}
-           style="border-bottom: {(form?.missing && form?.missing.email) ? '#ff0000' : 'var(--color-theme-1)'} 2px solid;" autofocus>
+    <input name="username" placeholder="Username" value={form?.username ?? ''}
+           style="border-bottom: {(form?.missing && form?.missing.username) ? '#ff0000' : 'var(--color-theme-1)'} 2px solid;" autofocus>
 
     {#if form?.missing && form?.missing.password}<p class="error" transition:slide={{ duration: 800, easing: quintOut }}>
         You forgot the password...
