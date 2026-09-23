@@ -660,3 +660,165 @@ class TestTeammates(World, TestCase):
         self.meet(2023, self.crowd(2023))
 
         self.assertEqual(tiers_of(self.ana, C.NETWORKER), [(2023, 1)])
+
+
+FAME_CODES = (
+    C.GOAT,
+    C.ALONE_AT_THE_TOP,
+    C.HALL_OF_FAME_PODIUM,
+    C.HALL_OF_FAMER,
+    C.REIGN,
+    C.KINGSLAYER,
+    C.ROCKET,
+)
+
+
+class TestHallOfFame(World, TestCase):
+    """
+    The all-time tables follow the /players rules: people rank like a medal table on their
+    places, identical places share a position, and the teamless spectators have none.
+    """
+
+    def test_the_first_edition_gives_nothing(self):
+        # A second edition in the sequence, but nothing counted in it: still no table.
+        ana = self.person("Ana")
+        self.play(ana, [1, None])
+
+        self.assertEqual([b for b in badges_of(ana) if b[0] in FAME_CODES], [])
+
+    def test_goat_from_the_second_edition(self):
+        ana, bob = self.person("Ana"), self.person("Bob")
+        self.play(ana, [1, 2])  # places 1, 2: 1st
+        self.play(bob, [None, 1])  # place 1: 2nd
+
+        self.assertEqual(years_of(ana, C.GOAT), [2022])
+        self.assertEqual(years_of(bob, C.GOAT), [])
+
+    def test_goat_once_even_when_shared(self):
+        ana, bob = self.person("Ana"), self.person("Bob")
+        self.play(ana, [1, 1, 1])
+        self.play(bob, [1, 1, 1])  # the same team: the same places
+
+        self.assertEqual(years_of(ana, C.GOAT), [2022])
+        self.assertEqual(years_of(bob, C.GOAT), [2022])
+        self.assertEqual(years_of(ana, C.ALONE_AT_THE_TOP), [])
+        self.assertEqual(years_of(bob, C.ALONE_AT_THE_TOP), [])
+
+    def test_alone_at_the_top_needs_the_first_place_alone(self):
+        ana, bob = self.person("Ana"), self.person("Bob")
+        self.play(ana, [1, 1, 1])
+        self.play(bob, [1, 1, 2])  # teammates in 2021 and 2022, then Ana has one more title
+
+        self.assertEqual(years_of(ana, C.ALONE_AT_THE_TOP), [2023])
+        self.assertEqual(years_of(bob, C.ALONE_AT_THE_TOP), [])
+
+    def test_hall_of_fame_podium_and_hall_of_famer(self):
+        # 2021: eleven people on eleven teams, ranked 1 to 11. The 2022 table adds a title
+        # to the first: positions 1 to 11. The 2023 table adds one to the fourth, 2nd then.
+        people = [self.person(f"P{n}") for n in range(1, 12)]
+        e2021, t2021 = self.edition(2021, size=11)
+        for user, team in zip(people, t2021):
+            self.seat(user, e2021, team)
+        e2022, t2022 = self.edition(2022, size=2)
+        self.seat(people[0], e2022, t2022[0])
+        e2023, t2023 = self.edition(2023, size=2)
+        self.seat(people[3], e2023, t2023[0])
+        third, fourth, tenth, eleventh = people[2], people[3], people[9], people[10]
+
+        self.assertEqual(years_of(third, C.HALL_OF_FAME_PODIUM), [2022])
+        self.assertEqual(years_of(third, C.HALL_OF_FAMER), [2022])
+        self.assertEqual(years_of(fourth, C.HALL_OF_FAME_PODIUM), [2023])
+        self.assertEqual(years_of(fourth, C.HALL_OF_FAMER), [2022])
+        self.assertEqual(years_of(tenth, C.HALL_OF_FAME_PODIUM), [])
+        self.assertEqual(years_of(tenth, C.HALL_OF_FAMER), [2022])
+        self.assertEqual(years_of(eleventh, C.HALL_OF_FAMER), [])
+
+    def test_reign_after_three_tables_at_the_top(self):
+        ana = self.person("Ana")
+        self.play(ana, [1, 1, 1, 1, 1])  # tables 2022 to 2025
+
+        self.assertEqual(years_of(ana, C.REIGN), [2024])
+
+    def test_no_reign_after_two_tables(self):
+        ana = self.person("Ana")
+        self.play(ana, [1, 1, 1])  # tables 2022 and 2023
+
+        self.assertEqual(years_of(ana, C.REIGN), [])
+
+    def test_reign_again_after_losing_the_top(self):
+        # Teammates until 2024. Bob's extra 2nd place puts him alone at the top of the 2025
+        # table, Ana's fifth title puts her back there from 2026.
+        ana, bob = self.person("Ana"), self.person("Bob")
+        self.play(ana, [1, 1, 1, 1, None, 1, 1, 1])
+        self.play(bob, [1, 1, 1, 1, 2])
+
+        self.assertEqual(years_of(ana, C.REIGN), [2024, 2028])
+        self.assertEqual(years_of(bob, C.REIGN), [2024])
+
+    def test_kingslayer_takes_the_top_from_someone_else(self):
+        ana, bob = self.person("Ana"), self.person("Bob")
+        self.play(ana, [1, 3, 4])  # 2022 table: (1, 3) 1st; 2023: (1, 3, 4) 2nd
+        self.play(bob, [2, 2, 1])  # 2022 table: (2, 2) 2nd; 2023: (1, 2, 2) 1st
+
+        self.assertEqual(years_of(bob, C.KINGSLAYER), [2023])
+        self.assertEqual(years_of(ana, C.KINGSLAYER), [])
+
+    def test_no_kingslayer_at_the_first_table(self):
+        # Ana tops the 2021 ranking, Bob the 2022 table, but 2021 alone is not a table.
+        ana, bob = self.person("Ana"), self.person("Bob")
+        self.play(ana, [1, 3])
+        self.play(bob, [2, 1])
+
+        self.assertEqual(years_of(bob, C.GOAT), [2022])
+        self.assertEqual(years_of(bob, C.KINGSLAYER), [])
+
+    def test_no_kingslayer_for_the_standing_leader(self):
+        ana, bob = self.person("Ana"), self.person("Bob")
+        self.play(ana, [1, 1, 1])
+        self.play(bob, [2, 2, 2])
+
+        self.assertEqual(years_of(ana, C.KINGSLAYER), [])
+
+    def test_rocket_for_the_biggest_climb_shared(self):
+        # 2022 table: Ana 1, Bob 2, Cat 3, Dan 4, Eve 5. In 2023 Dan and Eve win on two
+        # teams tied 1st: Ana (1, 1, 3) 1, Dan (1, 4, 4) 2, Eve (1, 5, 5) 3,
+        # Bob (2, 2, 4) 4, Cat (3, 3, 5) 5. Dan and Eve both climb 2 places.
+        ana, bob, cat, dan, eve = (self.person(n) for n in ("Ana", "Bob", "Cat", "Dan", "Eve"))
+        e2023, t2023 = self.edition(2023, ranks=[1, 1, 3, 4, 5, 6])
+        for user, rank in zip((ana, bob, cat, dan, eve), (1, 2, 3, 4, 5)):
+            self.play(user, [rank, rank])
+        for user, team in zip((dan, eve, ana, bob, cat), t2023):
+            self.seat(user, e2023, team)
+
+        self.assertEqual(years_of(dan, C.ROCKET), [2023])
+        self.assertEqual(years_of(eve, C.ROCKET), [2023])
+        self.assertEqual([years_of(user, C.ROCKET) for user in (ana, bob, cat)], [[], [], []])
+
+    def test_no_climb_no_rocket(self):
+        ana, bob = self.person("Ana"), self.person("Bob")
+        self.play(ana, [1, 1, 1])
+        self.play(bob, [2, 2, 2])
+
+        self.assertEqual(years_of(ana, C.ROCKET), [])
+        self.assertEqual(years_of(bob, C.ROCKET), [])
+
+    def test_a_newcomer_has_no_climb(self):
+        # 2022 table: Ana 1, Bob 2, Cat 3; Uma sits teamless, without a position. In 2023
+        # Cat, Zed (new) and Uma win: Ana (1, 1, 3) 1, Cat (1, 3, 3) 2, Zed and Uma (1) 3,
+        # Bob (2, 2, 4) 5. Only Cat climbs from a known position.
+        ana, bob, cat = self.person("Ana"), self.person("Bob"), self.person("Cat")
+        uma, zed = self.person("Uma"), self.person("Zed")
+        e2023, t2023 = self.edition(2023, ranks=[1, 1, 3, 4])
+        for user, rank in zip((ana, bob, cat), (1, 2, 3)):
+            self.play(user, [rank, rank])
+        for edition in Edition.objects.filter(year__in=(2021, 2022)):
+            self.seat(uma, edition)
+        self.seat(cat, e2023, t2023[0])
+        self.seat(zed, e2023, t2023[1])
+        self.seat(uma, e2023, t2023[1])
+        self.seat(ana, e2023, t2023[2])
+        self.seat(bob, e2023, t2023[3])
+
+        self.assertEqual(years_of(cat, C.ROCKET), [2023])
+        self.assertEqual(years_of(zed, C.ROCKET), [])
+        self.assertEqual(years_of(uma, C.ROCKET), [])

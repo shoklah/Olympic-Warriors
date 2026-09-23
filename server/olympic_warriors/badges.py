@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from itertools import combinations
 
 from .models import Badge
-from .profiles import _load, _participations, _sort_key, paris_today
+from .profiles import _load, _participations, _place, _record, _sort_key, paris_today
 
 C = Badge.Codes
 
@@ -288,7 +288,70 @@ def _teammates(h):
                         yield Earned(user_id, C.NETWORKER, edition_id, tier=tier)
 
 
-RULES = (_places, _streaks, _career, _loyalty, _teammates)
+def _tables(h):
+    """
+    (sequence index, {user id: position}) for every all-time table the hall of fame reads:
+    the /players leaderboard built from the editions up to that index, from the first index
+    at which two editions of the sequence have counted participations (the table after a
+    single edition is only that edition's ranking, which the place badges cover).
+    """
+    with_counted = 0
+    for i in range(len(h.sequence)):
+        if any(i in seats and seats[i].counts for seats in h.seats.values()):
+            with_counted += 1
+        if with_counted < 2:
+            continue
+        records = []
+        for user_id, seats in h.seats.items():
+            parts = tuple(seats[j] for j in sorted(seats, reverse=True) if j <= i)
+            if parts:
+                records.append(_record(h.users[user_id], parts))
+        yield i, {record.user_id: record.position for record in _place(records)}
+
+
+FAME = ((C.HALL_OF_FAME_PODIUM, 3), (C.HALL_OF_FAMER, 10))
+
+
+def _hall_of_fame(h):
+    """goat, alone-at-the-top, hall-of-fame-podium and hall-of-famer (once each), reign
+    (once per streak), kingslayer and rocket (at every table earned)."""
+    reached = set()
+    reign = Counter()
+    previous = None
+    for i, positions in _tables(h):
+        edition_id = h.sequence[i].id
+        leaders = [user_id for user_id, position in positions.items() if position == 1]
+        for user_id, position in positions.items():
+            if position is None:
+                continue
+            candidates = [(C.GOAT, position == 1), (C.ALONE_AT_THE_TOP, leaders == [user_id])]
+            candidates += [(code, position <= top) for code, top in FAME]
+            for code, holds in candidates:
+                if holds and (user_id, code) not in reached:
+                    reached.add((user_id, code))
+                    yield Earned(user_id, code, edition_id)
+        for user_id in h.seats:
+            reign[user_id] = reign[user_id] + 1 if positions.get(user_id) == 1 else 0
+            if reign[user_id] == 3:
+                yield Earned(user_id, C.REIGN, edition_id)
+        if previous is not None:
+            for user_id in leaders:
+                if previous.get(user_id) != 1:
+                    yield Earned(user_id, C.KINGSLAYER, edition_id)
+            climbs = {
+                user_id: previous[user_id] - position
+                for user_id, position in positions.items()
+                if position is not None and previous.get(user_id) is not None
+            }
+            best = max(climbs.values(), default=0)
+            if best >= 1:
+                for user_id, climb in climbs.items():
+                    if climb == best:
+                        yield Earned(user_id, C.ROCKET, edition_id)
+        previous = positions
+
+
+RULES = (_places, _streaks, _career, _loyalty, _teammates, _hall_of_fame)
 
 
 def earned(today=None):
