@@ -1,15 +1,19 @@
-import { screen, within } from '@testing-library/svelte';
-import { describe, expect, it } from 'vitest';
+import { fireEvent, screen, within } from '@testing-library/svelte';
+import { describe, expect, it, vi } from 'vitest';
 import { renderWith } from '$lib/test-utils';
 import Page from './+page.svelte';
-import { disciplineResults, disciplineSchedule, findDiscipline } from '$lib/edition';
-import { summary, summaryAllRevealed } from '$lib/fixtures/summary.js';
+import { disciplineEntries, disciplineResults, disciplineSchedule, findDiscipline } from '$lib/edition';
+import { summary, summaryAllRevealed, summaryStaff } from '$lib/fixtures/summary.js';
 
-const dataFor = (s, id) => ({
+vi.mock('$app/forms', () => ({ enhance: () => ({ destroy() {} }) }));
+
+const dataFor = (s, id, editable = false) => ({
 	summary: s,
 	discipline: findDiscipline(s, id),
 	results: disciplineResults(s, id),
-	schedule: disciplineSchedule(s, id)
+	schedule: disciplineSchedule(s, id),
+	entries: disciplineEntries(s, id),
+	editable
 });
 
 describe('discipline page', () => {
@@ -43,7 +47,7 @@ describe('discipline page', () => {
 
 		const rows = screen.getAllByTestId('result-row');
 		expect(rows[0]).toHaveTextContent('1 Aigles');
-		expect(rows[0]).toHaveTextContent('00:12:30');
+		expect(rows[0]).toHaveTextContent('12:30');
 	});
 
 	it('shows the not-revealed message instead of rows', () => {
@@ -136,5 +140,101 @@ describe('discipline page', () => {
 		expect(screen.getByRole('heading', { name: 'Programme' })).toBeInTheDocument();
 		expect(screen.getByRole('heading', { name: 'Tour 1' }).parentElement).toHaveTextContent('1 à jouer');
 		expect(screen.getByRole('heading', { name: 'Tour 2' }).parentElement).toHaveTextContent('1 match');
+	});
+});
+
+describe('discipline page for an organiser', () => {
+	it('shows nothing of it to a visitor even with a staff payload', () => {
+		renderWith(Page, { data: dataFor(summaryStaff, 11) });
+		expect(screen.queryByText('Results hidden from the public')).toBeNull();
+		expect(screen.queryByRole('button')).toBeNull();
+	});
+
+	it('offers to hide a revealed discipline, with no missing count', () => {
+		renderWith(Page, { data: dataFor(summaryStaff, 10, true) }, 'en', true);
+		expect(screen.getByText('Results are public')).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Hide' })).toBeInTheDocument();
+		expect(screen.queryByText(/to play/)).toBeNull();
+	});
+
+	it('says how many games are unplayed on a hidden discipline with games', () => {
+		const hidden = { ...summaryStaff, disciplines: summaryStaff.disciplines.map((d) => (d.id === 10 ? { ...d, reveal_score: false } : d)) };
+		renderWith(Page, { data: dataFor(hidden, 10, true) }, 'en', true);
+		expect(screen.getByText('Results hidden from the public')).toBeInTheDocument();
+		expect(screen.getAllByText('1 to play').length).toBeGreaterThan(0);
+	});
+
+	it('shows result lines with the stored values for a discipline without rounds', () => {
+		renderWith(Page, { data: dataFor(summaryStaff, 12, true) }, 'en', true);
+
+		expect(screen.getByText('Results hidden from the public')).toBeInTheDocument();
+		expect(screen.getByText('1 team without a result')).toBeInTheDocument();
+		const lines = screen.getAllByTestId('result-line');
+		expect(lines).toHaveLength(3);
+		expect(lines[0]).toHaveTextContent('Aigles');
+		expect(lines[0].querySelector('input[name="value"]')).toHaveValue(20);
+		expect(lines[1].querySelector('input[name="value"]')).toHaveValue(null);
+		// The testid is on the <form> itself (per the markup), so the line IS the form.
+		expect(lines[0]).toHaveAttribute('action', '?/result');
+		expect(lines[0].querySelector('input[name="result"]')).toHaveValue('106');
+		expect(lines[0].querySelector('input[name="kind"]')).toHaveValue('PTS');
+		expect(screen.queryByTestId('result-row')).toBeNull();
+	});
+
+	it('shows a time field as mm:ss for a timed discipline', () => {
+		const timed = { ...summaryStaff, rounds: summaryStaff.rounds.filter((r) => r.discipline !== 11), games: summaryStaff.games.filter((g) => g.discipline !== 11) };
+		renderWith(Page, { data: dataFor(timed, 11, true) }, 'en', true);
+
+		const lines = screen.getAllByTestId('result-line');
+		expect(lines[0].querySelector('input[name="value"]')).toHaveValue('12:30');
+		expect(lines[0].querySelector('input[name="value"]')).toHaveAttribute('placeholder', 'mm:ss');
+		expect(lines[0].querySelector('input[name="value"]')).toHaveAttribute('pattern', '[0-9]{1,3}:[0-5][0-9]');
+		expect(lines[0].querySelector('input[name="value"]')).not.toHaveAttribute('inputmode');
+		expect(lines[0].querySelector('input[name="kind"]')).toHaveValue('TIM');
+	});
+
+	it('turns game rows into buttons that open the sheet', async () => {
+		renderWith(Page, { data: dataFor(summaryStaff, 10, true) }, 'en', true);
+
+		const row = screen.getAllByRole('button', { name: /Cerfs\s*— : —\s*Bisons/ })[0];
+		expect(screen.queryByRole('dialog')).toBeNull();
+		await fireEvent.click(row);
+		expect(screen.getByRole('dialog', { name: 'Round 1 · ref: Aigles' })).toBeInTheDocument();
+	});
+
+	it('offers to close a complete Swiss round only', () => {
+		renderWith(Page, { data: dataFor(summaryStaff, 11, true) }, 'en', true);
+		// Orienteering is Swiss with one played game in round 1
+		const close = screen.getByRole('button', { name: 'Close the round' });
+		expect(close.closest('form').querySelector('input[name="round"]')).toHaveValue('22');
+
+		const { container } = renderWith(Page, { data: dataFor(summaryStaff, 10, true) }, 'en', true);
+		// Relay is round robin: never a close button, even on its complete round 2
+		expect(container.querySelectorAll('form[action="?/close"]')).toHaveLength(0);
+	});
+
+	it('labels a closed round as done and hides its button', () => {
+		const closed = { ...summaryStaff, rounds: summaryStaff.rounds.map((r) => (r.id === 22 ? { ...r, is_over: true } : r)) };
+		renderWith(Page, { data: dataFor(closed, 11, true) }, 'en', true);
+		expect(screen.queryByRole('button', { name: 'Close the round' })).toBeNull();
+		expect(screen.getByRole('heading', { name: 'Round 1' }).parentElement).toHaveTextContent('Done');
+	});
+
+	it('shows the error line under the control the action names, also when form changes later', async () => {
+		const { component } = renderWith(Page, { data: dataFor(summaryStaff, 12, true) }, 'en', true);
+		expect(screen.queryByRole('alert')).toBeNull();
+
+		// A failed action updates `form` without reloading `data`: the line must still appear.
+		await component.$set({ form: { action: 'result', id: 107, error: 'orga.error.invalid' } });
+		const lines = screen.getAllByTestId('result-line');
+		expect(lines[1]).toHaveTextContent('Value refused');
+		expect(lines[0]).not.toHaveTextContent('Value refused');
+	});
+
+	it('speaks French under fr', () => {
+		renderWith(Page, { data: dataFor(summaryStaff, 12, true) }, 'fr', true);
+		expect(screen.getByText('Résultats masqués pour le public')).toBeInTheDocument();
+		expect(screen.getByText('1 équipe sans résultat')).toBeInTheDocument();
+		expect(screen.getAllByRole('button', { name: 'Enregistrer' })).toHaveLength(3);
 	});
 });
