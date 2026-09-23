@@ -18,7 +18,7 @@ export default {
 	'players.title': 'Players',
 	'players.subtitle': 'All editions, by share of teams beaten',
 	'players.notRanked': 'Not ranked yet',
-	'players.average': 'avg {value}',
+	'players.over': { one: 'avg {value} over {n} edition', other: 'avg {value} over {n} editions' },
 	'players.editions': { one: '{n} edition', other: '{n} editions' },
 	'profile.allTime': 'all-time',
 	'profile.averageRank': 'Average rank',

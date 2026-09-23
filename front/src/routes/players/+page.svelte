@@ -14,38 +14,40 @@
 
 <div class="page">
 	<h1>{t('players.title')}</h1>
-	<p class="subtitle label">{t('players.subtitle')}</p>
+	<p class="subtitle">{t('players.subtitle')}</p>
 
-	<ol class="list">
-		{#each ranked as player}
-			<li>
-				<a
-					class="row"
-					class:gold={player.position === 1}
-					class:silver={player.position === 2}
-					class:bronze={player.position === 3}
-					href="/players/{player.id}"
-					data-testid="player-row"
-				>
-					<MedalRank rank={player.position} />
-					<span class="name">{player.first_name} {player.last_name}</span>
-					<span class="figures">
+	{#if ranked.length > 0}
+		<ol class="list" role="list">
+			{#each ranked as player}
+				<li>
+					<a
+						class="row"
+						class:gold={player.position === 1}
+						class:silver={player.position === 2}
+						class:bronze={player.position === 3}
+						href="/players/{player.id}"
+						data-testid="player-row"
+					>
+						<MedalRank rank={player.position} />
+						<span class="text">
+							<span class="name">{player.first_name} {player.last_name}</span>
+							<span class="detail"
+								>{t('players.over', {
+									value: formatAverage(player.average_rank, locale),
+									n: player.counted
+								})}</span
+							>
+						</span>
 						<span class="num share">{formatShare(player.average_beaten, locale)}</span>
-						<span class="detail"
-							>{t('players.average', { value: formatAverage(player.average_rank, locale) })} · {t(
-								'players.editions',
-								{ n: player.counted }
-							)}</span
-						>
-					</span>
-				</a>
-			</li>
-		{/each}
-	</ol>
+					</a>
+				</li>
+			{/each}
+		</ol>
+	{/if}
 
 	{#if waiting.length > 0}
-		<h2 class="label">{t('players.notRanked')}</h2>
-		<ul class="list">
+		<h2>{t('players.notRanked')}</h2>
+		<ul class="list" role="list">
 			{#each waiting as player}
 				<li>
 					<a class="row waiting" href="/players/{player.id}" data-testid="unranked-row">
@@ -65,6 +67,7 @@
 
 	.subtitle {
 		margin: 0 0 1rem;
+		color: var(--muted);
 	}
 
 	h2 {
@@ -125,28 +128,37 @@
 		border-left-color: var(--bronze);
 	}
 
+	.text {
+		min-width: 0;
+	}
+
 	.name {
 		min-width: 0;
 		font-weight: 600;
 		overflow-wrap: anywhere;
 	}
 
-	.figures {
-		display: flex;
-		flex-direction: column;
-		align-items: flex-end;
-		gap: 2px;
+	.text .name {
+		display: block;
+	}
+
+	.text .detail {
+		display: block;
+		margin-top: 2px;
+	}
+
+	.detail {
+		font-size: 0.75rem;
+		color: var(--muted);
+	}
+
+	.row.waiting .detail {
+		white-space: nowrap;
 	}
 
 	.share {
 		font-size: 1.6rem;
 		line-height: 1;
 		letter-spacing: 0.06em;
-	}
-
-	.detail {
-		font-size: 0.75rem;
-		color: var(--muted);
-		white-space: nowrap;
 	}
 </style>
