@@ -69,7 +69,10 @@ def build_edition(year=2024):
     ).save_base(raw=True, force_insert=True)
 
     Blindtest.objects.create(edition=edition)  # save() creates 10 rounds x 2 guesses
-    Crossfit.objects.create(edition=edition)  # TIME discipline: two TeamResults with a time
+    Crossfit.objects.create(edition=edition)  # TIME discipline: two TeamResults
+    # Give Red a real time so the export/import round trip actually exercises a TimeField
+    # value instead of the null every fresh result now starts with.
+    TeamResult.objects.filter(discipline__name="Crossfit", team=red).update(time="00:13:15")
     return edition
 
 
@@ -146,7 +149,7 @@ class ExportEditionTests(TestCase):
         self.assertEqual(doc["edition"]["registration_form"], "registration_forms/test.csv")
         self.assertEqual(doc["tables"]["GameEvent"][0]["time"], "2024-08-01T10:00:00+00:00")
         self.assertIsNone(doc["tables"]["GameEvent"][0]["player2"])
-        self.assertIn(None, {r["time"] for r in doc["tables"]["TeamResult"]})
+        self.assertIn("00:13:15", {r["time"] for r in doc["tables"]["TeamResult"]})
 
     def test_missing_year_raises(self):
         with self.assertRaises(Edition.DoesNotExist):
@@ -238,7 +241,7 @@ class ImportEditionTests(TestCase):
         crossfit = TeamResult.objects.get(
             discipline__edition=edition, discipline__name="Crossfit", team__name="Red"
         )
-        self.assertIsNone(crossfit.time)
+        self.assertEqual(str(crossfit.time), "00:13:15")
 
     def test_existing_year_aborts_unless_replace(self):
         import_edition(self.document)

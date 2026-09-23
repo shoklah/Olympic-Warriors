@@ -166,6 +166,11 @@ class Discipline(models.Model):
             if not is_new:
                 # Teams may have joined the edition since the discipline was created
                 self.register_teams()
+            if self.result_type == ResultTypes.POINTS:
+                # A bye team gets no game, so Game.save() would never zero its points, and
+                # the Swiss pairing (ordered by points, nulls last in Postgres) would treat
+                # a still-null result as the strongest team.
+                TeamResult.objects.filter(discipline=self, points__isnull=True).update(points=0)
             self.schedule_games()
 
     def register_teams(self) -> None:

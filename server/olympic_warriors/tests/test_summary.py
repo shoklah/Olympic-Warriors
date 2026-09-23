@@ -636,6 +636,17 @@ class TestStaffSummary(APITestCase):
         self.assertIsNone(TeamResult.objects.get(discipline=crossfit, team=self.a).time)
         self.assertEqual(TeamResult.objects.get(discipline=self.darts, team=self.a).points, 3)
 
+    def test_swiss_bye_team_starts_at_zero_not_null(self):
+        Team.objects.create(name="C", edition=self.edition)
+        petanque = Discipline.objects.create(
+            name="Petanque", edition=self.edition, result_type="PTS",
+            pairing_system=Discipline.PairingSystem.SWISS, max_rounds=3,
+        )
+        points = set(
+            TeamResult.objects.filter(discipline=petanque).values_list("points", flat=True)
+        )
+        self.assertEqual(points, {0})
+
 
 class TestCurrentUser(APITestCase):
 
@@ -647,6 +658,13 @@ class TestCurrentUser(APITestCase):
         self.assertTrue(response.data["is_staff"])
         self.assertNotIn("password", response.data)
 
+    def test_current_user_says_when_not_staff(self):
+        player = User.objects.create_user(username="player", password="x")
+        self.client.force_authenticate(user=player)
+        response = self.client.get("/user/current/")
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data["is_staff"])
+
 
 class TestLatestEdition(TestCase):
 
@@ -655,6 +673,11 @@ class TestLatestEdition(TestCase):
         Edition.objects.create(
             year=2027, host="L", start_date="2027-09-19", end_date="2027-09-20", is_active=False
         )
+        self.assertEqual(latest_edition().year, 2026)
+
+    def test_latest_ignores_creation_order(self):
+        Edition.objects.create(year=2026, host="P", start_date="2026-09-19", end_date="2026-09-20")
+        Edition.objects.create(year=2025, host="L", start_date="2025-09-19", end_date="2025-09-20")
         self.assertEqual(latest_edition().year, 2026)
 
     def test_none_without_any_edition(self):

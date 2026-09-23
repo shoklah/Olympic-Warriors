@@ -303,5 +303,22 @@ for r in rows:
 "
 ```
 
+Then, since this task made a fresh result's points/time null instead of a zero, run
+one more guarded one-off for the latest edition, after the fix above: a time
+discipline's stored `00:00:00` is unambiguous ("no result yet" under the old code) and
+is nulled outright, but `points=0` in a discipline without games can be either a real
+zero or the old placeholder, so it is only listed for an organiser to check by hand.
+
+```bash
+docker compose -f docker-compose.prod.yml exec server python manage.py shell -c "
+from datetime import time
+from olympic_warriors.models import TeamResult
+TeamResult.objects.filter(discipline__edition__year=2026, discipline__result_type='TIM', time=time(0, 0, 0)).update(time=None)
+zero_points = TeamResult.objects.filter(discipline__edition__year=2026, discipline__pairing_system='NO', discipline__result_type='PTS', points=0)
+for r in zero_points:
+    print(r.team.name, r.discipline.name)
+"
+```
+
 Then log in on the site as a staff user, open the latest edition's
 discipline page, and check the `ORGA` pill, the bar and one score save.

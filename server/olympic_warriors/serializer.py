@@ -34,6 +34,7 @@ class UserSerializer(serializers.ModelSerializer):
 
         model = User
         fields = ("id", "username", "first_name", "last_name", "email", "is_staff")
+        read_only_fields = ("is_staff",)
         
 class PlayerSerializer(serializers.ModelSerializer):
     """
