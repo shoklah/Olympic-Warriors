@@ -11,7 +11,7 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 
 from olympic_warriors.badges import earned, history
-from olympic_warriors.models import Badge, Edition, Player, Team
+from olympic_warriors.models import Badge, Edition, Player, Relay, Team, TeamResult
 
 C = Badge.Codes
 TODAY = date(2031, 1, 1)
@@ -136,11 +136,12 @@ class TestPlaces(World, TestCase):
         self.assertEqual(years_of(ana, C.CHAMPION), [2024, 2026])
 
     def test_chocolate_needs_five_teams(self):
-        e2025, t2025 = self.edition(2025, size=4)
+        # 4 teams, and a rank 4 that is not the last place (5 is): only the size refuses it.
+        e2025, t2025 = self.edition(2025, ranks=[1, 2, 4, 5])
         gus = self.person("Gus")
-        self.seat(gus, e2025, t2025[3])
+        self.seat(gus, e2025, t2025[2])
 
-        self.assertEqual(places_of(gus), [(C.WOODEN_SPOON, 2025)])
+        self.assertEqual(places_of(gus), [])
 
     def test_chocolate_is_never_the_last_place(self):
         e2025, t2025 = self.edition(2025, ranks=[1, 2, 3, 4, 4])
@@ -152,22 +153,22 @@ class TestPlaces(World, TestCase):
         self.assertEqual(places_of(hugo), [(C.WOODEN_SPOON, 2025)])
 
     def test_the_spoon_needs_four_teams(self):
-        e2025, t2025 = self.edition(2025, size=3)
+        # 3 teams, the worst ranked below the podium: only the size refuses the spoon.
+        e2025, t2025 = self.edition(2025, ranks=[1, 2, 4])
         gus = self.person("Gus")
         self.seat(gus, e2025, t2025[2])
 
-        self.assertEqual(places_of(gus), [(C.BRONZE, 2025)])
+        self.assertEqual(places_of(gus), [])
 
     def test_the_spoon_needs_a_complete_ranking(self):
-        e2025, t2025 = self.edition(2025, ranks=[1, 2, 3, None])
-        # Below the podium too, so only the missing rank refuses the spoon.
+        # The worst ranked team is below the podium, so only the missing rank refuses the
+        # spoon. Without a last place, the 4th of 5 teams is a chocolate medal.
         e2026, t2026 = self.edition(2026, ranks=[1, 2, 3, 4, None])
-        gus, hugo = self.person("Gus"), self.person("Hugo")
-        self.seat(gus, e2025, t2025[2])
+        hugo = self.person("Hugo")
         self.seat(hugo, e2026, t2026[3])
 
-        self.assertEqual(years_of(gus, C.WOODEN_SPOON), [])
         self.assertEqual(years_of(hugo, C.WOODEN_SPOON), [])
+        self.assertEqual(places_of(hugo), [(C.CHOCOLATE, 2026)])
 
     def test_no_team_no_place(self):
         gus = self.person("Gus")
@@ -190,6 +191,43 @@ class TestPlaces(World, TestCase):
 
         self.assertEqual(places_of(gus), [(C.BRONZE, 2025)])
         self.assertEqual(places_of(hugo), [(C.BRONZE, 2025)])
+
+    def computed(self, year, reveal):
+        """
+        A 4-team edition without final_rank, ranked from one Relay scored 30/20/10/0 in team
+        order (revealed or not), with one person per team. Returns the four people.
+        """
+        edition, teams = self.edition(year, ranked=False)
+        relay = Relay.objects.create(edition=edition, reveal_score=reveal)
+        people = []
+        for n, (team, points) in enumerate(zip(teams, (30, 20, 10, 0)), start=1):
+            TeamResult.objects.filter(discipline=relay, team=team).update(points=points)
+            person = self.person(f"P{year}-{n}")
+            self.seat(person, edition, team)
+            people.append(person)
+        return people
+
+    def test_a_computed_edition_gives_places(self):
+        first, second, third, last = self.computed(2025, reveal=True)
+
+        self.assertEqual(places_of(first), [(C.CHAMPION, 2025)])
+        self.assertEqual(places_of(second), [(C.RUNNER_UP, 2025)])
+        self.assertEqual(places_of(third), [(C.BRONZE, 2025)])
+        self.assertEqual(places_of(last), [(C.WOODEN_SPOON, 2025)])
+
+    def test_a_computed_edition_with_nothing_revealed_gives_no_place(self):
+        # Every team would tie 1st on nothing: the edition gives no rank at all.
+        people = self.computed(2025, reveal=False)
+
+        self.assertEqual([places_of(person) for person in people], [[], [], [], []])
+
+    def test_a_one_team_edition_gives_no_place(self):
+        # A participation counts only in an edition of at least 2 teams.
+        e2025, t2025 = self.edition(2025, size=1)
+        gus = self.person("Gus")
+        self.seat(gus, e2025, t2025[0])
+
+        self.assertEqual(places_of(gus), [])
 
 
 class TestStreaks(World, TestCase):

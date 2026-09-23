@@ -75,6 +75,7 @@ def history(today=None):
     """The History of the current data on `today` (a Paris date)."""
     loaded = _load(today or paris_today())
     people = _participations(loaded)
+    # loaded.standings is keyed by exactly the finished editions with a player (see Loaded).
     sequence = tuple(
         sorted((loaded.editions[pk] for pk in loaded.standings), key=lambda e: e.year)
     )
