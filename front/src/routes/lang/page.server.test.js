@@ -42,6 +42,9 @@ describe('lang action', () => {
 		await expect(call({ lang: 'en', redirectTo: '/\\evil.example' }).promise).rejects.toMatchObject({
 			location: '/'
 		});
+		await expect(call({ lang: 'en', redirectTo: '/a\r\nX-Injected: 1' }).promise).rejects.toMatchObject({
+			location: '/'
+		});
 		await expect(call({ lang: 'en' }).promise).rejects.toMatchObject({ location: '/' });
 	});
 });

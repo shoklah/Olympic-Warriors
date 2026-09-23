@@ -12,7 +12,7 @@ vi.mock('$app/stores', async () => {
 				latestYear: 2026
 			},
 			params: { year: '2026' },
-			url: new URL('http://localhost/2026/ranking'),
+			url: new URL('http://localhost/2026/ranking?tab=all'),
 			error: null
 		})
 	};
@@ -26,7 +26,7 @@ describe('Header', () => {
 		const form = screen.getByRole('form', { name: 'Language' });
 		expect(form).toHaveAttribute('action', '/lang');
 		expect(form).toHaveAttribute('method', 'POST');
-		expect(form.querySelector('input[name="redirectTo"]')).toHaveValue('/2026/ranking');
+		expect(form.querySelector('input[name="redirectTo"]')).toHaveValue('/2026/ranking?tab=all');
 		expect(screen.getByRole('button', { name: 'EN' })).toHaveAttribute('aria-current', 'true');
 		expect(screen.getByRole('button', { name: 'FR' })).not.toHaveAttribute('aria-current');
 		expect(screen.getByRole('button', { name: 'FR' })).toHaveValue('fr');

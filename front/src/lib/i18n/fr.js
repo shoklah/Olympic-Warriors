@@ -24,7 +24,6 @@ export default {
 	'discipline.toPlay': { one: '{n} à jouer', other: '{n} à jouer' },
 	'discipline.points': 'points',
 	'discipline.time': 'temps',
-	'discipline.results': 'Résultats',
 	'discipline.schedule': 'Programme',
 	'discipline.round': 'Tour {n}',
 	'discipline.roundShort': 'T{n}',
@@ -42,7 +41,8 @@ export default {
 	'error.back': 'Retour aux Olympic Warriors',
 	'error.notFound': 'Page introuvable',
 	'error.generic': 'Une erreur est survenue',
-	'login.title': 'Connexion',
+	'login.submit': 'Se connecter',
+	'login.failed': 'Connexion impossible : vérifiez vos identifiants',
 	'login.username': 'Identifiant',
 	'login.password': 'Mot de passe',
 	'login.missing': 'Champ obligatoire'

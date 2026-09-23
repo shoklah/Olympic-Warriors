@@ -73,7 +73,7 @@
 				<h3 class="label">{disciplineName(locale, discipline.disciplineName)}</h3>
 				{#each discipline.games as game}
 					<GameRow
-						roundLabel={t('discipline.roundShort', { n: game.round + 1 })}
+						roundLabel={game.round === null ? null : t('discipline.roundShort', { n: game.round + 1 })}
 						highlightId={data.team.id}
 						team1Id={game.team1Id}
 						team2Id={game.team2Id}

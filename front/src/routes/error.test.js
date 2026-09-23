@@ -1,5 +1,5 @@
 import { screen } from '@testing-library/svelte';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderWith } from '$lib/test-utils';
 import ErrorPage from './+error.svelte';
 
@@ -10,6 +10,8 @@ vi.mock('$app/stores', async () => {
 });
 
 describe('error page', () => {
+	afterEach(() => vi.unstubAllEnvs());
+
 	it('words a 404 from the dictionary in French', () => {
 		state.status = 404;
 		renderWith(ErrorPage, {}, 'fr');

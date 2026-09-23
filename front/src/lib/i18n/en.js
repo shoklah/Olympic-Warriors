@@ -20,7 +20,6 @@ export default {
 	'discipline.toPlay': { one: '{n} to play', other: '{n} to play' },
 	'discipline.points': 'points',
 	'discipline.time': 'time',
-	'discipline.results': 'Results',
 	'discipline.schedule': 'Schedule',
 	'discipline.round': 'Round {n}',
 	'discipline.roundShort': 'R{n}',
@@ -38,7 +37,8 @@ export default {
 	'error.back': 'Back to the Olympic Warriors',
 	'error.notFound': 'Page not found',
 	'error.generic': 'Something went wrong',
-	'login.title': 'Log In',
+	'login.submit': 'Log in',
+	'login.failed': 'Login failed: check your credentials',
 	'login.username': 'Username',
 	'login.password': 'Password',
 	'login.missing': 'Required'

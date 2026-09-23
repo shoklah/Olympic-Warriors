@@ -225,7 +225,8 @@ export function teamGames(summary, teamId) {
 				)
 				.map((g) => ({
 					id: g.id,
-					round: roundOrder.get(g.round) ?? 0,
+					// The summary only lists games of active rounds; a game whose round is missing anyway gets no label.
+					round: roundOrder.get(g.round) ?? null,
 					team1Id: g.team1,
 					team2Id: g.team2,
 					team1Name: nameOf(names, g.team1),
@@ -235,7 +236,7 @@ export function teamGames(summary, teamId) {
 					score1: g.score1,
 					score2: g.score2
 				}))
-				.sort((a, b) => a.round - b.round || a.id - b.id)
+				.sort((a, b) => (a.round ?? Infinity) - (b.round ?? Infinity) || a.id - b.id)
 		}))
 		.filter((d) => d.games.length > 0);
 }

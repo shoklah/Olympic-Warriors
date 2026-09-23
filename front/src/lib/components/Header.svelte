@@ -41,7 +41,7 @@
 		{/if}
 		<!-- A plain POST (no use:enhance): the redirect reloads the page in the new language. -->
 		<form method="POST" action="/lang" class="lang" aria-label={t('header.language')}>
-			<input type="hidden" name="redirectTo" value={$page.url.pathname} />
+			<input type="hidden" name="redirectTo" value={$page.url.pathname + $page.url.search} />
 			<button name="lang" value="fr" aria-current={locale === 'fr' ? 'true' : undefined}>FR</button>
 			<button name="lang" value="en" aria-current={locale === 'en' ? 'true' : undefined}>EN</button>
 		</form>

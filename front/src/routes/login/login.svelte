@@ -12,8 +12,9 @@
 <form method="POST" action="?/login" use:enhance
       in:fly={{ delay: 200, x: -200, duration: 300, easing: cubicOut }}>
 
+    <!-- The action's message is English by construction (API and server code); the visitor gets the dictionary line. -->
     {#if form?.error }<p class="error" transition:slide={{ duration: 800, easing: quintOut }}>
-        {form.error}
+        {t('login.failed')}
     </p>{/if}
 
     {#if form?.missing && form?.missing.username}<p class="error" id="username-error" transition:slide={{ duration: 800, easing: quintOut }}>
@@ -32,7 +33,7 @@
            aria-invalid={form?.missing?.password ? 'true' : undefined}
            aria-describedby={form?.missing?.password ? 'password-error' : undefined}>
 
-    <button>{t('login.title')}</button>
+    <button>{t('login.submit')}</button>
 </form>
 
 <style>

@@ -376,6 +376,12 @@ describe('teamGames', () => {
 		expect(teamGames(odd, 2)[0].games[0].refereeName).toBeNull();
 	});
 
+	it('gives no round to a game whose round is not in the summary, sorted last', () => {
+		const odd = { ...summary, games: [...summary.games, { ...summary.games[0], id: 299, round: 99 }] };
+		const [relay] = teamGames(odd, 2);
+		expect(relay.games.map((g) => [g.id, g.round])).toEqual([[200, 0], [201, 0], [299, null]]);
+	});
+
 	it('lists a game the team both plays and referees once, as played', () => {
 		const odd = { ...summary, games: [{ ...summary.games[0], referees: 2 }] };
 		const [relay] = teamGames(odd, 2);
