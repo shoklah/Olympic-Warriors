@@ -6,6 +6,7 @@ export default {
 	'nav.sections': 'Sections',
 	'header.edition': 'Edition',
 	'header.language': 'Language',
+	'header.login': 'Log in',
 	'hub.days': 'Days',
 	'hub.hours': 'Hours',
 	'hub.minutes': 'Minutes',

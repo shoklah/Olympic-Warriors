@@ -10,6 +10,7 @@ export default {
 	'nav.sections': 'Rubriques',
 	'header.edition': 'Édition',
 	'header.language': 'Langue',
+	'header.login': 'Connexion',
 	'hub.days': 'Jours',
 	'hub.hours': 'Heures',
 	'hub.minutes': 'Minutes',
