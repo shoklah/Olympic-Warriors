@@ -385,3 +385,25 @@ class EditionSummarySerializer(serializers.Serializer):
             "rounds": SummaryRoundSerializer(rounds, many=True).data,
             "games": SummaryGameSerializer(games, many=True, context=staff_context).data,
         }
+
+
+class GameScoreSerializer(serializers.Serializer):
+    """The organiser sheet: both scores and the played flag, all required."""
+
+    score1 = serializers.IntegerField(min_value=0)
+    score2 = serializers.IntegerField(min_value=0)
+    is_played = serializers.BooleanField()
+
+
+class ResultValueSerializer(serializers.Serializer):
+    """
+    One of `points` (integer, 0 or more) or `time` ("mm:ss", minutes may exceed 59); null
+    clears the value. The view decides which field the discipline accepts.
+    """
+
+    points = serializers.IntegerField(min_value=0, allow_null=True, required=False)
+    time = serializers.RegexField(r"^\d{1,3}:[0-5]\d$", allow_null=True, required=False)
+
+
+class RevealSerializer(serializers.Serializer):
+    reveal_score = serializers.BooleanField()
