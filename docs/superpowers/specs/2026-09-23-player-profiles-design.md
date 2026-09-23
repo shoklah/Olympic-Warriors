@@ -41,7 +41,8 @@ Nothing here builds steps 2 or 3, but the payloads leave room for them (see
   0% for last, and shared ranks give shared shares. The clamp only matters for bad data,
   such as a `final_rank` larger than the team count.
 - **Averages**, over counted participations only:
-  - `average_rank`: the mean rank, rounded to one decimal;
+  - `average_rank`: the mean rank, rounded to one decimal (Python's `round`, which
+    rounds halves to even);
   - `average_beaten`: the mean share beaten, as a whole percentage (0 to 100);
   - `counted`: the number of counted participations;
   - both averages are `None` when `counted` is 0.
@@ -171,6 +172,13 @@ selected for the names. The test pins it either way.
   shows on the row. The registration import and `import_edition` do not call `clean()`,
   so they behave as before. While Xavier's two 2024 rows exist, neither can be saved in
   the admin until one is deactivated. That is intended: it forces the choice between them.
+  Because Django validates every row of a posted changelist page, the pair also blocks
+  saving any other team assignment on the same page, such as the 2024 filter. Deactivate
+  row 81 or 249 before assigning 2024's teams.
+- On the team page, `team` is the inline's hidden foreign key, and the tabular inline
+  never renders a hidden field's errors. `PlayerInline` therefore uses a
+  `PlayerInlineForm` that repeats the `team` errors among the row's errors. While a new
+  team is being added it has no id yet, so the cross-edition check does not run there.
 
 ## Front
 
@@ -253,7 +261,7 @@ ranking, a profile is reached through the team page.
 
 - `src/lib/players.js` holds pure, locale-aware formatters:
   - `formatAverage(value, locale)`: one decimal, with a French comma;
-  - `formatShare(value, locale)`: `Intl.NumberFormat` percent, giving a narrow no-break
+  - `formatShare(value, locale)`: `Intl.NumberFormat` percent, giving a no-break
     space before `%` in French;
   - `editionStatus(participation)`: `'ranked' | 'inProgress' | 'unranked'`.
 - New keys in `fr.js` and `en.js`, kept at parity:

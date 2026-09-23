@@ -338,6 +338,12 @@ class TestParticipations(ProfilesSetup, TestCase):
         self.assertNotIn(root.id, participations(TODAY))
 
     def test_standings_are_computed_for_finished_editions_with_players_only(self):
+        # A finished edition nobody played in costs no standings queries.
+        empty = Edition.objects.create(
+            year=2023, host="Tours", start_date="2023-09-16", end_date="2023-09-17"
+        )
+        Team.objects.create(name="Vide", edition=empty)
+
         with self.assertNumQueries(PROFILES_QUERIES):
             participations(TODAY)
 ```
@@ -632,7 +638,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ### Task 4: Public endpoints `/profiles/` and `/profile/<user_id>/`
 
 **Files:**
-- Modify: `server/olympic_warriors/serializer.py` (append after `EditionSummarySerializer`, at the end of the Summary serializers)
+- Modify: `server/olympic_warriors/serializer.py` (append at the end of the file)
 - Modify: `server/olympic_warriors/views.py` (new `# Profiles` section before `# Editions`, around line 187)
 - Modify: `server/olympic_warriors/urls.py` (after the `# players` block)
 - Modify: `server/olympic_warriors/tests/test_profiles.py`
@@ -880,7 +886,7 @@ Expected: `Ran 25 tests` … `OK`.
 - [ ] **Step 7: Check the schema still generates**
 
 Run: `docker compose exec server python manage.py spectacular --file /tmp/schema.yml --validate`
-Expected: it exits 0. Warnings that already existed before this change are fine; there must be no new error about `ProfileSerializer` or `LeaderboardRowSerializer`.
+Expected: the same totals as on `dev`, which already reports `Errors: 1` (about `createGameEvent`) and 3 warnings. Nothing new may mention `getProfiles`, `getProfile`, `ProfileSerializer` or `LeaderboardRowSerializer`.
 
 - [ ] **Step 8: Commit**
 
@@ -944,7 +950,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Files:**
 - Modify: `server/olympic_warriors/models/Player.py`
-- Modify: `server/olympic_warriors/admin.py` (imports, and `PlayerAdmin` around line 116)
+- Modify: `server/olympic_warriors/admin.py` (imports, `PlayerInline` around line 89, and `PlayerAdmin` around line 116)
 - Create: `server/olympic_warriors/tests/test_player_admin.py`
 
 - [ ] **Step 1: Write the failing tests**
@@ -962,6 +968,9 @@ from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.test import TestCase, override_settings
 
+from django.forms import inlineformset_factory
+
+from olympic_warriors.admin import PlayerInlineForm
 from olympic_warriors.models import Edition, Player, Team
 
 CHANGELIST = "/admin/olympic_warriors/player/"
@@ -1048,12 +1057,42 @@ class TestPlayerChangelist(PlayerSetup, TestCase):
         self.assertIn("MxM (2026)", content)
         self.assertIn("MxM (2024)", content)
         self.assertLess(content.index("MxM (2026)"), content.index("MxM (2024)"))
+
+
+class TestPlayerInlineForm(PlayerSetup, TestCase):
+    """On the team page, `team` is the inline's hidden foreign key: its errors must still show."""
+
+    def test_team_errors_show_among_the_row_errors(self):
+        formset_class = inlineformset_factory(
+            Team, Player, form=PlayerInlineForm, fields=["user", "edition", "rating", "is_active"]
+        )
+        formset = formset_class(
+            {
+                "player_set-TOTAL_FORMS": "1",
+                "player_set-INITIAL_FORMS": "0",
+                "player_set-MIN_NUM_FORMS": "0",
+                "player_set-MAX_NUM_FORMS": "1000",
+                "player_set-0-user": str(self.ana.id),
+                "player_set-0-edition": str(self.y2026.id),
+                "player_set-0-rating": "5",
+                "player_set-0-is_active": "on",
+            },
+            instance=self.mxm_2026,
+        )
+
+        self.assertFalse(formset.is_valid())  # Ana already has an active 2026 player
+        self.assertIn("already has an active player", str(formset.forms[0].non_field_errors()))
 ```
 
 - [ ] **Step 2: Run the tests to check they fail**
 
 Run: `docker compose exec server python manage.py test olympic_warriors.tests.test_player_admin`
-Expected: FAIL. `test_a_team_of_another_edition_is_refused_on_team` fails with `ValidationError not raised`, the changelist POST tests fail (there's no editable column yet), and the label test fails because the labels are just `MxM`.
+Expected: ERROR at import, `ImportError: cannot import name 'PlayerInlineForm' from 'olympic_warriors.admin'`. To see the other failures before implementing, temporarily comment out that import and the `TestPlayerInlineForm` class:
+- `test_a_team_of_another_edition_is_refused_on_team` and `test_a_second_active_row_for_the_same_person_and_edition_is_refused_on_team` fail with `ValidationError not raised`;
+- the changelist POST tests fail, because there's no editable column yet;
+- the label test fails, because the labels are just `MxM`.
+
+Put the import and the class back before Step 3.
 
 - [ ] **Step 3: Add `Player.clean()`**
 
@@ -1084,7 +1123,35 @@ In `server/olympic_warriors/models/Player.py`, add `from django.core.exceptions 
 
 - [ ] **Step 4: Make the team editable in the changelist, labelled by year**
 
-In `server/olympic_warriors/admin.py`, add `from django.forms import ModelChoiceField` below `from django.contrib.admin import ...`, and add this class right above `class PlayerAdmin`:
+In `server/olympic_warriors/admin.py`, add `from django.forms import ModelChoiceField, ModelForm` below `from django.contrib.admin import ...`.
+
+Replace `class PlayerInline` with:
+
+```python
+class PlayerInlineForm(ModelForm):
+    """
+    On the team page `team` is the inline's hidden foreign key, and the tabular inline
+    never renders a hidden field's errors: repeat them among the row's errors, since
+    Player.clean() puts its errors on `team`.
+    """
+
+    def non_field_errors(self):
+        return self.error_class(
+            [*super().non_field_errors(), *self.errors.get("team", [])], error_class="nonfield"
+        )
+
+
+class PlayerInline(TabularInline):
+    """
+    Inline for the Player model to be accessed from the Team model.
+    """
+
+    model = Player
+    form = PlayerInlineForm
+    extra = 1
+```
+
+Then add this class right above `class PlayerAdmin`:
 
 ```python
 class TeamWithYearChoiceField(ModelChoiceField):
@@ -1110,7 +1177,7 @@ In `PlayerAdmin`, add `list_editable = ["team"]` below `list_display`, and this 
 - [ ] **Step 5: Run the new tests and the admin search test**
 
 Run: `docker compose exec server python manage.py test olympic_warriors.tests.test_player_admin olympic_warriors.tests.test_admin`
-Expected: `OK`.
+Expected: `Ran 9 tests` … `OK` (8 in the new file, plus the changelist search test).
 
 - [ ] **Step 6: Check no migration is needed**
 
@@ -1161,9 +1228,10 @@ describe('formatAverage', () => {
 });
 
 describe('formatShare', () => {
-	it('prints a whole percentage, with a narrow no-break space in French', () => {
+	it('prints a whole percentage, with a no-break space in French', () => {
 		expect(formatShare(71, 'en')).toBe('71%');
-		expect(formatShare(71, 'fr')).toBe('71 %');
+		// Node 22's ICU puts U+00A0 (not the narrow U+202F) before % in French.
+		expect(formatShare(71, 'fr')).toBe('71\u00a0%');
 		expect(formatShare(0, 'en')).toBe('0%');
 		expect(formatShare(100, 'en')).toBe('100%');
 	});
@@ -2032,10 +2100,13 @@ In `front/src/lib/components/TabBar.test.js`, change the first import line to `i
 	});
 
 	it('marks players on the leaderboard and on a profile only', () => {
-		renderWith(TabBar, { year: 2026, pathname: '/players/34' });
+		for (const pathname of ['/players', '/players/34']) {
+			const { unmount } = renderWith(TabBar, { year: 2026, pathname });
 
-		expect(screen.getByRole('link', { name: 'Players' })).toHaveAttribute('aria-current', 'page');
-		expect(screen.getByRole('link', { name: 'Ranking' })).not.toHaveAttribute('aria-current');
+			expect(screen.getByRole('link', { name: 'Players' })).toHaveAttribute('aria-current', 'page');
+			expect(screen.getByRole('link', { name: 'Ranking' })).not.toHaveAttribute('aria-current');
+			unmount();
+		}
 	});
 
 	it('does not mark players on a year page', () => {
@@ -2277,7 +2348,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 In `CLAUDE.md`, insert this paragraph immediately before the line starting `**Soft deletes:**`:
 
 ```markdown
-**Player profiles:** `olympic_warriors/profiles.py` builds every person's record from the edition standings and stores nothing (spec under `docs/superpowers/specs/`). A person is a `User` with an active `Player` in an active edition, one participation per (user, edition): the lowest id among the rows with a valid team (active, of the player's edition), else the lowest id. An edition is finished once its `end_date` is before today in Europe/Paris (`paris_today()`: the server clock runs in UTC), and only a finished edition gives a rank, the team's standing (`final_rank` in a hand-ranked edition), so unfinished editions skip `compute_standings`. A participation counts when finished, ranked and in an edition of at least two teams; `average_rank` (one decimal) and `average_beaten` (the mean of `(teams - rank) / (teams - 1)`, as a whole percentage) average the counted ones. `leaderboard()` sorts by share beaten, mean rank, counted editions and name, equal (share, mean rank) pairs share a position, and people with nothing counted follow by name with a null position; it runs `2 + 3 × finished editions with players` queries (`PROFILES_QUERIES` in `test_profiles.py`). `Player.clean()` refuses a team of another edition and a second active row for the same (user, edition), both keyed on `team`, the one field every admin form of a player has (an error on a field the form lacks makes Django raise `ValueError`); `PlayerAdmin` edits `team` from the changelist, with teams labelled `name (year)`.
+**Player profiles:** `olympic_warriors/profiles.py` builds every person's record from the edition standings and stores nothing (spec under `docs/superpowers/specs/`). A person is a `User` with an active `Player` in an active edition, one participation per (user, edition): the lowest id among the rows with a valid team (active, of the player's edition), else the lowest id. An edition is finished once its `end_date` is before today in Europe/Paris (`paris_today()`: the server clock runs in UTC), and only a finished edition gives a rank, the team's standing (`final_rank` in a hand-ranked edition), so unfinished editions skip `compute_standings`. A participation counts when finished, ranked and in an edition of at least two teams; `average_rank` (one decimal) and `average_beaten` (the mean of `(teams - rank) / (teams - 1)`, as a whole percentage) average the counted ones. `leaderboard()` sorts by share beaten, mean rank, counted editions and name, equal (share, mean rank) pairs share a position, and people with nothing counted follow by name with a null position; it runs `2 + 3 × finished editions with players` queries (`PROFILES_QUERIES` in `test_profiles.py`). `Player.clean()` refuses a team of another edition and a second active row for the same (user, edition), both keyed on `team`, the one field every admin form of a player has (an error on a field the form lacks makes Django raise `ValueError`); `PlayerAdmin` edits `team` from the changelist, with teams labelled `name (year)`. Django validates every row of a posted changelist page, so one duplicate pair blocks saving that whole page until one of its rows is deactivated. On the team page, `PlayerInlineForm` repeats `team` errors among the row errors, because the inline's hidden foreign key never shows its own; while a new team is being added it has no id yet, so the cross-edition check does not run there.
 ```
 
 - [ ] **Step 2: Document the API changes**
@@ -2384,7 +2455,7 @@ The dev stack serves the front on http://localhost:5173 with the branch's code. 
 1. Open http://localhost:5173/players. Ranked players should appear with medals and shares, then the "Pas encore classés" group. Locally, 2026 is the only finished edition with teams, so every ranked row rests on one edition.
 2. Open a ranked player's profile. Check the two figures, the position linking back to `/players`, and the edition rows.
 3. Open a team page such as http://localhost:5173/2026/teams/<id> and follow a roster chip to its profile.
-4. Resize to the mobile preset. The bottom tab bar should show four items with Players lit on `/players`, the hub (http://localhost:5173/) should show the outlined Players link, and nothing should scroll sideways. Reset to the desktop preset afterwards.
+4. Resize to the mobile preset. The bottom tab bar should show Ranking, Disciplines and Players (plus Photos only for an edition with a `photos_url`; none has one locally) with Players lit on `/players`, the hub (http://localhost:5173/) should show the outlined Players link, and nothing should scroll sideways. Reset to the desktop preset afterwards.
 5. Open http://localhost:5173/players/abc. It should render the 404 error page.
 
 If any page shows an error, check `docker compose logs server --tail 50` first. The server container reads the branch's code, but it only reloads when `runserver` notices the change.
@@ -2411,5 +2482,6 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
   - Navigation and hub: Task 10.
   - Roster links: Task 11.
   - Docs and verification: Task 12.
+- **Plan review (2026-09-23):** an independent read-only review applied every block to scratch copies. It found the French percent space to be U+00A0 (fixed in Task 7), added `PlayerInlineForm` (Task 6), and confirmed the rest: the hand-computed values, the query counts, the test counts, the full Django suite (253 OK) and `vite build`.
 - **Header tests:** the `aria-current` check on `/players` and `/players/34` is tested through `TabBar`, which takes `pathname` as a prop. `Header` uses the same `startsWith` rule, and its store mock is fixed on `/2026/ranking`, so its tests cover the tab order and link only.
 - **Out of scope:** no migration, no changes to the ranking page's names, no skill ratings anywhere in the new payloads.
