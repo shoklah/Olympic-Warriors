@@ -1,5 +1,8 @@
 <svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
-<path d="M250 1850V450H1750V1850" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M550 450V1150M850 450V1150M1150 450V1150M1450 450V1150M250 800H1750M250 1150H1750" stroke="white" stroke-width="40" stroke-linecap="round"/>
-<circle cx="1000" cy="1560" r="230" stroke="white" stroke-width="100"/>
+<!-- A goal from the front-left: bold front frame, the top and right side receding to a back bar, a net hanging in the back, a ball in the mouth. -->
+<path d="M250 1700V500H1450V1700" stroke="white" stroke-width="130" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M250 500L520 280H1720L1450 500M1720 280V1500L1450 1700" stroke="white" stroke-width="70" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M700 520V1250M950 520V1250M1200 520V1250M380 780H1450M380 1030H1450M380 1250H1450" stroke="white" stroke-width="32" stroke-linecap="round"/>
+<circle cx="880" cy="1490" r="190" stroke="white" stroke-width="100"/>
+<path d="M120 1700H1880" stroke="white" stroke-width="70" stroke-linecap="round"/>
 </svg>
