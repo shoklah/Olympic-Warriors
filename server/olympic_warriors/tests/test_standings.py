@@ -104,8 +104,12 @@ class TestPointsDiscipline(StandingsSetup):
 
     def test_inactive_team_result_and_inactive_discipline_are_absent(self):
         hidden = Relay.objects.create(edition=self.edition, reveal_score=True)
+        TeamResult.objects.filter(discipline=hidden, team=self.team_a).update(points=7)
         Relay.objects.filter(pk=hidden.pk).update(is_active=False)
         standings = compute_standings(self.edition)
+
+        # A's rank 1 in the deactivated discipline feeds nothing into the totals.
+        self.assertEqual(standings.team(self.team_a.id), TeamStanding(1, 0))
 
         # Discipline.save() registers active teams only; give the ghost a row by hand.
         ghost_result = TeamResult.objects.create(team=self.ghost, discipline=self.darts)

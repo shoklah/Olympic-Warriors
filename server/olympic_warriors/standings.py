@@ -104,6 +104,7 @@ def compute_standings(edition):
         if result.team_id in totals:
             totals[result.team_id] += result_standings[result.id].global_points
 
+    # Same rule as Edition.ranking_is_manual, on the teams already loaded: keep both in step.
     if any(team.final_rank is not None for team in teams):
         team_standings = {team.id: TeamStanding(ranking=team.final_rank) for team in teams}
     else:
