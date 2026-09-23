@@ -207,16 +207,18 @@ server-only.
 
 ### Leaderboard page (`/players`)
 
-- `h1` "Joueurs" / "Players", with a line under it: "Toutes éditions, par part d'équipes
-  battues" / "All editions, by share of teams beaten".
-- **Ranked rows.** Each row shows:
+- `h1` "Joueurs" / "Players", with a muted sentence under it: "Toutes éditions
+  confondues, selon la part d'équipes battues" / "All editions, by share of teams
+  beaten".
+- **Ranked rows** (the list is not rendered when nobody is ranked). Each row shows:
   - `MedalRank` for the position (gold, silver or bronze for 1–3, shared on ties);
-  - the name, linking to `/players/<id>`;
-  - the share beaten as the main figure (`.num`);
-  - a muted line with the mean rank and the counted editions ("moy. 2,5 · 2 éditions" /
-    "avg 2.5 · 2 editions").
-- **"Pas encore classés" / "Not ranked yet"** heading, then the name rows with `played`
-  ("1 édition" / "1 edition"), and no position or figures.
+  - the name, linking to `/players/<id>`, with a muted line under it giving the mean
+    rank and the editions it is based on ("moy. 2,5 sur 2 éditions" / "avg 2.5 over 2
+    editions", from `counted`);
+  - the share beaten as the main figure (`.num`), on the right.
+- **"Pas encore classés" / "Not ranked yet"** section heading, then the name rows with
+  `played` ("1 édition" / "1 edition"), and no position or figures. "sur 2 éditions"
+  versus a bare "N éditions" keeps the two counts apart (review decision, 2026-09-23).
 - The server sends the order, and the page does not re-sort.
 
 ### Profile page (`/players/<id>`)
@@ -283,7 +285,7 @@ ranking, a profile is reached through the team page.
   - "No team recorded";
   - "In progress";
   - "No ranked edition yet";
-  - the leaderboard's secondary line.
+  - the leaderboard's secondary line (`players.over`, a plural message).
 
 ## Room for later steps
 
@@ -331,7 +333,7 @@ Front:
 - `players.test.js` for the formatters and `editionStatus`, including French and English
   outputs.
 - `players/page.test.js`:
-  - leaderboard rows read like `1 Léa Martin 100% avg 1.0 · 2 editions`;
+  - leaderboard rows read like `1 Léa Martin avg 1.0 over 2 editions 100%`;
   - the not-ranked group has no position;
   - one French test.
 - `players/[id]/page.test.js`:

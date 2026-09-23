@@ -2436,7 +2436,7 @@ Page tests assert on text shapes, not on classes: `1 Bisons 5 pts` for a ranking
 with:
 
 ```
-Page tests assert on text shapes, not on classes: `1 Bisons 5 pts` for a ranking row, `R1 Bisons 12 : 9 Aigles` for a team game row, `1 Léa Martin 100% avg 1.0 · 2 editions` for a leaderboard row, `2026 MxM 2 / 6` for a profile edition row.
+Page tests assert on text shapes, not on classes: `1 Bisons 5 pts` for a ranking row, `R1 Bisons 12 : 9 Aigles` for a team game row, `1 Léa Martin avg 1.0 over 2 editions 100%` for a leaderboard row, `2026 MxM 2 / 6` for a profile edition row.
 ```
 
 - [ ] **Step 4: Run the whole Django suite**
