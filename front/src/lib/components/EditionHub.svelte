@@ -83,6 +83,9 @@
 		flex-direction: column;
 		justify-content: space-around;
 		opacity: 0.3;
+		/* Even icons zig-zag out by 80px, less on phones: the columns sit 20vw in, so the
+		   outer icons stop at the 1rem page gutter instead of widening the page. */
+		--zigzag: min(80px, 20vw - 1rem);
 	}
 
 	.sportcolumn.left {
@@ -90,7 +93,7 @@
 	}
 
 	.sportcolumn.left :nth-child(even) {
-		transform: translate(-80px, 0);
+		transform: translate(calc(-1 * var(--zigzag)), 0);
 	}
 
 	.sportcolumn.right {
@@ -98,7 +101,7 @@
 	}
 
 	.sportcolumn.right :nth-child(even) {
-		transform: translate(80px, 0);
+		transform: translate(var(--zigzag), 0);
 	}
 
 	.sportcolumn img {
