@@ -541,3 +541,95 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
 The coordinator then checks `/players` and a profile in the browser at desktop and phone width.
+
+---
+
+## Second revision (2026-09-23): no teams-beaten stat, average rank on the leaderboard
+
+Decided by Hugo after seeing the places leaderboard:
+- The teams-beaten share goes everywhere: `beaten_share`, `average_beaten`, the profile's "Équipes battues" figure, `formatShare`, and the `profile.beaten` key.
+- The average rank comes back on the leaderboard rows, in the right-hand column where the share used to be, as a big `.num` figure with a small `.label` under it ("rang moyen" / "avg rank").
+- The medal-table order and the places line are unchanged. The average rank takes no part in the order.
+
+### Task D: Server, averages without the share
+
+**Files:** `server/olympic_warriors/profiles.py`, `server/olympic_warriors/serializer.py`, `server/olympic_warriors/tests/test_profiles.py`
+
+- [ ] **Step 1: Tests first.** In `test_profiles.py`:
+  - Delete `TestBeatenShare` and remove `beaten_share` from the import.
+  - `test_averages_over_counted_editions_only` asserts `average_rank` only: Ana 1.0, Bob 2.0, Dan 3.0 (no share comments).
+  - `test_nothing_counted_means_no_figures_and_no_position` drops the `average_beaten` line.
+  - `test_the_running_edition_counts_once_it_is_over` asserts Eve `(counted, average_rank) == (1, 2.0)`.
+  - Assert on every record (and on both payloads) that no `average_beaten` exists: `self.assertFalse(hasattr(record, "average_beaten"))` once, and `"average_beaten" not in` each payload dict.
+  - `test_leaderboard_is_public_and_ordered` expects the row `{"id", "first_name", "last_name", "played": 3, "counted": 2, "average_rank": 1.0, "places": [...], "position": 1}` (key order irrelevant), Chloé `average_rank` 1.0, and Eve `average_rank` None.
+  - The profile tests expect no `average_beaten` key.
+
+  Run `docker compose exec -T server python manage.py test olympic_warriors.tests.test_profiles --noinput` and see them fail.
+- [ ] **Step 2: Implement.**
+  - `profiles.py`:
+    - Delete `beaten_share` and the "share beaten" rule in the module docstring.
+    - Change the averages rule to "the average rank is the mean rank over counted participations, to one decimal; it is shown on the leaderboard and the profile and plays no part in the order".
+    - Remove `average_beaten` from `PlayerRecord` and `_record`.
+    - Update the docstrings that mention the share.
+  - `serializer.py`:
+    - `ProfileSerializer` loses `average_beaten`.
+    - `LeaderboardRowSerializer` gains `average_rank = serializers.FloatField(allow_null=True)` between `counted` and `places`.
+    - Its docstring: "places and average rank; the order comes from the places only".
+  - Grep the server for `beaten` afterwards: nothing may remain outside migrations.
+- [ ] **Step 3:** Run `docker compose exec -T server python manage.py test --noinput` (whole suite): OK. Commit with `[FIX] profiles: drop the teams-beaten share, leaderboard rows carry the average rank` and the Co-Authored-By line.
+
+### Task E: Front, the average rank on the leaderboard and no share on the profile
+
+**Files:**
+- `front/src/lib/players.js` and `players.test.js`
+- `front/src/lib/i18n/fr.js` and `en.js`
+- `front/src/lib/fixtures/players.js`
+- `front/src/routes/players/+page.svelte` and `page.test.js`
+- `front/src/routes/players/[id]/+page.svelte` and `page.test.js`
+
+- [ ] **Step 1: Tests first.**
+  - **Fixtures:**
+    - The `leaderboard` rows gain `average_rank`: Léa 1.5, Hugo 1, Inès 1, Xavier 3 (2, 3 and 4), and null for the two not-ranked people.
+    - `profile` and `profileUnranked` lose `average_beaten`.
+  - **Leaderboard page tests:**
+    - Each ranked row reads, after the spoken sentence, the figure and its label. For example: `/1\s*Léa Martin\s*1\s*2\s*1st place in 2024, 2nd place in 2026\s*1\.5\s*avg rank/`, Hugo `1\.0`, Xavier `3\.0`.
+    - The French test reads `1,5\s*rang moyen` for Léa.
+    - Assert `within(row).getByTestId('average')` exists for ranked rows and that no not-ranked row has one.
+    - Keep every other test (places, cap, accessible name: update its regex to end with `1\.5 avg rank`).
+  - **Profile page tests:**
+    - Drop every `beaten` assertion.
+    - Assert `screen.queryByTestId('beaten')` is null, and that no "%" and no "Teams beaten" / "Équipes battues" text appears.
+    - Rename the "two figures" test to say the figure.
+  - **`players.test.js`:** delete the `formatShare` tests.
+
+  Run `cd front && npx vitest run src/lib/players.test.js src/routes/players` and see them fail.
+- [ ] **Step 2: Implement.**
+  - **`players.js`:** delete `formatShare` and update the module docstring. `formatAverage` now serves both pages.
+  - **Dictionaries:**
+    - Remove `profile.beaten`.
+    - Add `players.averageRank`: fr `'rang moyen'`, en `'avg rank'`, lowercase in the source (uppercase comes from `.label`).
+  - **Leaderboard `+page.svelte`:**
+    - Import `formatAverage`.
+    - The ranked `.row` grid goes back to `44px minmax(0, 1fr) auto`.
+    - After the `.text` span, add:
+      ```svelte
+      <span class="average" data-testid="average">
+      	<span class="num value">{formatAverage(player.average_rank, locale)}</span>
+      	<span class="label">{t('players.averageRank')}</span>
+      </span>
+      ```
+    - Style: `.average { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }` and `.average .value { font-size: 1.6rem; line-height: 1; letter-spacing: 0.06em; }`. That's the size the old share figure used.
+  - **Profile `[id]/+page.svelte`:**
+    - Remove the `beaten` figure, the `formatShare` import and the "Two figures" comment.
+    - Keep the `.figures` grid (two columns), so the average-rank card keeps its half width on every screen.
+  - **Grep `front/src`** for `formatShare`, `beaten`, `battues` and `players.over`: nothing may remain.
+- [ ] **Step 3:** `cd front && npm test && npm run build` both pass. Commit with `[FEAT] front: average rank back on the leaderboard rows, no teams-beaten figure` and the Co-Authored-By line.
+
+### Task F: Docs
+
+Update `CLAUDE.md` and the spec to the new rules:
+- no share;
+- the average rank shows on leaderboard rows (right column) and on the profile;
+- the leaderboard text shape ends with `1.5 avg rank`.
+
+Then run the full suites and check in the browser.
