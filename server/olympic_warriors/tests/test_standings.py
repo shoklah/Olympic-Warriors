@@ -7,6 +7,7 @@ from datetime import time
 from django.test import TestCase
 
 from olympic_warriors.models import (
+    Discipline,
     Edition,
     Team,
     TeamResult,
@@ -113,6 +114,41 @@ class TestPointsDiscipline(StandingsSetup):
         self.assertEqual(standings.result(ghost_result.id), ResultStanding())
         self.assertNotIn(self.ghost.id, standings.teams)
         self.assertEqual(standings.team(self.ghost.id), TeamStanding())
+
+    def test_inactive_team_result_neither_ranks_nor_counts_as_registered(self):
+        self.play(self.team_a, 5, self.team_b, 2)
+        ghost_result = TeamResult.objects.create(team=self.ghost, discipline=self.darts, points=99)
+        standings = compute_standings(self.edition)
+
+        self.assertNotIn(ghost_result.id, standings.results)
+        # 4 registered results, not 5: rank 1 -> 4 + 2
+        self.assertEqual(standings.result(self.result(self.team_a).id), ResultStanding(1, 3, 6))
+
+    def test_games_of_inactive_rounds_count_for_nothing(self):
+        self.play(self.team_a, 5, self.team_b, 2)
+        dead_round = TeamSportRound.objects.create(discipline=self.darts, order=1, is_active=False)
+        game = Game.objects.create(
+            discipline=self.darts,
+            round=dead_round,
+            team1=self.team_c,
+            score1=9,
+            team2=self.team_d,
+            score2=0,
+            referees=self.team_a,
+            edition=self.edition,
+            is_played=True,
+        )
+        game.save()  # recomputes league points from the games that count
+
+        self.assertEqual(self.standing(self.team_c).points_difference, 0)
+        self.assertEqual(self.result(self.team_c).points, 0)
+
+    def test_discipline_without_result_type_ranks_nobody(self):
+        relay = Relay.objects.create(edition=self.edition, reveal_score=True)
+        Discipline.objects.filter(pk=relay.pk).update(result_type="")
+        TeamResult.objects.filter(discipline=relay, team=self.team_a).update(points=7)
+
+        self.assertEqual(self.standing(self.team_a, relay), ResultStanding())
 
 
 class TestTimeDiscipline(StandingsSetup):

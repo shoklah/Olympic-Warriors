@@ -128,6 +128,12 @@ class TestPointsDifference(RankingTestSetup):
         self.assertEqual(TeamResult(team=self.team_a, discipline=self.darts).global_points, 0)
         self.assertIsNone(Team(name="New", edition=self.edition).ranking)
 
+    def test_inactive_team_rank_does_not_make_the_edition_manual(self):
+        Team.objects.create(name="Ghost", edition=self.edition, is_active=False, final_rank=1)
+
+        self.assertFalse(self.edition.ranking_is_manual)
+
+
 class TestRankingTieBreaker(RankingTestSetup):
     """Equal league points are split by points difference; equal difference shares a rank."""
 

@@ -7,7 +7,9 @@ The rules are the ones the model properties always applied:
   points disciplines rank by points then points difference, time disciplines by time;
   ties share a rank, unranked results have rank 0;
 - global points reward the rank among the discipline's registered results, with a
-  podium bonus; an unranked result earns nothing;
+  podium bonus; an unranked result earns nothing; registered results are the
+  discipline's active results of active teams: a deactivated team neither ranks nor
+  counts;
 - a team's total is the sum of its global points, teams rank by total, ties shared;
 - a manual edition (a team with a final_rank) ranks teams by that stored order instead,
   and has no totals.
@@ -16,8 +18,7 @@ The rules are the ones the model properties always applied:
 from collections import defaultdict
 from dataclasses import dataclass
 
-from django.apps import apps
-
+from .models import Game, Team, TeamResult
 from .models.ResultTypes import ResultTypes
 
 
@@ -40,8 +41,10 @@ class TeamStanding:
 
 @dataclass(frozen=True)
 class Standings:
-    results: dict  # TeamResult id -> ResultStanding
-    teams: dict  # Team id -> TeamStanding
+    """Standings of one edition: results by TeamResult id, teams by Team id."""
+
+    results: dict[int, ResultStanding]
+    teams: dict[int, TeamStanding]
 
     def result(self, result_id):
         """Standing of a result, or the zero standing when it is not part of the edition."""
@@ -66,10 +69,6 @@ def global_points(ranking, registered):
 
 def compute_standings(edition):
     """Standings of every active team and result of the edition."""
-    Team = apps.get_model("olympic_warriors", "Team")
-    TeamResult = apps.get_model("olympic_warriors", "TeamResult")
-    Game = apps.get_model("olympic_warriors", "Game")
-
     teams = list(Team.objects.filter(edition=edition, is_active=True))
     results = list(
         TeamResult.objects.filter(

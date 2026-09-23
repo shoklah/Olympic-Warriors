@@ -64,9 +64,11 @@ class Game(models.Model):
     def league_points(self, team_id):
         """
         League points of a team in this game's discipline: 3 per win, 1 per draw, over the
-        discipline's active, played games. Unplayed games count for nothing.
+        discipline's active, played games of active rounds. Unplayed games count for nothing.
         """
-        games = Game.objects.filter(discipline=self.discipline, is_active=True, is_played=True)
+        games = Game.objects.filter(
+            discipline=self.discipline, round__is_active=True, is_active=True, is_played=True
+        )
         points = 0
         for game in games.filter(team1_id=team_id):
             points += 3 if game.score1 > game.score2 else (1 if game.score1 == game.score2 else 0)
