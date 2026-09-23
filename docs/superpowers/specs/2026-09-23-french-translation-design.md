@@ -1,7 +1,7 @@
 # French translation and shared game rows
 
 **Date:** 2026-09-23
-**Status:** approved in conversation, awaiting spec review
+**Status:** implemented on branch claude/i18n-french
 **Scope:** `front/` only. No API or database change.
 
 ## Goal
@@ -88,6 +88,8 @@ returns for the locale (`one` and `other` are enough for both languages).
 - `useT()`: `translator(getContext(I18N) ?? DEFAULT_LOCALE)`, for use in a
   component's script: `const t = useT();` then `{t('nav.ranking')}` in the
   template. A component rendered without context is French.
+- `useLocale()`: `getContext(I18N) ?? DEFAULT_LOCALE`, for a component that
+  needs the locale itself (dates, discipline names); init only.
 - `disciplineName(locale, name)`: the French name from
   `front/src/lib/i18n/disciplines.js` when `locale === 'fr'` and the map has
   it, else `name` unchanged.
@@ -155,17 +157,18 @@ sentence case and accents.
 | `breadcrumb.label` | Fil d'Ariane | Breadcrumb |
 | `error.back` | Retour aux Olympic Warriors | Back to the Olympic Warriors |
 | `error.notFound` | Page introuvable | Page not found |
+| `error.generic` | Une erreur est survenue | Something went wrong |
 | `login.title` | Connexion | Log In |
 | `login.username` | Identifiant | Username |
 | `login.password` | Mot de passe | Password |
 | `login.missing` | Champ obligatoire | Required |
 
-The `+error.svelte` page uses `error.back` and shows the thrown message as
-today; `error.notFound` covers the 404 the detail loaders throw
-(`throw error(404, ...)` keeps its message in English for the API layer; the
-page shows `error.notFound` when `status === 404`, else the message). The
-implementer adds any key the pages need that this table misses, in both
-files, and lists it in the PR.
+`+error.svelte` shows `error.notFound` for a 404 and `error.generic` for
+anything else; the thrown message (English by construction: loaders,
+`api.js`, the framework) shows only in dev. Every 404 therefore reads the
+same, `Page introuvable`, a deliberate choice. The implementer adds any key
+the pages need that this table misses, in both files, and lists it in the
+PR.
 
 `pts`, `— : —`, `FR`, `EN`, the brand `Olympic Warriors`, the `OW` logo, the
 title image and every piece of data (team, host and player names, years,

@@ -143,7 +143,8 @@ visitors who ask for it.
   unplayed; `played` in muted when played but scores null. Winner name gets
   class `winner` (ink, weight 600), loser `loser` (muted); on a draw or
   without scores neither.
-- `TeamGameRow.svelte` (team page games): props `round` (0-based), `role`
+- *(Superseded on 2026-09-23 by the French translation spec: the team page now reuses `GameRow` with `roundLabel` and `highlightId`; `TeamGameRow` is deleted.)*
+  `TeamGameRow.svelte` (team page games): props `round` (0-based), `role`
   (`play` | `referee`), `opponentName`, `team1Name`, `team2Name`, `isPlayed`,
   `ownScore`, `theirScore`, `result` (`win` | `loss` | `draw` | null). Root
   carries `data-testid="game-row"`. Text keeps literal ` · ` separators
