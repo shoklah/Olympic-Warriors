@@ -132,6 +132,7 @@ describe('player profile page', () => {
 		imgs.forEach((img) => expect(img).toHaveAttribute('alt', ''));
 	});
 
+	// Class assertions on purpose here: colour (not text shape) is what's under test.
 	it('colours the top three discipline-row ranks gold, silver and bronze', () => {
 		renderWith(Page, { data: { profile } });
 
@@ -193,5 +194,23 @@ describe('player profile page', () => {
 		const rows = screen.getAllByTestId('discipline-row');
 		expect(rows[0]).toHaveTextContent(/Relais\s*1\s*2026\s*2\s*2023/);
 		expect(within(rows[0]).getByText('1re place en 2026, 2e place en 2023')).toBeInTheDocument();
+	});
+
+	it('breaks a tie by the French displayed name, not the server database-name order', () => {
+		const tied = {
+			...profile,
+			disciplines: ['Dodgeball', 'Blindtest', 'Hide and Seek', 'Petanque'].map((name) => ({
+				name,
+				position: 1,
+				places: [{ year: 2026, rank: 1 }]
+			}))
+		};
+		renderWith(Page, { data: { profile: tied } }, 'fr');
+
+		const card = screen.getByTestId('best-discipline');
+		const shown = Array.from(card.querySelectorAll('.best')).map((el) => el.textContent);
+		expect(shown).toEqual(['Balle au prisonnier', 'Blindtest', 'Cache-cache']);
+		expect(card).not.toHaveTextContent('Pétanque');
+		expect(within(card).getByText('+1')).toBeInTheDocument();
 	});
 });

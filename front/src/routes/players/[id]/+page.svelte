@@ -2,8 +2,7 @@
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import MedalRank from '$lib/components/MedalRank.svelte';
 	import { iconFor } from '$lib/icons';
-	import { ordinal } from '$lib/edition';
-	import { bestDisciplines, editionStatus, formatAverage, fullName } from '$lib/players';
+	import { bestDisciplines, byDisplayedName, editionStatus, formatAverage, fullName, spokenPlaces } from '$lib/players';
 	import { disciplineName, useLocale, useT } from '$lib/i18n';
 
 	export let data;
@@ -14,12 +13,10 @@
 	$: profile = data.profile;
 	$: name = fullName(profile);
 	// Defensive: a front deployed ahead of a server that doesn't carry `disciplines` yet.
-	$: disciplines = profile.disciplines ?? [];
+	// Ties (equal position) are re-sorted by the name as displayed in this locale, so the
+	// server's English database-name order doesn't leak into the French page.
+	$: disciplines = byDisplayedName(profile.disciplines ?? [], locale);
 	$: best = bestDisciplines(disciplines);
-
-	/** "1st place in 2026, 2nd place in 2023", spoken for the visually hidden readers. */
-	const spoken = (places) =>
-		places.map((p) => t('players.placeIn', { place: ordinal(p.rank, locale), year: p.year })).join(', ');
 </script>
 
 <div class="page">
@@ -113,7 +110,7 @@
 							>{' '}
 						{/each}
 					</span>
-					<span class="visually-hidden">{spoken(d.places)}</span>
+					<span class="visually-hidden">{spokenPlaces(d.places, locale)}</span>
 				</li>
 			{/each}
 		</ul>

@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_PLACES, bestDisciplines, editionStatus, formatAverage, fullName, shownPlaces } from './players.js';
+import {
+	MAX_PLACES,
+	bestDisciplines,
+	byDisplayedName,
+	editionStatus,
+	formatAverage,
+	fullName,
+	shownPlaces,
+	spokenPlaces
+} from './players.js';
 
 describe('formatAverage', () => {
 	it('prints one decimal with the locale separator', () => {
@@ -78,5 +87,41 @@ describe('bestDisciplines', () => {
 
 	it('is empty without disciplines', () => {
 		expect(bestDisciplines([])).toEqual({ shown: [], more: 0, count: 0 });
+	});
+});
+
+describe('byDisplayedName', () => {
+	const tie = ['Dodgeball', 'Blindtest', 'Hide and Seek'].map((name) => ({ name, position: 1, places: [] }));
+
+	it('sorts a tie by the French displayed name', () => {
+		expect(byDisplayedName(tie, 'fr').map((d) => d.name)).toEqual(['Dodgeball', 'Blindtest', 'Hide and Seek']);
+	});
+
+	it('sorts a tie by the English displayed name', () => {
+		expect(byDisplayedName(tie, 'en').map((d) => d.name)).toEqual(['Blindtest', 'Dodgeball', 'Hide and Seek']);
+	});
+
+	it('keeps different positions in the server order, only re-sorting ties', () => {
+		const mixed = [
+			{ name: 'Relay', position: 1, places: [] },
+			{ name: 'Darts', position: 2, places: [] },
+			{ name: 'Basketball', position: 2, places: [] }
+		];
+		expect(byDisplayedName(mixed, 'en').map((d) => d.name)).toEqual(['Relay', 'Basketball', 'Darts']);
+	});
+});
+
+describe('spokenPlaces', () => {
+	const places = [
+		{ year: 2026, rank: 1 },
+		{ year: 2023, rank: 2 }
+	];
+
+	it('reads places best first, in English', () => {
+		expect(spokenPlaces(places, 'en')).toBe('1st place in 2026, 2nd place in 2023');
+	});
+
+	it('reads places best first, in French', () => {
+		expect(spokenPlaces(places, 'fr')).toBe('1re place en 2026, 2e place en 2023');
 	});
 });

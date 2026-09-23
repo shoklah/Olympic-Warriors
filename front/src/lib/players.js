@@ -1,3 +1,5 @@
+import { ordinal } from '$lib/edition';
+import { disciplineName, t } from '$lib/i18n';
 import { localeFrom } from '$lib/i18n/locale.js';
 
 /**
@@ -37,9 +39,28 @@ export function shownPlaces(places, max = MAX_PLACES) {
 
 /**
  * The player's best disciplines (position 1, ties included), the first `max` of them and
- * how many more there are.
+ * how many more there are. Pass disciplines already through `byDisplayedName` so a tie
+ * breaks on the name shown in the current locale, not the server's English one.
  */
 export function bestDisciplines(disciplines, max = 3) {
 	const best = disciplines.filter((d) => d.position === 1);
 	return { shown: best.slice(0, max), more: Math.max(0, best.length - max), count: best.length };
+}
+
+/**
+ * `disciplines` (already ordered by `position`, strongest first), with each group of tied
+ * disciplines (equal `position`) re-sorted by the name as displayed in `locale` rather than
+ * the server's database-name order. Positions stay in the server's order; only ties move.
+ */
+export function byDisplayedName(disciplines, locale) {
+	return [...disciplines].sort(
+		(a, b) =>
+			a.position - b.position ||
+			disciplineName(locale, a.name).localeCompare(disciplineName(locale, b.name), locale)
+	);
+}
+
+/** "1st place in 2026, 2nd place in 2023" for screen readers. */
+export function spokenPlaces(places, locale) {
+	return places.map((p) => t(locale, 'players.placeIn', { place: ordinal(p.rank, locale), year: p.year })).join(', ');
 }
