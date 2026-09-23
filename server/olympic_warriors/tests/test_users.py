@@ -1,6 +1,6 @@
 """
 User endpoints: /users/ and /user/<id>/ expose login names and emails, so they are
-organisers only. /user/current/ stays open to any token: the front resolves is_staff with it.
+organisers only. /user/current/ stays open to any token (TestCurrentUser in test_summary.py).
 """
 
 from django.contrib.auth.models import User
@@ -54,10 +54,3 @@ class TestUserEndpoints(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["username"], "player")
         self.assertEqual(client.get("/user/999/").status_code, 404)
-
-    def test_current_user_stays_open_to_any_token(self):
-        self.assertEqual(APIClient().get("/user/current/").status_code, 401)
-        response = self.as_user(self.player).get("/user/current/")
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["username"], "player")
-        self.assertFalse(response.data["is_staff"])
