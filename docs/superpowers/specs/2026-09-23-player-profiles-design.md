@@ -182,8 +182,12 @@ selected for the names. The test pins it either way.
   row 81 or 249 before assigning 2024's teams.
 - On the team page, `team` is the inline's hidden foreign key, and the tabular inline
   never renders a hidden field's errors. `PlayerInline` therefore uses a
-  `PlayerInlineForm` that repeats the `team` errors among the row's errors. While a new
-  team is being added it has no id yet, so the cross-edition check does not run there.
+  `PlayerInlineForm` that repeats the `team` errors among the row's errors. On a new
+  team the check reads the unsaved team object, which already carries the edition chosen
+  on the team form, so a player of another edition is refused there too.
+- Known gap: two new inline rows for the same person saved in one go both pass, because
+  the duplicate check only sees rows already in the database. It is rare, and a
+  formset-level check can be added if it ever happens.
 
 ## Front
 
