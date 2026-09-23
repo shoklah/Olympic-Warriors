@@ -20,7 +20,7 @@ import {
 	teamGames,
 	teamResults
 } from './edition.js';
-import { summary, summaryAllRevealed, summaryStaff } from './fixtures/summary.js';
+import { summary, summaryAllRevealed, summaryManual, summaryStaff } from './fixtures/summary.js';
 
 describe('rankedTeams', () => {
 	it('sorts by ranking then name', () => {
@@ -42,6 +42,14 @@ describe('rankedTeams', () => {
 	it('does not mutate the summary', () => {
 		rankedTeams(summary);
 		expect(summary.teams[0].name).toBe('Aigles');
+	});
+
+	it('sorts an unranked team last', () => {
+		expect(rankedTeams(summaryManual).map((t) => [t.name, t.ranking])).toEqual([
+			['Bisons', 1],
+			['Aigles', 2],
+			['Cerfs', null]
+		]);
 	});
 });
 

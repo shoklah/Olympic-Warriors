@@ -46,7 +46,9 @@
 						{/each}
 					</span>
 				</span>
-				<span class="num pts">{team.total_points} {t('team.pts')}</span>
+				{#if team.total_points !== null}
+					<span class="num pts">{team.total_points} {t('team.pts')}</span>
+				{/if}
 			</a>
 		{/each}
 	</div>

@@ -3,7 +3,8 @@
  * GET /edition/year/<year>/summary/. No fetching, no Svelte, fully unit-tested.
  */
 
-const byRankThenName = (a, b) => a.ranking - b.ranking || a.name.localeCompare(b.name);
+const rank = (team) => team.ranking ?? Number.POSITIVE_INFINITY; // no rank: sort last
+const byRankThenName = (a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name);
 
 /** Teams of the edition sorted by global ranking, ties by name. */
 export function rankedTeams(summary) {

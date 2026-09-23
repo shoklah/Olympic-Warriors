@@ -28,8 +28,10 @@
 	<p class="standing" data-testid="standing">
 		<MedalRank rank={data.team.ranking} ordinal />
 		<span class="label">{t('team.overall')}</span>
-		<span class="num points">{data.team.total_points}</span>
-		<span class="label">{t('team.pts')}</span>
+		{#if data.team.total_points !== null}
+			<span class="num points">{data.team.total_points}</span>
+			<span class="label">{t('team.pts')}</span>
+		{/if}
 	</p>
 
 	<div class="roster">
