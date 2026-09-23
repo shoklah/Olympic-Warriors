@@ -2,6 +2,7 @@
 	import { formatTime } from '$lib/edition';
 	import { iconFor } from '$lib/icons';
 	import { disciplineName, useLocale, useT } from '$lib/i18n';
+	import { fullName } from '$lib/players';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import MedalRank from '$lib/components/MedalRank.svelte';
 	import GameRow from '$lib/components/GameRow.svelte';
@@ -36,7 +37,7 @@
 
 	<div class="roster">
 		{#each data.team.players as player}
-			<span class="chip">{player.first_name} {player.last_name}</span>
+			<a class="chip" href="/players/{player.user}">{fullName(player)}</a>
 		{/each}
 	</div>
 
@@ -135,6 +136,19 @@
 		font-size: 0.8rem;
 		min-width: 0;
 		overflow-wrap: anywhere;
+		color: var(--text);
+		text-decoration: none;
+		transition: border-color 0.2s ease;
+	}
+
+	.chip:hover {
+		border-color: var(--accent);
+		text-decoration: none;
+	}
+
+	.chip:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
 	}
 
 	.tiles {

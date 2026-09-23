@@ -207,7 +207,7 @@ class SummaryPlayerSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Player
-        fields = ("id", "first_name", "last_name")
+        fields = ("id", "user", "first_name", "last_name")
 
 
 class SummaryTeamSerializer(serializers.ModelSerializer):
@@ -440,3 +440,66 @@ class ResultValueSerializer(serializers.Serializer):
 
 class RevealSerializer(serializers.Serializer):
     reveal_score = serializers.BooleanField()
+
+
+class ProfileTeamSerializer(serializers.Serializer):
+    """A participation's team."""
+
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+
+
+class ProfileEditionSerializer(serializers.Serializer):
+    """
+    One edition of a profile (a Participation); rank is null until the edition is over,
+    and whenever the team has no rank (see profiles.Participation).
+    """
+
+    year = serializers.IntegerField()
+    team = serializers.SerializerMethodField()
+    rank = serializers.IntegerField(allow_null=True)
+    teams = serializers.IntegerField()
+    finished = serializers.BooleanField()
+
+    @extend_schema_field(ProfileTeamSerializer(allow_null=True))
+    def get_team(self, obj):
+        if obj.team_id is None:
+            return None
+        return {"id": obj.team_id, "name": obj.team_name}
+
+
+class PlaceSerializer(serializers.Serializer):
+    """One counted edition of a person: the year and the team's rank that year."""
+
+    year = serializers.IntegerField()
+    rank = serializers.IntegerField()
+
+
+class LeaderboardRowSerializer(serializers.Serializer):
+    """
+    A person on the all-time leaderboard (a PlayerRecord, see olympic_warriors.profiles):
+    places and average rank; the order comes from the places only.
+    Public: names only, never the username (the login name) nor the email.
+    """
+
+    id = serializers.IntegerField(source="user_id", help_text="The user id, not a Player id")
+    first_name = serializers.CharField()
+    last_name = serializers.CharField()
+    played = serializers.IntegerField()
+    counted = serializers.IntegerField()
+    average_rank = serializers.FloatField(allow_null=True)
+    places = PlaceSerializer(many=True, help_text="Counted editions, best rank first")
+    position = serializers.IntegerField(allow_null=True)
+
+
+class ProfileSerializer(serializers.Serializer):
+    """A person's profile: position, counted editions and average rank, plus every edition,
+    newest first."""
+
+    id = serializers.IntegerField(source="user_id", help_text="The user id, not a Player id")
+    first_name = serializers.CharField()
+    last_name = serializers.CharField()
+    position = serializers.IntegerField(allow_null=True)
+    counted = serializers.IntegerField()
+    average_rank = serializers.FloatField(allow_null=True)
+    editions = ProfileEditionSerializer(source="participations", many=True)

@@ -1,5 +1,6 @@
 <script>
 	import { rankedTeams } from '$lib/edition';
+	import { fullName } from '$lib/players';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import DisciplineRail from '$lib/components/DisciplineRail.svelte';
 	import MedalRank from '$lib/components/MedalRank.svelte';
@@ -41,7 +42,7 @@
 					<span class="roster">
 						{#each team.players as player, i}
 							{#if i > 0}<span class="sep" aria-hidden="true">{' · '}</span>{/if}<span
-								>{player.first_name} {player.last_name}</span
+								>{fullName(player)}</span
 							>
 						{/each}
 					</span>

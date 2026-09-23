@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/svelte';
+import { render, screen, within } from '@testing-library/svelte';
 import { describe, expect, it } from 'vitest';
 import { renderWith } from '$lib/test-utils';
 import TabBar from './TabBar.svelte';
@@ -82,5 +82,34 @@ describe('TabBar', () => {
 		render(TabBar, { year: 2026, pathname: '/2026/ranking' });
 
 		expect(screen.getByRole('link', { name: 'Classement' })).toBeInTheDocument();
+	});
+
+	it('puts players between disciplines and photos', () => {
+		renderWith(TabBar, { year: 2026, pathname: '/2026/ranking', photosUrl: 'https://photos.example/2026' });
+
+		const nav = screen.getByRole('navigation', { name: 'Sections' });
+		expect(within(nav).getAllByRole('link').map((a) => a.textContent.trim())).toEqual([
+			'Ranking',
+			'Disciplines',
+			'Players',
+			'Photos'
+		]);
+		expect(screen.getByRole('link', { name: 'Players' })).toHaveAttribute('href', '/players');
+	});
+
+	it('marks players on the leaderboard and on a profile only', () => {
+		for (const pathname of ['/players', '/players/34']) {
+			const { unmount } = renderWith(TabBar, { year: 2026, pathname });
+
+			expect(screen.getByRole('link', { name: 'Players' })).toHaveAttribute('aria-current', 'page');
+			expect(screen.getByRole('link', { name: 'Ranking' })).not.toHaveAttribute('aria-current');
+			unmount();
+		}
+	});
+
+	it('does not mark players on a year page', () => {
+		renderWith(TabBar, { year: 2026, pathname: '/2026/ranking' });
+
+		expect(screen.getByRole('link', { name: 'Players' })).not.toHaveAttribute('aria-current');
 	});
 });

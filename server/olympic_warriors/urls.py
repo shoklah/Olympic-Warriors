@@ -46,6 +46,9 @@ urlpatterns = [
     path("players/edition/<int:edition_id>/", views.getPlayersByEdition),
     path("players/user/<int:user_id>/edition/<int:edition_id>/", views.getPlayerByUserAndEdition),
     path("players/team/<int:team_id>/", views.getPlayersByTeam),
+    # profiles (public, by user id)
+    path("profiles/", views.getProfiles),
+    path("profile/<int:user_id>/", views.getProfile),
     # editions
     path("edition/<int:edition_id>/", views.getEdition),
     path("edition/year/<int:year>/summary/", views.getEditionSummary),
