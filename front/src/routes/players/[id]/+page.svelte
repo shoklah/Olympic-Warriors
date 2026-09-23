@@ -101,7 +101,7 @@
 
 	.figures {
 		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 1fr));
+		grid-template-columns: minmax(0, 14rem);
 		gap: 8px;
 		margin-bottom: 0.6rem;
 	}

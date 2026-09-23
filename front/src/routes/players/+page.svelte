@@ -12,8 +12,13 @@
 	$: ranked = data.players.filter((player) => player.position !== null);
 	$: waiting = data.players.filter((player) => player.position === null);
 
-	const spoken = (places) =>
-		places.map((p) => t('players.placeIn', { place: ordinal(p.rank, locale), year: p.year })).join(', ');
+	const spoken = (player) => {
+		const places = player.places
+			.map((p) => t('players.placeIn', { place: ordinal(p.rank, locale), year: p.year }))
+			.join(', ');
+		const average = t('players.averageSpoken', { value: formatAverage(player.average_rank, locale) });
+		return [places, average].join(', ');
+	};
 </script>
 
 <div class="page">
@@ -49,9 +54,9 @@
 									<span class="num more">{t('players.more', { n: more })}</span>
 								{/if}
 							</span>
-							<span class="visually-hidden">{spoken(player.places)}</span>
+							<span class="visually-hidden">{spoken(player)}</span>
 						</span>
-						<span class="average" data-testid="average">
+						<span class="average" data-testid="average" aria-hidden="true">
 							<span class="num value">{formatAverage(player.average_rank, locale)}</span>
 							<span class="label">{t('players.averageRank')}</span>
 						</span>
@@ -211,5 +216,15 @@
 		font-size: 1.6rem;
 		line-height: 1;
 		letter-spacing: 0.06em;
+	}
+
+	.average .label {
+		text-align: right;
+	}
+
+	@media (max-width: 359.98px) {
+		.row:not(.waiting) {
+			grid-template-columns: 44px minmax(0, 1fr) min-content;
+		}
 	}
 </style>

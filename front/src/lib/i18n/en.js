@@ -22,6 +22,7 @@ export default {
 	'players.placeIn': '{place} place in {year}',
 	'players.more': '+{n}',
 	'players.averageRank': 'avg rank',
+	'players.averageSpoken': 'average rank {value}',
 	'profile.allTime': 'all-time',
 	'profile.positionHint': 'position on the players leaderboard',
 	'profile.averageRank': 'Average rank',

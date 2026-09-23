@@ -17,20 +17,24 @@ describe('players leaderboard page', () => {
 		const rows = screen.getAllByTestId('player-row');
 		expect(rows).toHaveLength(4);
 		expect(rows[0]).toHaveTextContent(
-			/1\s*Léa Martin\s*1\s*2\s*1st place in 2024, 2nd place in 2026\s*1\.5\s*avg rank/
+			/1\s*Léa Martin\s*1\s*2\s*1st place in 2024, 2nd place in 2026, average rank 1\.5\s*1\.5\s*avg rank/
 		);
-		expect(rows[1]).toHaveTextContent(/2\s*Hugo Maurinier\s*1\s*1st place in 2025\s*1\.0\s*avg rank/);
-		expect(rows[2]).toHaveTextContent(/2\s*Inès Moreau\s*1\s*1st place in 2025\s*1\.0\s*avg rank/);
+		expect(rows[1]).toHaveTextContent(
+			/2\s*Hugo Maurinier\s*1\s*1st place in 2025, average rank 1\.0\s*1\.0\s*avg rank/
+		);
+		expect(rows[2]).toHaveTextContent(
+			/2\s*Inès Moreau\s*1\s*1st place in 2025, average rank 1\.0\s*1\.0\s*avg rank/
+		);
 		expect(rows[3]).toHaveTextContent(
-			/4\s*Xavier Baby\s*2\s*3\s*4\s*2nd place in 2026, 3rd place in 2023, 4th place in 2021\s*3\.0\s*avg rank/
+			/4\s*Xavier Baby\s*2\s*3\s*4\s*2nd place in 2026, 3rd place in 2023, 4th place in 2021, average rank 3\.0\s*3\.0\s*avg rank/
 		);
 		expect(rows[0]).toHaveAttribute('href', '/players/12');
 		expect(within(rows[0]).getByTestId('places')).toHaveAttribute('aria-hidden', 'true');
-		expect(rows[0]).not.toHaveTextContent(/%/);
+		expect(within(rows[0]).getByTestId('average')).toHaveAttribute('aria-hidden', 'true');
 		rows.forEach((row) => expect(within(row).getByTestId('average')).toBeInTheDocument());
 		expect(
 			screen.getByRole('link', {
-				name: /^1\s*Léa Martin\s*1st place in 2024, 2nd place in 2026\s*1\.5\s*avg rank$/
+				name: /^1\s*Léa Martin\s*1st place in 2024, 2nd place in 2026, average rank 1\.5$/
 			})
 		).toBeInTheDocument();
 	});
@@ -104,8 +108,13 @@ describe('players leaderboard page', () => {
 		expect(screen.getByText('Le panthéon des Warriors')).toBeInTheDocument();
 		const rows = screen.getAllByTestId('player-row');
 		expect(rows[0]).toHaveTextContent(
-			/1\s*Léa Martin\s*1\s*2\s*1re place en 2024, 2e place en 2026\s*1,5\s*rang moyen/
+			/1\s*Léa Martin\s*1\s*2\s*1re place en 2024, 2e place en 2026, rang moyen 1,5\s*1,5\s*rang moyen/
 		);
+		expect(
+			screen.getByRole('link', {
+				name: /^1\s*Léa Martin\s*1re place en 2024, 2e place en 2026, rang moyen 1,5$/
+			})
+		).toBeInTheDocument();
 		expect(screen.getByRole('heading', { name: 'Pas encore classés' })).toBeInTheDocument();
 	});
 });
