@@ -53,18 +53,11 @@ CLAUDE.md                        detailed architecture notes
 
 You need Docker with Compose v2. You don't need Python or Node on your machine.
 
-1. **Prepare the server config.**
-   - Copy the env template, then set `SECRET_KEY` in `server/dev.env` to any non-empty string. Keep `server` in `ALLOWED_HOSTS`, because the front container calls the API under that hostname.
+1. **Prepare the server config.** Copy the env template, then set `SECRET_KEY` in `server/dev.env` to any non-empty string. Keep `server` in `ALLOWED_HOSTS`, because the front container calls the API under that hostname.
 
-     ```bash
-     cp server/.env.example server/dev.env
-     ```
-
-   - Create the log folder. The server writes its log file to `server/logs/`, which is not in the repository, and without that folder the server crashes at startup.
-
-     ```bash
-     mkdir -p server/logs
-     ```
+   ```bash
+   cp server/.env.example server/dev.env
+   ```
 
 2. **Prepare the front config.** The template already points at the compose API.
 
@@ -147,9 +140,9 @@ The part READMEs have the rest:
 Before the first deploy, work through these points:
 
 - **Fill in the template.** The database settings and `ports` are blank, and so is `CERTBOT_EMAIL`. Adjust the absolute `/opt/OW_stage/...` paths of the stage stack as well.
-- **Server config.** Create `server/prod.env`: `ENV=prod` reads it instead of `dev.env`. Also create the log folder with `mkdir -p server/logs`. Both are copied into the image at build time, so after editing `prod.env`, rebuild `server` rather than restarting it.
-- **`dev.env` at build time.** The image build runs `collectstatic` with `ENV` unset, which loads `server/dev.env`. That file must therefore exist in the build context too, with at least `SECRET_KEY`, `DEBUG` and the `DB_*` keys.
+- **Server config.** Create `server/prod.env`: `ENV=prod` reads it instead of `dev.env`. The image build needs it too, because it runs `collectstatic` with `ENV=prod`, so it must hold at least `SECRET_KEY`, `DEBUG` and the `DB_*` keys. It is copied into the image at build time, so after editing `prod.env`, rebuild `server` rather than restarting it.
 - **Migrations.** Nothing runs them in production. After each deploy that adds migrations, run `migrate`. After the first deploy, also run `createsu`.
+- **Admin credentials.** Before that first `createsu`, set your own `SU_USERNAME` and a strong `SU_PASSWORD` in `prod.env`. Without them, `createsu` creates a superuser named `admin` with the password `password`. Changing them later does not update an account that already exists: use `manage.py changepassword` for that.
 - **Front config.** `front/.env` must hold the production `API_URL` before you build the front image.
 - **`ORIGIN`.** Set it on each front, `front-stage` included (the template has it only on `front`). Without it, SvelteKit refuses every form POST behind the TLS-terminating proxy: the language switch, login, logout and the organiser tools.
 - **Client IPs.** The login throttle identifies clients by the last `X-Forwarded-For` entry. For that reason:

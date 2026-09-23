@@ -63,7 +63,7 @@ Discipline-specific admin and validation match on the discipline **name string**
 
 **Soft deletes:** nearly every model has `is_active`; the admin injects `is_active__exact=1` into every changelist via `request_only_active`, so inactive rows are hidden but still exist.
 
-Settings: `olympic_warriors/config.py` (pydantic-settings) reads `ENV` and loads `DevConfig`/`ProdConfig`; any other value silently yields an empty config. `DATABASE_URL` wins over the `DB_*` vars. Media is served by Django only when `ENV=dev`.
+Settings: `olympic_warriors/config.py` (pydantic-settings) reads `ENV` and loads `DevConfig`/`ProdConfig`; any other value silently yields an empty config. `DATABASE_URL` wins over the `DB_*` vars. Media is served by Django only when `ENV=dev`. `settings.py` creates the `LOG_FILE` folder (`server/logs/`, gitignored) at import, so a fresh clone needs no `mkdir`. `Dockerfile.prod`/`Dockerfile.stage` run `collectstatic` with `ENV=prod`, so their build context needs `prod.env` (at least `SECRET_KEY`, `DEBUG`, `DB_*`) and no `dev.env`.
 
 Known dead code: `olympic_warriors/models.py` (shadowed by the `models/` package), the empty `templates/` dir, and the unused `bootstrap5`/`crispy_forms` apps.
 

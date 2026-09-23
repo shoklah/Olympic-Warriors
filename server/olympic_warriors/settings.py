@@ -179,6 +179,11 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 LOGIN_REDIRECT_URL = "/"
 
+# The log folder is not in the repository (logs are gitignored): create it here, or dictConfig
+# fails on the file handler and no manage.py command starts on a fresh clone or image.
+LOG_FILE_PATH = os.path.join(BASE_DIR, settings.LOG_FILE)
+os.makedirs(os.path.dirname(LOG_FILE_PATH), exist_ok=True)
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
@@ -186,7 +191,7 @@ LOGGING = {
         "file": {
             "level": settings.LOG_LEVEL_FILE,
             "class": "logging.FileHandler",
-            "filename": os.path.join(BASE_DIR, settings.LOG_FILE),
+            "filename": LOG_FILE_PATH,
         },
         "console": {
             "level": settings.LOG_LEVEL_CONSOLE,
