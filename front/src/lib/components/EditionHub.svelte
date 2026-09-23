@@ -27,8 +27,12 @@
 </script>
 
 <div class="fullscreen">
-	<img id="eclipse" src={eclipse} alt="" />
-	<img id="title" src={title} alt="OLYMPIC WARRIORS" />
+	<!-- The title is anchored to the moon, not to the hero box: `.moon` is the rendered
+	     image (its aspect ratio, contained in the hero), and the disc sits at 49.3% / 53% of it. -->
+	<div class="moon">
+		<img id="eclipse" src={eclipse} alt="" />
+		<img id="title" src={title} alt="OLYMPIC WARRIORS" />
+	</div>
 
 	{#each columns.filter((c) => c.length > 0) as column}
 		<div class="sportcolumn">
@@ -179,14 +183,19 @@
 		border-color: var(--accent);
 	}
 
-	/* Fills the hero and never overflows it: object-fit keeps the eclipse whole. */
+	/* The eclipse image is 1664 x 1108: as tall as the hero, or as wide as the viewport. */
+	.moon {
+		position: relative;
+		width: calc(65vh * 1664 / 1108);
+		max-width: 100%;
+		aspect-ratio: 1664 / 1108;
+	}
+
 	#eclipse {
 		position: absolute;
 		inset: 0;
 		width: 100%;
 		height: 100%;
-		object-fit: contain;
-		transform: translate(1%, 0);
 		z-index: -1;
 	}
 
@@ -199,9 +208,13 @@
 		z-index: 1;
 	}
 
+	/* Centred on the dark disc (31% of the image wide), well inside it. */
 	#title {
-		width: min(25%, 300px);
 		position: absolute;
+		left: 49.3%;
+		top: 53%;
+		width: 24%;
+		transform: translate(-50%, -50%);
 	}
 
 	.fullscreen {
@@ -219,12 +232,12 @@
 			width: min(100px, 20vw);
 		}
 
-		#title {
-			width: min(25%, 200px);
-		}
-
 		.fullscreen {
 			height: 60vh;
+		}
+
+		.moon {
+			width: calc(60vh * 1664 / 1108);
 		}
 
 		#ranking a {
