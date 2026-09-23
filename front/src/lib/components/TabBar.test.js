@@ -4,28 +4,34 @@ import { renderWith } from '$lib/test-utils';
 import TabBar from './TabBar.svelte';
 
 describe('TabBar', () => {
-	it('links the three sections of the year', () => {
+	it('links the two sections of the year', () => {
 		renderWith(TabBar, { year: 2026, pathname: '/2026/teams/1' });
 
 		expect(screen.getByRole('link', { name: 'Ranking' })).toHaveAttribute(
 			'href',
 			'/2026/ranking'
 		);
-		expect(screen.getByRole('link', { name: 'Teams' })).toHaveAttribute('href', '/2026/teams');
+		expect(screen.queryByRole('link', { name: 'Teams' })).toBeNull();
 		expect(screen.getByRole('link', { name: 'Disciplines' })).toHaveAttribute(
 			'href',
 			'/2026/disciplines'
 		);
 	});
 
-	it('marks the section of the current path', () => {
+	it('marks the section of the current path, ranking for a team page', () => {
 		renderWith(TabBar, { year: 2026, pathname: '/2026/teams/1' });
 
-		expect(screen.getByRole('link', { name: 'Teams' })).toHaveAttribute('aria-current', 'page');
-		expect(screen.getByRole('link', { name: 'Ranking' })).not.toHaveAttribute('aria-current');
+		expect(screen.getByRole('link', { name: 'Ranking' })).toHaveAttribute('aria-current', 'page');
 		expect(screen.getByRole('link', { name: 'Disciplines' })).not.toHaveAttribute(
 			'aria-current'
 		);
+	});
+
+	it('marks disciplines on a discipline page only', () => {
+		renderWith(TabBar, { year: 2026, pathname: '/2026/disciplines/10' });
+
+		expect(screen.getByRole('link', { name: 'Disciplines' })).toHaveAttribute('aria-current', 'page');
+		expect(screen.getByRole('link', { name: 'Ranking' })).not.toHaveAttribute('aria-current');
 	});
 
 	it('renders nothing without a year', () => {
@@ -69,7 +75,7 @@ describe('TabBar', () => {
 		renderWith(TabBar, { year: 2026, pathname: '/2026/teams/1' }, 'fr');
 
 		expect(screen.getByRole('navigation', { name: 'Rubriques' })).toBeInTheDocument();
-		expect(screen.getByRole('link', { name: 'Équipes' })).toHaveAttribute('aria-current', 'page');
+		expect(screen.getByRole('link', { name: 'Classement' })).toHaveAttribute('aria-current', 'page');
 	});
 
 	it('speaks French without any locale in context', () => {

@@ -17,8 +17,8 @@
 	$: visible = year !== null && year !== undefined && !Number.isNaN(current);
 	$: items = visible
 		? [
-				{ name: t('nav.ranking'), url: `/${current}/ranking` },
-				{ name: t('nav.teams'), url: `/${current}/teams` },
+				// A team page is reached from the ranking, so it lights that item.
+				{ name: t('nav.ranking'), url: `/${current}/ranking`, also: `/${current}/teams` },
 				{ name: t('nav.disciplines'), url: `/${current}/disciplines` },
 				...(photosUrl ? [{ name: t('nav.photos'), url: photosUrl, external: true }] : [])
 			]
@@ -36,7 +36,9 @@
 			{:else}
 				<a
 					href={item.url}
-					aria-current={pathname.startsWith(item.url) ? 'page' : undefined}
+					aria-current={[item.url, item.also].some((u) => u && pathname.startsWith(u))
+						? 'page'
+						: undefined}
 				>
 					<span class="icon" aria-hidden="true"></span>
 					<span class="name">{item.name}</span>

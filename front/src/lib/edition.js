@@ -153,7 +153,9 @@ export function ordinal(n, locale) {
 export function switchYearPath(pathname, year) {
 	const match = pathname.match(/^\/\d{4}(?:\/([a-z]+))?/);
 	if (!match) return `/${year}`;
-	return match[1] ? `/${year}/${match[1]}` : `/${year}`;
+	// The teams grid merged into the ranking: a team page switches to the other year's ranking.
+	const section = match[1] === 'teams' ? 'ranking' : match[1];
+	return section ? `/${year}/${section}` : `/${year}`;
 }
 
 const teamNames = (summary) => new Map(summary.teams.map((t) => [t.id, t.name]));

@@ -224,9 +224,9 @@ describe('ordinal', () => {
 
 describe('switchYearPath', () => {
 	it('replaces the year segment and keeps the section', () => {
-		expect(switchYearPath('/2026/teams', 2025)).toBe('/2025/teams');
+		expect(switchYearPath('/2026/teams', 2025)).toBe('/2025/ranking');
 		expect(switchYearPath('/2026/disciplines/12', 2025)).toBe('/2025/disciplines');
-		expect(switchYearPath('/2026/teams/3', 2025)).toBe('/2025/teams');
+		expect(switchYearPath('/2026/teams/3', 2025)).toBe('/2025/ranking');
 		expect(switchYearPath('/2026', 2025)).toBe('/2025');
 	});
 

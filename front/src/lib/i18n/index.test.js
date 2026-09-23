@@ -45,7 +45,7 @@ describe('t', () => {
 describe('translator', () => {
 	it('binds the locale', () => {
 		const tr = translator('fr');
-		expect(tr('nav.teams')).toBe('Équipes');
+		expect(tr('nav.disciplines')).toBe('Épreuves');
 		expect(tr('discipline.round', { n: 1 })).toBe('Tour 1');
 	});
 });

@@ -5,7 +5,6 @@
  */
 export default {
 	'nav.ranking': 'Classement',
-	'nav.teams': 'Équipes',
 	'nav.disciplines': 'Épreuves',
 	'nav.photos': 'Photos',
 	'nav.sections': 'Rubriques',
@@ -30,7 +29,6 @@ export default {
 	'discipline.notRevealed': 'Résultats non dévoilés',
 	'game.played': 'joué',
 	'game.referee': 'arbitre : {name}',
-	'teams.title': 'Équipes',
 	'team.overall': 'au général',
 	'team.pts': 'pts',
 	'team.results': 'Résultats',

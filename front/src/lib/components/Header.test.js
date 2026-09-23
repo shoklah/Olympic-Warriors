@@ -38,7 +38,7 @@ describe('Header', () => {
 
 		expect(screen.getByRole('button', { name: 'FR' })).toHaveAttribute('aria-current', 'true');
 		expect(screen.getByRole('link', { name: 'Classement' })).toHaveAttribute('aria-current', 'page');
-		expect(screen.getByRole('link', { name: 'Équipes' })).toHaveAttribute('href', '/2026/teams');
+		expect(screen.queryByRole('link', { name: 'Équipes' })).toBeNull();
 		expect(screen.getByRole('link', { name: 'Épreuves' })).toHaveAttribute('href', '/2026/disciplines');
 		expect(screen.getByRole('link', { name: 'Photos' })).toHaveAttribute('href', 'https://photos.example');
 		expect(screen.getByRole('combobox', { name: 'Édition' })).toHaveValue('2026');

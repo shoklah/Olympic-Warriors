@@ -17,7 +17,7 @@
 	<Breadcrumb
 		items={[
 			{ label: String(year), href: `/${year}` },
-			{ label: t('nav.teams'), href: `/${year}/teams` },
+			{ label: t('nav.ranking'), href: `/${year}/ranking` },
 			{ label: data.team.name }
 		]}
 	/>
