@@ -103,6 +103,11 @@ services:
       - NODE_ENV=PRODUCTION
       # Public origin of the site: SvelteKit refuses form POSTs (the language switch) whose Origin differs.
       - ORIGIN=https://olympicwarriors.com
+      # Visitor IP for getClientAddress(), which the login forwards to the API's throttle; without it
+      # every login shares nginx's bucket. Only with nginx setting X-Forwarded-For on this location
+      # (proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;), or visitors can forge it.
+      - ADDRESS_HEADER=x-forwarded-for
+      - XFF_DEPTH=1
     volumes:
       - ./front/:/usr/src/app
       - /usr/src/app/node_modules

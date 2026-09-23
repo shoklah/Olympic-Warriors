@@ -91,6 +91,15 @@ describe('apiPost', () => {
 		});
 	});
 
+	it('adds extra headers to the JSON content type', async () => {
+		const fetch = vi.fn().mockResolvedValue(jsonResponse(200, { token: 'abc' }));
+		await apiPost(fetch, 'http://api/auth/token/', {}, null, { 'x-forwarded-for': '203.0.113.7' });
+		expect(fetch.mock.calls[0][1].headers).toEqual({
+			'content-type': 'application/json',
+			'x-forwarded-for': '203.0.113.7'
+		});
+	});
+
 	it('throws on a 400 with the first field error as message', async () => {
 		const fetch = vi.fn().mockResolvedValue(
 			jsonResponse(400, { non_field_errors: ['Unable to log in with provided credentials.'] })

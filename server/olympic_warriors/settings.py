@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 
 from pathlib import Path
 import os
+import tempfile
 import dj_database_url
 
 from django.utils.translation import gettext_lazy as _
@@ -103,6 +104,19 @@ else:
             "PORT": settings.DB_PORT,
         }
     }
+
+
+# Cache
+# Only the login throttle uses it. Gunicorn workers are separate processes, and the
+# local-memory default is per process, so each worker would keep its own count: files are
+# shared by every worker of the container. Losing them on a restart only resets the counts.
+
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.filebased.FileBasedCache",
+        "LOCATION": os.path.join(tempfile.gettempdir(), "olympic_warriors_cache"),
+    }
+}
 
 
 # Password validation
@@ -214,6 +228,12 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
+    # No DEFAULT_THROTTLE_CLASSES: only the token view throttles (LoginRateThrottle).
+    'DEFAULT_THROTTLE_RATES': {
+        'login': settings.LOGIN_THROTTLE_RATE,
+    },
+    # int(): a real env var reaches the config as a string (BaseConfig.override_if_env).
+    'NUM_PROXIES': int(settings.NUM_PROXIES),
 }
 
 # Spectacular settings
