@@ -2424,7 +2424,7 @@ and `EditionHub` (the hub).
 with:
 
 ```
-and `EditionHub` (the hub: the ranking button once started and an outlined Players link in both phases, since on a phone the hub has no tab bar). Roster names link to `/players/<user>` on the team page only: each team card of the ranking page is already one link, and links cannot nest.
+and `EditionHub` (the hub: an `.actions` block with the ranking button once started and a Players link in both phases, outlined beside the ranking button and filled on its own before the start, since on a phone the hub has no tab bar). Roster names link to `/players/<user>` on the team page only: each team card of the ranking page is already one link, and links cannot nest.
 ```
 
 Replace:

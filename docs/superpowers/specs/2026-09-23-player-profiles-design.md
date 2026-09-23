@@ -264,7 +264,8 @@ ranking, a profile is reached through the team page.
 - `EditionHub` gets a "Joueurs" / "Players" link to `/players`, next to its existing
   ranking link and in the same shape, but outlined rather than filled, so the edition's
   ranking stays the main call to action. It also shows before the start, under the
-  countdown, because the leaderboard covers past editions. On a phone the hub has neither the tab bar nor the
+  countdown, because the leaderboard covers past editions; there it is the only button,
+  so it stays filled (review decision, 2026-09-23). On a phone the hub has neither the tab bar nor the
   header tabs, and without this link the leaderboard would be two taps away from the
   home page.
 
