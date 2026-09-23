@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { editionStatus, formatAverage, formatShare, fullName } from './players.js';
+import { MAX_PLACES, editionStatus, formatAverage, formatShare, fullName, shownPlaces } from './players.js';
 
 describe('formatAverage', () => {
 	it('prints one decimal with the locale separator', () => {
@@ -60,5 +60,20 @@ describe('fullName', () => {
 
 	it('dashes when both are blank', () => {
 		expect(fullName({ first_name: '', last_name: '' })).toBe('—');
+	});
+});
+
+describe('shownPlaces', () => {
+	const places = (n) => Array.from({ length: n }, (_, i) => ({ year: 2030 - i, rank: i + 1 }));
+
+	it('shows every place up to the cap', () => {
+		expect(shownPlaces(places(3))).toEqual({ shown: places(3), more: 0 });
+		expect(shownPlaces(places(MAX_PLACES)).more).toBe(0);
+	});
+
+	it('keeps the best places and counts the rest', () => {
+		const { shown, more } = shownPlaces(places(MAX_PLACES + 2));
+		expect(shown).toEqual(places(MAX_PLACES));
+		expect(more).toBe(2);
 	});
 });

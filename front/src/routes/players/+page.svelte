@@ -1,6 +1,7 @@
 <script>
 	import MedalRank from '$lib/components/MedalRank.svelte';
-	import { formatAverage, formatShare, fullName } from '$lib/players';
+	import { fullName, shownPlaces } from '$lib/players';
+	import { ordinal } from '$lib/edition';
 	import { useLocale, useT } from '$lib/i18n';
 
 	export let data;
@@ -10,6 +11,9 @@
 
 	$: ranked = data.players.filter((player) => player.position !== null);
 	$: waiting = data.players.filter((player) => player.position === null);
+
+	const spoken = (places) =>
+		places.map((p) => t('players.placeIn', { place: ordinal(p.rank, locale), year: p.year })).join(', ');
 </script>
 
 <div class="page">
@@ -31,14 +35,23 @@
 						<MedalRank rank={player.position} />
 						<span class="text">
 							<span class="name">{fullName(player)}</span>
-							<span class="detail"
-								>{t('players.over', {
-									value: formatAverage(player.average_rank, locale),
-									n: player.counted
-								})}</span
-							>
+							<span class="places" aria-hidden="true" data-testid="places">
+								{#each shownPlaces(player.places).shown as place}
+									<span
+										class="num place"
+										class:gold={place.rank === 1}
+										class:silver={place.rank === 2}
+										class:bronze={place.rank === 3}>{place.rank}</span
+									>
+								{/each}
+								{#if shownPlaces(player.places).more > 0}
+									<span class="num more"
+										>{t('players.more', { n: shownPlaces(player.places).more })}</span
+									>
+								{/if}
+							</span>
+							<span class="visually-hidden">{spoken(player.places)}</span>
 						</span>
-						<span class="num share">{formatShare(player.average_beaten, locale)}</span>
 					</a>
 				</li>
 			{/each}
@@ -85,7 +98,7 @@
 
 	.row {
 		display: grid;
-		grid-template-columns: 44px minmax(0, 1fr) auto;
+		grid-template-columns: 44px minmax(0, 1fr);
 		align-items: center;
 		gap: 12px;
 		--medal-size: 1.9rem;
@@ -142,11 +155,6 @@
 		display: block;
 	}
 
-	.text .detail {
-		display: block;
-		margin-top: 2px;
-	}
-
 	.detail {
 		font-size: 0.75rem;
 		color: var(--muted);
@@ -156,9 +164,35 @@
 		white-space: nowrap;
 	}
 
-	.share {
-		font-size: 1.6rem;
-		line-height: 1;
-		letter-spacing: 0.06em;
+	.places {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 2px 8px;
+		margin-top: 2px;
+	}
+
+	.place {
+		font-size: 1.15rem;
+		line-height: 1.1;
+		letter-spacing: 0.04em;
+		color: var(--faint);
+	}
+
+	.place.gold {
+		color: var(--gold);
+	}
+
+	.place.silver {
+		color: var(--silver);
+	}
+
+	.place.bronze {
+		color: var(--bronze);
+	}
+
+	.more {
+		font-size: 0.95rem;
+		line-height: 1.3;
+		color: var(--muted);
 	}
 </style>

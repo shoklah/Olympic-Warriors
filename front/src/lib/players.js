@@ -34,3 +34,11 @@ export function editionStatus(participation) {
 export function fullName(person) {
 	return [person.first_name, person.last_name].filter(Boolean).join(' ') || '—';
 }
+
+/** How many places a leaderboard row shows before it counts the rest as +N. */
+export const MAX_PLACES = 8;
+
+/** The best `max` places (already sorted best first by the API) and how many are left out. */
+export function shownPlaces(places, max = MAX_PLACES) {
+	return { shown: places.slice(0, max), more: Math.max(0, places.length - max) };
+}
