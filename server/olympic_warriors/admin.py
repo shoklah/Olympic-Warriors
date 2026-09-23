@@ -32,6 +32,16 @@ from .models import (
     ObstacleCourse,
     GeneralCultureQuizz,
     Darts,
+    Volleyball,
+    JumpingRope,
+    Dance,
+    Frisbee,
+    Geoguessr,
+    Football,
+    Handball,
+    BurgerQuizz,
+    BlindfoldedObstacleCourse,
+    DiscThrow,
 )
 
 
@@ -437,3 +447,13 @@ site.register(Fair, DisciplineAdmin)
 site.register(ObstacleCourse, DisciplineAdmin)
 site.register(GeneralCultureQuizz, DisciplineAdmin)
 site.register(Darts, DisciplineAdmin)
+site.register(Volleyball, DisciplineAdmin)
+site.register(JumpingRope, DisciplineAdmin)
+site.register(Dance, DisciplineAdmin)
+site.register(Frisbee, DisciplineAdmin)
+site.register(Geoguessr, DisciplineAdmin)
+site.register(Football, DisciplineAdmin)
+site.register(Handball, DisciplineAdmin)
+site.register(BurgerQuizz, DisciplineAdmin)
+site.register(BlindfoldedObstacleCourse, DisciplineAdmin)
+site.register(DiscThrow, DisciplineAdmin)
