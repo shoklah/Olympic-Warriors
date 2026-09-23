@@ -1,43 +1,6 @@
-from functools import cached_property
-
-from django.apps import apps
 from django.db import models
-from django.db.models import F, OuterRef, Q, Subquery, Sum
-from django.db.models.functions import Coalesce
 
 from .Edition import Edition
-from .ResultTypes import ResultTypes
-
-
-def annotate_points_difference(queryset):
-    """
-    Annotate a TeamResult queryset with `points_difference`: over the active, played games
-    of the result's discipline, the sum of the team's score minus its opponent's score.
-    Teams without any played game get 0.
-
-    Game is fetched from the app registry because Discipline.py imports this module.
-    """
-    Game = apps.get_model("olympic_warriors", "Game")
-
-    def score_gap(team_field, own_score, other_score):
-        games = Game.objects.filter(
-            discipline_id=OuterRef("discipline_id"),
-            is_active=True,
-            is_played=True,
-            **{team_field: OuterRef("team_id")},
-        )
-        total = (
-            games.order_by()
-            .values(team_field)
-            .annotate(gap=Sum(F(own_score) - F(other_score)))
-            .values("gap")[:1]
-        )
-        return Coalesce(Subquery(total, output_field=models.IntegerField()), 0)
-
-    return queryset.annotate(
-        points_difference=score_gap("team1", "score1", "score2")
-        + score_gap("team2", "score2", "score1")
-    )
 
 
 class TeamResult(models.Model):
@@ -65,77 +28,40 @@ class TeamResult(models.Model):
         """
         return self.discipline.result_type
 
-    @cached_property
+    def _standing(self):
+        """
+        This result's row of the edition standings (see olympic_warriors.standings).
+        Each access recomputes the edition: callers that need many rows should call
+        compute_standings once and read from it.
+        """
+        from ..standings import ResultStanding, compute_standings
+
+        if self.pk is None:
+            return ResultStanding()
+        return compute_standings(self.discipline.edition).result(self.pk)
+
+    @property
     def points_difference(self) -> int:
         """
-        Sum of the team's score minus its opponent's score over the active games of the
-        discipline. 0 when the team has no game.
+        Sum of the team's score minus its opponent's score over the active, played games
+        of the discipline. 0 when the team has no game.
         """
-        if self.pk is None:
-            return 0
-
-        return (
-            annotate_points_difference(TeamResult.objects.filter(pk=self.pk))
-            .values_list("points_difference", flat=True)
-            .first()
-        )
+        return self._standing().points_difference
 
     @property
     def ranking(self) -> int:
         """
-        Get the ranking of the team in the discipline. Points disciplines break ties on
-        points difference; teams still tied share a rank.
-
-        @return: ranking of the team in the discipline
+        Ranking of the team in the discipline, 0 while the score is hidden or missing.
+        Points disciplines break ties on points difference; teams still tied share a rank.
         """
-        if self.discipline.reveal_score is False:
-            return 0
-
-        if self.discipline.result_type == ResultTypes.TIME:
-            if self.time is None:
-                return 0
-            return (
-                TeamResult.objects.filter(
-                    discipline=self.discipline, time__lt=self.time, is_active=True
-                ).count()
-                + 1
-            )
-        elif self.discipline.result_type == ResultTypes.POINTS:
-            if self.points is None:
-                return 0
-            results = annotate_points_difference(
-                TeamResult.objects.filter(discipline=self.discipline, is_active=True)
-            )
-            ahead = results.filter(
-                Q(points__gt=self.points)
-                | Q(points=self.points, points_difference__gt=self.points_difference)
-            )
-            return ahead.count() + 1
-        else:
-            return 0
+        return self._standing().ranking
 
     @property
     def global_points(self) -> int:
         """
-        Get points of the team from ranking to process global ranking.
-
-        @return: points of the team from ranking
+        Points the team earns towards the edition ranking from its rank in the discipline.
         """
-        ranking = self.ranking
-        if ranking == 0:
-            # Hidden scores or a discipline without a result type: nothing to reward.
-            return 0
-
-        registered_teams_count = TeamResult.objects.filter(
-            discipline=self.discipline, is_active=True
-        ).count()
-        points = registered_teams_count - ranking + 1
-        if ranking == 1:
-            points += 2
-        elif ranking <= 3:
-            points += 1
-
-        return points
+        return self._standing().global_points
 
 
 class Team(models.Model):
@@ -145,6 +71,10 @@ class Team(models.Model):
 
     name = models.CharField(max_length=100)
     edition = models.ForeignKey(Edition, on_delete=models.CASCADE)
+    # Finishing order recorded by hand for an edition without result data. As soon as
+    # one active team of an edition has one, the edition ranking is this order and the
+    # totals are null (see olympic_warriors.standings).
+    final_rank = models.PositiveIntegerField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
 
     def __str__(self) -> str:
@@ -153,32 +83,27 @@ class Team(models.Model):
         """
         return str(self.name)
 
-    @property
-    def total_points(self) -> int:
+    def _standing(self):
         """
-        Get the total global points of the team
+        This team's row of the edition standings (see olympic_warriors.standings).
         """
-        points = 0
-        team_results = TeamResult.objects.filter(
-            team=self, discipline__edition=self.edition, is_active=True
-        )
+        from ..standings import TeamStanding, compute_standings
 
-        for team_result in team_results:
-            points += team_result.global_points
-
-        return points
+        if self.pk is None:
+            return TeamStanding()
+        return compute_standings(self.edition).team(self.pk)
 
     @property
-    def ranking(self) -> int:
+    def total_points(self):
         """
-        Get the ranking of the team in the edition.
-
-        @return: ranking of the team in the edition
+        Total global points of the team, None in a manual edition.
         """
-        ranking = 1
-        teams = Team.objects.filter(edition=self.edition, is_active=True)
-        for team in teams:
-            if team.total_points > self.total_points:
-                ranking += 1
+        return self._standing().total_points
 
-        return ranking
+    @property
+    def ranking(self):
+        """
+        Ranking of the team in the edition: computed from the totals, or the stored
+        final_rank in a manual edition (None for a team without one).
+        """
+        return self._standing().ranking

@@ -98,3 +98,28 @@ export const summaryStaff = {
 	],
 	games: [...summary.games.slice(0, 3), { ...summary.games[3], score1: 3, score2: 1 }]
 };
+
+/**
+ * An old edition ranked by hand: Bisons first, Aigles second, Cerfs without a rank,
+ * no totals, every result hidden.
+ */
+export const summaryManual = {
+	...summary,
+	edition: { ...summary.edition, year: 2022 },
+	teams: [
+		{ ...summary.teams[0], ranking: 2, total_points: null },
+		{ ...summary.teams[1], ranking: 1, total_points: null },
+		{ ...summary.teams[2], ranking: null, total_points: null }
+	],
+	disciplines: summary.disciplines.map((d) => ({ ...d, reveal_score: false })),
+	results: summary.results.map((r) => ({
+		...r,
+		ranking: null,
+		points: null,
+		time: null,
+		points_difference: null,
+		global_points: null
+	})),
+	rounds: [],
+	games: []
+};

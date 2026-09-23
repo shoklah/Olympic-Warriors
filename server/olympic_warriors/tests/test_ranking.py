@@ -14,7 +14,6 @@ from olympic_warriors.models import (
     GeneralCultureQuizz,
     ResultTypes,
 )
-from olympic_warriors.models.Team import annotate_points_difference
 from olympic_warriors.serializer import TeamResultSerializer
 
 
@@ -97,15 +96,42 @@ class TestPointsDifference(RankingTestSetup):
 
         self.assertEqual(self.result(self.team_a).points_difference, 0)
 
-    def test_annotated_queryset_iterates_as_model_instances(self):
+    def test_team_total_and_ranking_follow_the_standings(self):
+        # C and D never play, so their points stay null and they are unranked (0 points).
+        self.play(self.team_a, 5, self.team_b, 2)  # A rank 1 of 4 -> 6, B rank 2 -> 4
+
+        self.assertEqual(self.team_a.total_points, 6)
+        self.assertEqual(self.team_b.total_points, 4)
+        self.assertEqual(self.team_c.total_points, 0)
+        self.assertEqual(self.team_a.ranking, 1)
+        self.assertEqual(self.team_b.ranking, 2)
+        self.assertEqual(self.team_c.ranking, 3)
+
+    def test_manual_edition_ranks_teams_by_final_rank_without_totals(self):
         self.play(self.team_a, 5, self.team_b, 2)
-        results = annotate_points_difference(
-            TeamResult.objects.filter(discipline=self.darts).order_by("team__name")
-        )
+        Team.objects.filter(pk=self.team_b.pk).update(final_rank=1)
+        Team.objects.filter(pk=self.team_a.pk).update(final_rank=2)
 
-        differences = [result.points_difference for result in results]
+        self.assertTrue(self.edition.ranking_is_manual)
+        self.assertEqual(Team.objects.get(pk=self.team_b.pk).ranking, 1)
+        self.assertEqual(Team.objects.get(pk=self.team_a.pk).ranking, 2)
+        self.assertIsNone(Team.objects.get(pk=self.team_c.pk).ranking)
+        self.assertIsNone(Team.objects.get(pk=self.team_a.pk).total_points)
+        # the discipline standing is still computed
+        self.assertEqual(self.result(self.team_a).ranking, 1)
 
-        self.assertEqual(differences, [3, -3, 0, 0])
+    def test_edition_without_final_rank_is_not_manual(self):
+        self.assertFalse(self.edition.ranking_is_manual)
+
+    def test_unsaved_rows_have_empty_standings(self):
+        self.assertEqual(TeamResult(team=self.team_a, discipline=self.darts).ranking, 0)
+        self.assertEqual(TeamResult(team=self.team_a, discipline=self.darts).global_points, 0)
+        self.assertIsNone(Team(name="New", edition=self.edition).ranking)
+
+    def test_inactive_team_rank_does_not_make_the_edition_manual(self):
+        Team.objects.create(name="Ghost", edition=self.edition, is_active=False, final_rank=1)
+
+        self.assertFalse(self.edition.ranking_is_manual)
 
 
 class TestRankingTieBreaker(RankingTestSetup):

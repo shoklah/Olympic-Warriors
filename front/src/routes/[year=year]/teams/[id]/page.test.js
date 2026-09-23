@@ -4,7 +4,7 @@ import { renderWith } from '$lib/test-utils';
 import Page from './+page.svelte';
 import { load } from './+page.js';
 import { findTeam, teamGames, teamResults } from '$lib/edition';
-import { summary, summaryAllRevealed } from '$lib/fixtures/summary.js';
+import { summary, summaryAllRevealed, summaryManual } from '$lib/fixtures/summary.js';
 
 const dataFor = (id, s = summary) => ({
 	summary: s,
@@ -80,6 +80,19 @@ describe('team page', () => {
 		expect(screen.getByRole('heading', { name: 'Relais' })).toBeInTheDocument();
 		expect(screen.getAllByTestId('game-row')[0]).toHaveTextContent(/T1\s*Bisons\s*12 : 9\s*Aigles/);
 		expect(screen.getAllByTestId('discipline-row')[1]).toHaveTextContent(/Course d'orientation\s*—\s*non dévoilé/);
+	});
+
+	it('shows the rank alone on a hand-ranked edition', () => {
+		renderWith(Page, { data: dataFor(1, summaryManual) });
+
+		expect(screen.getByTestId('standing')).toHaveTextContent(/^\s*2nd\s*overall\s*$/);
+	});
+
+	it('shows a dash for a team without a rank, in French too', () => {
+		renderWith(Page, { data: dataFor(3, summaryManual) }, 'fr');
+
+		expect(screen.getByTestId('standing')).toHaveTextContent(/^\s*—\s*au général\s*$/);
+		expect(screen.queryByText('pts')).not.toBeInTheDocument();
 	});
 });
 

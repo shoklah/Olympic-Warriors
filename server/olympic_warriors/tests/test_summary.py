@@ -29,6 +29,10 @@ from olympic_warriors.models import (
 from olympic_warriors.models.Edition import latest_edition
 from olympic_warriors.serializer import EditionSummarySerializer
 
+# Queries of one summary: disciplines, teams, players prefetch, the three of the
+# standings, results, rounds, games. Pin it so a per-row fan-out cannot come back.
+SUMMARY_QUERIES = 9
+
 
 class TestEditionModel(TestCase):
     """year is unique and photos_url is optional."""
@@ -699,3 +703,39 @@ class TestLatestEdition(TestCase):
 
     def test_none_without_any_edition(self):
         self.assertIsNone(latest_edition())
+
+
+class TestManualRankingSummary(SummarySetup, TestCase):
+    """A manual edition ranks teams by final_rank and sends no totals."""
+
+    def setUp(self):
+        super().setUp()
+        Team.objects.filter(pk=self.team_b.pk).update(final_rank=1)
+        Team.objects.filter(pk=self.team_a.pk).update(final_rank=2)
+
+    def test_teams_carry_final_rank_and_null_totals(self):
+        teams = {team["name"]: team for team in self.summary()["teams"]}
+
+        self.assertEqual(teams["Bisons"]["ranking"], 1)
+        self.assertEqual(teams["Aigles"]["ranking"], 2)
+        self.assertIsNone(teams["Cerfs"]["ranking"])
+        self.assertEqual({team["total_points"] for team in teams.values()}, {None})
+
+    def test_results_are_still_ranked(self):
+        results = {
+            r["team"]: r for r in self.summary()["results"] if r["discipline"] == self.relay.id
+        }
+
+        self.assertEqual(results[self.team_b.id]["ranking"], 1)
+        self.assertEqual(results[self.team_b.id]["global_points"], 5)
+
+
+class TestSummaryQueryCount(SummarySetup, TestCase):
+    """The summary computes the standings once; nothing fans out per team or result."""
+
+    def test_summary_runs_in_a_fixed_number_of_queries(self):
+        for _ in range(3):  # more results must not mean more queries
+            Relay.objects.create(edition=self.edition, reveal_score=True)
+
+        with self.assertNumQueries(SUMMARY_QUERIES):
+            self.summary()
