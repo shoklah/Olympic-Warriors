@@ -34,8 +34,9 @@
 		<img id="title" src={title} alt="OLYMPIC WARRIORS" />
 	</div>
 
-	{#each columns.filter((c) => c.length > 0) as column}
-		<div class="sportcolumn">
+	{#each columns.filter((c) => c.length > 0) as column, i}
+		<!-- Explicit sides: the .moon div would otherwise be the columns' "first of type". -->
+		<div class="sportcolumn" class:left={i === 0} class:right={i === 1}>
 			{#each column as discipline}
 				<img src={iconFor(discipline.name)} alt={disciplineName(locale, discipline.name)} />
 			{/each}
@@ -84,19 +85,19 @@
 		opacity: 0.3;
 	}
 
-	.sportcolumn:first-of-type {
+	.sportcolumn.left {
 		left: 20vw;
 	}
 
-	.sportcolumn:first-of-type :nth-child(even) {
+	.sportcolumn.left :nth-child(even) {
 		transform: translate(-80px, 0);
 	}
 
-	.sportcolumn:last-of-type {
+	.sportcolumn.right {
 		right: 20vw;
 	}
 
-	.sportcolumn:last-of-type :nth-child(even) {
+	.sportcolumn.right :nth-child(even) {
 		transform: translate(80px, 0);
 	}
 
