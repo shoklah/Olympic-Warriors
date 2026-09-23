@@ -116,7 +116,7 @@ Any other value leaves the configuration empty, and Django fails to start. A rea
 | `DATABASE_URL` | unset | Replaces the `DB_*` connection when set. It is read from the real environment only, never from the env file, and the loader still requires the `DB_*` keys. |
 | `LOG_FILE` | `asset_monitor.log` | Path relative to `server/`. The example uses `logs/olympic_warriors.log`. The settings create the folder at startup when it is missing (it is gitignored). |
 | `LOG_LEVEL_CONSOLE`, `LOG_LEVEL_FILE` | `INFO` | One of `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`. |
-| `SU_USERNAME`, `SU_PASSWORD` | `admin` / `password` | Read by `createsu`. |
+| `SU_USERNAME`, `SU_PASSWORD` | `admin` / `password` | Read by `createsu`. Set your own in `prod.env`. |
 | `ALLOWED_HOSTS` | `["*"]` | A JSON list. It must include `server`, the hostname the front container uses, or every front page fails with a 400. |
 | `CSRF_TRUSTED_ORIGINS` | `["https://*", "http://*"]` | A JSON list. |
 | `LOGIN_THROTTLE_RATE` | `5/min` | Login attempts per client IP, counted across `/auth/token/` and `/admin/login/` together. |
@@ -279,7 +279,7 @@ Run these inside the container, for example `docker compose exec server python m
 
 | Command | What it does |
 | --- | --- |
-| `createsu` | Creates a superuser from `SU_USERNAME` / `SU_PASSWORD`. It does nothing if that user already exists. |
+| `createsu` | Creates a superuser from `SU_USERNAME` / `SU_PASSWORD`. It does nothing if that user already exists, and prints "Superuser has been created." either way. |
 | `create_tokens_for_users` | Creates the missing API tokens for existing users. |
 | `export_edition <year> --out <file>` | Writes an edition to JSON, with no database ids. |
 | `import_edition <file> [--dry-run] [--replace]` | Imports an edition. `--dry-run` reports what would happen and rolls back. `--replace` first deletes the edition with the same year (users are kept). |
@@ -350,6 +350,7 @@ pylint --load-plugins pylint_django --ignore=lib server/
 - **The image contains the code.** `Dockerfile.prod` copies `server/` into the image, `prod.env` included. After changing code or `prod.env`, rebuild the image: a restart is not enough. The build itself runs `collectstatic` with `ENV=prod`, so `prod.env` must be in the build context with at least `SECRET_KEY`, `DEBUG` and the `DB_*` keys. It does not connect to the database.
 - **Static files.** whitenoise serves them from `staticfiles/`. The production compose file mounts a named volume there, and Docker fills that volume from the image only when it is created, so rebuilding does not refresh it. After a deploy that changes static files, run `docker compose exec server python manage.py collectstatic --no-input`.
 - **Migrations are manual.** The production command only starts gunicorn, so after a deploy that adds migrations, run `docker compose exec server python manage.py migrate`. The first time, also run `createsu`.
+- **Set the superuser before `createsu`.** Put your own `SU_USERNAME` and a strong `SU_PASSWORD` in `prod.env` first. Otherwise `createsu` creates `admin` with the password `password`. It only creates a missing user and never updates a password, so after changing `SU_PASSWORD`, run `docker compose exec server python manage.py changepassword <username>` instead.
 - **Media files** (`mediafiles/`) live in a Docker volume shared with nginx, which serves them.
 - **nginx must set `X-Forwarded-For`** (`proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`) on the locations that proxy to the server and to the front. Otherwise the login throttle trusts an IP the client chose.
 
