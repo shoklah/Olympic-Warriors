@@ -89,16 +89,19 @@ class TestAdminLoginThrottle(TestCase):
         self.exhaust(forwarded_for="203.0.113.7")
         self.assert_logged_in(self.login("right-password", forwarded_for="198.51.100.4"))
 
-    def test_the_client_ip_is_read_as_on_the_api(self):
-        # NUM_PROXIES = 1: a forged prefix does not open a new bucket.
+    def test_a_forged_forwarded_prefix_does_not_open_a_new_bucket(self):
+        # NUM_PROXIES = 1, as on the API: only the last entry names the client.
         for i in range(LIMIT):
-            self.login("guess", forwarded_for=f"10.0.0.{i}, 203.0.113.7")
-        forged = self.login("guess", forwarded_for="10.0.0.99, 203.0.113.7")
-        # client_key: an IPv6 client counts by its /64.
+            response = self.login("guess", forwarded_for=f"10.0.0.{i}, 203.0.113.7")
+            self.assertEqual(self.error_codes(response), ["invalid_login"])
+        response = self.login("guess", forwarded_for="10.0.0.99, 203.0.113.7")
+        self.assertEqual(self.error_codes(response), ["throttled"])
+
+    def test_an_ipv6_client_counts_by_its_64(self):
+        # client_key, as on the API.
         self.exhaust(forwarded_for="2001:db8:1:2::1")
-        same_64 = self.login("guess", forwarded_for="2001:db8:1:2:ffff:ffff:ffff:ffff")
-        self.assertEqual(self.error_codes(forged), ["throttled"])
-        self.assertEqual(self.error_codes(same_64), ["throttled"])
+        response = self.login("guess", forwarded_for="2001:db8:1:2:ffff:ffff:ffff:ffff")
+        self.assertEqual(self.error_codes(response), ["throttled"])
 
     def test_attempts_on_the_api_count_against_the_admin(self):
         for _ in range(LIMIT):
