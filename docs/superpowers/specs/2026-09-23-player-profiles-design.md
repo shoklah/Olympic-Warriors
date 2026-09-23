@@ -21,8 +21,8 @@ Nothing here builds steps 2 or 3, but the payloads leave room for them (see
   active edition. The profile is keyed by the user id.
 - **Participation.** One (user, edition) pair, from the user's active `Player` rows in that
   active edition. When a user has several such rows in one edition (it happens today:
-  user 34 has rows 81 and 249 in 2024), the lowest id among the rows with a team wins,
-  otherwise the lowest id. No constraint or migration is added: the admin refuses new
+  user 34 has two active 2024 rows), the lowest id among the rows with a valid team
+  (active, of the player's edition) wins, otherwise the lowest id. No constraint or migration is added: the admin refuses new
   duplicates (see "Admin"), and sorting out the existing ones stays an admin task.
   `User.is_active` plays no part, because it controls who can log in, not who played.
 - **Edition rank.** The rank of the participation's team in `compute_standings(edition)`.
@@ -129,11 +129,12 @@ as `editions` instead.
 ```json
 {
   "id": 34, "first_name": "Xavier", "last_name": "Baby",
-  "position": 4, "counted": 2, "average_rank": 2.5, "average_beaten": 71,
+  "position": 4, "counted": 2, "average_rank": 2.5, "average_beaten": 76,
   "editions": [
     {"year": 2030, "team": {"id": 40, "name": "Les Aigles"}, "rank": null, "teams": 4, "finished": false},
     {"year": 2026, "team": {"id": 21, "name": "MxM"}, "rank": 2, "teams": 6, "finished": true},
-    {"year": 2024, "team": null, "rank": null, "teams": 8, "finished": true}
+    {"year": 2024, "team": null, "rank": null, "teams": 8, "finished": true},
+    {"year": 2023, "team": {"id": 5, "name": "Bisons"}, "rank": 3, "teams": 8, "finished": true}
   ]
 }
 ```
@@ -161,7 +162,10 @@ selected for the names. The test pins it either way.
   `label_from_instance`. `Team.__str__` is left as it is, since the blindtest guess string
   and other admin pages use it.
 - Known cost: a `list_editable` foreign key evaluates its queryset once per row, which is
-  one query per row. That is fine at 25 rows.
+  one query per row, and saving adds a duplicate check per row. That is fine at the ~25
+  rows of one edition, which is the documented workflow (filter by edition first); an
+  unfiltered changelist shows up to 100 rows (Django's default page size).
+  `list_select_related` keeps the rest of the page flat.
 - `Player.clean()` refuses two mistakes, both with a `ValidationError` keyed on `team`:
   - a team whose `edition_id` differs from the player's;
   - another active `Player` of the same user in the same edition, when this row is
@@ -199,8 +203,10 @@ Both routes are outside the year segment, because a profile spans editions. The
 - `src/routes/players/+page.server.js` loads `/profiles/`, and `+page.svelte` renders
   the leaderboard.
 - `src/routes/players/[id]/+page.server.js` loads `/profile/<id>/`, and `+page.svelte`
-  renders the profile. A 404 from the API goes through `apiGet`'s `error(404)` and is
-  rendered by `+error.svelte`.
+  renders the profile. The loader answers 404 itself, without calling the API, unless
+  the id is canonical (1 to 10 digits, no leading zero), because it is spliced into an
+  API path. A 404 from the API goes through `apiGet`'s `error(404)` and is rendered by
+  `+error.svelte`.
 
 Both are server loads through `apiGet`, like the other API reads, so `API_URL` stays
 server-only.
@@ -275,13 +281,15 @@ ranking, a profile is reached through the team page.
   - `formatAverage(value, locale)`: one decimal, with a French comma;
   - `formatShare(value, locale)`: `Intl.NumberFormat` percent, giving a no-break
     space before `%` in French;
-  - `editionStatus(participation)`: `'ranked' | 'inProgress' | 'unranked'`.
+  - `editionStatus(participation)`: `'ranked' | 'inProgress' | 'unranked'`;
+  - `fullName(person)`: first and last name, or `—` when both are blank (leaderboard,
+    profile and team page roster chips).
 - New keys in `fr.js` and `en.js`, kept at parity:
-  - `nav.players`;
+  - `nav.players` and `hub.players`;
   - the page titles and subtitle;
   - "Not ranked yet";
   - the average rank and teams beaten labels;
-  - "all-time";
+  - "all-time", and the position link's visually hidden hint (`profile.positionHint`);
   - the counts, as `{ one, other }` plural messages;
   - "No team recorded";
   - "In progress";

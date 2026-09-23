@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-23-player-profiles-design.md`, the source of truth for the rules.
 
+> **Executed 2026-09-23.** The code blocks below are the plan as written. Review rounds changed several details during execution (no rank for a computed edition with nothing ranked, `Participation.counts`, `PlayerInlineForm` on new teams, the leaderboard's `players.over` line, `fullName`, the loader's canonical-id check, the hub's `.actions` block). The spec, CLAUDE.md and the code are the reference; this plan is the build record.
+
 ---
 
 ## Conventions for whoever executes this

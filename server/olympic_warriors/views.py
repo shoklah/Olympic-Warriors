@@ -194,7 +194,8 @@ def getPlayersByTeam(request, team_id):
     summary="Every person who played, in all-time leaderboard order",
     description=(
         "Ranked people first by share of teams beaten (shared positions on ties), then "
-        "the ones with no finished, ranked edition yet, by name and without a position."
+        "the ones with no counted edition yet (finished, ranked, at least two teams), by name "
+        "and without a position."
     ),
     responses={
         "200": LeaderboardRowSerializer(many=True),

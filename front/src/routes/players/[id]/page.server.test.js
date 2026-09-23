@@ -17,7 +17,7 @@ describe('player profile load', () => {
 		expect(data.profile).toEqual(profile);
 	});
 
-	it('answers 404 to anything but digits without calling the API', async () => {
+	it('answers 404 to anything but a canonical id without calling the API', async () => {
 		const fetch = vi.fn();
 
 		for (const id of ['abc', '../admin', '12a', '', '0055', '0', '123456789012']) {
