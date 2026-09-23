@@ -3,6 +3,7 @@ Models for Blindtest discipline
 """
 
 from django.db import models
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
 
 from .Discipline import Discipline
@@ -60,8 +61,8 @@ class BlindtestGuess(models.Model):
     blindtest_round = models.ForeignKey(
         BlindtestRound, on_delete=models.CASCADE, related_name='blindtest_round'
     )
-    artist = models.CharField(max_length=255, default='')
-    song = models.CharField(max_length=255, default='')
+    artist = models.CharField(max_length=255, default='', blank=True)
+    song = models.CharField(max_length=255, default='', blank=True)
     is_artist_correct = models.BooleanField(default=False)
     is_song_correct = models.BooleanField(default=False)
 
@@ -73,19 +74,43 @@ class BlindtestGuess(models.Model):
         """
         return f'{self.team}: {self.artist} - {self.song}'
 
+    def _team_validation(self):
+        """
+        Check if the team is part of the edition of the blindtest
+        """
+        if self.team.edition_id != self.blindtest_round.blindtest.edition_id:
+            raise ValidationError('The team is not part of the edition of the blindtest')
+
+    def clean(self):
+        """
+        Refuse a team of another edition in the admin form rather than failing on save
+        """
+        super().clean()
+        try:
+            # An inline guess of a round being added holds that unsaved round, not its id.
+            self._team_validation()
+        except ObjectDoesNotExist:
+            # No team, round or blindtest chosen yet: their own field errors report it.
+            pass
+
     def _update_points(self, points):
         """
-        Update team result points
+        Update the team result points of the blindtest the guess belongs to
         """
-        team_result = TeamResult.objects.get(team=self.team, discipline=self.blindtest)
+        # A team that joined the edition after the blindtest was created has no result yet:
+        # create it as Discipline.register_teams() would, with points None.
+        team_result, _ = TeamResult.objects.get_or_create(
+            team=self.team, discipline=self.blindtest_round.blindtest
+        )
         # A fresh result of a discipline without games is None, never 0.
         team_result.points = (team_result.points or 0) + points
         team_result.save()
 
     def save(self, *args, **kwargs):
         """
-        Override save method to update team result points if needed
+        Override save method to check the team and update team result points if needed
         """
+        self._team_validation()
         if self.pk:
             old_guess = BlindtestGuess.objects.get(pk=self.pk)
             if old_guess.is_artist_correct and not self.is_artist_correct:
