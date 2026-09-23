@@ -55,14 +55,17 @@ from .models import (
 # Users
 
 @extend_schema(
-    summary="Get a user by ID",
+    summary="Get a user by ID (organisers)",
     responses={
         200: UserSerializer,
+        401: OpenApiResponse(description="Unauthorized"),
+        403: OpenApiResponse(description="Not an organiser"),
         404: OpenApiResponse(description="User not found"),
         500: OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["GET"])
+@permission_classes([IsOrganiser])  # usernames are login names, emails are contacts
 def getUser(request, user_id):
     try:
         user = User.objects.get(id=user_id)
@@ -72,13 +75,16 @@ def getUser(request, user_id):
     return Response(serializer.data)
 
 @extend_schema(
-    summary="Get all users",
+    summary="Get all users (organisers)",
     responses={
         200: UserSerializer(many=True),
+        401: OpenApiResponse(description="Unauthorized"),
+        403: OpenApiResponse(description="Not an organiser"),
         500: OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["GET"])
+@permission_classes([IsOrganiser])
 def getUsers(request):
     users = User.objects.all()
     serializer = UserSerializer(users, many=True)
