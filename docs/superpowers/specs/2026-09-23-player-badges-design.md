@@ -20,6 +20,8 @@ Decisions taken while brainstorming (2026-09-23):
    similar cost on every access.
 5. **The global ranking badges** read the all-time table of `/players`, not an edition's
    team ranking, which the place badges already cover.
+6. **A nightly cron job refreshes the badges**, not a page view: reading a profile never
+   writes. The thresholds of the tiered badges will be tuned later.
 
 ## Definitions
 
@@ -256,8 +258,7 @@ class Earned:
     partner_id: int | None = None
 
 def earned(today=None) -> set[Earned]   # every computed badge, from the current data
-def refresh(today=None) -> None         # store earned(), see below
-def refresh_if_stale() -> None          # refresh once per Paris day
+def refresh(today=None) -> RefreshReport   # store earned(), see below
 ```
 
 `profiles.participations()` is split: a `_load(today)` step returns the editions, the
@@ -280,27 +281,35 @@ replayed in memory from the participations, with no query per table.
    - delete the rows no longer earned, active or not;
    - `bulk_create` the new ones;
    - leave the others alone, so `created_at` and a revoked row's `is_active` survive;
-4. set `BadgeRefresh.computed_for` to the Paris date.
+4. set `BadgeRefresh.refreshed_at` to now, and return how many rows were added and
+   removed (`RefreshReport`).
 
 Manual rows are never read or written. Running it twice in a row writes nothing the
 second time.
 
-**`BadgeRefresh`** is a one-row model (`computed_for`, a nullable date), created by the
-migration and not registered in the admin. `refresh_if_stale()` returns straight away when
-`computed_for` is the Paris date. Otherwise it runs `refresh()`, which re-checks the date
-once it holds the lock, so two concurrent requests refresh only once.
+**`BadgeRefresh`** is a one-row model (`refreshed_at`, a nullable datetime), created by
+the migration and not registered in the admin. Its row lock makes a cron run and an admin
+action that start together run one after the other, and `refreshed_at` shows when the last
+run finished, so anyone can check that the cron job is running.
 
 ### When the badges refresh
 
-- **Every day, lazily.** The profile view calls `refresh_if_stale()` before reading, so
-  the first profile opened after an edition's `end_date` stores its badges. The refresh
-  rebuilds everything, so any correction to a past edition also shows by the next day.
+- **Every night, by cron.** A crontab entry on the production host runs the command
+  below at 02:00 UTC, which is 03:00 or 04:00 in Paris. That is always after midnight
+  Paris time, so an edition whose `end_date` was the day before counts as finished:
+  ```
+  # host clock in UTC
+  0 2 * * * cd <repo> && docker compose -f <compose file> exec -T server python manage.py refresh_badges >> /var/log/olympic-warriors-badges.log 2>&1
+  ```
+  `-T` because cron has no terminal. The refresh rebuilds everything, so a correction to
+  a past edition also shows after the next night. The profile view only reads.
 - **On demand.** An Edition changelist action, « Recalculer les badges (toutes les
   éditions) », runs `refresh()`. The selection does not matter, because streaks and tables
   span editions.
 - **After an import.** `import_edition` runs `refresh()` after a real (not `--dry-run`)
   import.
-- **From the command line.** A `refresh_badges` management command runs `refresh()`.
+- **From the command line.** The `refresh_badges` management command, which the cron
+  job calls, runs `refresh()` and prints the rows added and removed and `refreshed_at`.
 
 ### Endpoint
 
@@ -432,7 +441,8 @@ Server (`tests/test_badges.py`), with an injected `today`:
   - a badge no longer earned is deleted;
   - a revoked row stays inactive;
   - manual rows are untouched;
-  - `refresh_if_stale()` runs once per Paris day;
+  - `refresh_badges` calls it and prints the rows added and removed, and
+    `refreshed_at` is set;
 - the query count (`BADGES_QUERIES`);
 - the family and kind maps cover every `Discipline` subclass;
 - the profile payload: grouping, catalogue order, `years`, `tier`, the partner's shape,
@@ -451,8 +461,10 @@ Front:
 - Badges are only as complete as the rosters, as with the profiles: early editions
   without `Player` rows give nobody anything.
 - Two people with the same full name share a user, and so share their badges.
-- A correction to a finished edition shows the next day, or at once through the admin
-  action.
+- A correction to a finished edition shows after the next nightly run, or at once
+  through the admin action.
+- The cron entry lives on the host, outside the repository. Without it, a finished
+  edition's badges wait for the admin action or an `import_edition`.
 - The thresholds (networker, golden whistle, veteran, ever-present) are first guesses, to
   tune once the real data is in.
 - `created_at` restarts when a correction removes a badge and a later one earns it back.
@@ -470,7 +482,8 @@ Front:
 
 The implementation updates `CLAUDE.md` with:
 - the `Badge` model and `badges.py` with its rules;
-- when the badges refresh;
+- when the badges refresh, with the crontab line; a comment on the `server` service of
+  `docker-compose.prod.example.yml` points to it;
 - the `badges` field of `/profile/<id>/`;
 - the glyph folder and its house style;
 - the new tests.
