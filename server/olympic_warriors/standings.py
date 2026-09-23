@@ -13,10 +13,13 @@ The rules are the ones the model properties always applied:
 - a team's total is the sum of its global points, teams rank by total, ties shared;
 - a manual edition (a team with a final_rank) ranks teams by that stored order instead,
   and has no totals.
+
+Each active team's discipline standings are exposed too, by discipline id order, at no
+extra query cost since results are already loaded with their discipline.
 """
 
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .models import Game, Team, TeamResult
 from .models.ResultTypes import ResultTypes
@@ -40,11 +43,23 @@ class TeamStanding:
 
 
 @dataclass(frozen=True)
+class DisciplineStanding:
+    """A team's standing in one discipline of the edition: the discipline's identity
+    alongside the ResultStanding of the team's result there."""
+
+    discipline_id: int
+    discipline_name: str
+    standing: ResultStanding
+
+
+@dataclass(frozen=True)
 class Standings:
-    """Standings of one edition: results by TeamResult id, teams by Team id."""
+    """Standings of one edition: results by TeamResult id, teams by Team id, and each
+    active team's discipline standings by Team id."""
 
     results: dict[int, ResultStanding]
     teams: dict[int, TeamStanding]
+    by_team: dict[int, tuple[DisciplineStanding, ...]] = field(default_factory=dict)
 
     def result(self, result_id):
         """Standing of a result, or the zero standing when it is not part of the edition."""
@@ -53,6 +68,11 @@ class Standings:
     def team(self, team_id):
         """Standing of a team, or the empty standing when it is not active in the edition."""
         return self.teams.get(team_id, TeamStanding())
+
+    def disciplines_of(self, team_id):
+        """A team's discipline standings, discipline id order, or () when the team is not
+        active in the edition."""
+        return self.by_team.get(team_id, ())
 
 
 def global_points(ranking, registered):
@@ -99,6 +119,15 @@ def compute_standings(edition):
     for discipline_results in by_discipline.values():
         result_standings.update(_rank_discipline(discipline_results, differences))
 
+    by_team = defaultdict(list)
+    for result in sorted(results, key=lambda result: (result.discipline_id, result.id)):
+        by_team[result.team_id].append(
+            DisciplineStanding(
+                result.discipline_id, result.discipline.name, result_standings[result.id]
+            )
+        )
+    by_team = {team_id: tuple(standings) for team_id, standings in by_team.items()}
+
     totals = {team.id: 0 for team in teams}
     for result in results:
         if result.team_id in totals:
@@ -116,7 +145,7 @@ def compute_standings(edition):
             for team in teams
         }
 
-    return Standings(results=result_standings, teams=team_standings)
+    return Standings(results=result_standings, teams=team_standings, by_team=by_team)
 
 
 def _score_key(result, differences):

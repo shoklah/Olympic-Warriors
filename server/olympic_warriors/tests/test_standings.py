@@ -194,6 +194,21 @@ class TestTeamStandings(StandingsSetup):
         with self.assertNumQueries(3):
             compute_standings(self.edition)
 
+    def test_disciplines_of_a_team_carry_names_and_standings(self):
+        self.play(self.team_a, 5, self.team_b, 2)
+        relay = Relay.objects.create(edition=self.edition, reveal_score=True)
+        TeamResult.objects.filter(discipline=relay, team=self.team_b).update(points=1)
+        standings = compute_standings(self.edition)
+
+        b = {d.discipline_name: d for d in standings.disciplines_of(self.team_b.id)}
+
+        self.assertEqual(set(b), {"Darts", "Relay"})
+        self.assertEqual(b["Relay"].standing.ranking, 1)
+        self.assertEqual(b["Relay"].discipline_id, relay.id)
+        self.assertEqual(b["Darts"].standing.ranking, 2)
+        self.assertEqual(standings.disciplines_of(self.ghost.id), ())  # inactive team
+        self.assertEqual(standings.disciplines_of(999999), ())
+
 
 class TestManualRanking(StandingsSetup):
     def test_stored_ranks_replace_the_computed_ones_and_totals_are_null(self):
