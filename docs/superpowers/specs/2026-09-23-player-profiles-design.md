@@ -233,7 +233,9 @@ server-only.
     "1st place in 2024, 2nd place in 2021" (French ordinals are feminine, agreeing with
     "place").
   - on the right, the average rank as a large `.num` figure (`formatAverage`: `1,5` /
-    `1.5`) with a small `.label` under it, « rang moyen » / "avg rank".
+    `1.5`) with a small `.label` under it: « classement moyen » / "avg rank", shortened
+    to « moy. » / "avg" below 480px. The block is `aria-hidden`; the hidden sentence
+    ends with it instead: "…, classement moyen 1,5" / "…, average rank 1.5".
 - **"Pas encore classés" / "Not ranked yet"** section heading, then the name rows with
   `played` ("1 édition" / "1 edition"), and no position or places.
 - The server sends the order, and the page does not re-sort.
@@ -245,7 +247,7 @@ server-only.
 - **Position line.** `MedalRank` for the all-time position as a plain number (a French
   ordinal would have to guess the player's gender: 1er or 1re), with the label
   "général" / "all-time", linking to `/players`. It is omitted when `position` is null.
-- **One figure**, the average rank (`2,5` in French, `2.5` in English), in a card that
+- **One figure**, « Classement moyen » / "Average rank" (`2,5` in French, `2.5` in English), in a card that
   keeps half the width. When `counted` is 0 it shows `—` and a line reads "Aucune
   édition classée pour l'instant" / "No ranked edition yet".
 - **Counts line.** "3 éditions · 2 classées" / "3 editions · 2 counted".
@@ -351,8 +353,10 @@ Front:
 - `players.test.js` for the formatters and `editionStatus`, including French and English
   outputs.
 - `players/page.test.js`:
-  - leaderboard rows read like `1 Léa Martin 1 2 1st place in 2024, 2nd place in 2026
-    1.5 avg rank` (position, name, places, hidden sentence, average rank);
+  - leaderboard rows read like `1 Léa Martin 1 2 1st place in 2024, 2nd place in 2026,
+    average rank 1.5 1.5 avg rank avg` in the DOM (position, name, places, hidden
+    sentence, figure, long and short labels), and the link's accessible name is exactly
+    `1 Léa Martin 1st place in 2024, 2nd place in 2026, average rank 1.5`;
   - the not-ranked group has no position;
   - one French test.
 - `players/[id]/page.test.js`:
