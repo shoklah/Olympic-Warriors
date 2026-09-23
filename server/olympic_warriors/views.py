@@ -4,6 +4,7 @@ Logic for the Olympic Warriors app endpoints.
 
 from datetime import time as time_of_day
 
+from django.db import transaction
 from django.db.models import Q
 from rest_framework.permissions import AllowAny
 from django.contrib.auth.models import User
@@ -1092,7 +1093,9 @@ def _minutes_seconds(text):
 @parser_classes([JSONParser])  # a form-encoded body would read a missing boolean as False
 def setGameScore(request, game_id):
     try:
-        game = Game.objects.select_related("discipline__edition").get(id=game_id, is_active=True)
+        game = Game.objects.select_related("discipline__edition").get(
+            id=game_id, is_active=True, discipline__is_active=True, round__is_active=True
+        )
     except Game.DoesNotExist:
         return Response({"error": "Game not found"}, status=404)
     if not _editable(game.discipline.edition):
@@ -1122,11 +1125,11 @@ def setGameScore(request, game_id):
 )
 @api_view(["PATCH"])
 @permission_classes([IsOrganiser])
-@parser_classes([JSONParser])  # a form-encoded body would read a missing boolean as False
+@parser_classes([JSONParser])  # JSON only, like the other organiser writes
 def setTeamResult(request, result_id):
     try:
         result = TeamResult.objects.select_related("discipline__edition").get(
-            id=result_id, is_active=True
+            id=result_id, is_active=True, discipline__is_active=True, team__is_active=True
         )
     except TeamResult.DoesNotExist:
         return Response({"error": "Result not found"}, status=404)
@@ -1135,9 +1138,14 @@ def setTeamResult(request, result_id):
     if TeamSportRound.objects.filter(discipline=result.discipline, is_active=True).exists():
         return Response({"error": "Points of a discipline with games are computed"}, status=400)
 
+    if not isinstance(request.data, dict):
+        return Response({"error": "Bad request"}, status=400)
+
     result_type = result.discipline.result_type
     field = {"PTS": "points", "TIM": "time"}.get(result_type)
-    if field is None or field not in request.data or len(request.data) != 1:
+    if field is None:
+        return Response({"error": "This discipline takes no result"}, status=400)
+    if field not in request.data or len(request.data) != 1:
         return Response({"error": f"Expected exactly the field '{field}'"}, status=400)
 
     serializer = ResultValueSerializer(data=request.data)
@@ -1180,7 +1188,7 @@ def setDisciplineReveal(request, discipline_id):
         return Response({"error": "Bad request", "details": serializer.errors}, status=400)
 
     discipline.reveal_score = serializer.validated_data["reveal_score"]
-    discipline.save()
+    discipline.save(update_fields=["reveal_score"])
     return Response(SummaryDisciplineSerializer(discipline).data)
 
 
@@ -1197,21 +1205,30 @@ def setDisciplineReveal(request, discipline_id):
 )
 @api_view(["PATCH"])
 @permission_classes([IsOrganiser])
-@parser_classes([JSONParser])  # a form-encoded body would read a missing boolean as False
+@parser_classes([JSONParser])  # JSON only, like the other organiser writes
 def closeRound(request, round_id):
-    try:
-        round_ = TeamSportRound.objects.select_related("discipline__edition").get(
-            id=round_id, is_active=True
-        )
-    except TeamSportRound.DoesNotExist:
-        return Response({"error": "Round not found"}, status=404)
-    if not _editable(round_.discipline.edition):
-        return Response(LATEST_ONLY, status=409)
-    if round_.is_over:
-        return Response({"error": "Round already over"}, status=409)
-    if Game.objects.filter(round=round_, is_active=True, is_played=False).exists():
-        return Response({"error": "Some games are not played yet"}, status=409)
+    with transaction.atomic():
+        try:
+            round_ = (
+                TeamSportRound.objects.select_for_update(of=("self",))
+                .select_related("discipline__edition")
+                .get(id=round_id, is_active=True, discipline__is_active=True)
+            )
+        except TeamSportRound.DoesNotExist:
+            return Response({"error": "Round not found"}, status=404)
+        if not _editable(round_.discipline.edition):
+            return Response(LATEST_ONLY, status=409)
+        if round_.is_over:
+            return Response({"error": "Round already over"}, status=409)
+        if Game.objects.filter(
+            round=round_, is_active=True, is_played=False,
+            discipline__is_active=True, round__is_active=True,
+        ).exists():
+            return Response({"error": "Some games are not played yet"}, status=409)
 
-    round_.is_over = True
-    round_.save()  # schedules the next Swiss round when the discipline is Swiss
+        round_.is_over = True
+        try:
+            round_.save()  # schedules the next Swiss round when the discipline is Swiss
+        except ValueError:
+            return Response({"error": "Not enough teams to schedule the next round"}, status=409)
     return Response(SummaryRoundSerializer(round_).data)

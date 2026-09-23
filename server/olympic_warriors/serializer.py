@@ -390,8 +390,8 @@ class EditionSummarySerializer(serializers.Serializer):
 class GameScoreSerializer(serializers.Serializer):
     """The organiser sheet: both scores and the played flag, all required."""
 
-    score1 = serializers.IntegerField(min_value=0)
-    score2 = serializers.IntegerField(min_value=0)
+    score1 = serializers.IntegerField(min_value=0, max_value=99999)
+    score2 = serializers.IntegerField(min_value=0, max_value=99999)
     is_played = serializers.BooleanField()
 
 
@@ -401,7 +401,7 @@ class ResultValueSerializer(serializers.Serializer):
     clears the value. The view decides which field the discipline accepts.
     """
 
-    points = serializers.IntegerField(min_value=0, allow_null=True, required=False)
+    points = serializers.IntegerField(min_value=0, max_value=99999, allow_null=True, required=False)
     time = serializers.RegexField(r"^\d{1,3}:[0-5]\d$", allow_null=True, required=False)
 
 
