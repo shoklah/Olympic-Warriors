@@ -228,7 +228,8 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
-    # No DEFAULT_THROTTLE_CLASSES: only the token view throttles (LoginRateThrottle).
+    # No DEFAULT_THROTTLE_CLASSES: only the token view throttles (LoginRateThrottle, which the
+    # admin login form shares from admin.py).
     'DEFAULT_THROTTLE_RATES': {
         'login': settings.LOGIN_THROTTLE_RATE,
     },

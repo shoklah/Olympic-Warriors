@@ -2,8 +2,13 @@
 Admin dashboard configuration for the Olympic Warriors app.
 """
 
+import math
+
 from django.contrib.admin import site, ModelAdmin, TabularInline
+from django.contrib.admin.forms import AdminAuthenticationForm
+from django.core.exceptions import ValidationError
 from django.http import HttpRequest
+from .throttling import LoginRateThrottle
 from .models import (
     Player,
     PlayerRating,
@@ -55,6 +60,35 @@ def request_only_active(request: HttpRequest) -> HttpRequest:
         request.GET = q
         request.META["QUERY_STRING"] = request.GET.urlencode()
     return request
+
+
+class ThrottledAdminAuthenticationForm(AdminAuthenticationForm):
+    """
+    The admin login form, limited per client IP in the same bucket as /auth/token/
+    (LoginRateThrottle, LOGIN_THROTTLE_RATE): organisers log into both with one password, so
+    either door counts against the other. Every submitted form counts, failed or not; past the
+    limit the form comes back with the "throttled" error before any password is checked, so
+    the right one is refused too.
+    """
+
+    error_messages = {
+        **AdminAuthenticationForm.error_messages,
+        # In French, like the rest of the admin (LANGUAGE_CODE "fr", no LocaleMiddleware).
+        "throttled": "Trop de tentatives de connexion depuis cette adresse. "
+        "Réessayez dans %(wait)d s.",
+    }
+
+    def clean(self):
+        throttle = LoginRateThrottle()
+        if not throttle.allow_request(self.request, None):
+            # wait() is None when the count outgrew the rate (lowered since): a whole window.
+            wait = throttle.wait() or throttle.duration
+            raise ValidationError(
+                self.error_messages["throttled"],
+                code="throttled",
+                params={"wait": math.ceil(wait)},
+            )
+        return super().clean()
 
 
 class BlindtestGuessInline(TabularInline):
@@ -421,6 +455,8 @@ class DodgeballEventAdmin(GameEventAdmin):
         request = request_only_active(request)
         return super().changelist_view(request, extra_context)
 
+
+site.login_form = ThrottledAdminAuthenticationForm
 
 site.register(Player, PlayerAdmin)
 site.register(Team, TeamAdmin)
