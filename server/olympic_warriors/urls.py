@@ -34,7 +34,7 @@ urlpatterns = [
     path("api/schema/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
     # admin
     path("admin/", admin.site.urls),
-    # authentication (the only throttled view: LoginRateThrottle)
+    # authentication (the only throttled API view: LoginRateThrottle, with the admin login)
     path("auth/token/", views.ThrottledObtainAuthToken.as_view(), name="auth_token"),
     # users
     path("user/<int:user_id>/", views.getUser),

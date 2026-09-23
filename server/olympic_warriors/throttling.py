@@ -1,5 +1,5 @@
 """
-DRF throttle for the token endpoint, the only throttled view.
+The login throttle: on the token endpoint, the only throttled API view, and the admin login form.
 """
 
 import ipaddress
@@ -35,6 +35,8 @@ class LoginRateThrottle(SimpleRateThrottle):
 
     The IP is get_ident(): with NUM_PROXIES = 1 the last X-Forwarded-For entry, the one the
     hop in front of Django added (nginx, or the front forwarding its visitor), else REMOTE_ADDR.
+    It only reads request.META, so the admin login form (ThrottledAdminAuthenticationForm in
+    admin.py) counts its plain Django requests in the same buckets.
     """
 
     scope = "login"

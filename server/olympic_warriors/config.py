@@ -59,7 +59,8 @@ class BaseConfig(BaseSettings):
     ALLOWED_HOSTS: list = ["*"]
     CSRF_TRUSTED_ORIGINS: list = ["https://*", "http://*"]
 
-    # Attempts allowed on /auth/token/ per client IP, in DRF's "<count>/<sec|min|hour|day>".
+    # Login attempts per client IP, /auth/token/ and /admin/login/ together, in DRF's
+    # "<count>/<sec|min|hour|day>".
     LOGIN_THROTTLE_RATE: str = "5/min"
     # Proxies in front of Django that append the client IP to X-Forwarded-For: nginx for a
     # direct API call, the front for a login through the site. DRF trusts that many entries
