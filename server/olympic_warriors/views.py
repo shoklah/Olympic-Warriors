@@ -35,7 +35,10 @@ from .serializer import (
     SummaryResultSerializer,
     SummaryDisciplineSerializer,
     SummaryRoundSerializer,
+    LeaderboardRowSerializer,
+    ProfileSerializer,
 )
+from .profiles import leaderboard
 from .permissions import IsOrganiser
 from .models import (
     Player,
@@ -182,6 +185,44 @@ def getPlayersByTeam(request, team_id):
     players = Player.objects.filter(team=team_id, is_active=True)
     serializer = PlayerSerializer(players, many=True)
     return Response(serializer.data)
+
+
+# Profiles
+
+
+@extend_schema(
+    summary="Every person who played, in all-time leaderboard order",
+    description=(
+        "Ranked people first by share of teams beaten (shared positions on ties), then "
+        "the ones with no finished, ranked edition yet, by name and without a position."
+    ),
+    responses={
+        "200": LeaderboardRowSerializer(many=True),
+        "500": OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def getProfiles(request):
+    return Response(LeaderboardRowSerializer(leaderboard(), many=True).data)
+
+
+@extend_schema(
+    summary="One person's editions, averages and all-time position, by user id",
+    responses={
+        "200": ProfileSerializer,
+        "404": OpenApiResponse(description="Player not found"),
+        "500": OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def getProfile(request, user_id):
+    # The same leaderboard as /profiles/, so a profile can never disagree on a position.
+    record = next((r for r in leaderboard() if r.user_id == user_id), None)
+    if record is None:
+        return Response({"error": "Player not found"}, status=404)
+    return Response(ProfileSerializer(record).data)
 
 
 # Editions

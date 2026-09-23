@@ -9,6 +9,7 @@ from unittest import mock
 
 from django.contrib.auth.models import User
 from django.test import SimpleTestCase, TestCase
+from rest_framework.test import APIClient
 
 from olympic_warriors.models import Edition, Player, Relay, Team, TeamResult
 from olympic_warriors.profiles import (
@@ -357,3 +358,110 @@ class TestRecordAndPlace(SimpleTestCase):
         placed = _place([_record(faure, ()), _record(durand, ()), _record(ebert, ())])
 
         self.assertEqual([record.last_name for record in placed], ["Durand", "Ébert", "Faure"])
+
+
+class TestProfileEndpoints(ProfilesSetup, TestCase):
+    def setUp(self):
+        super().setUp()
+        patcher = mock.patch("olympic_warriors.profiles.paris_today", return_value=TODAY)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.client = APIClient()  # no credentials: both endpoints are public
+
+    def test_leaderboard_is_public_and_ordered(self):
+        response = self.client.get("/profiles/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [row["first_name"] for row in response.data],
+            ["Ana", "Chloé", "Bob", "Dan", "Eve", "Fay"],
+        )
+        self.assertEqual(
+            response.data[0],
+            {
+                "id": self.ana.id,
+                "first_name": "Ana",
+                "last_name": "Lopez",
+                "played": 3,
+                "counted": 2,
+                "average_rank": 1.0,
+                "average_beaten": 100,
+                "position": 1,
+            },
+        )
+        self.assertEqual(response.data[4]["position"], None)
+        self.assertEqual(response.data[4]["average_rank"], None)
+
+    def test_profile_lists_every_edition_newest_first(self):
+        response = self.client.get(f"/profile/{self.ana.id}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            {k: v for k, v in response.data.items() if k != "editions"},
+            {
+                "id": self.ana.id,
+                "first_name": "Ana",
+                "last_name": "Lopez",
+                "position": 1,
+                "counted": 2,
+                "average_rank": 1.0,
+                "average_beaten": 100,
+            },
+        )
+        self.assertEqual(
+            response.data["editions"],
+            [
+                {
+                    "year": 2026,
+                    "team": {"id": self.renards.id, "name": "Renards"},
+                    "rank": None,
+                    "teams": 2,
+                    "finished": False,
+                },
+                {
+                    "year": 2025,
+                    "team": {"id": self.loups.id, "name": "Loups"},
+                    "rank": 1,
+                    "teams": 3,
+                    "finished": True,
+                },
+                {
+                    "year": 2024,
+                    "team": {"id": self.aigles.id, "name": "Aigles"},
+                    "rank": 1,
+                    "teams": 4,
+                    "finished": True,
+                },
+            ],
+        )
+
+    def test_profile_without_a_team_or_a_counted_edition(self):
+        response = self.client.get(f"/profile/{self.fay.id}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.data["position"])
+        self.assertIsNone(response.data["average_rank"])
+        self.assertEqual(
+            response.data["editions"],
+            [{"year": 2024, "team": None, "rank": None, "teams": 4, "finished": True}],
+        )
+
+    def test_404_for_someone_who_never_played_and_for_an_unknown_id(self):
+        root = User.objects.create_superuser("root", "root@mail.example", "pw")
+
+        self.assertEqual(self.client.get(f"/profile/{root.id}/").status_code, 404)
+        self.assertEqual(self.client.get("/profile/999999/").status_code, 404)
+
+    def test_payloads_carry_no_login_name_or_email(self):
+        for url in ("/profiles/", f"/profile/{self.ana.id}/"):
+            content = self.client.get(url).content
+            self.assertNotIn(b"login-", content)
+            self.assertNotIn(b"mail.example", content)
+            self.assertNotIn(b"username", content)
+            self.assertNotIn(b"email", content)
+
+    def test_both_endpoints_run_in_a_fixed_number_of_queries(self):
+        with self.assertNumQueries(PROFILES_QUERIES):
+            self.client.get("/profiles/")
+        with self.assertNumQueries(PROFILES_QUERIES):
+            self.client.get(f"/profile/{self.ana.id}/")
