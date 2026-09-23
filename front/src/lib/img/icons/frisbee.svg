@@ -1,0 +1,5 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M1000 300V1850M600 1850H1400M550 400H1450" stroke="white" stroke-width="120" stroke-linecap="round"/>
+<path d="M600 400Q700 800 1000 950M1400 400Q1300 800 1000 950M800 400Q850 800 1000 950M1200 400Q1150 800 1000 950" stroke="white" stroke-width="50" stroke-linecap="round"/>
+<path d="M500 1050H1500L1400 1350H600Z" stroke="white" stroke-width="110" stroke-linejoin="round"/>
+</svg>
