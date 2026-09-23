@@ -42,7 +42,7 @@ export default {
 	'error.generic': 'Une erreur est survenue',
 	'login.submit': 'Se connecter',
 	'login.failed': 'Connexion impossible : vérifiez vos identifiants',
-	'login.throttled': 'Trop de tentatives : patientez une minute avant de réessayer',
+	'login.throttled': 'Trop de tentatives : réessayez plus tard',
 	'login.username': 'Identifiant',
 	'login.password': 'Mot de passe',
 	'login.missing': 'Champ obligatoire',

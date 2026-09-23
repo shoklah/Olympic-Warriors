@@ -38,7 +38,7 @@ export default {
 	'error.generic': 'Something went wrong',
 	'login.submit': 'Log in',
 	'login.failed': 'Login failed: check your credentials',
-	'login.throttled': 'Too many attempts: wait a minute and try again',
+	'login.throttled': 'Too many attempts: try again later',
 	'login.username': 'Username',
 	'login.password': 'Password',
 	'login.missing': 'Required',
