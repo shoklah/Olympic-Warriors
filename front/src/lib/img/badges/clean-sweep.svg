@@ -1,0 +1,12 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- A broom sweeping, with a little dust. -->
+<g transform="rotate(-35 1000 1000)">
+<path d="M1000 120V1060" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M820 1060H1180" stroke="white" stroke-width="160" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M850 1180L640 1830H1360L1150 1180Z" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M910 1330L840 1830M1000 1330V1830M1090 1330L1160 1830" stroke="white" stroke-width="70" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<circle cx="1640" cy="1600" r="45" fill="white"/>
+<circle cx="1760" cy="1470" r="35" fill="white"/>
+<circle cx="1780" cy="1690" r="30" fill="white"/>
+</svg>

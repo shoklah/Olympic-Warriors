@@ -1,0 +1,8 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- A stopwatch. -->
+<circle cx="1000" cy="1120" r="640" stroke="white" stroke-width="130"/>
+<path d="M1000 480V320M840 250H1160M1500 620L1600 520" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1000 1120V760" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="1000" cy="1120" r="70" fill="white"/>
+<path d="M1000 540V620M1580 1120H1500M1000 1700V1620M420 1120H500" stroke="white" stroke-width="90" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

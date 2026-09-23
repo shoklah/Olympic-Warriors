@@ -1,0 +1,10 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- Athena's owl. -->
+<path d="M560 430L720 640Q1000 560 1280 640L1440 430Q1540 800 1490 1160Q1420 1660 1000 1740Q580 1660 510 1160Q460 800 560 430Z" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="810" cy="930" r="175" stroke="white" stroke-width="100"/>
+<circle cx="1190" cy="930" r="175" stroke="white" stroke-width="100"/>
+<circle cx="810" cy="930" r="60" fill="white"/>
+<circle cx="1190" cy="930" r="60" fill="white"/>
+<path d="M940 1080L1000 1200L1060 1080" stroke="white" stroke-width="90" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M800 1380Q850 1440 900 1380Q950 1440 1000 1380Q1050 1440 1100 1380Q1150 1440 1200 1380" stroke="white" stroke-width="80" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
