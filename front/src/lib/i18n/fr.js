@@ -52,6 +52,8 @@ export default {
 	'orga.hide': 'Masquer',
 	'orga.missingResults': { one: '{n} équipe sans résultat', other: '{n} équipes sans résultat' },
 	'orga.edit': 'Saisir le score',
+	'orga.minus': 'Un point de moins pour {team}',
+	'orga.plus': 'Un point de plus pour {team}',
 	'orga.played': 'Joué',
 	'orga.save': 'Enregistrer',
 	'orga.cancel': 'Annuler',
@@ -61,6 +63,6 @@ export default {
 	'orga.error.unauthorised': 'Session expirée, reconnectez-vous',
 	'orga.error.forbidden': 'Réservé aux organisateurs',
 	'orga.error.invalid': 'Valeur refusée',
-	'orga.error.conflict': 'Impossible pour cette édition ou ce tour',
+	'orga.error.conflict': "Impossible pour l'instant : tour incomplet, déjà clos ou édition passée",
 	'orga.error.failed': "Échec de l'enregistrement"
 };

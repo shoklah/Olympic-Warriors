@@ -6,6 +6,7 @@ import {
 	disciplineSchedule,
 	disciplineSubtitle,
 	editionPhase,
+	entryTime,
 	findDiscipline,
 	findTeam,
 	formatDateRange,
@@ -398,6 +399,16 @@ describe('formatTime', () => {
 		expect(formatTime('01:02:03')).toBe('1:02:03');
 		expect(formatTime('00:00:07')).toBe('00:07');
 		expect(formatTime(null)).toBeNull();
+	});
+});
+
+describe('entryTime', () => {
+	it('gives the mm:ss the field and the API accept, minutes above 59 included', () => {
+		expect(entryTime('00:13:15')).toBe('13:15');
+		expect(entryTime('01:02:03')).toBe('62:03');
+		expect(entryTime('00:00:07')).toBe('0:07');
+		expect(entryTime(null)).toBeNull();
+		expect(entryTime(undefined)).toBeNull();
 	});
 });
 

@@ -14,9 +14,17 @@
 	const t = useT();
 	const dispatch = createEventDispatcher();
 
-	/** The first score field, focused when the sheet opens; the page refocuses the row on close. */
+	/** True from 1000px: on a phone the number field's keyboard would cover the sheet. */
+	const desktop = () =>
+		typeof window !== 'undefined' &&
+		typeof window.matchMedia === 'function' &&
+		window.matchMedia('(min-width: 1000px)').matches;
+
+	/** The first score field, focused when the sheet opens on desktop; the sheet itself on
+	    a phone, so opening it does not pop the keyboard. The page refocuses the row on close. */
 	let firstField = null;
-	$: if (open && firstField) tick().then(() => firstField?.focus());
+	let sheetEl = null;
+	$: if (open && (firstField || sheetEl)) tick().then(() => (desktop() ? firstField : sheetEl)?.focus());
 
 	// Local copies: the steppers edit these, the loaded game stays as it is until the
 	// action succeeds and the page reloads its data.
@@ -36,8 +44,10 @@
 		if (open && event.key === 'Escape') close();
 	};
 	// After a successful save the page's data reloads; the sheet closes on that success.
+	// reset: false, so SvelteKit does not blank the fields and the switch before the
+	// reloaded summary brings the saved values back.
 	const afterSubmit = () => async ({ result, update }) => {
-		await update();
+		await update({ reset: false });
 		if (result.type === 'success') close();
 	};
 	$: title = `${t('discipline.round', { n: roundNumber })} · ${t('game.referee', { name: game.refereeName ?? t('team.unknown') })}`;
@@ -47,7 +57,7 @@
 
 {#if open}
 	<div class="backdrop" data-testid="backdrop" on:click={close} aria-hidden="true"></div>
-	<div class="sheet" role="dialog" aria-modal="true" aria-label={title}>
+	<div class="sheet" role="dialog" aria-modal="true" aria-label={title} tabindex="-1" bind:this={sheetEl}>
 		<form method="POST" action="?/score" use:enhance={afterSubmit}>
 			<input type="hidden" name="game" value={game.id} />
 			<p class="label">{title}</p>
@@ -55,18 +65,18 @@
 			<div class="line">
 				<label class="name" for="score1-{game.id}">{game.team1Name ?? t('team.unknown')}</label>
 				<span class="stepper">
-					<button type="button" aria-label="− {game.team1Name}" on:click={() => (score1 = clamp(score1 - 1))}>−</button>
-					<input id="score1-{game.id}" name="score1" type="number" inputmode="numeric" min="0" bind:value={score1} bind:this={firstField} />
-					<button type="button" aria-label="+ {game.team1Name}" on:click={() => (score1 = clamp(score1 + 1))}>+</button>
+					<button type="button" aria-label={t('orga.minus', { team: game.team1Name ?? t('team.unknown') })} on:click={() => (score1 = clamp(score1 - 1))}>−</button>
+					<input id="score1-{game.id}" name="score1" type="number" inputmode="numeric" min="0" required bind:value={score1} bind:this={firstField} />
+					<button type="button" aria-label={t('orga.plus', { team: game.team1Name ?? t('team.unknown') })} on:click={() => (score1 = clamp(score1 + 1))}>+</button>
 				</span>
 			</div>
 
 			<div class="line">
 				<label class="name" for="score2-{game.id}">{game.team2Name ?? t('team.unknown')}</label>
 				<span class="stepper">
-					<button type="button" aria-label="− {game.team2Name}" on:click={() => (score2 = clamp(score2 - 1))}>−</button>
-					<input id="score2-{game.id}" name="score2" type="number" inputmode="numeric" min="0" bind:value={score2} />
-					<button type="button" aria-label="+ {game.team2Name}" on:click={() => (score2 = clamp(score2 + 1))}>+</button>
+					<button type="button" aria-label={t('orga.minus', { team: game.team2Name ?? t('team.unknown') })} on:click={() => (score2 = clamp(score2 - 1))}>−</button>
+					<input id="score2-{game.id}" name="score2" type="number" inputmode="numeric" min="0" required bind:value={score2} />
+					<button type="button" aria-label={t('orga.plus', { team: game.team2Name ?? t('team.unknown') })} on:click={() => (score2 = clamp(score2 + 1))}>+</button>
 				</span>
 			</div>
 
@@ -92,8 +102,8 @@
 	.backdrop {
 		position: fixed;
 		inset: 0;
-		background: rgba(0, 0, 0, 0.6);
-		z-index: 20;
+		background: var(--scrim);
+		z-index: 30;
 	}
 
 	.sheet {
@@ -101,12 +111,13 @@
 		left: 0;
 		right: 0;
 		bottom: 0;
-		z-index: 21;
+		z-index: 31;
 		background: var(--bg-raised);
 		border: 1px solid var(--line);
 		border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 		padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom));
 		max-height: 90vh;
+		max-height: 90dvh;
 		overflow-y: auto;
 	}
 

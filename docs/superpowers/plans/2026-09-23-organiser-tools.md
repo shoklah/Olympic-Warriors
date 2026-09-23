@@ -2408,7 +2408,7 @@ Run: `docker compose exec -T front npx vitest run "src/routes/\[year=year\]/disc
 ```svelte
 <script>
 	import { enhance } from '$app/forms';
-	import { formatDifference, formatTime, roundCount } from '$lib/edition';
+	import { entryTime, formatDifference, formatTime, roundCount } from '$lib/edition';
 	import { iconFor } from '$lib/icons';
 	import { disciplineName, useLocale, useT } from '$lib/i18n';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
@@ -2504,7 +2504,7 @@ Markup changes, in order:
 							type="text"
 							placeholder={t('orga.timeHint')}
 							pattern={'[0-9]{1,3}:[0-5][0-9]'}
-							value={formatTime(entry.time) ?? ''}
+							value={entryTime(entry.time) ?? ''}
 						/>
 					{:else}
 						<input

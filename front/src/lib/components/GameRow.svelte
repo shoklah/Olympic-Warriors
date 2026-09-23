@@ -175,6 +175,7 @@
 
 	.teams.edit {
 		width: 100%;
+		min-height: 44px;
 		background: transparent;
 		border: 0;
 		padding: 0;
@@ -190,6 +191,18 @@
 
 	.teams.edit .team.right {
 		text-align: right;
+	}
+
+	/* A small chevron after the away team: the only visual hint the pairing is tappable. */
+	.teams.edit::after {
+		content: '';
+		width: 6px;
+		height: 6px;
+		border-right: 2px solid var(--muted);
+		border-bottom: 2px solid var(--muted);
+		transform: rotate(-45deg);
+		flex: none;
+		margin-left: 4px;
 	}
 
 	.teams.edit:focus-visible {

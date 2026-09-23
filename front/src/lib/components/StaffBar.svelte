@@ -44,6 +44,7 @@
 
 	.bar.revealed {
 		border-color: var(--win);
+		border-style: solid;
 	}
 
 	.text {

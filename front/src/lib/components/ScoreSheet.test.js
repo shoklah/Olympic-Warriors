@@ -1,9 +1,13 @@
 import { fireEvent, screen } from '@testing-library/svelte';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderWith } from '$lib/test-utils';
 import ScoreSheet from './ScoreSheet.svelte';
 
 vi.mock('$app/forms', () => ({ enhance: () => ({ destroy() {} }) }));
+
+afterEach(() => {
+	vi.unstubAllGlobals();
+});
 
 const game = {
 	id: 201,
@@ -32,7 +36,8 @@ describe('ScoreSheet', () => {
 	it('steps the scores and never below zero', async () => {
 		renderWith(ScoreSheet, { game, roundNumber: 1, open: true });
 
-		const [minus1, plus1] = screen.getAllByRole('button', { name: /Cerfs/ });
+		const minus1 = screen.getByRole('button', { name: 'One point less for Cerfs' });
+		const plus1 = screen.getByRole('button', { name: 'One point more for Cerfs' });
 		const score1 = screen.getByLabelText('Cerfs');
 		await fireEvent.click(plus1);
 		await fireEvent.click(plus1);
@@ -66,7 +71,14 @@ describe('ScoreSheet', () => {
 		expect(closed).toHaveBeenCalledTimes(3);
 	});
 
-	it('focuses the first score field when it opens', async () => {
+	it('focuses the sheet itself on a phone, so opening it does not pop the keyboard', async () => {
+		renderWith(ScoreSheet, { game, roundNumber: 1, open: true });
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(screen.getByRole('dialog')).toHaveFocus();
+	});
+
+	it('focuses the first score field on desktop when it opens', async () => {
+		vi.stubGlobal('matchMedia', () => ({ matches: true }));
 		renderWith(ScoreSheet, { game, roundNumber: 1, open: true });
 		await new Promise((resolve) => setTimeout(resolve, 0));
 		expect(screen.getByLabelText('Cerfs')).toHaveFocus();
@@ -77,7 +89,9 @@ describe('ScoreSheet', () => {
 		expect(container.querySelector('[role="dialog"]')).toBeNull();
 
 		renderWith(ScoreSheet, { game, roundNumber: 1, open: true, error: 'orga.error.conflict' });
-		expect(screen.getByRole('alert')).toHaveTextContent('Not possible for this edition or round');
+		expect(screen.getByRole('alert')).toHaveTextContent(
+			'Not possible right now: round incomplete, already closed or past edition'
+		);
 	});
 
 	it('speaks French under fr', () => {

@@ -48,6 +48,8 @@ export default {
 	'orga.hide': 'Hide',
 	'orga.missingResults': { one: '{n} team without a result', other: '{n} teams without a result' },
 	'orga.edit': 'Enter the score',
+	'orga.minus': 'One point less for {team}',
+	'orga.plus': 'One point more for {team}',
 	'orga.played': 'Played',
 	'orga.save': 'Save',
 	'orga.cancel': 'Cancel',
@@ -57,6 +59,6 @@ export default {
 	'orga.error.unauthorised': 'Session expired, log in again',
 	'orga.error.forbidden': 'Organisers only',
 	'orga.error.invalid': 'Value refused',
-	'orga.error.conflict': 'Not possible for this edition or round',
+	'orga.error.conflict': 'Not possible right now: round incomplete, already closed or past edition',
 	'orga.error.failed': 'Could not save'
 };

@@ -265,9 +265,20 @@ export function disciplineEntries(summary, disciplineId) {
 			id: r.id,
 			team: r.team,
 			teamName: nameOf(names, r.team),
-			points: r.points,
-			time: r.time,
+			points: r.points ?? null,
+			time: r.time ?? null,
 			ranking: r.ranking
 		}))
 		.sort((a, b) => rank(a) - rank(b) || (a.teamName ?? '').localeCompare(b.teamName ?? ''));
+}
+
+/**
+ * "01:02:03" → "62:03", "00:13:15" → "13:15": the mm:ss form the result entry field and
+ * the API accept, minutes rolling past 59 when the stored time has hours. null/undefined → null.
+ */
+export function entryTime(hhmmss) {
+	if (!hhmmss) return null;
+	const [h, m, s] = hhmmss.split(':');
+	const minutes = Number(h) * 60 + Number(m);
+	return `${minutes}:${s}`;
 }

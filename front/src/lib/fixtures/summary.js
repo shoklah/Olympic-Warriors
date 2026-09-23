@@ -74,13 +74,15 @@ export const summaryAllRevealed = {
 
 /**
  * What a staff user gets on the same edition: hidden game scores and stored results
- * visible, rankings still null, plus a hidden Darts without rounds (points to enter).
+ * visible, rankings still null, plus a hidden Darts (points) and Crossfit (time) without
+ * rounds, both awaiting entry.
  */
 export const summaryStaff = {
 	...summary,
 	disciplines: [
 		...summary.disciplines,
-		{ id: 12, name: 'Darts', result_type: 'PTS', reveal_score: false, pairing_system: 'NO' }
+		{ id: 12, name: 'Darts', result_type: 'PTS', reveal_score: false, pairing_system: 'NO' },
+		{ id: 13, name: 'Crossfit', result_type: 'TIM', reveal_score: false, pairing_system: 'NO' }
 	],
 	results: [
 		...summary.results.slice(0, 3),
@@ -89,7 +91,10 @@ export const summaryStaff = {
 		{ id: 105, team: 3, discipline: 11, result_type: 'TIM', ranking: null, points: null, time: '00:13:45', points_difference: null, global_points: null },
 		{ id: 106, team: 1, discipline: 12, result_type: 'PTS', ranking: null, points: 20, time: null, points_difference: null, global_points: null },
 		{ id: 107, team: 2, discipline: 12, result_type: 'PTS', ranking: null, points: null, time: null, points_difference: null, global_points: null },
-		{ id: 108, team: 3, discipline: 12, result_type: 'PTS', ranking: null, points: 15, time: null, points_difference: null, global_points: null }
+		{ id: 108, team: 3, discipline: 12, result_type: 'PTS', ranking: null, points: 15, time: null, points_difference: null, global_points: null },
+		{ id: 109, team: 1, discipline: 13, result_type: 'TIM', ranking: null, points: null, time: '00:12:30', points_difference: null, global_points: null },
+		{ id: 110, team: 2, discipline: 13, result_type: 'TIM', ranking: null, points: null, time: null, points_difference: null, global_points: null },
+		{ id: 111, team: 3, discipline: 13, result_type: 'TIM', ranking: null, points: null, time: '01:02:03', points_difference: null, global_points: null }
 	],
 	games: [...summary.games.slice(0, 3), { ...summary.games[3], score1: 3, score2: 1 }]
 };

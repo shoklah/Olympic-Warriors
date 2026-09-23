@@ -192,7 +192,7 @@ Rendered only when `data.editable`:
   `roundNumber`, `open`, `error`. A `div` with `role="dialog"` and
   `aria-modal` over a backdrop (jsdom has no `<dialog>` support; no focus
   trap, the backdrop covers the page and Escape closes): below 1000px it is a bottom
-  sheet (full width, rounded top corners, slides up), from 1000px a centred
+  sheet (full width, rounded top corners), from 1000px a centred
   420px dialog. Contents: a label line `Tour n · arbitre : X`, one line per
   team with the name, a minus button, a number field (`inputmode="numeric"`,
   min 0), a plus button; a `joué` switch (a checkbox styled as a switch,
@@ -232,7 +232,9 @@ shows the new state; without JavaScript the page reloads. `apiPatch` joins
 
 `formatTime(hhmmss)` in `edition.js`: `"00:13:15"` → `13:15`,
 `"01:02:03"` → `1:02:03`, `null` → `null`. Used by the discipline page
-result rows, the results entry field value, and the team page tiles.
+result rows and the team page tiles. `entryTime` gives the `mm:ss` form
+the field and the API accept, minutes above 59 included (`01:02:03` →
+`62:03`).
 
 ### Dictionary
 
@@ -257,7 +259,7 @@ Keys added to both files (French first):
 | `orga.error.unauthorised` | Session expirée, reconnectez-vous | Session expired, log in again |
 | `orga.error.forbidden` | Réservé aux organisateurs | Organisers only |
 | `orga.error.invalid` | Valeur refusée | Value refused |
-| `orga.error.conflict` | Impossible pour cette édition ou ce tour | Not possible for this edition or round |
+| `orga.error.conflict` | Impossible pour l'instant : tour incomplet, déjà clos ou édition passée | Not possible right now: round incomplete, already closed or past edition |
 | `orga.error.failed` | Échec de l'enregistrement | Could not save |
 
 ### Tests
