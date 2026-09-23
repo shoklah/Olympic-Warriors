@@ -1,16 +1,7 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { apiPost } from '$lib/api';
 import { api } from '$lib/server/urls';
-
-const setAuthToken = ({ cookies, token }) => {
-	cookies.set('Authorization', `Bearer ${token}`, {
-		httpOnly: true,
-		secure: true,
-		sameSite: 'strict',
-		maxAge: 60 * 60 * 24 * 7, // 1 week
-		path: '/'
-	});
-};
+import { TOKEN_COOKIE, tokenCookieOptions } from '$lib/session';
 
 export const actions = {
 	login: async ({ cookies, request, fetch }) => {
@@ -34,7 +25,7 @@ export const actions = {
 			return fail(500, { username, error: 'Authentication failed: token not received' });
 		}
 
-		setAuthToken({ cookies, token });
+		cookies.set(TOKEN_COOKIE, token, tokenCookieOptions());
 		redirect(302, '/');
 	}
 };

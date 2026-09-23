@@ -33,7 +33,8 @@ class UserSerializer(serializers.ModelSerializer):
         """
 
         model = User
-        fields = ("id", "username", "first_name", "last_name", "email")
+        fields = ("id", "username", "first_name", "last_name", "email", "is_staff")
+        read_only_fields = ("is_staff",)
         
 class PlayerSerializer(serializers.ModelSerializer):
     """
@@ -188,7 +189,7 @@ class SummaryEditionSerializer(serializers.ModelSerializer):
 class SummaryDisciplineSerializer(serializers.ModelSerializer):
     class Meta:
         model = Discipline
-        fields = ("id", "name", "result_type", "reveal_score")
+        fields = ("id", "name", "result_type", "reveal_score", "pairing_system")
 
 
 class SummaryPlayerSerializer(serializers.ModelSerializer):
@@ -231,9 +232,11 @@ class SummaryTeamSerializer(serializers.ModelSerializer):
 
 class SummaryResultSerializer(serializers.ModelSerializer):
     """
-    A team's result in a discipline. Score fields are null while the discipline's
-    reveal_score is off, or while the result itself has no score yet for its type:
-    the summary is public and must not leak a score early, nor 500 on a NULL score.
+    A team's result in a discipline. The ranking fields are null while the discipline's
+    reveal_score is off, or while the result itself has no score yet for its type: the
+    summary is public and must not leak a standing early, nor 500 on a NULL score. With
+    context["staff"] the stored points and time stay visible so an organiser can check and
+    edit them; the ranking stays hidden for staff too until the discipline is revealed.
     """
 
     HIDDEN_FIELDS = ("ranking", "points", "time", "points_difference", "global_points")
@@ -273,6 +276,13 @@ class SummaryResultSerializer(serializers.ModelSerializer):
             "result_type": instance.result_type,
         }
         hidden.update({field: None for field in self.HIDDEN_FIELDS})
+        if self.context.get("staff"):
+            hidden["points"] = instance.points
+            hidden["time"] = (
+                self.fields["time"].to_representation(instance.time)
+                if instance.time is not None
+                else None
+            )
         return hidden
 
 
@@ -285,7 +295,8 @@ class SummaryRoundSerializer(serializers.ModelSerializer):
 class SummaryGameSerializer(serializers.ModelSerializer):
     """
     A scheduled game. Pairings, referee and the played flag are always visible;
-    the scores are null while the discipline's reveal_score is off.
+    the scores are null while the discipline's reveal_score is off, unless
+    context["staff"] is set.
     """
 
     score1 = serializers.IntegerField(read_only=True, allow_null=True)
@@ -307,7 +318,7 @@ class SummaryGameSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        if not instance.discipline.reveal_score:
+        if not instance.discipline.reveal_score and not self.context.get("staff"):
             data["score1"] = None
             data["score2"] = None
         return data
@@ -365,11 +376,34 @@ class EditionSummarySerializer(serializers.Serializer):
             .select_related("discipline", "round")
             .order_by("discipline_id", "round__order", "id")
         )
+        staff_context = {"staff": bool(self.context.get("staff"))}
         return {
             "edition": SummaryEditionSerializer(instance).data,
             "disciplines": SummaryDisciplineSerializer(disciplines, many=True).data,
             "teams": SummaryTeamSerializer(teams, many=True, context={"totals": totals}).data,
-            "results": SummaryResultSerializer(results, many=True).data,
+            "results": SummaryResultSerializer(results, many=True, context=staff_context).data,
             "rounds": SummaryRoundSerializer(rounds, many=True).data,
-            "games": SummaryGameSerializer(games, many=True).data,
+            "games": SummaryGameSerializer(games, many=True, context=staff_context).data,
         }
+
+
+class GameScoreSerializer(serializers.Serializer):
+    """The organiser sheet: both scores and the played flag, all required."""
+
+    score1 = serializers.IntegerField(min_value=0, max_value=99999)
+    score2 = serializers.IntegerField(min_value=0, max_value=99999)
+    is_played = serializers.BooleanField()
+
+
+class ResultValueSerializer(serializers.Serializer):
+    """
+    One of `points` (integer, 0 or more) or `time` ("mm:ss", minutes may exceed 59); null
+    clears the value. The view decides which field the discipline accepts.
+    """
+
+    points = serializers.IntegerField(min_value=0, max_value=99999, allow_null=True, required=False)
+    time = serializers.RegexField(r"^\d{1,3}:[0-5]\d$", allow_null=True, required=False)
+
+
+class RevealSerializer(serializers.Serializer):
+    reveal_score = serializers.BooleanField()

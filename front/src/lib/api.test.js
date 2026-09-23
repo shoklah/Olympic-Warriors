@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { apiGet, apiPost } from './api.js';
+import { apiGet, apiPost, apiPatch } from './api.js';
 
 const jsonResponse = (status, body) =>
 	new Response(JSON.stringify(body), {
@@ -98,6 +98,27 @@ describe('apiPost', () => {
 		await expect(apiPost(fetch, 'http://api/auth/token/', {})).rejects.toMatchObject({
 			status: 400,
 			body: { message: 'Unable to log in with provided credentials.' }
+		});
+	});
+});
+
+describe('token header', () => {
+	it('apiGet sends the DRF token header when given a token', async () => {
+		const fetch = vi.fn().mockResolvedValue(jsonResponse(200, { is_staff: true }));
+		await apiGet(fetch, 'http://api/user/current/', 'abc');
+		expect(fetch).toHaveBeenCalledWith('http://api/user/current/', {
+			method: 'GET',
+			headers: { authorization: 'Token abc' }
+		});
+	});
+
+	it('apiPatch sends the JSON body and the token', async () => {
+		const fetch = vi.fn().mockResolvedValue(jsonResponse(200, { id: 1 }));
+		await apiPatch(fetch, 'http://api/game/1/score/', { score1: 1 }, 'abc');
+		expect(fetch).toHaveBeenCalledWith('http://api/game/1/score/', {
+			method: 'PATCH',
+			headers: { 'content-type': 'application/json', authorization: 'Token abc' },
+			body: JSON.stringify({ score1: 1 })
 		});
 	});
 });

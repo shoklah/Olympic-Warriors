@@ -43,6 +43,7 @@
 	--bg: #000000;            /* page, same black as the eclipse image */
 	--bg-raised: #141414;     /* rows, cards, tiles */
 	--bg-sunken: #121212;     /* schedule rows */
+	--scrim: rgba(0, 0, 0, 0.6); /* modal backdrop */
 	--line: #262626;          /* borders, rules */
 	--line-strong: #2a2a2a;   /* neutral rank border */
 	--ink: #ffffff;           /* headings, winners */

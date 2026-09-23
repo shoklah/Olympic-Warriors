@@ -1,9 +1,7 @@
 import { screen } from '@testing-library/svelte';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { renderWith } from '$lib/test-utils';
 import Login from './login.svelte';
-
-vi.mock('$app/forms', () => ({ enhance: () => ({ destroy() {} }) }));
 
 describe('login form', () => {
 	it('speaks French under fr and ties a missing-field message to its input', () => {

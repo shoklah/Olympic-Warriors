@@ -1,4 +1,5 @@
 <script>
+	import { formatTime } from '$lib/edition';
 	import { iconFor } from '$lib/icons';
 	import { disciplineName, useLocale, useT } from '$lib/i18n';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
@@ -57,7 +58,7 @@
 					{#if !row.revealed}
 						{t('team.notRevealed')}
 					{:else if row.result_type === 'TIM'}
-						{row.time}
+						{formatTime(row.time)}
 					{:else}
 						{row.points} {t('team.pts')}
 					{/if}

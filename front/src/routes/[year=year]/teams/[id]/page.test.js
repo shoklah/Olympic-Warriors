@@ -4,13 +4,13 @@ import { renderWith } from '$lib/test-utils';
 import Page from './+page.svelte';
 import { load } from './+page.js';
 import { findTeam, teamGames, teamResults } from '$lib/edition';
-import { summary } from '$lib/fixtures/summary.js';
+import { summary, summaryAllRevealed } from '$lib/fixtures/summary.js';
 
-const dataFor = (id) => ({
-	summary,
-	team: findTeam(summary, id),
-	results: teamResults(summary, id),
-	games: teamGames(summary, id)
+const dataFor = (id, s = summary) => ({
+	summary: s,
+	team: findTeam(s, id),
+	results: teamResults(s, id),
+	games: teamGames(s, id)
 });
 
 describe('team page', () => {
@@ -58,6 +58,13 @@ describe('team page', () => {
 		expect(rows[1]).toHaveTextContent(/R1\s*Cerfs\s*— : —\s*Bisons/);
 		// Game 203 (Orienteering) is the third row; the refereed Relay game of Aigles never shows for Bisons.
 		expect(rows[2]).toHaveTextContent(/R1\s*Aigles\s*played\s*Bisons/);
+	});
+
+	it('shows a revealed timed result as mm:ss', () => {
+		renderWith(Page, { data: dataFor(1, summaryAllRevealed) });
+
+		const rows = screen.getAllByTestId('discipline-row');
+		expect(rows[1]).toHaveTextContent(/Orienteering\s*1st\s*12:30/);
 	});
 
 	it('has no games section when the team has no games', () => {

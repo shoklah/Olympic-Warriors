@@ -16,10 +16,14 @@ function messageFrom(body, fallback) {
 	return fallback;
 }
 
-async function request(fetch, url, options) {
+/** The DRF token header when a token is given, nothing otherwise. */
+const authHeaders = (token) => (token ? { authorization: `Token ${token}` } : {});
+
+async function request(fetch, url, options, token = null) {
+	const headers = { ...(options.headers ?? {}), ...authHeaders(token) };
 	let response;
 	try {
-		response = await fetch(url, options);
+		response = await fetch(url, { ...options, headers });
 	} catch {
 		error(502, 'API unreachable');
 	}
@@ -43,15 +47,22 @@ async function request(fetch, url, options) {
 }
 
 /** GET a JSON resource; throws a SvelteKit error on any failure. */
-export function apiGet(fetch, url) {
-	return request(fetch, url, { method: 'GET', headers: {} });
+export function apiGet(fetch, url, token = null) {
+	return request(fetch, url, { method: 'GET', headers: {} }, token);
 }
 
 /** POST a JSON body; throws a SvelteKit error on any failure. */
-export function apiPost(fetch, url, body) {
-	return request(fetch, url, {
-		method: 'POST',
-		headers: { 'content-type': 'application/json' },
-		body: JSON.stringify(body)
-	});
+export function apiPost(fetch, url, body, token = null) {
+	return request(fetch, url, jsonOptions('POST', body), token);
 }
+
+/** PATCH a JSON body; throws a SvelteKit error on any failure. */
+export function apiPatch(fetch, url, body, token = null) {
+	return request(fetch, url, jsonOptions('PATCH', body), token);
+}
+
+const jsonOptions = (method, body) => ({
+	method,
+	headers: { 'content-type': 'application/json' },
+	body: JSON.stringify(body)
+});

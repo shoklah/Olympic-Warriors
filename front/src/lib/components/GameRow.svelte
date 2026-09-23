@@ -23,6 +23,8 @@
 	export let team2Id = null;
 	/** The team whose page this row is on: accent colour, plain text instead of a link. */
 	export let highlightId = null;
+	/** When set, the pairing is a button calling it (the organiser's score sheet). */
+	export let onEdit = null;
 
 	const t = useT();
 
@@ -36,31 +38,50 @@
 </script>
 
 <div class="game-row" data-testid="game-row">
-	<p class="teams">
-		{#if roundLabel}
-			<span class="round label">{roundLabel}</span>
-		{/if}
+	{#if onEdit}
+		<!-- The organiser taps the pairing to open the score sheet: no links inside a button. -->
+		<button type="button" class="teams edit" on:click={onEdit} title={t('orga.edit')}>
+			{#if roundLabel}
+				<span class="round label">{roundLabel}</span>
+			{/if}
+			<span class="team {team1Class}">{name1}</span>
+			<!-- Same score block as the public branch: Svelte 4 has no local snippets. -->
+			{#if hasScore}
+				<span class="score num">{score1} : {score2}</span>
+			{:else if !isPlayed}
+				<span class="score num unplayed">— : —</span>
+			{:else}
+				<span class="score pending">{t('game.played')}</span>
+			{/if}
+			<span class="team right {team2Class}">{name2}</span>
+		</button>
+	{:else}
+		<p class="teams">
+			{#if roundLabel}
+				<span class="round label">{roundLabel}</span>
+			{/if}
 
-		{#if team1Href && !own1}
-			<a class="team {team1Class}" href={team1Href}>{name1}</a>
-		{:else}
-			<span class="team {team1Class}" class:own={own1}>{name1}</span>
-		{/if}
+			{#if team1Href && !own1}
+				<a class="team {team1Class}" href={team1Href}>{name1}</a>
+			{:else}
+				<span class="team {team1Class}" class:own={own1}>{name1}</span>
+			{/if}
 
-		{#if hasScore}
-			<span class="score num">{score1} : {score2}</span>
-		{:else if !isPlayed}
-			<span class="score num unplayed">— : —</span>
-		{:else}
-			<span class="score pending">{t('game.played')}</span>
-		{/if}
+			{#if hasScore}
+				<span class="score num">{score1} : {score2}</span>
+			{:else if !isPlayed}
+				<span class="score num unplayed">— : —</span>
+			{:else}
+				<span class="score pending">{t('game.played')}</span>
+			{/if}
 
-		{#if team2Href && !own2}
-			<a class="team right {team2Class}" href={team2Href}>{name2}</a>
-		{:else}
-			<span class="team right {team2Class}" class:own={own2}>{name2}</span>
-		{/if}
-	</p>
+			{#if team2Href && !own2}
+				<a class="team right {team2Class}" href={team2Href}>{name2}</a>
+			{:else}
+				<span class="team right {team2Class}" class:own={own2}>{name2}</span>
+			{/if}
+		</p>
+	{/if}
 	{#if refereeName}
 		<p class="referee">{t('game.referee', { name: refereeName })}</p>
 	{/if}
@@ -150,5 +171,43 @@
 		margin: 0.25rem 0 0;
 		font-size: 0.8rem;
 		color: var(--muted);
+	}
+
+	.teams.edit {
+		width: 100%;
+		min-height: 44px;
+		background: transparent;
+		border: 0;
+		padding: 0;
+		font: inherit;
+		color: inherit;
+		text-align: inherit;
+		cursor: pointer;
+	}
+
+	.teams.edit .team {
+		text-align: left;
+	}
+
+	.teams.edit .team.right {
+		text-align: right;
+	}
+
+	/* A small chevron after the away team: the only visual hint the pairing is tappable. */
+	.teams.edit::after {
+		content: '';
+		width: 6px;
+		height: 6px;
+		border-right: 2px solid var(--muted);
+		border-bottom: 2px solid var(--muted);
+		transform: rotate(-45deg);
+		flex: none;
+		margin-left: 4px;
+	}
+
+	.teams.edit:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 4px;
+		border-radius: 2px;
 	}
 </style>

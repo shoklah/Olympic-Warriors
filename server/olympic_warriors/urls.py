@@ -56,6 +56,7 @@ urlpatterns = [
     path("teams/", views.getTeams),
     # disciplines
     path("discipline/<int:discipline_id>/", views.getDiscipline),
+    path("discipline/<int:discipline_id>/reveal/", views.setDisciplineReveal),
     path("disciplines/", views.getDisciplines),
     path("disciplines/<int:edition_id>/", views.getDisciplinesByEdition),
     # player ratings
@@ -64,6 +65,7 @@ urlpatterns = [
     path("ratings/player/<int:player_id>/", views.getPlayerRatingsByPlayer),
     # games
     path("game/<int:game_id>/", views.getGame),
+    path("game/<int:game_id>/score/", views.setGameScore),
     path("games/", views.getGames),
     path("games/discipline/<int:discipline_id>/", views.getGamesByDiscipline),
     path("games/team/<int:team_id>/", views.getGamesByTeam),
@@ -93,6 +95,7 @@ urlpatterns = [
     path("events/team/<int:team_id>/", views.getGameEventsByTeam),
     # rounds
     path("round/<int:round_id>/", views.getRound),
+    path("round/<int:round_id>/close/", views.closeRound),
     path("rounds/", views.getRounds),
     path("rounds/discipline/<int:discipline_id>/", views.getRoundsByDiscipline),
     # blindtest guesses
@@ -114,6 +117,7 @@ urlpatterns = [
     path("blindtest/guess/<int:guess_id>/answer/", views.setBlindtestGuessAnswer),
     # team results
     path("result/<int:result_id>/", views.getTeamResult),
+    path("result/<int:result_id>/value/", views.setTeamResult),
     path("results/", views.getTeamResults),
     path("results/team/<int:team_id>/", views.getTeamResultsByTeam),
     path("results/discipline/<int:discipline_id>/", views.getTeamResultsByDiscipline),
