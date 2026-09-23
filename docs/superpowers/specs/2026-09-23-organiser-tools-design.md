@@ -45,6 +45,10 @@ Django admin.
 - **Last write wins**; no version check on saves.
 - **Result values:** points are integers zero or more; times `mm:ss` with
   seconds below 60; an empty field clears the value (the team shows a dash).
+  A fresh result of a discipline without games has `points = None` and a
+  timed one `time = None` (`Discipline.register_teams` no longer writes `0`
+  and `00:00:00` there), so "no result yet" is a null, never a zero; a
+  discipline with games keeps `points = 0` until a game is played.
 - **Sheet on phones, dialog on desktop**, same component, split at 1000px.
 - **Out of scope:** audit trail of who changed what, reopening a round,
   game events, controls on the team and ranking pages, a login link in the
@@ -73,7 +77,7 @@ the next Swiss round.
 | Method and path | Body | Effect | Errors |
 |---|---|---|---|
 | `PATCH /game/<id>/score/` | `{"score1": int, "score2": int, "is_played": bool}` (all three required) | sets the three fields, saves | 400 on a missing field, a negative or non-integer score; 404 on an inactive or unknown game; 409 outside the latest edition |
-| `PATCH /result/<id>/` | `{"points": int \| null}` for a `PTS` discipline, `{"time": "mm:ss" \| null}` for a `TIM` one | sets the value (`null` clears it), saves | 400 on the wrong field for the type, a negative or non-integer points value, a time not matching `^\d{1,3}:[0-5]\d$`, or a `NON` discipline; 400 when the discipline has rounds (its points are computed); 404; 409 |
+| `PATCH /result/<id>/value/` | `{"points": int \| null}` for a `PTS` discipline, `{"time": "mm:ss" \| null}` for a `TIM` one | sets the value (`null` clears it), saves | 400 on the wrong field for the type, a negative or non-integer points value, a time not matching `^\d{1,3}:[0-5]\d$`, or a `NON` discipline; 400 when the discipline has rounds (its points are computed); 404; 409 |
 | `PATCH /discipline/<id>/reveal/` | `{"reveal_score": bool}` | sets the flag, saves | 400 on a missing flag; 404; 409 |
 | `PATCH /round/<id>/close/` | none | sets `is_over = True`, saves (which schedules the next Swiss round) | 409 `{"error": "Some games are not played yet"}` while an active game of the round is unplayed; 409 when already over; 404; 409 outside the latest edition |
 
@@ -129,7 +133,8 @@ and stored points but null ranking; public summary unchanged;
 ### Session
 
 - `/login` stores the bare token in a cookie named `token` (httpOnly,
-  secure off localhost, SameSite strict, path `/`, one week). The old
+  secure off localhost, SameSite lax so an organiser arriving from an outside
+  link is still logged in, path `/`, one week). The old
   `Authorization` cookie name and its `Bearer` prefix go; the API wants
   `Authorization: Token <key>` and `api.js` builds that header from the
   cookie value when one is given.
@@ -138,8 +143,9 @@ and stored points but null ranking; public summary unchanged;
   `/lang`), a `load` that 303s to `/`.
 - The root `+layout.server.js` reads the cookie. With one, it calls
   `/user/current/` with the token: `is_staff` true gives `organiser: true`;
-  a 401 or 403 deletes the cookie and gives `organiser: false`; any other
-  failure gives `organiser: false` and keeps the cookie. Without a cookie,
+  a 401 or 403 deletes the cookie and gives `organiser: false`; a player's
+  token (200, not staff) and any other failure give `organiser: false` and
+  keep the cookie. Without a cookie,
   `organiser: false`. The layout returns `organiser` next to `editions`,
   `latestYear` and `locale`, and `+layout.svelte` puts it in context under
   `ORGANISER` (exported from `$lib/session.js` with `useOrganiser()`, the
@@ -159,7 +165,7 @@ Rendered only when `data.editable`:
 - **Staff bar** (`StaffBar.svelte`) between the title and the rail. Hidden
   discipline: `orga.hidden` (`Résultats masqués pour le public`), the
   missing count, and a `orga.reveal` button. Revealed: `orga.public`
-  (`Résultats publics`) and a `orga.hide` button. The missing count:
+  (`Résultats publics`) and a `orga.hide` button, no count. The missing count:
   `discipline.toPlay` with the unplayed games for a discipline with rounds,
   `orga.missingResults` (`{n} équipe sans résultat` / `{n} équipes sans
   résultat`) for one without; nothing when nothing is missing. One form
@@ -167,8 +173,9 @@ Rendered only when `data.editable`:
 - **Results entry** for a discipline without rounds: replaces the results
   list (or the not-revealed line). One line per team, `data-testid="result-line"`,
   in rank order when revealed else by name: the team name, a field
-  (`inputmode="numeric"` for points, a text field with placeholder `mm:ss`
-  and `pattern="[0-9]{1,3}:[0-5][0-9]"` for time), a `orga.save` button.
+  (`inputmode="numeric"` for points; for time a plain text field with the
+  default keyboard, since the numeric keypad has no colon, placeholder
+  `mm:ss` and pattern `[0-9]{1,3}:[0-5][0-9]`), a `orga.save` button.
   Each line is a form posting to the `result` action with the result id.
   For a discipline with rounds the results list stays as it is (points are
   computed).
@@ -176,7 +183,9 @@ Rendered only when `data.editable`:
   type="button">` when the callback is set, with the score inside, and the
   page opens `ScoreSheet` for that game. Public rows are unchanged.
 - **`ScoreSheet.svelte`**: props `game` (a `disciplineSchedule` game),
-  `roundNumber`, `open`. A `<dialog>` element: below 1000px it is a bottom
+  `roundNumber`, `open`, `error`. A `div` with `role="dialog"` and
+  `aria-modal` over a backdrop (jsdom has no `<dialog>` support; no focus
+  trap, the backdrop covers the page and Escape closes): below 1000px it is a bottom
   sheet (full width, rounded top corners, slides up), from 1000px a centred
   420px dialog. Contents: a label line `Tour n · arbitre : X`, one line per
   team with the name, a minus button, a number field (`inputmode="numeric"`,
@@ -186,15 +195,17 @@ Rendered only when `data.editable`:
   posting to the `score` action with the game id, `use:enhance`. The
   steppers change the field locally and never go below 0. Escape, the
   backdrop and cancel close it. Focus goes to the first field on open and
-  back to the row's button on close.
+  back to the row's button on close (the page keeps the opener).
 - **Close round**: on a Swiss discipline, when every game of a round is
   played and the round is not over, the round header shows a
   `orga.closeRound` button (`Clore le tour`) posting to the `close` action
   with the round id. A closed round shows `orga.roundClosed` (`Terminé`) in
   its label instead of the game count.
 - **Errors**: an action returns `fail(status, { action, id, error: key })`
-  where `key` is one of `orga.error.unauthorised` (401/403, `Session
-  expirée, reconnectez-vous`), `orga.error.invalid` (400, `Valeur refusée`),
+  where `key` is one of `orga.error.unauthorised` (401, `Session expirée,
+  reconnectez-vous`), `orga.error.forbidden` (403), `orga.error.invalid`
+  (400, `Valeur refusée`, also when the action itself refuses a non-numeric
+  or negative value),
   `orga.error.conflict` (409, `Impossible pour cette édition ou ce tour`),
   `orga.error.failed` (anything else). The control that failed shows the
   line under itself; the sheet stays open on failure.
@@ -226,18 +237,19 @@ Keys added to both files (French first):
 | `orga.pill` | Orga | Orga |
 | `orga.logout` | Se déconnecter | Log out |
 | `orga.hidden` | Résultats masqués pour le public | Results hidden from the public |
-| `orga.public` | Résultats publics | Results public |
+| `orga.public` | Résultats publics | Results are public |
 | `orga.reveal` | Dévoiler | Reveal |
 | `orga.hide` | Masquer | Hide |
 | `orga.missingResults` | `{one: '{n} équipe sans résultat', other: '{n} équipes sans résultat'}` | `{one: '{n} team without a result', other: '{n} teams without a result'}` |
 | `orga.edit` | Saisir le score | Enter the score |
-| `orga.played` | joué | played |
+| `orga.played` | Joué | Played |
 | `orga.save` | Enregistrer | Save |
 | `orga.cancel` | Annuler | Cancel |
 | `orga.closeRound` | Clore le tour | Close the round |
 | `orga.roundClosed` | Terminé | Done |
 | `orga.timeHint` | mm:ss | mm:ss |
 | `orga.error.unauthorised` | Session expirée, reconnectez-vous | Session expired, log in again |
+| `orga.error.forbidden` | Réservé aux organisateurs | Organisers only |
 | `orga.error.invalid` | Valeur refusée | Value refused |
 | `orga.error.conflict` | Impossible pour cette édition ou ce tour | Not possible for this edition or round |
 | `orga.error.failed` | Échec de l'enregistrement | Could not save |
