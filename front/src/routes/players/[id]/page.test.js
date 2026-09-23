@@ -57,7 +57,7 @@ describe('player profile page', () => {
 		expect(within(breadcrumb).getByRole('link', { name: 'Joueurs' })).toHaveAttribute('href', '/players');
 		expect(screen.getByRole('heading', { level: 2, name: 'Éditions' })).toBeInTheDocument();
 		expect(screen.getByTestId('position')).toHaveTextContent(/3\s*général/);
-		expect(screen.getByTestId('average-rank')).toHaveTextContent(/Rang moyen\s*2,5/);
+		expect(screen.getByTestId('average-rank')).toHaveTextContent(/Classement moyen\s*2,5/);
 		expect(screen.queryByTestId('beaten')).toBeNull();
 		expect(screen.getByText('4 éditions · 2 classées')).toBeInTheDocument();
 		const rows = screen.getAllByTestId('edition-row');

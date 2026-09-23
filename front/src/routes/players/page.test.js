@@ -31,6 +31,7 @@ describe('players leaderboard page', () => {
 		expect(rows[0]).toHaveAttribute('href', '/players/12');
 		expect(within(rows[0]).getByTestId('places')).toHaveAttribute('aria-hidden', 'true');
 		expect(within(rows[0]).getByTestId('average')).toHaveAttribute('aria-hidden', 'true');
+		expect(within(rows[0]).getByText('avg')).toHaveClass('short');
 		rows.forEach((row) => expect(within(row).getByTestId('average')).toBeInTheDocument());
 		expect(
 			screen.getByRole('link', {
@@ -108,13 +109,14 @@ describe('players leaderboard page', () => {
 		expect(screen.getByText('Le panthéon des Warriors')).toBeInTheDocument();
 		const rows = screen.getAllByTestId('player-row');
 		expect(rows[0]).toHaveTextContent(
-			/1\s*Léa Martin\s*1\s*2\s*1re place en 2024, 2e place en 2026, rang moyen 1,5\s*1,5\s*rang moyen/
+			/1\s*Léa Martin\s*1\s*2\s*1re place en 2024, 2e place en 2026, classement moyen 1,5\s*1,5\s*classement moyen/
 		);
 		expect(
 			screen.getByRole('link', {
-				name: /^1\s*Léa Martin\s*1re place en 2024, 2e place en 2026, rang moyen 1,5$/
+				name: /^1\s*Léa Martin\s*1re place en 2024, 2e place en 2026, classement moyen 1,5$/
 			})
 		).toBeInTheDocument();
+		expect(within(rows[0]).getByText('moy.')).toHaveClass('short');
 		expect(screen.getByRole('heading', { name: 'Pas encore classés' })).toBeInTheDocument();
 	});
 });

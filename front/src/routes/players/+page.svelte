@@ -58,7 +58,8 @@
 						</span>
 						<span class="average" data-testid="average" aria-hidden="true">
 							<span class="num value">{formatAverage(player.average_rank, locale)}</span>
-							<span class="label">{t('players.averageRank')}</span>
+							<span class="label long">{t('players.averageRank')}</span>
+							<span class="label short">{t('players.averageRankShort')}</span>
 						</span>
 					</a>
 				</li>
@@ -220,11 +221,20 @@
 
 	.average .label {
 		text-align: right;
+		white-space: nowrap;
 	}
 
-	@media (max-width: 359.98px) {
-		.row:not(.waiting) {
-			grid-template-columns: 44px minmax(0, 1fr) min-content;
+	.average .short {
+		display: none;
+	}
+
+	@media (max-width: 479.98px) {
+		.average .long {
+			display: none;
+		}
+
+		.average .short {
+			display: block;
 		}
 	}
 </style>
