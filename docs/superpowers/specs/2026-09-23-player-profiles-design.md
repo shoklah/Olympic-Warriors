@@ -1,14 +1,19 @@
-# Player profiles: edition history and averages
+# Player profiles: edition history, places and average rank
 
 ## Goal
 
 Give every person who played a public profile with their rank in each edition and their
-averages across editions, plus an all-time leaderboard of players at `/players`, ranked
-like a medal table on their places.
+average rank across editions, plus an all-time leaderboard of players at `/players`,
+ranked like a medal table on their places.
 
 > **Revised 2026-09-23 (after the first build):** the leaderboard no longer ranks on the
 > averages. It ranks on places (number of 1st places, then 2nd places, and so on), and
-> its rows show those places. The averages stay, on the profile page only.
+> its rows show those places.
+>
+> **Second revision, same day:** the teams-beaten share is gone everywhere, and the
+> average rank is shown on the leaderboard rows (right-hand column) as well as on the
+> profile. It still plays no part in the order. The leaderboard subtitle is « Le
+> panthéon des Warriors » / "The Warriors hall of fame".
 
 This is the first of three steps:
 
@@ -47,24 +52,20 @@ Nothing here builds steps 2 or 3, but the payloads leave room for them (see
   Europe/Paris. `settings.TIME_ZONE` is UTC, so the date is taken with
   `datetime.now(ZoneInfo("Europe/Paris")).date()`, not `timezone.localdate()`.
 - **Counted participation.** Finished, with a rank, in an edition of at least 2 teams.
-- **Share beaten.** `(teams - rank) / (teams - 1)`, clamped to `[0, 1]`: 100% for 1st,
-  0% for last, and shared ranks give shared shares. The clamp only matters for bad data,
-  such as a `final_rank` larger than the team count.
 - **Places.** The ranks of a person's counted participations, sorted best first (a
   lower rank first; equal ranks newest edition first). Each place keeps its year.
-- **Averages** (shown on the profile only), over counted participations:
+- **Average rank** (shown on the leaderboard rows and on the profile), over counted
+  participations:
   - `average_rank`: the mean rank, rounded to one decimal (Python's `round`, which
-    rounds halves to even);
-  - `average_beaten`: the mean share beaten, as a whole percentage (0 to 100);
-  - `counted`: the number of counted participations;
-  - both averages are `None` when `counted` is 0.
+    rounds halves to even), `None` when `counted` is 0;
+  - `counted`: the number of counted participations.
 - **Leaderboard.** Every person, split into two groups:
   - **Ranked** (`counted` ≥ 1): ordered like a medal table on their places: more 1st
     places first; at equal 1st places, more 2nd places; then more 3rd places; and so on
     down every place. An extra lower place therefore counts in a person's favour: one
     1st place and one 5th place ranks above a lone 1st place. People with the same count
     at every place share a position (1, 1, 3) and are listed by last name then first name
-    (accent-insensitive). The averages play no part.
+    (accent-insensitive). The average rank plays no part.
   - **Not ranked yet** (`counted` = 0): `position` is `None`, sorted by last name and
     first name.
 
@@ -97,10 +98,8 @@ class PlayerRecord:
     places: tuple[Participation, ...]           # counted ones, best rank first
     counted: int
     average_rank: float | None
-    average_beaten: int | None
     position: int | None
 
-def beaten_share(rank, teams) -> float | None
 def leaderboard(today=None) -> list[PlayerRecord]   # sorted as defined above
 ```
 
@@ -125,19 +124,20 @@ Both are public, with `@permission_classes([AllowAny])` below `@api_view`, and w
 ```json
 [
   {"id": 12, "first_name": "Léa", "last_name": "Martin", "played": 3, "counted": 2,
+   "average_rank": 1.5,
    "places": [{"year": 2024, "rank": 1}, {"year": 2026, "rank": 2}], "position": 1}
 ]
 ```
 
 `played` is the number of participations, finished or not. The profile below lists them
-as `editions` instead. The leaderboard rows carry no averages: those are on the profile.
+as `editions` instead. The average rank is shown on the row but plays no part in the order.
 
 `GET /profile/<user_id>/`: one person.
 
 ```json
 {
   "id": 34, "first_name": "Xavier", "last_name": "Baby",
-  "position": 4, "counted": 2, "average_rank": 2.5, "average_beaten": 76,
+  "position": 4, "counted": 2, "average_rank": 2.5,
   "editions": [
     {"year": 2030, "team": {"id": 40, "name": "Les Aigles"}, "rank": null, "teams": 4, "finished": false},
     {"year": 2026, "team": {"id": 21, "name": "MxM"}, "rank": 2, "teams": 6, "finished": true},
@@ -221,9 +221,8 @@ server-only.
 
 ### Leaderboard page (`/players`)
 
-- `h1` "Joueurs" / "Players", with a muted sentence under it: "Classés par nombre de
-  1res places, puis de 2es, puis de 3es…" / "Ranked by 1st places, then 2nd, then
-  3rd…".
+- `h1` "Joueurs" / "Players", with a muted subtitle under it: « Le panthéon des
+  Warriors » / "The Warriors hall of fame" (it doesn't explain the order).
 - **Ranked rows** (the list is not rendered when nobody is ranked). Each row shows:
   - `MedalRank` for the position (gold, silver or bronze for 1–3, shared on ties);
   - the name, linking to `/players/<id>`;
@@ -233,7 +232,8 @@ server-only.
     visually hidden sentence reads them instead: "1re place en 2024, 2e place en 2021" /
     "1st place in 2024, 2nd place in 2021" (French ordinals are feminine, agreeing with
     "place").
-  - No averages and no share: those are on the profile.
+  - on the right, the average rank as a large `.num` figure (`formatAverage`: `1,5` /
+    `1.5`) with a small `.label` under it, « rang moyen » / "avg rank".
 - **"Pas encore classés" / "Not ranked yet"** section heading, then the name rows with
   `played` ("1 édition" / "1 edition"), and no position or places.
 - The server sends the order, and the page does not re-sort.
@@ -245,11 +245,9 @@ server-only.
 - **Position line.** `MedalRank` for the all-time position as a plain number (a French
   ordinal would have to guess the player's gender: 1er or 1re), with the label
   "général" / "all-time", linking to `/players`. It is omitted when `position` is null.
-- **Two figures**, side by side at the same size, neither one the headline:
-  - Average rank: `average_rank`, shown as `2,5` in French and `2.5` in English.
-  - Teams beaten: `average_beaten`, shown as `71 %` in French and `71%` in English.
-  - When `counted` is 0, both show `—` and a line reads "Aucune édition classée pour
-    l'instant" / "No ranked edition yet".
+- **One figure**, the average rank (`2,5` in French, `2.5` in English), in a card that
+  keeps half the width. When `counted` is 0 it shows `—` and a line reads "Aucune
+  édition classée pour l'instant" / "No ranked edition yet".
 - **Counts line.** "3 éditions · 2 classées" / "3 editions · 2 counted".
 - **Editions section**, newest first, one row per participation:
   - the year, linking to `/<year>`;
@@ -289,9 +287,8 @@ ranking, a profile is reached through the team page.
 ### Helpers and i18n
 
 - `src/lib/players.js` holds pure, locale-aware formatters:
-  - `formatAverage(value, locale)`: one decimal, with a French comma;
-  - `formatShare(value, locale)`: `Intl.NumberFormat` percent, giving a no-break
-    space before `%` in French;
+  - `formatAverage(value, locale)`: one decimal, with a French comma (leaderboard and
+    profile);
   - `editionStatus(participation)`: `'ranked' | 'inProgress' | 'unranked'`;
   - `fullName(person)`: first and last name, or `—` when both are blank (leaderboard,
     profile and team page roster chips).
@@ -299,7 +296,8 @@ ranking, a profile is reached through the team page.
   - `nav.players` and `hub.players`;
   - the page titles and subtitle;
   - "Not ranked yet";
-  - the average rank and teams beaten labels;
+  - the average rank labels (`profile.averageRank`, and `players.averageRank` for the
+    row);
   - "all-time", and the position link's visually hidden hint (`profile.positionHint`);
   - the counts, as `{ one, other }` plural messages;
   - "No team recorded";
@@ -321,10 +319,6 @@ Neither is built here.
 ## Testing
 
 Server (`tests/test_profiles.py`):
-- `beaten_share`:
-  - 1st gives 1.0, last gives 0.0, shared ranks give equal shares;
-  - `None` below 2 teams;
-  - clamped when the rank is larger than the team count.
 - `leaderboard()` with an injected `today`:
   - an unfinished edition shows its team with a `None` rank and is not counted;
   - a finished edition counts from the day after `end_date`, by the Paris date;
@@ -332,7 +326,7 @@ Server (`tests/test_profiles.py`):
   - a hand-ranked edition uses `final_rank`, and a team without one gives a `None` rank;
   - an inactive player, team or edition drops out;
   - a duplicate (user, edition) pair collapses to the row with a team;
-  - the averages and their rounding are correct (profile figures);
+  - the average rank and its rounding are correct, and no share exists any more;
   - places are the counted ranks, best first, equal ranks newest first;
   - the medal-table order: more 1st places first, then 2nd places, and so on; an extra
     lower place ranks a person above an otherwise equal one; identical counts share a
@@ -357,12 +351,12 @@ Front:
 - `players.test.js` for the formatters and `editionStatus`, including French and English
   outputs.
 - `players/page.test.js`:
-  - leaderboard rows read like `1 Léa Martin 1 2` (position, name, places), with the
-    hidden sentence `1st place in 2024, 2nd place in 2026`;
+  - leaderboard rows read like `1 Léa Martin 1 2 1st place in 2024, 2nd place in 2026
+    1.5 avg rank` (position, name, places, hidden sentence, average rank);
   - the not-ranked group has no position;
   - one French test.
 - `players/[id]/page.test.js`:
-  - the headline figures;
+  - the average-rank figure, and no teams-beaten figure;
   - edition rows read like `2026 MxM 2 / 6`, `2030 Les Aigles In progress` and
     `2024 No team recorded`;
   - the no-ranked-edition state;
