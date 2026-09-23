@@ -232,15 +232,23 @@ class TestLeaderboard(ProfilesSetup, TestCase):
         # Dan: 3rd of 4 (1/3 beaten).
         self.assertEqual((rows["Dan"].average_rank, rows["Dan"].average_beaten), (3.0, 33))
 
-    def test_ranked_by_share_then_mean_rank_then_editions_with_shared_positions(self):
+    def test_ranked_like_a_medal_table(self):
         order = [(record.first_name, record.position) for record in leaderboard(TODAY)]
 
-        # Ana and Chloé tie on (100%, 1.0): shared 1st, Ana first for her 2 editions.
+        # Ana has two 1st places, Chloé one, Bob none but two 2nd places, Dan one 3rd.
         # Then the not-ranked-yet group by last name: Adam (Eve), Brun (Fay).
         self.assertEqual(
             order,
-            [("Ana", 1), ("Chloé", 1), ("Bob", 3), ("Dan", 4), ("Eve", None), ("Fay", None)],
+            [("Ana", 1), ("Chloé", 2), ("Bob", 3), ("Dan", 4), ("Eve", None), ("Fay", None)],
         )
+
+    def test_places_are_the_counted_ranks_best_first(self):
+        rows = self.rows()
+
+        self.assertEqual([(p.year, p.rank) for p in rows["Ana"].places], [(2025, 1), (2024, 1)])
+        self.assertEqual([(p.year, p.rank) for p in rows["Bob"].places], [(2025, 2), (2024, 2)])
+        self.assertEqual(rows["Eve"].places, ())  # 2026 is still running
+        self.assertEqual(rows["Fay"].places, ())  # no team in 2024
 
     def test_nothing_counted_means_no_figures_and_no_position(self):
         rows = self.rows()
@@ -309,32 +317,50 @@ class TestRecordAndPlace(SimpleTestCase):
     def user(user_id, first_name, last_name):
         return SimpleNamespace(id=user_id, first_name=first_name, last_name=last_name)
 
-    def test_positions_compare_the_rounded_share_not_the_raw_mean(self):
-        # P: 2nd of 4 then 2nd of 3, raw mean share 7/12 = 0.58333...
-        p = self.user(1, "P", "Petit")
-        p_parts = (
-            Participation(2024, None, None, 2, 4, True),
-            Participation(2023, None, None, 2, 3, True),
-        )
-        # Q: 2nd of 2, 4, 6 and 8, raw mean share ~0.58095: different from P's, but both
-        # round to 58%.
-        q = self.user(2, "Q", "Quinn")
-        q_parts = (
-            Participation(2024, None, None, 2, 2, True),
-            Participation(2023, None, None, 2, 4, True),
+    @staticmethod
+    def parts(*ranks_by_year):
+        """Counted participations from (year, rank) pairs, each in a 10-team edition."""
+        return tuple(Participation(year, None, None, rank, 10, True) for year, rank in ranks_by_year)
+
+    def placed(self, *records):
+        return [(record.first_name, record.position) for record in _place(list(records))]
+
+    def test_one_first_place_beats_any_number_of_second_places(self):
+        a = _record(self.user(1, "A", "Aa"), self.parts((2024, 1)))
+        b = _record(self.user(2, "B", "Bb"), self.parts((2024, 2), (2023, 2), (2022, 2)))
+
+        self.assertEqual(self.placed(b, a), [("A", 1), ("B", 2)])
+
+    def test_an_extra_lower_place_counts_in_a_persons_favour(self):
+        a = _record(self.user(1, "A", "Aa"), self.parts((2024, 1)))
+        b = _record(self.user(2, "B", "Bb"), self.parts((2024, 1), (2023, 5)))
+
+        self.assertEqual(self.placed(a, b), [("B", 1), ("A", 2)])
+
+    def test_more_of_a_lower_place_breaks_a_tie_on_the_better_ones(self):
+        a = _record(self.user(1, "A", "Aa"), self.parts((2024, 1), (2023, 3)))
+        b = _record(self.user(2, "B", "Bb"), self.parts((2024, 1), (2023, 2)))
+
+        self.assertEqual(self.placed(a, b), [("B", 1), ("A", 2)])
+
+    def test_identical_places_share_a_position_listed_by_name(self):
+        zoe = _record(self.user(1, "Zoé", "Zola"), self.parts((2024, 1), (2022, 3)))
+        ada = _record(self.user(2, "Ada", "Adam"), self.parts((2023, 3), (2021, 1)))
+        max_ = _record(self.user(3, "Max", "Mars"), self.parts((2024, 2)))
+
+        self.assertEqual(self.placed(zoe, max_, ada), [("Ada", 1), ("Zoé", 1), ("Max", 3)])
+
+    def test_places_are_best_first_then_newest_first_and_skip_uncounted(self):
+        parts = (
+            Participation(2025, None, None, None, 6, False),  # running
+            Participation(2024, None, None, 2, 6, True),
+            Participation(2023, None, None, 1, 6, True),
             Participation(2022, None, None, 2, 6, True),
-            Participation(2021, None, None, 2, 8, True),
         )
 
-        p_record = _record(p, p_parts)
-        q_record = _record(q, q_parts)
+        record = _record(self.user(4, "R", "Roy"), parts)
 
-        self.assertEqual((p_record.average_beaten, q_record.average_beaten), (58, 58))
-        self.assertEqual((p_record.average_rank, q_record.average_rank), (2.0, 2.0))
-
-        placed = {record.first_name: record.position for record in _place([p_record, q_record])}
-
-        self.assertEqual(placed, {"P": 1, "Q": 1})
+        self.assertEqual([(p.year, p.rank) for p in record.places], [(2023, 1), (2024, 2), (2022, 2)])
 
     def test_average_rank_can_be_fractional(self):
         user = self.user(3, "R", "Roy")
@@ -384,13 +410,12 @@ class TestProfileEndpoints(ProfilesSetup, TestCase):
                 "last_name": "Lopez",
                 "played": 3,
                 "counted": 2,
-                "average_rank": 1.0,
-                "average_beaten": 100,
+                "places": [{"year": 2025, "rank": 1}, {"year": 2024, "rank": 1}],
                 "position": 1,
             },
         )
-        self.assertEqual(response.data[4]["position"], None)
-        self.assertEqual(response.data[4]["average_rank"], None)
+        self.assertEqual(response.data[1]["position"], 2)  # Chloé: one 1st place
+        self.assertEqual((response.data[4]["places"], response.data[4]["position"]), ([], None))
 
     def test_profile_lists_every_edition_newest_first(self):
         response = self.client.get(f"/profile/{self.ana.id}/")

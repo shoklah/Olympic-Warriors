@@ -193,9 +193,10 @@ def getPlayersByTeam(request, team_id):
 @extend_schema(
     summary="Every person who played, in all-time leaderboard order",
     description=(
-        "Ranked people first by share of teams beaten (shared positions on ties), then "
-        "the ones with no counted edition yet (finished, ranked, at least two teams), by name "
-        "and without a position."
+        "Ranked people first, like a medal table on their places (more 1st places, then "
+        "more 2nd places, and so on; identical places share a position), then the ones "
+        "with no counted edition yet (finished, ranked, at least two teams), by name and "
+        "without a position."
     ),
     responses={
         "200": LeaderboardRowSerializer(many=True),

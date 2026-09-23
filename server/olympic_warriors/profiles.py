@@ -16,11 +16,14 @@ The rules (see the player profiles design spec under docs/superpowers/specs/):
 - the share beaten is (teams - rank) / (teams - 1), clamped to [0, 1];
 - averages are over counted participations: mean rank to one decimal, mean share as a
   whole percentage;
-- the leaderboard sorts ranked people by share, then mean rank, then counted editions,
-  then name; equal (share, mean rank) pairs share a position; people with nothing
-  counted follow by name, without a position.
+- the leaderboard ranks people like a medal table on their places (the ranks of their
+  counted participations): more 1st places first, then more 2nd places, and so on; an
+  extra lower place counts in a person's favour; identical places share a position and
+  are listed by name; people with nothing counted follow by name, without a position.
+  The averages are profile figures and play no part in the order.
 """
 
+import math
 import unicodedata
 from dataclasses import dataclass, replace
 from datetime import datetime
@@ -164,12 +167,13 @@ def participations(today=None):
 
 @dataclass(frozen=True)
 class PlayerRecord:
-    """A person's editions and averages, with their place on the leaderboard."""
+    """A person's editions, places and averages, with their place on the leaderboard."""
 
     user_id: int
     first_name: str
     last_name: str
     participations: tuple[Participation, ...]
+    places: tuple[Participation, ...]  # the counted participations, best rank first
     counted: int
     average_rank: float | None
     average_beaten: int | None
@@ -194,6 +198,7 @@ def _record(user, parts):
         first_name=user.first_name,
         last_name=user.last_name,
         participations=parts,
+        places=tuple(sorted(counted_parts, key=lambda part: (part.rank, -part.year))),
         counted=len(counted_parts),
         average_rank=average_rank,
         average_beaten=average_beaten,
@@ -211,24 +216,32 @@ def _by_name(record):
     return (_sort_key(record.last_name), _sort_key(record.first_name), record.user_id)
 
 
+def _medal_key(record):
+    """
+    Medal-table key: the record's ranks best first, then a sentinel above every rank.
+    Comparing two keys compares the number of 1st places, then of 2nd places, and so on:
+    at the first difference the lower rank wins, and a record that runs out of places
+    loses to one that still has a place, so an extra lower place counts in its favour.
+    """
+    return (*(place.rank for place in record.places), math.inf)
+
+
 def _place(records):
     """
-    The ranked records in leaderboard order with their shared positions, then the
-    records with nothing counted, sorted by name and without a position. Positions
-    compare the rounded (average_beaten, average_rank) pair the API returns, so two
-    records whose raw means round to the same pair share a position even when their raw
-    means differ.
+    The ranked records in medal-table order with shared positions (identical places
+    share one, listed by name), then the records with nothing counted, by name and
+    without a position.
     """
     ranked = sorted(
         (record for record in records if record.counted),
-        key=lambda r: (-r.average_beaten, r.average_rank, -r.counted, *_by_name(r)),
+        key=lambda r: (_medal_key(r), *_by_name(r)),
     )
     placed = []
     position, previous = None, None
     for index, record in enumerate(ranked, start=1):
-        pair = (record.average_beaten, record.average_rank)
-        if pair != previous:
-            position, previous = index, pair
+        key = _medal_key(record)
+        if key != previous:
+            position, previous = index, key
         placed.append(replace(record, position=position))
     waiting = sorted((record for record in records if not record.counted), key=_by_name)
     return placed + waiting

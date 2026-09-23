@@ -466,9 +466,17 @@ class ProfileEditionSerializer(serializers.Serializer):
         return {"id": obj.team_id, "name": obj.team_name}
 
 
+class PlaceSerializer(serializers.Serializer):
+    """One counted edition of a person: the year and the team's rank that year."""
+
+    year = serializers.IntegerField()
+    rank = serializers.IntegerField()
+
+
 class LeaderboardRowSerializer(serializers.Serializer):
     """
-    A person on the all-time leaderboard (a PlayerRecord, see olympic_warriors.profiles).
+    A person on the all-time leaderboard (a PlayerRecord, see olympic_warriors.profiles):
+    places only, the averages are on the profile.
     Public: names only, never the username (the login name) nor the email.
     """
 
@@ -477,8 +485,7 @@ class LeaderboardRowSerializer(serializers.Serializer):
     last_name = serializers.CharField()
     played = serializers.IntegerField()
     counted = serializers.IntegerField()
-    average_rank = serializers.FloatField(allow_null=True)
-    average_beaten = serializers.IntegerField(allow_null=True)
+    places = PlaceSerializer(many=True, help_text="Counted editions, best rank first")
     position = serializers.IntegerField(allow_null=True)
 
 
