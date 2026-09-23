@@ -178,7 +178,8 @@ class TestPointsDiscipline(StandingsSetup):
         Relay.objects.filter(pk=hidden.pk).update(is_active=False)
         standings = compute_standings(self.edition)
 
-        ghost_result = TeamResult.objects.get(team=self.ghost, discipline=self.darts)
+        # Discipline.save() registers active teams only; give the ghost a row by hand.
+        ghost_result = TeamResult.objects.create(team=self.ghost, discipline=self.darts)
         self.assertNotIn(ghost_result.id, standings.results)
         self.assertNotIn(self.result(self.team_a, hidden).id, standings.results)
         self.assertEqual(standings.result(ghost_result.id), ResultStanding())
@@ -207,15 +208,16 @@ class TestTimeDiscipline(StandingsSetup):
 
 class TestTeamStandings(StandingsSetup):
     def test_totals_sum_global_points_and_rank_teams(self):
-        self.play(self.team_a, 5, self.team_b, 2)  # darts: A 6, B 1, C 3 (tied 0 pts, rank 3), D 3
+        self.play(self.team_a, 5, self.team_b, 2)  # darts: A 3 pts (+3), B 0 (-3)
+        self.play(self.team_c, 0, self.team_d, 0)  # C 1 pt (0), D 1 pt (0)
         relay = Relay.objects.create(edition=self.edition, reveal_score=True)
-        TeamResult.objects.filter(discipline=relay, team=self.team_b).update(points=1)  # B 6
+        TeamResult.objects.filter(discipline=relay, team=self.team_b).update(points=1)
         standings = compute_standings(self.edition)
 
         self.assertEqual(standings.team(self.team_b.id), TeamStanding(1, 7))
         self.assertEqual(standings.team(self.team_a.id), TeamStanding(2, 6))
-        self.assertEqual(standings.team(self.team_c.id), TeamStanding(3, 3))
-        self.assertEqual(standings.team(self.team_d.id), TeamStanding(3, 3))
+        self.assertEqual(standings.team(self.team_c.id), TeamStanding(3, 4))
+        self.assertEqual(standings.team(self.team_d.id), TeamStanding(3, 4))
 
     def test_runs_in_three_queries(self):
         self.play(self.team_a, 5, self.team_b, 2)
@@ -246,7 +248,7 @@ class TestManualRanking(StandingsSetup):
         self.assertEqual(compute_standings(self.edition).team(self.team_a.id).total_points, 0)
 ```
 
-Arithmetic behind `test_totals_sum_global_points_and_rank_teams`: darts has 4 registered results; A rank 1 → 4-1+1+2 = 6; B rank 4 → 1; C and D have 0 points and difference 0 → rank 3 each → 4-3+1+1 = 3. Relay: only B scored → B rank 1 of 4 → 6; A, C, D unscored → 0. Totals: B 7, A 6, C 3, D 3.
+Arithmetic behind `test_totals_sum_global_points_and_rank_teams`: a Darts without pairing system leaves `points` null for a team that never plays, so every team plays once. Darts has 4 registered results; A rank 1 → 4-1+1+2 = 6; C and D 1 pt, difference 0 → rank 2 shared → 4-2+1+1 = 4 each; B rank 4 → 1. Relay: only B scored → B rank 1 of 4 → 6; A, C, D unscored → 0. Totals: B 7, A 6, C 4, D 4.
 
 - [ ] **Step 2: Run the tests to check they fail**
 
@@ -454,13 +456,15 @@ In `server/olympic_warriors/tests/test_ranking.py`, delete the import line `from
 
 ```python
     def test_team_total_and_ranking_follow_the_standings(self):
-        self.play(self.team_a, 5, self.team_b, 2)  # A rank 1 of 4 -> 6, B rank 4 -> 1, C/D rank 3 -> 3
+        # C and D never play, so their points stay null and they are unranked (0 points).
+        self.play(self.team_a, 5, self.team_b, 2)  # A rank 1 of 4 -> 6, B rank 2 -> 4
 
         self.assertEqual(self.team_a.total_points, 6)
-        self.assertEqual(self.team_b.total_points, 1)
+        self.assertEqual(self.team_b.total_points, 4)
+        self.assertEqual(self.team_c.total_points, 0)
         self.assertEqual(self.team_a.ranking, 1)
-        self.assertEqual(self.team_c.ranking, 2)
-        self.assertEqual(self.team_b.ranking, 4)
+        self.assertEqual(self.team_b.ranking, 2)
+        self.assertEqual(self.team_c.ranking, 3)
 
     def test_manual_edition_ranks_teams_by_final_rank_without_totals(self):
         self.play(self.team_a, 5, self.team_b, 2)
