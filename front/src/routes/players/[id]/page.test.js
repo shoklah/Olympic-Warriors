@@ -40,6 +40,26 @@ describe('player profile page', () => {
 		expect(within(rows[2]).queryAllByRole('link').map((a) => a.textContent.trim())).toEqual(['2024']);
 	});
 
+	it('lists the badges with their detail and rule, skipping unknown codes', () => {
+		renderWith(Page, { data: { profile } });
+
+		expect(screen.getByRole('heading', { level: 2, name: 'Badges' })).toBeInTheDocument();
+		const tiles = screen.getAllByTestId('badge');
+		expect(tiles).toHaveLength(4);
+		expect(tiles[0]).toHaveTextContent(/Champion\s*×2 · 2024 · 2026\s*Win an edition/);
+		expect(tiles[1]).toHaveTextContent(/Veteran\s*Tier 2 · 2026\s*Play 3, 5, then 10 editions/);
+		expect(tiles[2]).toHaveTextContent(/Comrades in arms\s*with\s*Léa Martin\s*·\s*2026/);
+		expect(within(tiles[2]).getByRole('link', { name: 'Léa Martin' })).toHaveAttribute('href', '/players/12');
+		expect(tiles[3]).toHaveTextContent(/Specialist\s*Relay · Tier 1 · 2026/);
+		expect(screen.queryByText(/future-badge/)).toBeNull();
+	});
+
+	it('has no badges section without badges', () => {
+		renderWith(Page, { data: { profile: profileUnranked } });
+		expect(screen.queryByRole('heading', { level: 2, name: 'Badges' })).toBeNull();
+		expect(screen.queryAllByTestId('badge')).toHaveLength(0);
+	});
+
 	it('dashes the figures and says so when nothing is counted yet', () => {
 		renderWith(Page, { data: { profile: profileUnranked } });
 
@@ -64,6 +84,11 @@ describe('player profile page', () => {
 		expect(rows[0]).toHaveTextContent(/2030\s*Les Aigles\s*En cours/);
 		expect(rows[1]).toHaveTextContent(/2026\s*MxM\s*2\s*\/ 6/);
 		expect(rows[2]).toHaveTextContent(/2024\s*Pas d'équipe/);
+		const tiles = screen.getAllByTestId('badge');
+		expect(tiles[0]).toHaveTextContent(/Champion\s*×2 · 2024 · 2026\s*Gagner une édition/);
+		expect(tiles[1]).toHaveTextContent(/Vétéran\s*Niveau 2 · 2026/);
+		expect(tiles[2]).toHaveTextContent(/Compagnons d'armes\s*avec\s*Léa Martin/);
+		expect(tiles[3]).toHaveTextContent(/Spécialiste\s*Relais · Niveau 1 · 2026/);
 	});
 
 	it('says nothing is ranked yet, in French too', () => {

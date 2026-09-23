@@ -1,6 +1,8 @@
 <script>
+	import Badge from '$lib/components/Badge.svelte';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import MedalRank from '$lib/components/MedalRank.svelte';
+	import { badgeDetail, isKnownBadge } from '$lib/badges';
 	import { editionStatus, formatAverage, fullName } from '$lib/players';
 	import { useLocale, useT } from '$lib/i18n';
 
@@ -11,6 +13,7 @@
 
 	$: profile = data.profile;
 	$: name = fullName(profile);
+	$: badges = (profile.badges ?? []).filter(isKnownBadge);
 </script>
 
 <div class="page">
@@ -41,6 +44,26 @@
 	</p>
 	{#if profile.counted === 0}
 		<p class="counts">{t('profile.noRankedEdition')}</p>
+	{/if}
+
+	{#if badges.length}
+		<h2>{t('profile.badges')}</h2>
+		<ul class="badges" role="list">
+			{#each badges as badge}
+				<li class="tile" data-testid="badge">
+					<Badge {badge} />
+					<span class="label name">{t(`badge.${badge.code}.name`)}</span>
+					<span class="detail">
+						{#if badge.partner}
+							{t('badge.with')}
+							<a href="/players/{badge.partner.id}">{fullName(badge.partner)}</a> ·
+						{/if}
+						{badgeDetail(badge, t, locale).join(' · ')}
+					</span>
+					<span class="rule">{t(`badge.${badge.code}.rule`)}</span>
+				</li>
+			{/each}
+		</ul>
 	{/if}
 
 	<h2>{t('profile.editions')}</h2>
@@ -128,6 +151,50 @@
 	.counts {
 		margin: 0 0 0.4rem;
 		font-size: 0.85rem;
+		color: var(--muted);
+	}
+
+	.badges {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+		gap: 22px 16px;
+		--badge-size: 56px;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.tile {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 6px;
+		min-width: 0;
+	}
+
+	.name {
+		color: var(--ink);
+	}
+
+	.detail {
+		font-size: 0.85rem;
+		color: var(--muted);
+		overflow-wrap: anywhere;
+	}
+
+	.detail a {
+		color: var(--accent);
+	}
+
+	.detail a:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
+		border-radius: 2px;
+	}
+
+	.rule {
+		font-size: 0.78rem;
+		line-height: 1.35;
 		color: var(--muted);
 	}
 

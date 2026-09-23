@@ -3,7 +3,9 @@
  * and a 2nd place, average rank 1.5), Hugo and Inès tied 2nd (one 1st place each, average
  * rank 1), Xavier 4th (a 2nd, a 3rd and a 4th place, average rank 3), then two not ranked
  * yet (no average rank). `profile` is /profile/34/: a running edition, two ranked ones and
- * one without a team. `profileUnranked` has nothing counted.
+ * one without a team, and five badges (champion twice, veteran at tier 2, comrades with
+ * Léa, a Relay specialist, and a code the front does not know). `profileUnranked` has
+ * nothing counted and no badge.
  */
 export const leaderboard = [
 	{ id: 12, first_name: 'Léa', last_name: 'Martin', played: 3, counted: 2, places: [{ year: 2024, rank: 1 }, { year: 2026, rank: 2 }], position: 1, average_rank: 1.5 },
@@ -26,6 +28,13 @@ export const profile = {
 		{ year: 2026, team: { id: 21, name: 'MxM' }, rank: 2, teams: 6, finished: true },
 		{ year: 2024, team: null, rank: null, teams: 8, finished: true },
 		{ year: 2023, team: { id: 5, name: 'Bisons' }, rank: 3, teams: 8, finished: true }
+	],
+	badges: [
+		{ code: 'champion', tier: 0, years: [2024, 2026], discipline: null, partner: null },
+		{ code: 'veteran', tier: 2, years: [2023, 2026], discipline: null, partner: null },
+		{ code: 'comrades', tier: 0, years: [2026], discipline: null, partner: { id: 12, first_name: 'Léa', last_name: 'Martin' } },
+		{ code: 'specialist', tier: 1, years: [2026], discipline: 'Relay', partner: null },
+		{ code: 'future-badge', tier: 0, years: [2026], discipline: null, partner: null }
 	]
 };
 
@@ -36,5 +45,6 @@ export const profileUnranked = {
 	position: null,
 	counted: 0,
 	average_rank: null,
-	editions: [{ year: 2030, team: { id: 41, name: 'Renards' }, rank: null, teams: 4, finished: false }]
+	editions: [{ year: 2030, team: { id: 41, name: 'Renards' }, rank: null, teams: 4, finished: false }],
+	badges: []
 };
