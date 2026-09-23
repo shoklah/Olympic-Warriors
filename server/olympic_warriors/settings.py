@@ -211,8 +211,10 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.TokenAuthentication',
     ],
+    # Organisers only unless a view says otherwise (AllowAny on the public reads,
+    # IsAuthenticated on /user/current/); tests/test_permissions.py pins the exceptions.
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
+        'olympic_warriors.permissions.IsOrganiser',
     ],
 }
 

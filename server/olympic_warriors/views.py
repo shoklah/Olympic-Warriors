@@ -6,7 +6,7 @@ from datetime import time as time_of_day
 
 from django.db import transaction
 from django.db.models import Q
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.contrib.auth.models import User
 from rest_framework.decorators import api_view, permission_classes, parser_classes
 from rest_framework.parsers import JSONParser
@@ -94,10 +94,12 @@ def getUsers(request):
     summary="Get current user",
     responses={
         200: UserSerializer,
+        401: OpenApiResponse(description="Unauthorized"),
         500: OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["GET"])
+@permission_classes([IsAuthenticated])  # any token: the front resolves is_staff through it
 def getCurrentUser(request):
     user = request.user
     serializer = UserSerializer(user)
@@ -469,6 +471,7 @@ def getGamesByDiscipline(request, discipline_id):
         "500": OpenApiResponse(description="Internal server error"),
     },
 )
+@api_view(["GET"])
 def getPlayedGamesByTeam(request, team_id):
     games = Game.objects.filter((Q(team1=team_id) | Q(team2=team_id)), is_active=True)
     serializer = GameSerializer(games, many=True)
@@ -483,6 +486,7 @@ def getPlayedGamesByTeam(request, team_id):
         "500": OpenApiResponse(description="Internal server error"),
     },
 )
+@api_view(["GET"])
 def getRefereedGamesByTeam(request, team_id):
     games = Game.objects.filter(referees=team_id, is_active=True)
     serializer = GameSerializer(games, many=True)
@@ -661,11 +665,13 @@ def getGameEventsByTeam(request, team_id):
 
 
 @extend_schema(
-    summary="Create a game event",
+    summary="Create a game event (organisers, latest edition)",
     responses={
         "200": GameEventSerializer,
         "400": OpenApiResponse(description="Bad request"),
         "401": OpenApiResponse(description="Unauthorized"),
+        "403": OpenApiResponse(description="Not an organiser"),
+        "409": OpenApiResponse(description="Not the latest edition"),
         "500": OpenApiResponse(description="Internal server error"),
     },
 )
@@ -676,26 +682,32 @@ def createGameEvent(request):
         serializer.is_valid(raise_exception=True)
     except Exception as e:
         return Response({"error": "Bad request", "details": str(e)}, status=400)
+    if not _editable(serializer.validated_data["game"].discipline.edition):
+        return Response(LATEST_ONLY, status=409)
 
     serializer.save()
     return Response(serializer.data)
 
 
 @extend_schema(
-    summary="Delete a game event",
+    summary="Delete a game event (organisers, latest edition)",
     responses={
         "200": GameEventSerializer,
         "401": OpenApiResponse(description="Unauthorized"),
+        "403": OpenApiResponse(description="Not an organiser"),
         "404": OpenApiResponse(description="Game event not found"),
+        "409": OpenApiResponse(description="Not the latest edition"),
         "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["DELETE"])
 def deleteGameEvent(request, event_id):
     try:
-        event = GameEvent.objects.get(id=event_id)
+        event = GameEvent.objects.select_related("game__discipline__edition").get(id=event_id)
     except GameEvent.DoesNotExist:
         return Response({"error": "Game event not found"}, status=404)
+    if not _editable(event.game.discipline.edition):
+        return Response(LATEST_ONLY, status=409)
 
     event.is_active = False
     event.save()
@@ -1033,21 +1045,28 @@ def getBlindtestRoundsByEdition(request, edition_id):
 
 
 @extend_schema(
-    summary="Set the artist and song for a blindtest guess",
+    summary="Set the artist and song for a blindtest guess (organisers, latest edition)",
     request=BlindtestGuessUpdateSerializer,
     responses={
         "200": BlindtestGuessSerializer,
         "400": OpenApiResponse(description="Bad request"),
+        "401": OpenApiResponse(description="Unauthorized"),
+        "403": OpenApiResponse(description="Not an organiser"),
         "404": OpenApiResponse(description="Blindtest guess not found"),
+        "409": OpenApiResponse(description="Not the latest edition"),
         "500": OpenApiResponse(description="Internal server error"),
     },
 )
 @api_view(["PATCH"])
 def setBlindtestGuessAnswer(request, guess_id):
     try:
-        guess = BlindtestGuess.objects.get(id=guess_id)
+        guess = BlindtestGuess.objects.select_related("blindtest_round__blindtest__edition").get(
+            id=guess_id
+        )
     except BlindtestGuess.DoesNotExist:
         return Response({"error": "Blindtest guess not found"}, status=404)
+    if not _editable(guess.blindtest_round.blindtest.edition):
+        return Response(LATEST_ONLY, status=409)
 
     serializer = BlindtestGuessUpdateSerializer(data=request.data)
     try:

@@ -37,8 +37,13 @@ class TestPlayersAPI(TestPlayerSetup):
         response = self.client.get("/players/")
         self.assertEqual(response.status_code, 401)
 
-    def test_get_players(self):
+    def test_get_players_refuses_a_player(self):
         self.client.force_authenticate(user=self.user)
+        self.assertEqual(self.client.get("/players/").status_code, 403)
+
+    def test_get_players(self):
+        staff = User.objects.create_user(username="staff", password="x", is_staff=True)
+        self.client.force_authenticate(user=staff)
         response = self.client.get("/players/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 1)

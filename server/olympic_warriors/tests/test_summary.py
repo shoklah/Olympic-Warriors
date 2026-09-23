@@ -69,7 +69,7 @@ class TestTeamResultsByEdition(APITestCase):
     """The by-edition results view filters through the discipline's edition."""
 
     def setUp(self):
-        self.user = User.objects.create_user(username="orga", password="x")
+        self.user = User.objects.create_user(username="orga", password="x", is_staff=True)
         self.client.force_authenticate(user=self.user)
         self.edition = Edition.objects.create(
             year=2026, host="Paris", start_date="2026-09-19", end_date="2026-09-20"
