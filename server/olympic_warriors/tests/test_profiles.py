@@ -4,13 +4,22 @@ computed from the edition standings, and the two public endpoints serving them.
 """
 
 from datetime import date, datetime, timezone
+from types import SimpleNamespace
 from unittest import mock
 
 from django.contrib.auth.models import User
 from django.test import SimpleTestCase, TestCase
 
 from olympic_warriors.models import Edition, Player, Relay, Team, TeamResult
-from olympic_warriors.profiles import beaten_share, leaderboard, paris_today, participations
+from olympic_warriors.profiles import (
+    Participation,
+    beaten_share,
+    leaderboard,
+    paris_today,
+    participations,
+    _place,
+    _record,
+)
 
 TODAY = date(2026, 9, 23)
 # The editions query, the players query, then three per finished edition with players
@@ -78,7 +87,7 @@ class ProfilesSetup:
 
         self.ana = self.person("Ana", "Lopez")
         self.bob = self.person("Bob", "Martin")
-        self.chloe = self.person("Chloé", "Nguyen")
+        self.chloe = self.person("Chloé", "Dupont")
         self.dan = self.person("Dan", "Petit")
         self.eve = self.person("Eve", "Adam")
         self.fay = self.person("Fay", "Brun")
@@ -141,13 +150,20 @@ class TestParticipations(ProfilesSetup, TestCase):
 
         self.assertEqual(summary_of(parts), [(2024, "Élans", None, 5, True)])
 
+    def test_a_hand_entered_final_rank_of_zero_has_no_rank(self):
+        Team.objects.filter(pk=self.aigles.pk).update(final_rank=0)
+
+        _, parts = participations(TODAY)[self.ana.id]
+
+        self.assertEqual(summary_of(parts)[-1], (2024, "Aigles", None, 4, True))
+
     def test_an_edition_is_finished_from_the_day_after_its_end_date(self):
         _, on_the_last_day = participations(date(2026, 9, 30))[self.eve.id]
         _, the_day_after = participations(date(2026, 10, 1))[self.eve.id]
 
         self.assertEqual(summary_of(on_the_last_day), [(2026, "Sangliers", None, 2, False)])
-        # Nothing revealed in 2026: both teams tie on 0 points, so both are 1st.
-        self.assertEqual(summary_of(the_day_after), [(2026, "Sangliers", 1, 2, True)])
+        # 2026 has no discipline: finished, but nothing to rank from.
+        self.assertEqual(summary_of(the_day_after), [(2026, "Sangliers", None, 2, True)])
 
     def test_a_player_without_a_team_has_no_team_and_no_rank(self):
         _, parts = participations(TODAY)[self.fay.id]
@@ -248,8 +264,78 @@ class TestLeaderboard(ProfilesSetup, TestCase):
         self.assertEqual((gus_row.played, gus_row.counted, gus_row.position), (1, 0, None))
 
     def test_the_running_edition_counts_once_it_is_over(self):
+        relay = Relay.objects.create(edition=self.y2026, reveal_score=True)
+        for team, points in [(self.renards, 5), (self.sangliers, 0)]:
+            TeamResult.objects.filter(discipline=relay, team=team).update(points=points)
+
         rows = self.rows(date(2026, 10, 1))
 
-        # 2026 had nothing revealed: Renards and Sangliers are both 1st of 2.
-        self.assertEqual((rows["Eve"].counted, rows["Eve"].average_beaten), (1, 100))
+        # Eve is Sangliers, 2nd of 2: nothing beaten.
+        self.assertEqual((rows["Eve"].counted, rows["Eve"].average_beaten), (1, 0))
+        # Ana is Renards, 1st of 2, on top of her two other 1st places.
         self.assertEqual((rows["Ana"].counted, rows["Ana"].average_rank), (3, 1.0))
+
+    def test_a_computed_edition_with_nothing_ranked_does_not_count(self):
+        # 2026 has no discipline at all: finished but with nothing to rank from.
+        rows = self.rows(date(2026, 10, 1))
+
+        self.assertEqual((rows["Eve"].counted, rows["Eve"].position), (0, None))
+
+    def test_query_budget_matches_participations(self):
+        with self.assertNumQueries(PROFILES_QUERIES):
+            leaderboard(TODAY)
+
+
+class TestRecordAndPlace(SimpleTestCase):
+    """`_record` and `_place` work on plain values, no database needed."""
+
+    @staticmethod
+    def user(user_id, first_name, last_name):
+        return SimpleNamespace(id=user_id, first_name=first_name, last_name=last_name)
+
+    def test_positions_compare_the_rounded_share_not_the_raw_mean(self):
+        # P: 2nd of 4 then 2nd of 3, raw mean share 7/12 = 0.58333...
+        p = self.user(1, "P", "Petit")
+        p_parts = (
+            Participation(2024, None, None, 2, 4, True),
+            Participation(2023, None, None, 2, 3, True),
+        )
+        # Q: 2nd of 2, 4, 6 and 8, raw mean share ~0.58095: different from P's, but both
+        # round to 58%.
+        q = self.user(2, "Q", "Quinn")
+        q_parts = (
+            Participation(2024, None, None, 2, 2, True),
+            Participation(2023, None, None, 2, 4, True),
+            Participation(2022, None, None, 2, 6, True),
+            Participation(2021, None, None, 2, 8, True),
+        )
+
+        p_record = _record(p, p_parts)
+        q_record = _record(q, q_parts)
+
+        self.assertEqual((p_record.average_beaten, q_record.average_beaten), (58, 58))
+        self.assertEqual((p_record.average_rank, q_record.average_rank), (2.0, 2.0))
+
+        placed = {record.first_name: record.position for record in _place([p_record, q_record])}
+
+        self.assertEqual(placed, {"P": 1, "Q": 1})
+
+    def test_average_rank_can_be_fractional(self):
+        user = self.user(3, "R", "Roy")
+        parts = (
+            Participation(2024, None, None, 1, 4, True),
+            Participation(2023, None, None, 2, 4, True),
+            Participation(2022, None, None, 2, 4, True),
+        )
+
+        record = _record(user, parts)
+
+        self.assertEqual(record.average_rank, 1.7)
+
+    def test_an_accented_last_name_sorts_with_its_base_letter(self):
+        ebert = self.user(4, "Elo", "Ébert")
+        zabo = self.user(5, "Zoe", "Zabo")
+        # Neither counts (no participations): both land in the waiting group, by name.
+        placed = _place([_record(zabo, ()), _record(ebert, ())])
+
+        self.assertEqual([record.last_name for record in placed], ["Ébert", "Zabo"])
