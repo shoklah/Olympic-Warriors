@@ -29,9 +29,11 @@ Decisions taken while brainstorming (2026-09-23):
   profiles spec and `profiles.py`. A participation belongs to one person and one edition,
   it counts when finished and ranked in an edition of at least 2 teams, and a rank of 1
   can be shared.
-- **Sequence.** The finished active editions, ordered by year. **Consecutive** means
-  adjacent in the sequence, so a year without an edition is skipped. An unfinished edition
-  is not in the sequence yet, so it can neither extend nor break a streak.
+- **Sequence.** The finished active editions that have at least one active player, ordered
+  by year. **Consecutive** means adjacent in the sequence, so a year without an edition is
+  skipped. An edition without any roster says nothing about anyone, so it is left out too
+  (decided while planning, 2026-09-23): missing data never breaks a streak. An unfinished
+  edition is not in the sequence yet, so it can neither extend nor break a streak.
 - **Place streak.** A run of consecutive editions that all meet a place condition. An
   edition where the person has no rank (no team, or nothing ranked) breaks every place
   streak, because missing data never counts. It does not break attendance streaks, which
@@ -121,7 +123,7 @@ These need only a participation in a finished edition, not a rank.
 |---|---|---|---|---|---|---|
 | `rookie` | Bizut | Rookie | First participation | once | plain | Olive sprout |
 | `veteran` | Vétéran | Veteran | 3 / 5 / 10 participations | tiers | tiers | Three chevrons ✓ |
-| `argonaut` | Argonaute | Argonaut | Played the first edition of the sequence | once | gold | The Argo's prow and oars |
+| `argonaut` | Argonaute | Argonaut | Played the first finished edition, roster or not (when that edition has no roster, nobody earns it) | once | gold | The Argo's prow and oars |
 | `ever-present` | Pénélope | Ever-present | 4 / 6 / 8 consecutive editions played | tiers | tiers | A loom |
 | `homecoming` | Ulysse | Homecoming | Plays again after missing at least 2 consecutive editions | each | plain | Ulysses' ship under sail ✓ |
 | `globetrotter` | Globe-trotteur | Globetrotter | Editions in 3 different `Edition.host` values (trimmed, case- and accent-insensitive) | once | bronze | Map pin on a globe |
@@ -275,7 +277,8 @@ pinned as `BADGES_QUERIES` in the tests like `PROFILES_QUERIES`. The all-time ta
 replayed in memory from the participations, with no query per table.
 
 **`refresh(today)`**, in one transaction:
-1. lock the `BadgeRefresh` row (`select_for_update()`);
+1. lock the `BadgeRefresh` row (`select_for_update()`, after a `get_or_create` in case a
+   flushed test database lost the row the migration made);
 2. compute `earned(today)`;
 3. diff it against the stored computed rows, keyed as above:
    - delete the rows no longer earned, active or not;
@@ -372,16 +375,16 @@ The front catalogue: for each code, its glyph URL (`import.meta.glob` over
 
 ### `Badge.svelte`
 
-A medallion sized by `--badge-size`, so pages scale it the way `MedalRank` is scaled:
+A medallion sized by `--badge-size`, so pages scale it the way `MedalRank` is scaled.
+It is purely visual (`aria-hidden`): the tile around it writes the name and the tier.
 - a circle, transparent inside, with a ring about 4% of the size wide in the metal
   colour (`--gold`, `--silver`, `--bronze`, or `--accent` for plain);
-- from 40px up, a hairline inner ring in the same colour at 35% opacity;
-- the glyph at 60% of the size, as an `<img alt="">`, since the name is written next to
-  it;
-- for a tiered badge, three pips under the medallion (`aria-hidden`): the first `tier`
-  filled in the metal colour and the rest in `--line`. A visually hidden « niveau 2 sur
-  3 » / "tier 2 of 3" goes with them. The pips are there because colour alone must not
-  carry the tier.
+- a hairline inner ring in the same colour at 35% opacity (the board drops it below
+  40px; the profile's 56px is the only size used for now);
+- the glyph at 60% of the size, as an `<img alt="">`;
+- for a tiered badge, three pips under the medallion: the first `tier` filled in the
+  metal colour and the rest in `--line`. The tile's detail line also says « Niveau 2 » /
+  "Tier 2", so colour alone never carries the tier.
 
 There is a locked style, a dashed `--ghost` ring with the glyph at 0.35 opacity, but it
 goes unused until a catalogue page exists.
@@ -397,20 +400,26 @@ when the person has none. It is a grid of tiles (`repeat(auto-fill, minmax(9rem,
 and each tile shows:
 - the medallion, 56px;
 - the name, `badge.<code>.name`, in `.label` style;
-- a detail line in `--muted`:
-  - `×2` when earned more than once;
-  - the years (`2024 · 2026`);
-  - the partner as a link to their profile, or the translated discipline name;
+- a detail line in `--muted`, its parts joined by ` · `:
+  - a tiered badge: the translated discipline name for `specialist`, then « Niveau 2 » /
+    "Tier 2", then the year that tier was reached (`Rugby · Tier 1 · 2026`);
+  - `comrades`: « avec » / "with" and the partner as a link to their profile, then the
+    year (`with Léa Martin · 2026`);
+  - any other badge: `×2` when earned more than once, then the years
+    (`×2 · 2024 · 2026`);
 - the rule, `badge.<code>.rule`, as a small `--muted` line, so nothing hides behind a
   hover.
 
-Text shape for the tests: `Champion ×2 2024 · 2026`.
+A code the front does not know (a newer server) is left out of the section.
+
+Text shape for the tests: `Champion ×2 · 2024 · 2026 Win an edition`.
 
 ### i18n
 
 - `badge.<code>.name` and `badge.<code>.rule` for every code, in `fr.js` and `en.js`
   (`parity.test.js` covers them). Thresholds are parameters (`{n}`).
-- `profile.badges` for the heading, and `badge.tier` for the hidden tier text.
+- `profile.badges` for the heading, `badge.level` (« Niveau {tier} » / "Tier {tier}"),
+  `badge.times` (`×{n}`) and `badge.with` (« avec » / "with").
 
 ## Phases
 
