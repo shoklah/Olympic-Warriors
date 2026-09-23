@@ -96,7 +96,10 @@ as `results`, ordered by discipline id. The query count stays at 3.
       (« Épreuves fétiches » / "Signature events"; wording chosen by Hugo);
     - content: each best discipline's icon (`iconFor`) and translated name
       (`disciplineName`), at most 3, then "+N";
-    - "—" when the player has no discipline place.
+    - "—" when the player has no discipline place;
+    - the disciplines are a list; the "+N" is `aria-hidden` next to a visually hidden
+      « et N autre(s) épreuve(s) » / "and N more discipline(s)" (`profile.moreDisciplines`);
+    - below 360px the two cards stack.
 - **Section « Par épreuve » / "By discipline"**, after « Éditions ». It is only shown when
   there is at least one discipline.
   - One row per discipline, in the server's order. Each row has the icon, the translated
