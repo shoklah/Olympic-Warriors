@@ -1,14 +1,14 @@
 /**
  * Payloads of the public profile endpoints. `leaderboard` is /profiles/: Léa 1st (a 1st
- * and a 2nd place), Hugo and Inès tied 2nd (one 1st place each), Xavier 4th (a 2nd and a
- * 3rd place), then two not ranked yet. `profile` is /profile/34/: a running edition, two
- * ranked ones and one without a team. `profileUnranked` has nothing counted.
+ * and a 2nd place), Hugo and Inès tied 2nd (one 1st place each), Xavier 4th (a 2nd, a
+ * 3rd and a 4th place), then two not ranked yet. `profile` is /profile/34/: a running
+ * edition, two ranked ones and one without a team. `profileUnranked` has nothing counted.
  */
 export const leaderboard = [
 	{ id: 12, first_name: 'Léa', last_name: 'Martin', played: 3, counted: 2, places: [{ year: 2024, rank: 1 }, { year: 2026, rank: 2 }], position: 1 },
 	{ id: 7, first_name: 'Hugo', last_name: 'Maurinier', played: 1, counted: 1, places: [{ year: 2025, rank: 1 }], position: 2 },
 	{ id: 9, first_name: 'Inès', last_name: 'Moreau', played: 1, counted: 1, places: [{ year: 2025, rank: 1 }], position: 2 },
-	{ id: 34, first_name: 'Xavier', last_name: 'Baby', played: 4, counted: 2, places: [{ year: 2026, rank: 2 }, { year: 2023, rank: 3 }], position: 4 },
+	{ id: 34, first_name: 'Xavier', last_name: 'Baby', played: 4, counted: 3, places: [{ year: 2026, rank: 2 }, { year: 2023, rank: 3 }, { year: 2021, rank: 4 }], position: 4 },
 	{ id: 40, first_name: 'Ana', last_name: 'Petit', played: 1, counted: 0, places: [], position: null },
 	{ id: 41, first_name: 'Jules', last_name: 'Roux', played: 2, counted: 0, places: [], position: null }
 ];

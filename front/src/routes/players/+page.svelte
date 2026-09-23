@@ -23,6 +23,7 @@
 	{#if ranked.length > 0}
 		<ol class="list" role="list">
 			{#each ranked as player}
+				{@const { shown, more } = shownPlaces(player.places)}
 				<li>
 					<a
 						class="row"
@@ -36,18 +37,16 @@
 						<span class="text">
 							<span class="name">{fullName(player)}</span>
 							<span class="places" aria-hidden="true" data-testid="places">
-								{#each shownPlaces(player.places).shown as place}
+								{#each shown as place}
 									<span
 										class="num place"
 										class:gold={place.rank === 1}
 										class:silver={place.rank === 2}
 										class:bronze={place.rank === 3}>{place.rank}</span
-									>
+									>{' '}
 								{/each}
-								{#if shownPlaces(player.places).more > 0}
-									<span class="num more"
-										>{t('players.more', { n: shownPlaces(player.places).more })}</span
-									>
+								{#if more > 0}
+									<span class="num more">{t('players.more', { n: more })}</span>
 								{/if}
 							</span>
 							<span class="visually-hidden">{spoken(player.places)}</span>
@@ -167,6 +166,7 @@
 	.places {
 		display: flex;
 		flex-wrap: wrap;
+		align-items: baseline;
 		gap: 2px 8px;
 		margin-top: 2px;
 	}
@@ -175,7 +175,7 @@
 		font-size: 1.15rem;
 		line-height: 1.1;
 		letter-spacing: 0.04em;
-		color: var(--faint);
+		color: var(--muted);
 	}
 
 	.place.gold {

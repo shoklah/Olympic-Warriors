@@ -19,19 +19,27 @@ describe('players leaderboard page', () => {
 		expect(rows[0]).toHaveTextContent(/1\s*Léa Martin\s*1\s*2\s*1st place in 2024, 2nd place in 2026/);
 		expect(rows[1]).toHaveTextContent(/2\s*Hugo Maurinier\s*1\s*1st place in 2025/);
 		expect(rows[2]).toHaveTextContent(/2\s*Inès Moreau\s*1\s*1st place in 2025/);
-		expect(rows[3]).toHaveTextContent(/4\s*Xavier Baby\s*2\s*3\s*2nd place in 2026, 3rd place in 2023/);
+		expect(rows[3]).toHaveTextContent(
+			/4\s*Xavier Baby\s*2\s*3\s*4\s*2nd place in 2026, 3rd place in 2023, 4th place in 2021/
+		);
 		expect(rows[0]).toHaveAttribute('href', '/players/12');
 		expect(within(rows[0]).getByTestId('places')).toHaveAttribute('aria-hidden', 'true');
 		expect(rows[0]).not.toHaveTextContent(/%|avg/);
+		expect(
+			screen.getByRole('link', { name: /^1\s*Léa Martin\s*1st place in 2024, 2nd place in 2026$/ })
+		).toBeInTheDocument();
 	});
 
 	it('colours each place like a medal', () => {
 		renderWith(Page, { data });
 
 		const places = within(screen.getAllByTestId('player-row')[3]).getByTestId('places');
-		const [second, third] = places.querySelectorAll('.place');
+		const [second, third, fourth] = places.querySelectorAll('.place');
 		expect(second).toHaveClass('silver');
 		expect(third).toHaveClass('bronze');
+		expect(fourth).not.toHaveClass('gold');
+		expect(fourth).not.toHaveClass('silver');
+		expect(fourth).not.toHaveClass('bronze');
 	});
 
 	it('medals tied players alike, not by row position', () => {
@@ -45,13 +53,15 @@ describe('players leaderboard page', () => {
 	});
 
 	it('shows the best places only past the cap, with the rest counted', () => {
-		const places = Array.from({ length: 10 }, (_, i) => ({ year: 2030 - i, rank: 1 + (i % 3) }));
+		const ranks = [1, 1, 1, 1, 2, 2, 2, 3, 3, 3];
+		const places = ranks.map((rank, i) => ({ year: 2030 - i, rank }));
 		const busy = { ...ranked[0], places };
 		renderWith(Page, { data: { players: [busy] } });
 
 		const row = screen.getByTestId('player-row');
-		expect(within(row).getByTestId('places').querySelectorAll('.place')).toHaveLength(8);
-		expect(within(row).getByTestId('places')).toHaveTextContent('+2');
+		const placesEl = within(row).getByTestId('places');
+		expect(placesEl.querySelectorAll('.place')).toHaveLength(8);
+		expect(placesEl.textContent.replace(/\s+/g, ' ').trim()).toBe('1 1 1 1 2 2 2 3 +2');
 		// The spoken sentence still lists all ten.
 		expect(row.textContent.match(/place in/g)).toHaveLength(10);
 	});

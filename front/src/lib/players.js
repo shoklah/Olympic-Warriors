@@ -1,8 +1,10 @@
 import { localeFrom } from '$lib/i18n/locale.js';
 
 /**
- * Formatting for the players leaderboard and profiles. Pure and locale-aware: anything
- * but `en` is French, like `t` and `ordinal`. A missing figure prints as a dash.
+ * Formatting and small helpers for player pages. `formatAverage` and `formatShare` are
+ * profile-only now: the leaderboard rows show places, not averages. Pure and
+ * locale-aware: anything but `en` is French, like `t` and `ordinal`. A missing figure
+ * prints as a dash.
  */
 const missing = (value) => value === null || value === undefined;
 
