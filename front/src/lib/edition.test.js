@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	countdownParts,
+	disciplineEntries,
 	disciplineResults,
 	disciplineSchedule,
 	disciplineSubtitle,
@@ -9,6 +10,7 @@ import {
 	findTeam,
 	formatDateRange,
 	formatDifference,
+	formatTime,
 	ordinal,
 	rankedTeams,
 	roundCount,
@@ -17,7 +19,7 @@ import {
 	teamGames,
 	teamResults
 } from './edition.js';
-import { summary, summaryAllRevealed } from './fixtures/summary.js';
+import { summary, summaryAllRevealed, summaryStaff } from './fixtures/summary.js';
 
 describe('rankedTeams', () => {
 	it('sorts by ranking then name', () => {
@@ -303,7 +305,7 @@ describe('disciplineSchedule', () => {
 			rounds: [...summary.rounds, { id: 23, discipline: 10, order: 2, is_over: false }]
 		};
 		const rounds = disciplineSchedule(withEmptyRound, 10);
-		expect(rounds[2]).toEqual({ order: 2, isOver: false, games: [] });
+		expect(rounds[2]).toEqual({ id: 23, order: 2, isOver: false, games: [] });
 	});
 });
 
@@ -387,5 +389,36 @@ describe('teamGames', () => {
 		const [relay] = teamGames(odd, 2);
 		expect(relay.games).toHaveLength(1);
 		expect(relay.games[0].refereeName).toBe('Bisons');
+	});
+});
+
+describe('formatTime', () => {
+	it('drops zero hours and keeps them otherwise', () => {
+		expect(formatTime('00:13:15')).toBe('13:15');
+		expect(formatTime('01:02:03')).toBe('1:02:03');
+		expect(formatTime('00:00:07')).toBe('00:07');
+		expect(formatTime(null)).toBeNull();
+	});
+});
+
+describe('disciplineEntries', () => {
+	it('lists one line per team with the stored value, by name while hidden', () => {
+		expect(disciplineEntries(summaryStaff, 12)).toEqual([
+			{ id: 106, team: 1, teamName: 'Aigles', points: 20, time: null, ranking: null },
+			{ id: 107, team: 2, teamName: 'Bisons', points: null, time: null, ranking: null },
+			{ id: 108, team: 3, teamName: 'Cerfs', points: 15, time: null, ranking: null }
+		]);
+	});
+
+	it('orders by rank once revealed', () => {
+		expect(disciplineEntries(summaryAllRevealed, 11).map((e) => e.teamName)).toEqual([
+			'Aigles',
+			'Cerfs',
+			'Bisons'
+		]);
+	});
+
+	it('is empty for an unknown discipline', () => {
+		expect(disciplineEntries(summaryStaff, 99)).toEqual([]);
 	});
 });

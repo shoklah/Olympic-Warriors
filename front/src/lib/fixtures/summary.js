@@ -12,8 +12,8 @@ export const summary = {
 		photos_url: null
 	},
 	disciplines: [
-		{ id: 10, name: 'Relay', result_type: 'PTS', reveal_score: true },
-		{ id: 11, name: 'Orienteering', result_type: 'TIM', reveal_score: false }
+		{ id: 10, name: 'Relay', result_type: 'PTS', reveal_score: true, pairing_system: 'RR' },
+		{ id: 11, name: 'Orienteering', result_type: 'TIM', reveal_score: false, pairing_system: 'SW' }
 	],
 	teams: [
 		{
@@ -68,6 +68,28 @@ export const summaryAllRevealed = {
 		{ id: 103, team: 1, discipline: 11, result_type: 'TIM', ranking: 1, points: null, time: '00:12:30', points_difference: 0, global_points: 5 },
 		{ id: 104, team: 2, discipline: 11, result_type: 'TIM', ranking: 3, points: null, time: '00:15:02', points_difference: 0, global_points: 2 },
 		{ id: 105, team: 3, discipline: 11, result_type: 'TIM', ranking: 2, points: null, time: '00:13:45', points_difference: 0, global_points: 3 }
+	],
+	games: [...summary.games.slice(0, 3), { ...summary.games[3], score1: 3, score2: 1 }]
+};
+
+/**
+ * What a staff user gets on the same edition: hidden game scores and stored results
+ * visible, rankings still null, plus a hidden Darts without rounds (points to enter).
+ */
+export const summaryStaff = {
+	...summary,
+	disciplines: [
+		...summary.disciplines,
+		{ id: 12, name: 'Darts', result_type: 'PTS', reveal_score: false, pairing_system: 'NO' }
+	],
+	results: [
+		...summary.results.slice(0, 3),
+		{ id: 103, team: 1, discipline: 11, result_type: 'TIM', ranking: null, points: null, time: '00:12:30', points_difference: null, global_points: null },
+		{ id: 104, team: 2, discipline: 11, result_type: 'TIM', ranking: null, points: null, time: null, points_difference: null, global_points: null },
+		{ id: 105, team: 3, discipline: 11, result_type: 'TIM', ranking: null, points: null, time: '00:13:45', points_difference: null, global_points: null },
+		{ id: 106, team: 1, discipline: 12, result_type: 'PTS', ranking: null, points: 20, time: null, points_difference: null, global_points: null },
+		{ id: 107, team: 2, discipline: 12, result_type: 'PTS', ranking: null, points: null, time: null, points_difference: null, global_points: null },
+		{ id: 108, team: 3, discipline: 12, result_type: 'PTS', ranking: null, points: 15, time: null, points_difference: null, global_points: null }
 	],
 	games: [...summary.games.slice(0, 3), { ...summary.games[3], score1: 3, score2: 1 }]
 };

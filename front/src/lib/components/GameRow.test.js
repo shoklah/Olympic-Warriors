@@ -1,5 +1,5 @@
-import { screen } from '@testing-library/svelte';
-import { describe, expect, it } from 'vitest';
+import { fireEvent, screen } from '@testing-library/svelte';
+import { describe, expect, it, vi } from 'vitest';
 import GameRow from './GameRow.svelte';
 import { renderWith } from '$lib/test-utils';
 
@@ -124,5 +124,20 @@ describe('GameRow', () => {
 	it('highlights nothing without a highlightId', () => {
 		const { container } = renderWith(GameRow, { ...played, team1Id: 2, team2Id: 1 });
 		expect(container.querySelector('.own')).toBeNull();
+	});
+
+	it('wraps the pairing in a button when onEdit is given and calls it on click', async () => {
+		const onEdit = vi.fn();
+		renderWith(GameRow, { ...played, onEdit });
+
+		const button = screen.getByRole('button', { name: /Bisons\s*12 : 9\s*Aigles/ });
+		await fireEvent.click(button);
+		expect(onEdit).toHaveBeenCalledTimes(1);
+		expect(screen.queryByRole('link')).toBeNull();
+	});
+
+	it('has no button without onEdit', () => {
+		renderWith(GameRow, played);
+		expect(screen.queryByRole('button')).toBeNull();
 	});
 });

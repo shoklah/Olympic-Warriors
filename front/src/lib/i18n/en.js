@@ -41,5 +41,22 @@ export default {
 	'login.password': 'Password',
 	'login.missing': 'Required',
 	'orga.pill': 'Orga',
-	'orga.logout': 'Log out'
+	'orga.logout': 'Log out',
+	'orga.hidden': 'Results hidden from the public',
+	'orga.public': 'Results are public',
+	'orga.reveal': 'Reveal',
+	'orga.hide': 'Hide',
+	'orga.missingResults': { one: '{n} team without a result', other: '{n} teams without a result' },
+	'orga.edit': 'Enter the score',
+	'orga.played': 'Played',
+	'orga.save': 'Save',
+	'orga.cancel': 'Cancel',
+	'orga.closeRound': 'Close the round',
+	'orga.roundClosed': 'Done',
+	'orga.timeHint': 'mm:ss',
+	'orga.error.unauthorised': 'Session expired, log in again',
+	'orga.error.forbidden': 'Organisers only',
+	'orga.error.invalid': 'Value refused',
+	'orga.error.conflict': 'Not possible for this edition or round',
+	'orga.error.failed': 'Could not save'
 };

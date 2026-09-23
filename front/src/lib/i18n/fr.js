@@ -45,5 +45,22 @@ export default {
 	'login.password': 'Mot de passe',
 	'login.missing': 'Champ obligatoire',
 	'orga.pill': 'Orga',
-	'orga.logout': 'Se déconnecter'
+	'orga.logout': 'Se déconnecter',
+	'orga.hidden': 'Résultats masqués pour le public',
+	'orga.public': 'Résultats publics',
+	'orga.reveal': 'Dévoiler',
+	'orga.hide': 'Masquer',
+	'orga.missingResults': { one: '{n} équipe sans résultat', other: '{n} équipes sans résultat' },
+	'orga.edit': 'Saisir le score',
+	'orga.played': 'Joué',
+	'orga.save': 'Enregistrer',
+	'orga.cancel': 'Annuler',
+	'orga.closeRound': 'Clore le tour',
+	'orga.roundClosed': 'Terminé',
+	'orga.timeHint': 'mm:ss',
+	'orga.error.unauthorised': 'Session expirée, reconnectez-vous',
+	'orga.error.forbidden': 'Réservé aux organisateurs',
+	'orga.error.invalid': 'Valeur refusée',
+	'orga.error.conflict': 'Impossible pour cette édition ou ce tour',
+	'orga.error.failed': "Échec de l'enregistrement"
 };
