@@ -647,6 +647,23 @@ class TestStaffSummary(APITestCase):
         )
         self.assertEqual(points, {0})
 
+    def test_switching_to_swiss_later_zeroes_the_bye_team(self):
+        # Created without games: every result starts null. Switching to Swiss must zero them
+        # all, including the bye team that Game.save() never touches.
+        Team.objects.create(name="C", edition=self.edition)
+        petanque = Discipline.objects.create(name="Petanque", edition=self.edition, result_type="PTS")
+        self.assertEqual(
+            set(TeamResult.objects.filter(discipline=petanque).values_list("points", flat=True)),
+            {None},
+        )
+        petanque.pairing_system = Discipline.PairingSystem.SWISS
+        petanque.max_rounds = 3
+        petanque.save()
+        self.assertEqual(
+            set(TeamResult.objects.filter(discipline=petanque).values_list("points", flat=True)),
+            {0},
+        )
+
 
 class TestCurrentUser(APITestCase):
 
