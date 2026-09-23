@@ -1,7 +1,7 @@
 # Organiser tools
 
 **Date:** 2026-09-23
-**Status:** approved in conversation, awaiting spec review
+**Status:** implemented on branch claude/organiser-tools
 **Scope:** `server/` (four write endpoints, the staff-aware summary, one serializer
 field, a data fix) and `front/` (session, controls on the discipline page).
 
