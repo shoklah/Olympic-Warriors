@@ -27,14 +27,24 @@ async function patch({ cookies, fetch }, action, id, path, body) {
 	}
 }
 
-const id = (form, name) => Number(form.get(name));
+/** A form field as a database id: a whole number greater than zero, or null. */
+const positiveInt = (value) => {
+	const n = Number(value);
+	return Number.isInteger(n) && n > 0 ? n : null;
+};
 
 export const actions = {
 	score: async (event) => {
 		const form = await event.request.formData();
-		const game = id(form, 'game');
-		const score1 = Number(form.get('score1'));
-		const score2 = Number(form.get('score2'));
+		const game = positiveInt(form.get('game'));
+		if (game === null) return fail(400, { action: 'score', id: 0, error: ERROR_KEYS[400] });
+		const raw1 = form.get('score1');
+		const raw2 = form.get('score2');
+		if (raw1 === null || raw1 === '' || raw2 === null || raw2 === '') {
+			return fail(400, { action: 'score', id: game, error: ERROR_KEYS[400] });
+		}
+		const score1 = Number(raw1);
+		const score2 = Number(raw2);
 		if (!Number.isInteger(score1) || !Number.isInteger(score2) || score1 < 0 || score2 < 0) {
 			return fail(400, { action: 'score', id: game, error: ERROR_KEYS[400] });
 		}
@@ -47,7 +57,8 @@ export const actions = {
 
 	result: async (event) => {
 		const form = await event.request.formData();
-		const result = id(form, 'result');
+		const result = positiveInt(form.get('result'));
+		if (result === null) return fail(400, { action: 'result', id: 0, error: ERROR_KEYS[400] });
 		const raw = String(form.get('value') ?? '').trim();
 		let body;
 		if (form.get('kind') === 'TIM') {
@@ -64,7 +75,8 @@ export const actions = {
 
 	reveal: async (event) => {
 		const form = await event.request.formData();
-		const discipline = id(form, 'discipline');
+		const discipline = positiveInt(form.get('discipline'));
+		if (discipline === null) return fail(400, { action: 'reveal', id: 0, error: ERROR_KEYS[400] });
 		return patch(event, 'reveal', discipline, `/discipline/${discipline}/reveal/`, {
 			reveal_score: form.get('reveal_score') === 'true'
 		});
@@ -72,7 +84,8 @@ export const actions = {
 
 	close: async (event) => {
 		const form = await event.request.formData();
-		const round = id(form, 'round');
+		const round = positiveInt(form.get('round'));
+		if (round === null) return fail(400, { action: 'close', id: 0, error: ERROR_KEYS[400] });
 		return patch(event, 'close', round, `/round/${round}/close/`, {});
 	}
 };

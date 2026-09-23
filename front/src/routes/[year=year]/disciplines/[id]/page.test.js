@@ -237,4 +237,27 @@ describe('discipline page for an organiser', () => {
 		expect(screen.getByText('1 équipe sans résultat')).toBeInTheDocument();
 		expect(screen.getAllByRole('button', { name: 'Enregistrer' })).toHaveLength(3);
 	});
+
+	it('shows a failed score in the open sheet, hides it once dismissed, and returns focus on cancel', async () => {
+		renderWith(
+			Page,
+			{ data: dataFor(summaryStaff, 10, true), form: { action: 'score', id: 200, error: 'orga.error.conflict' } },
+			'en',
+			true
+		);
+
+		const row = screen.getAllByRole('button', { name: /Bisons\s*12 : 9\s*Aigles/ })[0];
+		await fireEvent.click(row);
+		const dialog = screen.getByRole('dialog');
+		expect(within(dialog).getByRole('alert')).toBeInTheDocument();
+
+		await fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+		expect(screen.queryByRole('dialog')).toBeNull();
+		expect(row).toHaveFocus();
+
+		// Reopening the same game after the failure was dismissed by closing must not
+		// show the same stale error again.
+		await fireEvent.click(row);
+		expect(screen.queryByRole('alert')).toBeNull();
+	});
 });

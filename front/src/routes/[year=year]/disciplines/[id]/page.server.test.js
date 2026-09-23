@@ -60,6 +60,18 @@ describe('discipline actions', () => {
 		expect(result).toMatchObject({ status: 400, data: { error: 'orga.error.invalid' } });
 	});
 
+	it('refuses a missing game id before calling the API', async () => {
+		const { result, fetch } = await call('score', { score1: '1', score2: '2' });
+		expect(result).toMatchObject({ status: 400, data: { error: 'orga.error.invalid' } });
+		expect(fetch).not.toHaveBeenCalled();
+	});
+
+	it('refuses an empty score before calling the API', async () => {
+		const { result, fetch } = await call('score', { game: '201', score1: '', score2: '2' });
+		expect(result).toMatchObject({ status: 400, data: { error: 'orga.error.invalid' } });
+		expect(fetch).not.toHaveBeenCalled();
+	});
+
 	it('fails with the unauthorised key without a cookie', async () => {
 		// `token: null`, not `undefined`: the call() helper's default parameter would
 		// otherwise still substitute 'abc' for an explicit `undefined` (standard JS

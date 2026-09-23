@@ -49,18 +49,23 @@
 	let editingRound = 0;
 	let opener = null;
 	/** The `form` value dismissed by closing the sheet, so reopening the same game does not
-	    show the previous failure again. */
+	    show the previous failure again. Set on close (not on open): a failure that arrives
+	    while the sheet is open must still show, and only counts as "seen" once dismissed. */
 	let dismissedForm = null;
 	const openSheet = (game, roundOrder, event) => {
 		opener = event?.currentTarget ?? null;
 		editing = game;
 		editingRound = roundOrder + 1;
-		dismissedForm = form;
 	};
 	const closeSheet = () => {
+		dismissedForm = form;
 		editing = null;
 		opener?.focus();
 	};
+
+	/** Same rule as ScoreSheet: without `reset: false` the entry form blanks (or reverts to
+	    a stale value) between the submit and the reload that brings the saved value back. */
+	const keepValues = () => async ({ update }) => update({ reset: false });
 </script>
 
 <div class="page">
@@ -93,12 +98,12 @@
 	{#if editable && !hasRounds}
 		<!-- The organiser's entry form replaces the list: one line per team, one form each. -->
 		<div id="entries">
-			{#each data.entries as entry}
-				<form method="POST" action="?/result" class="result-line" data-testid="result-line" use:enhance>
+			{#each data.entries as entry (entry.id)}
+				<form method="POST" action="?/result" class="result-line" data-testid="result-line" use:enhance={keepValues}>
 					<input type="hidden" name="result" value={entry.id} />
 					<input type="hidden" name="kind" value={data.discipline.result_type} />
-					<MedalRank rank={entry.ranking} />
-					<label class="name" for="entry-{entry.id}">{entry.teamName ?? t('team.unknown')}</label>
+					<span class="rank"><MedalRank rank={entry.ranking} /></span>
+					<label class="name" id="entry-label-{entry.id}" for="entry-{entry.id}">{entry.teamName ?? t('team.unknown')}</label>
 					{#if data.discipline.result_type === 'TIM'}
 						<!-- A text keyboard: the numeric keypad has no colon. The pattern is a JS string
 						     because Svelte would read `{1,3}` in a plain attribute as an expression. -->
@@ -120,7 +125,7 @@
 							value={entry.points ?? ''}
 						/>
 					{/if}
-					<button>{t('orga.save')}</button>
+					<button aria-describedby="entry-label-{entry.id}">{t('orga.save')}</button>
 					{#if errorFor('result', entry.id)}
 						<p class="error" role="alert">{t(errorFor('result', entry.id))}</p>
 					{/if}
@@ -381,6 +386,31 @@
 
 	.result-line .error {
 		grid-column: 1 / -1;
+	}
+
+	/* Below 600px the 4-column row squeezes the name to nothing (23px at 375px):
+	   drop to two rows, name on its own full-width line above the value and save. */
+	@media (max-width: 599.98px) {
+		.result-line {
+			grid-template-columns: 44px minmax(0, 1fr) auto;
+			grid-template-areas: 'rank name name' 'rank value save';
+		}
+
+		.result-line .rank {
+			grid-area: rank;
+		}
+
+		.result-line .name {
+			grid-area: name;
+		}
+
+		.result-line input {
+			grid-area: value;
+		}
+
+		.result-line button {
+			grid-area: save;
+		}
 	}
 
 	.error {
