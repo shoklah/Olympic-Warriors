@@ -6,7 +6,6 @@ from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.db.models import Prefetch
 from drf_spectacular.utils import extend_schema_field
-from .standings import compute_standings
 from olympic_warriors.models import (
     Player,
     Edition,
@@ -21,6 +20,7 @@ from olympic_warriors.models import (
     BlindtestGuess,
     ResultTypes,
 )
+from .standings import compute_standings
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -234,11 +234,11 @@ class SummaryTeamSerializer(serializers.ModelSerializer):
 class SummaryResultSerializer(serializers.ModelSerializer):
     """
     A team's result in a discipline, its standing read from context["standings"] (see
-    _standing). The ranking fields are null while the discipline's
-    reveal_score is off, or while the result itself has no score yet for its type: the
-    summary is public and must not leak a standing early, nor 500 on a NULL score. With
-    context["staff"] the stored points and time stay visible so an organiser can check and
-    edit them; the ranking stays hidden for staff too until the discipline is revealed.
+    _standing). The ranking fields are null while the discipline's reveal_score is off,
+    or while the result itself has no score yet for its type: the summary is public and
+    must not leak a standing early, nor 500 on a NULL score. With context["staff"] the
+    stored points and time stay visible so an organiser can check and edit them; the
+    ranking stays hidden for staff too until the discipline is revealed.
     """
 
     HIDDEN_FIELDS = ("ranking", "points", "time", "points_difference", "global_points")
@@ -250,12 +250,17 @@ class SummaryResultSerializer(serializers.ModelSerializer):
 
     def _standing(self, obj):
         """
-        The result's standing: from context["standings"] inside the summary, computed
-        for the one result otherwise (the organiser score endpoints return a single row).
+        The result's standing: from context["standings"] inside the summary; computed
+        once per edition and memoised on this serializer otherwise (the organiser score
+        endpoints serialise a single row without context).
         """
         standings = self.context.get("standings")
         if standings is None:
-            standings = compute_standings(obj.discipline.edition)
+            cache = self.__dict__.setdefault("_standings_cache", {})
+            edition_id = obj.discipline.edition_id
+            if edition_id not in cache:
+                cache[edition_id] = compute_standings(obj.discipline.edition)
+            standings = cache[edition_id]
         return standings.result(obj.id)
 
     @extend_schema_field(serializers.IntegerField(allow_null=True))

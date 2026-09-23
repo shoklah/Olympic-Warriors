@@ -722,7 +722,9 @@ class TestManualRankingSummary(SummarySetup, TestCase):
         self.assertEqual({team["total_points"] for team in teams.values()}, {None})
 
     def test_results_are_still_ranked(self):
-        results = {r["team"]: r for r in self.summary()["results"] if r["discipline"] == self.relay.id}
+        results = {
+            r["team"]: r for r in self.summary()["results"] if r["discipline"] == self.relay.id
+        }
 
         self.assertEqual(results[self.team_b.id]["ranking"], 1)
         self.assertEqual(results[self.team_b.id]["global_points"], 5)

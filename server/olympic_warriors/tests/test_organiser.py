@@ -19,6 +19,12 @@ from olympic_warriors.models import (
     TeamSportRound,
 )
 
+# Queries of PATCH /result/<id>/value/ (the client is force-authenticated, so no auth
+# query): the result with its discipline and edition, the latest edition, the check that
+# the discipline has no round, the update, then one standings computation (teams,
+# results, games). Pinned so the serializer cannot go back to recomputing per field.
+RESULT_PATCH_QUERIES = 7
+
 
 class OrganiserSetup(APITestCase):
     """2026 (latest) with Darts (RR, one round, one game) and Crossfit (TIM, no round); 2025 with Darts."""
@@ -179,6 +185,20 @@ class TestTeamResult(OrganiserSetup):
         self.assertEqual(response.status_code, 400)
         response = self.client.patch(f"/result/{result.id}/value/", {"time": "01:00"})
         self.assertEqual(response.status_code, 400)
+
+    def test_response_carries_the_standing_computed_once(self):
+        # Quiz revealed with three registered results and only A scored: A ranks 1 and
+        # earns 3 - 1 + 1 + 2 = 5 global points. The row is serialised without the
+        # summary context, so the standings are computed once, not once per field.
+        quiz = Discipline.objects.create(
+            name="Quiz", edition=self.edition, result_type="PTS", reveal_score=True
+        )
+        result = TeamResult.objects.get(discipline=quiz, team=self.a)
+        with self.assertNumQueries(RESULT_PATCH_QUERIES):
+            response = self.client.patch(f"/result/{result.id}/value/", {"points": 12})
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["ranking"], 1)
+        self.assertEqual(response.data["global_points"], 5)
 
     def test_refuses_a_bad_time_and_the_wrong_field(self):
         self.assertEqual(

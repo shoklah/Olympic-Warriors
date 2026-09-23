@@ -156,6 +156,7 @@ class TeamAdmin(ModelAdmin):
 
     list_display = ["name", "edition", "final_rank", "total_points", "ranking"]
     list_editable = ["final_rank"]
+    ordering = ["edition", "final_rank", "name"]
     list_filter = ["edition", "is_active"]
     search_fields = ["name", "edition__year"]
     inlines = [PlayerInline]
