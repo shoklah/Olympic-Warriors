@@ -3,6 +3,7 @@ Admin dashboard configuration for the Olympic Warriors app.
 """
 
 from django.contrib.admin import site, ModelAdmin, TabularInline
+from django.forms import ModelChoiceField, ModelForm
 from django.http import HttpRequest
 from .models import (
     Player,
@@ -86,12 +87,26 @@ class PlayerRatingInline(TabularInline):
     extra = 1
 
 
+class PlayerInlineForm(ModelForm):
+    """
+    On the team page `team` is the inline's hidden foreign key, and the tabular inline
+    never renders a hidden field's errors: repeat them among the row's errors, since
+    Player.clean() puts its errors on `team`.
+    """
+
+    def non_field_errors(self):
+        return self.error_class(
+            [*super().non_field_errors(), *self.errors.get("team", [])], error_class="nonfield"
+        )
+
+
 class PlayerInline(TabularInline):
     """
     Inline for the Player model to be accessed from the Team model.
     """
 
     model = Player
+    form = PlayerInlineForm
     extra = 1
 
 
@@ -113,12 +128,20 @@ class DodgeballEventInline(TabularInline):
     extra = 1
 
 
+class TeamWithYearChoiceField(ModelChoiceField):
+    """Team choices labelled with their year: team names repeat across editions."""
+
+    def label_from_instance(self, obj):
+        return f"{obj.name} ({obj.edition.year})"
+
+
 class PlayerAdmin(ModelAdmin):
     """
     Admin dashboard configuration for the Player model.
     """
 
     list_display = ["user", "rating", "team", "edition"]
+    list_editable = ["team"]
     list_filter = ["team", "edition", "is_active"]
     search_fields = [
         "user__first_name",
@@ -128,6 +151,15 @@ class PlayerAdmin(ModelAdmin):
         "edition__year",
     ]
     inlines = [PlayerRatingInline]
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        """Teams labelled `name (year)`, newest edition first."""
+        if db_field.name == "team":
+            kwargs["queryset"] = Team.objects.select_related("edition").order_by(
+                "-edition__year", "name"
+            )
+            kwargs["form_class"] = TeamWithYearChoiceField
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
     def changelist_view(self, request, extra_context=None):
         """
