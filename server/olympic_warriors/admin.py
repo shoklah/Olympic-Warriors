@@ -143,6 +143,7 @@ class PlayerAdmin(ModelAdmin):
     list_display = ["user", "rating", "team", "edition"]
     list_editable = ["team"]
     list_filter = ["team", "edition", "is_active"]
+    list_select_related = ["user", "edition", "team"]
     search_fields = [
         "user__first_name",
         "user__last_name",

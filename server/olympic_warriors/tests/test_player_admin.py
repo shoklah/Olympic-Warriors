@@ -6,14 +6,23 @@ teams labelled by year.
 
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
-from django.test import TestCase, override_settings
-
 from django.forms import inlineformset_factory
+from django.test import TestCase, override_settings
 
 from olympic_warriors.admin import PlayerInlineForm
 from olympic_warriors.models import Edition, Player, Team
 
 CHANGELIST = "/admin/olympic_warriors/player/"
+PLAYER_ADD = "/admin/olympic_warriors/player/add/"
+
+# The Player change/add form always carries the PlayerRatingInline management form, even
+# with no rows submitted: Django raises "ManagementForm data is missing" without it.
+NO_RATINGS = {
+    "playerrating_set-TOTAL_FORMS": "0",
+    "playerrating_set-INITIAL_FORMS": "0",
+    "playerrating_set-MIN_NUM_FORMS": "0",
+    "playerrating_set-MAX_NUM_FORMS": "1000",
+}
 
 
 class PlayerSetup:
@@ -54,6 +63,28 @@ class TestPlayerClean(PlayerSetup, TestCase):
         Player(user=self.ana, edition=self.y2024, rating=5).full_clean()
         self.player.full_clean()  # the only active row of 2026 for Ana
 
+    def test_both_mistakes_at_once_are_reported_together(self):
+        # Bypasses clean(): a second active 2026 row for Ana already exists, like an import.
+        Player.objects.create(user=self.ana, edition=self.y2026, rating=5)
+        self.player.team = self.mxm_2024  # also the wrong edition's team
+
+        with self.assertRaises(ValidationError) as caught:
+            self.player.full_clean()
+        team_errors = caught.exception.message_dict["team"]
+        self.assertEqual(len(team_errors), 2)
+        self.assertIn("belongs to another edition", team_errors[0])
+        self.assertIn("already has an active player", team_errors[1])
+
+    def test_a_new_unsaved_team_of_another_edition_is_refused(self):
+        # Mirrors what the TeamAdmin add page hands clean(): team_id is None (the parent
+        # team isn't saved yet) but team itself is set, carrying its own edition.
+        unsaved_team = Team(name="Falcons", edition=self.y2024)
+        self.player.team = unsaved_team
+
+        with self.assertRaises(ValidationError) as caught:
+            self.player.full_clean()
+        self.assertIn("belongs to another edition", caught.exception.message_dict["team"][0])
+
 
 @override_settings(STATICFILES_STORAGE="django.contrib.staticfiles.storage.StaticFilesStorage")
 class TestPlayerChangelist(PlayerSetup, TestCase):
@@ -92,11 +123,127 @@ class TestPlayerChangelist(PlayerSetup, TestCase):
         self.assertIsNone(self.player.team)
 
     def test_team_choices_carry_their_year_newest_first(self):
-        content = self.client.get(CHANGELIST).content.decode()
+        response = self.client.get(CHANGELIST)
 
-        self.assertIn("MxM (2026)", content)
-        self.assertIn("MxM (2024)", content)
-        self.assertLess(content.index("MxM (2026)"), content.index("MxM (2024)"))
+        field = response.context["cl"].formset.forms[0].fields["team"]
+        labels = [label for _, label in field.choices]
+
+        self.assertIn("MxM (2026)", labels)
+        self.assertIn("MxM (2024)", labels)
+        self.assertLess(labels.index("MxM (2026)"), labels.index("MxM (2024)"))
+
+
+@override_settings(STATICFILES_STORAGE="django.contrib.staticfiles.storage.StaticFilesStorage")
+class TestPlayerChangeForm(PlayerSetup, TestCase):
+    """The runbook while a duplicate pair exists (e.g. from an import): deactivating either
+    row must still save, since Player.clean() only checks duplicates for an active row."""
+
+    def setUp(self):
+        super().setUp()
+        root = User.objects.create_superuser("root", "root@example.com", "pw")
+        self.client.force_login(root)
+
+    def test_deactivating_one_of_two_duplicates_saves(self):
+        # Bypasses clean(), like an import: a second active 2026 row for Ana.
+        duplicate = Player.objects.create(user=self.ana, edition=self.y2026, rating=6)
+
+        response = self.client.post(
+            f"/admin/olympic_warriors/player/{duplicate.id}/change/",
+            {
+                "user": str(self.ana.id),
+                "edition": str(self.y2026.id),
+                "rating": "6",
+                # is_active omitted: an unchecked checkbox means False.
+                "_save": "Save",
+                **NO_RATINGS,
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        duplicate.refresh_from_db()
+        self.assertFalse(duplicate.is_active)
+
+    def test_the_add_form_refuses_a_duplicate(self):
+        count_before = Player.objects.count()
+
+        response = self.client.post(
+            PLAYER_ADD,
+            {
+                "user": str(self.ana.id),
+                "edition": str(self.y2026.id),
+                "rating": "5",
+                "is_active": "on",
+                "_save": "Save",
+                **NO_RATINGS,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "already has an active player")
+        self.assertEqual(Player.objects.count(), count_before)
+
+
+@override_settings(STATICFILES_STORAGE="django.contrib.staticfiles.storage.StaticFilesStorage")
+class TestTeamAdminPage(PlayerSetup, TestCase):
+    """The team page's inline hands Player.clean() the unsaved parent team while a new team
+    is being added: team_id is None there, but team itself already carries the edition
+    chosen on the team's own form (see Player.clean()'s docstring)."""
+
+    def setUp(self):
+        super().setUp()
+        root = User.objects.create_superuser("root", "root@example.com", "pw")
+        self.client.force_login(root)
+        self.bob = User.objects.create(username="bob", first_name="Bob", last_name="Marley")
+
+    def test_a_new_team_of_another_edition_than_its_player_is_refused(self):
+        response = self.client.post(
+            "/admin/olympic_warriors/team/add/",
+            {
+                "name": "Falcons",
+                "edition": str(self.y2024.id),
+                "is_active": "on",
+                "player_set-TOTAL_FORMS": "1",
+                "player_set-INITIAL_FORMS": "0",
+                "player_set-MIN_NUM_FORMS": "0",
+                "player_set-MAX_NUM_FORMS": "1000",
+                "player_set-0-user": str(self.bob.id),
+                "player_set-0-edition": str(self.y2026.id),
+                "player_set-0-rating": "5",
+                "player_set-0-is_active": "on",
+                "_save": "Save",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "belongs to another edition")
+        self.assertFalse(Team.objects.filter(name="Falcons").exists())
+
+    def test_duplicating_an_active_player_from_the_team_page_shows_an_error(self):
+        """Proves PlayerInline's `form = PlayerInlineForm` wiring: without it, team's hidden-
+        field errors never reach the rendered page (the tabular template only prints
+        non_field_errors, and the plain ModelForm never repeats a hidden field's errors
+        into those)."""
+        response = self.client.post(
+            f"/admin/olympic_warriors/team/{self.mxm_2026.id}/change/",
+            {
+                "name": self.mxm_2026.name,
+                "edition": str(self.y2026.id),
+                "is_active": "on",
+                "player_set-TOTAL_FORMS": "1",
+                "player_set-INITIAL_FORMS": "0",
+                "player_set-MIN_NUM_FORMS": "0",
+                "player_set-MAX_NUM_FORMS": "1000",
+                "player_set-0-user": str(self.ana.id),
+                "player_set-0-edition": str(self.y2026.id),
+                "player_set-0-rating": "5",
+                "player_set-0-is_active": "on",
+                "_save": "Save",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "already has an active player")
+        self.assertFalse(Player.objects.filter(user=self.ana, team=self.mxm_2026).exists())
 
 
 class TestPlayerInlineForm(PlayerSetup, TestCase):
