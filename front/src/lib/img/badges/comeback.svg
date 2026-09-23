@@ -1,0 +1,6 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- A floor line with an arrow curving up out of it to the upper right. -->
+<path d="M240 1620H1760" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M360 1620C900 1620 1180 1250 1440 560" stroke="white" stroke-width="130" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1510 360L1600 633L1270 517Z" fill="white" stroke="white" stroke-width="70" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

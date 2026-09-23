@@ -1,0 +1,10 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- A square labyrinth seen from above, three nested walls with gaps. -->
+<g transform="translate(80 80) scale(0.92)">
+<path d="M850 1780H220V220H1780V1780H1150" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M850 520H520V1480H1480V520H1150" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M900 1180H820V820H1180V1180H1100" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1480 1000H1780M520 1000H820" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="1000" cy="1000" r="70" fill="white"/>
+</g>
+</svg>

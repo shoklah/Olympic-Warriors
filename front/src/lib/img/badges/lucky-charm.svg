@@ -1,0 +1,16 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- A four-leaf clover with a stem. -->
+<g transform="translate(1000 870) rotate(45)">
+<path d="M0 0C-54 -54 -306 -234 -306 -432C-306 -558 -216 -621 -148 -621C-72 -621 -18 -567 0 -495C18 -567 72 -621 148 -621C216 -621 306 -558 306 -432C306 -234 54 -54 0 0Z" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<g transform="translate(1000 870) rotate(135)">
+<path d="M0 0C-54 -54 -306 -234 -306 -432C-306 -558 -216 -621 -148 -621C-72 -621 -18 -567 0 -495C18 -567 72 -621 148 -621C216 -621 306 -558 306 -432C306 -234 54 -54 0 0Z" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<g transform="translate(1000 870) rotate(225)">
+<path d="M0 0C-54 -54 -306 -234 -306 -432C-306 -558 -216 -621 -148 -621C-72 -621 -18 -567 0 -495C18 -567 72 -621 148 -621C216 -621 306 -558 306 -432C306 -234 54 -54 0 0Z" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<g transform="translate(1000 870) rotate(315)">
+<path d="M0 0C-54 -54 -306 -234 -306 -432C-306 -558 -216 -621 -148 -621C-72 -621 -18 -567 0 -495C18 -567 72 -621 148 -621C216 -621 306 -558 306 -432C306 -234 54 -54 0 0Z" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<path d="M1000 930Q1040 1390 1330 1770" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -1,0 +1,7 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- Apollo's lyre: curled arms, a crossbar, three strings. -->
+<path d="M1000 1640C760 1640 610 1480 615 1180C620 960 600 820 500 700C390 570 400 400 520 360C610 330 660 420 600 470M1000 1640C1240 1640 1390 1480 1385 1180C1380 960 1400 820 1500 700C1610 570 1600 400 1480 360C1390 330 1340 420 1400 470" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M400 600H1600" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M860 600V1420M1000 600V1420M1140 600V1420" stroke="white" stroke-width="70" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M790 1440H1210" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

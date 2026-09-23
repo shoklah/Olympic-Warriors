@@ -1,0 +1,13 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- A single Ionic column: volute capital, fluted shaft, stepped base. -->
+<path d="M540 300H1460" stroke="white" stroke-width="130" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M600 430H1400" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="600" cy="540" r="110" stroke="white" stroke-width="100"/>
+<circle cx="1400" cy="540" r="110" stroke="white" stroke-width="100"/>
+<circle cx="600" cy="540" r="40" fill="white"/>
+<circle cx="1400" cy="540" r="40" fill="white"/>
+<path d="M740 700L760 1480M1260 700L1240 1480" stroke="white" stroke-width="130" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M913 780V1420M1087 780V1420" stroke="white" stroke-width="70" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M680 1590H1320" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M560 1730H1440" stroke="white" stroke-width="130" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

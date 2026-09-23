@@ -1,0 +1,7 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- A torch: handle, cup and flame. -->
+<path d="M1000 205C1100 355 1330 460 1330 720C1330 900 1180 1010 1000 1010C820 1010 670 900 670 720C670 560 760 480 800 400C830 500 880 540 930 560C920 430 940 320 1000 205Z" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1000 660C1060 740 1110 800 1110 870A110 110 0 0 1 890 870C890 800 940 740 1000 660Z" fill="white"/>
+<path d="M640 1070H1360L1260 1280H740Z" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M800 1330L920 1790H1080L1200 1330" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

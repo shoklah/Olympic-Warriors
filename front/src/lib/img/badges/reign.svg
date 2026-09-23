@@ -1,0 +1,10 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- A throne from the front: tall pointed back with a jewel, armrests, seat, legs. -->
+<path d="M660 1090V580Q660 360 1000 250Q1340 360 1340 580V1090" stroke="white" stroke-width="130" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1000 470L1090 600L1000 730L910 600Z" fill="white"/>
+<path d="M430 1090V840H660M1570 1090V840H1340" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="430" cy="840" r="80" fill="white"/>
+<circle cx="1570" cy="840" r="80" fill="white"/>
+<path d="M360 1110H1640V1280H360Z" stroke="white" stroke-width="130" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M470 1280V1760M1530 1280V1760M470 1560H1530" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

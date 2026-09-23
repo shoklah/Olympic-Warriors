@@ -1,0 +1,10 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- Six dots linked by lines, like a constellation. -->
+<path d="M360 730L900 390M900 390L1600 610M900 390L1120 1090M1600 610L1120 1090M1120 1090L1660 1570M1120 1090L520 1550M360 730L520 1550" stroke="white" stroke-width="85" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="360" cy="730" r="140" fill="white"/>
+<circle cx="900" cy="390" r="140" fill="white"/>
+<circle cx="1600" cy="610" r="140" fill="white"/>
+<circle cx="1120" cy="1090" r="140" fill="white"/>
+<circle cx="1660" cy="1570" r="140" fill="white"/>
+<circle cx="520" cy="1550" r="140" fill="white"/>
+</svg>

@@ -1,0 +1,13 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- A road roller from the side: big front drum under its hood, body, cab, rear wheel, on the road. -->
+<g transform="translate(100 -14) scale(0.9)">
+<circle cx="600" cy="1400" r="360" stroke="white" stroke-width="130"/>
+<circle cx="600" cy="1400" r="80" fill="white"/>
+<path d="M190 1400V1150Q190 960 380 960H1100" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M900 960V1180H1780V980H1100" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1200 980L1260 520H1720V980" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="1480" cy="1540" r="200" stroke="white" stroke-width="120"/>
+<circle cx="1480" cy="1540" r="50" fill="white"/>
+<path d="M160 1820H1840" stroke="white" stroke-width="90" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+</svg>

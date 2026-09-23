@@ -1,0 +1,7 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- A theatre mask: one smiling face with eye holes. -->
+<path d="M430 430Q1000 300 1570 430C1620 900 1460 1500 1000 1720C540 1500 380 900 430 430Z" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M620 880Q780 680 940 880Q780 910 620 880Z" fill="white"/>
+<path d="M1060 880Q1220 680 1380 880Q1220 910 1060 880Z" fill="white"/>
+<path d="M680 1170Q1000 1560 1320 1170Q1000 1330 680 1170Z" fill="white"/>
+</svg>

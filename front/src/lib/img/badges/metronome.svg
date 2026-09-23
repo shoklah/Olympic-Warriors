@@ -1,0 +1,11 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- A metronome with its pendulum tilted. -->
+<path d="M620 1640L840 280H1160L1380 1640Z" stroke="white" stroke-width="130" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M680 1330H1320" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1000 1330L1469 447" stroke="white" stroke-width="90" stroke-linecap="round" stroke-linejoin="round"/>
+<g transform="rotate(28 1000 1330)">
+<path d="M890 770H1110L1080 610H920Z" fill="white"/>
+</g>
+<circle cx="1000" cy="1330" r="60" fill="white"/>
+<path d="M500 1760H1500" stroke="white" stroke-width="130" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
