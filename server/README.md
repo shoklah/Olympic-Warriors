@@ -313,7 +313,7 @@ docker compose exec server python manage.py test
 docker compose exec server python manage.py test olympic_warriors.tests.test_summary
 ```
 
-The tests live in `olympic_warriors/tests/`, one file per area: `test_summary`, `test_organiser`, `test_standings`, `test_scheduling`, `test_registration`, `test_transfer`, `test_blindtest`, `test_auth_token`, `test_admin_login`, and so on. `test_summary.py` and `test_organiser.py` pin their query counts (`SUMMARY_QUERIES`, `RESULT_PATCH_QUERIES`), so a view that queries once per row fails the suite.
+The tests live in `olympic_warriors/tests/`, one file per area: `test_summary`, `test_organiser`, `test_standings`, `test_scheduling`, `test_registration`, `test_transfer`, `test_blindtest`, `test_auth_token`, `test_admin_login`, and so on. `test_summary.py` and `test_organiser.py` pin their query counts (`SUMMARY_QUERIES`, `RESULT_PATCH_QUERIES`), so a view that queries once per row fails the suite. `test_routes.py` walks every route of `urls.py`: a function view without `@api_view`, or whose parameters are not the route's converter names, fails it, since either one is a 500 on every call.
 
 CI does not run these tests (the steps are commented out in `.github/workflows/test.yml`), so run them before you merge.
 

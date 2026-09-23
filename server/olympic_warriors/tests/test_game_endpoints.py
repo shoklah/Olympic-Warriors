@@ -33,7 +33,6 @@ class GameEndpointsSetup(APITestCase):
         self.g4 = self.game(self.round2, self.a, self.d, self.c, is_active=False)
 
         user = User.objects.create_user(username="player", password="x")
-        self.client = APIClient()
         self.client.credentials(HTTP_AUTHORIZATION=f"Token {Token.objects.get(user=user).key}")
 
     def game(self, round_, team1, team2, referees, **fields):
@@ -43,7 +42,8 @@ class GameEndpointsSetup(APITestCase):
         )
 
     def ids(self, response):
-        return {game["id"] for game in response.data}
+        """Sorted game ids, duplicates kept, so a join that repeats a row fails."""
+        return sorted(game["id"] for game in response.data)
 
 
 class TestGameEndpoints(GameEndpointsSetup):
@@ -51,7 +51,7 @@ class TestGameEndpoints(GameEndpointsSetup):
     def test_played_games_by_team(self):
         response = self.client.get(f"/games/team/{self.a.id}/played/")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(self.ids(response), {self.g1.id, self.g2.id})
+        self.assertEqual(self.ids(response), sorted([self.g1.id, self.g2.id]))
 
     def test_played_games_by_team_match_the_discipline_scoped_list(self):
         """'Played' is the role (team1 or team2), not is_played: g2 is listed before it is played."""
@@ -63,17 +63,17 @@ class TestGameEndpoints(GameEndpointsSetup):
     def test_refereed_games_by_team(self):
         response = self.client.get(f"/games/team/{self.a.id}/refereed/")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(self.ids(response), {self.g3.id})
+        self.assertEqual(self.ids(response), [self.g3.id])
 
     def test_games_by_round(self):
         response = self.client.get(f"/games/round/{self.round1.id}/")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(self.ids(response), {self.g1.id, self.g3.id})
+        self.assertEqual(self.ids(response), sorted([self.g1.id, self.g3.id]))
 
     def test_games_by_round_skip_inactive_games(self):
         response = self.client.get(f"/games/round/{self.round2.id}/")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(self.ids(response), {self.g2.id})
+        self.assertEqual(self.ids(response), [self.g2.id])
 
     def test_every_list_needs_a_token(self):
         client = APIClient()
