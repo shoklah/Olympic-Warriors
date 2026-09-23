@@ -83,7 +83,7 @@ urlpatterns = [
         "games/discipline/<int:discipline_id>/team/<int:team_id>/refereed/",
         views.getRefereedGamesByDisciplineAndTeam,
     ),
-    path("games/round/<int:round>/", views.getGamesByRound),
+    path("games/round/<int:round_id>/", views.getGamesByRound),
     # game events
     path("event/<int:event_id>/", views.getGameEvent),
     path("event/create/", views.createGameEvent),

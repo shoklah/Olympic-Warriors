@@ -477,6 +477,7 @@ def getGamesByDiscipline(request, discipline_id):
         "500": OpenApiResponse(description="Internal server error"),
     },
 )
+@api_view(["GET"])
 def getPlayedGamesByTeam(request, team_id):
     games = Game.objects.filter((Q(team1=team_id) | Q(team2=team_id)), is_active=True)
     serializer = GameSerializer(games, many=True)
@@ -491,6 +492,7 @@ def getPlayedGamesByTeam(request, team_id):
         "500": OpenApiResponse(description="Internal server error"),
     },
 )
+@api_view(["GET"])
 def getRefereedGamesByTeam(request, team_id):
     games = Game.objects.filter(referees=team_id, is_active=True)
     serializer = GameSerializer(games, many=True)
