@@ -45,7 +45,8 @@ Decisions taken while brainstorming (2026-09-23):
   refresh rebuilds from the current data.
 - **Title**: rank 1. **Podium**: rank 1 to 3.
 - **Last place**: every active team of the edition has a rank and none has a worse one,
-  in an edition of at least 4 teams, so a last place is never also a podium place.
+  in an edition of at least 4 teams, and that worst rank is 4th or below. So a last place
+  is never also a podium place, even when the bottom teams tie (ranks 1, 2, 3, 3).
 - **Relative rank**: `(rank − 1) / (teams − 1)`, from 0 for first to 1 for last, so that
   editions of different sizes compare.
 - **Teammate**: another person whose participation in the same edition has the same
@@ -107,7 +108,7 @@ Every place badge needs a counted participation.
 | `eternal-second` | Poulidor | Eternal second | A second 2nd place while still without a title | once | silver | A bicycle wheel hanging from a medal ribbon |
 | `janus` | Janus | Janus | A title and a last place | once | plain | Two-faced head |
 | `comeback` | Remontada | Comeback | Last place, then podium in the next edition | each | silver | An arrow rising from the floor |
-| `on-the-rise` | Ascension | On the rise | Relative rank strictly better in each of 3 consecutive editions | streak | bronze | Stairs with an arrow |
+| `on-the-rise` | Ascension | On the rise | Three consecutive editions, each with a strictly better relative rank than the one before (two climbs) | streak | bronze | Stairs with an arrow |
 | `icarus` | Icare | Icarus | A title, then the bottom half (rank above `teams / 2`) in the next edition | each | plain | A wing losing its feathers ✓ |
 | `lucky-charm` | Porte-bonheur | Lucky charm | First three counted participations all on the podium | once | silver | Four-leaf clover |
 
@@ -357,7 +358,8 @@ The leaderboard (`/profiles/`) does not change in this step.
 The glyph files are `front/src/lib/img/badges/<code>.svg`, in the discipline icons'
 house style:
 - a 2000×2000 viewBox;
-- white strokes 80 to 150 units wide, with round caps and joins;
+- white strokes, main outlines 110 to 150 units wide and details down to 50, with round
+  caps and joins;
 - white fills for small solid parts;
 - no background and no frame, since the frame belongs to the component.
 
@@ -400,13 +402,15 @@ when the person has none. It is a grid of tiles (`repeat(auto-fill, minmax(9rem,
 and each tile shows:
 - the medallion, 56px;
 - the name, `badge.<code>.name`, in `.label` style;
-- a detail line in `--muted`, its parts joined by ` · `:
-  - a tiered badge: the translated discipline name for `specialist`, then « Niveau 2 » /
-    "Tier 2", then the year that tier was reached (`Rugby · Tier 1 · 2026`);
+- a detail line in `--muted`, its parts joined by ` · `, starting with the translated
+  discipline name whenever the badge has one (`specialist`, `unbeaten`, `perfect-run`), so
+  two tiles of one code tell their disciplines apart:
+  - a tiered badge: « Niveau 2 » / "Tier 2", then the year that tier was reached
+    (`Rugby · Tier 1 · 2026`);
   - `comrades`: « avec » / "with" and the partner as a link to their profile, then the
     year (`with Léa Martin · 2026`);
   - any other badge: `×2` when earned more than once, then the years
-    (`×2 · 2024 · 2026`);
+    (`×2 · 2024 · 2026`, `Dodgeball · ×2 · 2025 · 2026`);
 - the rule, `badge.<code>.rule`, as a small `--muted` line, so nothing hides behind a
   hover.
 
@@ -417,7 +421,8 @@ Text shape for the tests: `Champion ×2 · 2024 · 2026 Win an edition`.
 ### i18n
 
 - `badge.<code>.name` and `badge.<code>.rule` for every code, in `fr.js` and `en.js`
-  (`parity.test.js` covers them). Thresholds are parameters (`{n}`).
+  (`parity.test.js` covers them). The thresholds are written into the rule text, so
+  tuning one means changing `badges.py` and both dictionaries (decided while planning).
 - `profile.badges` for the heading, `badge.level` (« Niveau {tier} » / "Tier {tier}"),
   `badge.times` (`×{n}`) and `badge.with` (« avec » / "with").
 
@@ -461,7 +466,7 @@ Front:
 - `src/lib/badges.test.js` lists every code (`BADGE_CODES`, mirroring `Badge.Codes` as
   `DISCIPLINE_NAMES` mirrors the models). It fails when a code lacks a glyph, a metal, or
   a name or rule in either dictionary;
-- `Badge.svelte`: the metal, the pips and the hidden tier text;
+- `Badge.svelte`: the metal, the pips, and that it is `aria-hidden`;
 - the profile page: the tile text shapes, the partner link, the section left out when
   empty, and one French test.
 
@@ -477,7 +482,8 @@ Front:
 - The thresholds (networker, golden whistle, veteran, ever-present) are first guesses, to
   tune once the real data is in.
 - `created_at` restarts when a correction removes a badge and a later one earns it back.
-- Manual badges are not part of the edition export and import.
+- Manual badges are not part of the edition export and import (`transfer.NOT_EXPORTED`),
+  and `import_edition --replace` cascade-deletes the replaced edition's badges.
 
 ## Out of scope
 

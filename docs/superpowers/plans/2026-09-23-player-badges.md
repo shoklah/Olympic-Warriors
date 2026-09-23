@@ -69,6 +69,8 @@ Docs:
 - Modify: `server/olympic_warriors/models/__init__.py`
 - Create: `server/olympic_warriors/migrations/0033_badges.py` (generated, then edited)
 - Create: `server/olympic_warriors/tests/test_badge_model.py`
+- Modify: `server/olympic_warriors/transfer.py` (`NOT_EXPORTED`)
+- Modify: `server/olympic_warriors/tests/test_transfer.py` (`test_tables_cover_every_root_model`)
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -323,17 +325,32 @@ and add as the last operation:
         migrations.RunPython(create_refresh_row, migrations.RunPython.noop),
 ```
 
-- [ ] **Step 5: Run the tests and the migration check**
+- [ ] **Step 5: Keep the transfer test honest**
 
-Run: `python3 manage.py test olympic_warriors.tests.test_badge_model && python3 manage.py makemigrations --check --dry-run`
+`test_transfer.TestExport.test_tables_cover_every_root_model` requires every root model to be exported unless it is `Edition`. Badges are not exported: they are derived, and `refresh()` rebuilds them after an import. So in `transfer.py`, below `TABLES`, add:
+
+```python
+# Root models an edition export leaves out on purpose: badges are derived from the
+# edition's data, and badges.refresh() rebuilds them after an import (import_edition runs
+# it). Manual badges are not transferred, and --replace cascade-deletes the replaced
+# edition's ones.
+NOT_EXPORTED = frozenset({"Badge", "BadgeRefresh"})
+```
+
+In the test, import `NOT_EXPORTED` next to `TABLES` and compare against `{name for name, _, _ in TABLES} | {"Edition"} | NOT_EXPORTED`.
+
+- [ ] **Step 6: Run the tests and the migration check**
+
+Run: `python3 manage.py test olympic_warriors.tests.test_badge_model olympic_warriors.tests.test_transfer && python3 manage.py makemigrations --check --dry-run`
 Expected: the tests pass, and "No changes detected".
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 cd /home/user/Olympic-Warriors
 git add server/olympic_warriors/models/Badge.py server/olympic_warriors/models/__init__.py \
-  server/olympic_warriors/migrations/0033_badges.py server/olympic_warriors/tests/test_badge_model.py
+  server/olympic_warriors/migrations/0033_badges.py server/olympic_warriors/tests/test_badge_model.py \
+  server/olympic_warriors/transfer.py server/olympic_warriors/tests/test_transfer.py
 git commit -m "[ADD] badges: Badge and BadgeRefresh models, the catalogue of codes" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01BCyaie3oGmp9hTfHaEKWZw"
 ```
@@ -499,11 +516,19 @@ TODAY = date(2031, 1, 1)
 class World:
     """Builds histories: finished editions whose teams are hand-ranked, and people on them."""
 
-    def edition(self, year, size=4, host="Paris", ranks=None, finished=True, ranked=True):
+    def edition(
+        self, year, size=4, host="Paris", ranks=None, finished=True, ranked=True, spectator=True
+    ):
         """
         An edition held on Sept 21-22 of `year` (or ending after TODAY when not `finished`)
         with `size` teams T<year>-1.. ranked 1..size, or `ranks` (None for a team without a
         final_rank). With ranked=False the teams get no final_rank at all.
+
+        With `spectator` (the default) a teamless player sits in the edition, so it has a
+        roster and stays in the sequence even when a test's people all miss it: a missed
+        edition must break streaks. A teamless player has no place, no teammate and no
+        position, so it earns only loyalty badges. Pass spectator=False for an edition
+        without any roster, which the sequence skips.
         Returns (edition, [teams]).
         """
         end = date(year, 9, 22) if finished else date(TODAY.year + 1, 1, 1)
@@ -517,6 +542,8 @@ class World:
             )
             for n, rank in enumerate(ranks, start=1)
         ]
+        if spectator:
+            self.seat(self.person(f"Spectator{year}"), edition)
         return edition, teams
 
     @staticmethod
@@ -545,7 +572,7 @@ def years_of(user, code, today=TODAY):
 
 class TestHistory(World, TestCase):
     def test_the_sequence_is_finished_editions_with_players_by_year(self):
-        e2023, _ = self.edition(2023)  # finished, no roster: left out
+        e2023, _ = self.edition(2023, spectator=False)  # finished, no roster: left out
         e2024, t2024 = self.edition(2024)
         e2025, t2025 = self.edition(2025)
         e2026, t2026 = self.edition(2026, finished=False)  # running: left out
@@ -586,6 +613,9 @@ Add more tests to `TestPlaces`, each on its own minimal history:
 - **The spoon needs a complete ranking.** In a hand-ranked edition where one team has no `final_rank` (`ranks=[1, 2, 3, None]`), the worst ranked team gets no `wooden-spoon`.
 - **No team, no place.** A person without a team gets no place badge.
 - **Unfinished editions give nothing.** A person 1st in a running edition gets no `champion`.
+- **A tied last place on the podium is not last.** In a 4-team edition with ranks `[1, 2, 3, 3]`, both 3rd teams get `bronze` and not `wooden-spoon` (Step 3's `_last_rank` refuses a last rank of 3 or better).
+
+`setUp` already builds 2024, so the added tests use other years for their editions.
 
 - [ ] **Step 2: Run them to see them fail**
 
@@ -655,12 +685,13 @@ def _rank(seat):
 def _last_rank(edition, standing, ranked):
     """
     The rank of the edition's last place: every active team has a rank, in an edition of at
-    least 4 teams (so a last place is never a podium place). None otherwise.
+    least 4 teams, and the worst rank is below the podium, so a last place is never a
+    podium place even when the bottom teams tie (ranks 1, 2, 3, 3). None otherwise.
     """
     if edition.id not in ranked or edition.team_count < 4:
         return None
     ranks = [team.ranking for team in standing.teams.values()]
-    if not ranks or not all(ranks):
+    if not ranks or not all(ranks) or max(ranks) <= 3:
         return None
     return max(ranks)
 
@@ -776,7 +807,7 @@ Add these cases, one test each:
   - **A year without an edition is skipped.** Editions in 2021, 2022 and 2024, with no 2023 edition, and titles in all three: `threepeat` in 2024.
   - **A missed edition breaks a streak.** Places `[1, None, 1]`: no `back-to-back`.
   - **An unranked edition breaks a place streak.** Title in 2021; in 2022 the person plays for a team without a `final_rank` (build 2022 with `ranks=[1, 2, None]` and seat them on the unranked team); title in 2023. No `back-to-back`.
-  - **A roster-less edition does not break a streak.** An edition with no players at all between two titles leaves them consecutive: `back-to-back`.
+  - **A roster-less edition does not break a streak.** An edition created with `spectator=False` and no players between two titles leaves them consecutive: `back-to-back`. (`play` creates its editions with the default spectator, so a `None` in its places is a real miss.)
 - **podium-regular**
   - Places `[3, 2, 1]` give it in 2023.
   - Places `[3, 2, 1, 2]` still give it only in 2023.
@@ -789,8 +820,10 @@ Add these cases, one test each:
   - Places `[1, 3, 1, 4, 1]` give it in 2023 and 2025.
 - **legend**
   - Places `[1, 3, 1, 1]` give it in 2024, once.
+  - Places `[1, 1]` do not give it.
 - **full-set**
   - Places `[3, 1, 2]` give it in 2023, once.
+  - Places `[1, 2]` do not give it.
 - **eternal-second**
   - Places `[2, 4, 2]` give it in 2023.
   - Places `[1, 2, 2]` do not give it.
@@ -800,8 +833,9 @@ Add these cases, one test each:
 - **comeback**
   - 6th, then 3rd in the next edition: `comeback` at the second.
   - 6th, a missed edition, then 1st: no `comeback`.
-- **on-the-rise**
+- **on-the-rise** (three editions in a row, each better than the one before: two climbs)
   - In 6-team editions, places `[6, 4, 2]` give it in 2023.
+  - Places `[6, 4]` do not.
   - Places `[6, 4, 2, 1]` give it only in 2023.
   - Places `[6, 4, 4, 3, 2]` give it in 2025: the run restarts at the repeated 4.
   - It compares relative ranks: 3rd of 5 (0.5) then 3rd of 9 (0.25) then 1st is a rise. Build the three editions with those sizes.
@@ -961,6 +995,7 @@ Claude-Session: https://claude.ai/code/session_01BCyaie3oGmp9hTfHaEKWZw"
 - **ever-present**
   - Tier 1 at the 4th consecutive edition, tier 2 at the 6th, and tier 3 at the 8th.
   - After a break, a new run of 4 earns nothing new, since each tier is earned once.
+  - Playing without a team, or for a team without a rank, still counts as playing: it does not break the run.
 - **homecoming**
   - Played 2021, missed 2022 and 2023, played 2024: earned in 2024.
   - Missing only one edition earns nothing.
@@ -1187,13 +1222,21 @@ These rules read discipline ranks from `compute_standings`, so the tests need co
 A helper in the class:
 
 ```python
-    def results(self, discipline_model, edition, points, reveal=True):
-        """A discipline of `edition` whose teams score `points` (a list, in team order)."""
+    def results(self, discipline_model, edition, values, reveal=True):
+        """
+        A discipline of `edition` whose teams score `values` (a list, in team order): points
+        for a points discipline (higher is better), seconds for a time discipline such as
+        Crossfit or Orienteering (lower is better, stored as a `time`).
+        """
         discipline = discipline_model.objects.create(edition=edition, reveal_score=reveal)
-        for team, value in zip(Team.objects.filter(edition=edition).order_by("id"), points):
-            TeamResult.objects.filter(discipline=discipline, team=team).update(points=value)
+        timed = discipline.result_type == ResultTypes.TIME
+        for team, value in zip(Team.objects.filter(edition=edition).order_by("id"), values):
+            field = {"time": dt_time(0, value // 60, value % 60)} if timed else {"points": value}
+            TeamResult.objects.filter(discipline=discipline, team=team).update(**field)
         return discipline
 ```
+
+(`from datetime import time as dt_time` and `from olympic_warriors.models.ResultTypes import ResultTypes` at the top of the test module.)
 
 Cases (import `Relay`, `Darts`, `GeneralCultureQuizz`, `Rugby`, `Crossfit`, `Petanque`, and the others as needed):
 - **The coverage test.** Every `Discipline` subclass is in `FAMILIES`, and in `KINDS` unless it is Fair. Create one of each: `for model in Discipline.__subclasses__(): model.objects.create(edition=e)`, then read `.name`. This makes adding a discipline without a god fail the suite.
@@ -1621,7 +1664,12 @@ class TestQueries(World, TestCase):
 - [ ] **Step 1: Write the failing tests**
 
 `test_badge_refresh.py` reuses `World` and `TODAY` from `test_badges` (`from olympic_warriors.tests.test_badges import TODAY, World`). Cases:
-- **The first run stores what was earned.** A 4-team edition with four people: `refresh(TODAY)` stores their `champion`, `runner-up`, `bronze`, `wooden-spoon` and `rookie` rows as `is_manual=False`. The report's `added` equals the row count and `removed == 0`. `BadgeRefresh.objects.get(pk=1).refreshed_at` is set.
+- **The first run stores what was earned.** A 4-team edition with four people. `refresh(TODAY)` stores exactly the keys of `earned(TODAY)` as `is_manual=False` rows:
+  - the four place badges;
+  - a `rookie` and an `argonaut` each, since this is also the first finished edition;
+  - the spectator's own `rookie` and `argonaut`.
+
+  Compare the stored `(user_id, code, edition_id, tier, discipline, partner_id)` tuples with the `earned()` keys rather than a hand count. The report's `added` equals that count and `removed == 0`. `BadgeRefresh.objects.get(pk=1).refreshed_at` is set.
 - **A second run writes nothing.** `added == removed == 0`, with the same row ids and `created_at`.
 - **A correction deletes what is no longer earned.** Swap two teams' `final_rank`: the old `champion` row is gone and a new one exists for the new champion.
 - **A revoked row stays revoked.** Set a computed row's `is_active=False`; after a refresh it is still inactive and still there.
@@ -1722,7 +1770,7 @@ class Command(BaseCommand):
 - Modify: `server/olympic_warriors/management/commands/import_edition.py`
 - Modify: `server/olympic_warriors/tests/test_badge_refresh.py`
 
-- [ ] **Step 1: Write the failing tests** (in `test_badge_refresh.py`; log in with `self.client.force_login(User.objects.create_superuser("admin", "a@b.c", "pw"))`, as `test_admin.py` does)
+- [ ] **Step 1: Write the failing tests** (in `test_badge_refresh.py`, in a class decorated with `@override_settings(STATICFILES_STORAGE="django.contrib.staticfiles.storage.StaticFilesStorage")` like every admin test, since whitenoise's manifest storage has no manifest in tests; log in with `self.client.force_login(User.objects.create_superuser("admin", "a@b.c", "pw"))`, as `test_admin.py` does)
 - **The Edition changelist action.** `POST /admin/olympic_warriors/edition/` with `{"action": "refresh_badges", "_selected_action": [edition.id]}` calls `refresh` once. Patch `olympic_warriors.admin.refresh` to return a `RefreshReport`, and show a message containing « Badges recalculés ».
 - **The Badge changelist** answers 200. Its add page offers only the six manual codes as `code` options, and has no `tier`, `discipline` or `partner` field.
 - **Adding through the admin** stores `is_manual=True`.
@@ -1826,7 +1874,8 @@ In `import_edition.py`, add `from olympic_warriors.badges import refresh`, and i
 - **Grouping.** Two `champion` rows (2024, 2025) give one entry `{"code": "champion", "tier": 0, "years": [2024, 2025], "discipline": None, "partner": None}`.
 - **Tiered rows.** Two `veteran` rows (tier 1 in 2024, tier 2 in 2025) give `tier: 2, years: [2024, 2025]`.
 - **specialist** rows for Relay and Darts are two entries, Darts first (by name), `discipline: "Darts"`.
-- **comrades** carries `partner: {"id", "first_name", "last_name"}`, with no username or email. The existing no-login test covers the whole payload.
+- **comrades** carries `partner: {"id", "first_name", "last_name"}`. This test asserts on its own that the response has no `username`, no `email` and no partner login. The existing no-login test has no `Badge` rows, so it does not cover this.
+- **The existing exact-dict test.** `test_profile_lists_every_edition_newest_first` compares every key but `editions` to an exact dict: add `"badges": []` to it.
 - **Catalogue order.** `wooden-spoon` comes before `goat`, which comes before `mvp`, in the order of `Badge.Codes`.
 - **Hidden rows.** Inactive rows and rows of an inactive edition are left out.
 - **The query count.** The profile endpoint runs `PROFILES_QUERIES + 1`, and `/profiles/` stays at `PROFILES_QUERIES`. Update `test_both_endpoints_run_in_a_fixed_number_of_queries`.
@@ -1921,7 +1970,7 @@ with `from .badges import profile_badges`. Update the docstring of `ProfileSeria
 
 ### Glyph tasks (12, 13, 14): shared brief
 
-The 21 glyphs already in `front/src/lib/img/badges/` set the style; read five of them first. Also look at `/tmp/claude-0/-home-user-Olympic-Warriors/8b9660c0-f805-57d8-83b2-d95343823c44/scratchpad/badges/gen.py`, the generator that drew them.
+The 20 committed glyphs in `front/src/lib/img/badges/` set the style; read five of them first. Untracked files there are other agents' drafts: leave them alone. Also look at `/tmp/claude-0/-home-user-Olympic-Warriors/8b9660c0-f805-57d8-83b2-d95343823c44/scratchpad/badges/gen.py`, the generator that drew them.
 
 The house style (`front/src/lib/img/icons/*.svg` follows it too):
 
@@ -1932,7 +1981,7 @@ The house style (`front/src/lib/img/icons/*.svg` follows it too):
 </svg>
 ```
 
-- **Strokes.** White strokes 80 to 150 units wide (main outlines 110 to 150, details 70 to 100), with round caps and joins. Small solid parts are filled white.
+- **Strokes.** White strokes, main outlines 110 to 150 units wide and details down to 50 (as in the committed glyphs), with round caps and joins. Small solid parts are filled white.
 - **Background.** None, no frame and no text: the badge component draws the ring.
 - **Numerals.** Only where a row below says so, drawn as strokes.
 - **Canvas.** Keep the drawing inside roughly 150 to 1850 on both axes, centred, and filling it like the existing glyphs: the frame shows the glyph at 60% of the badge.
@@ -2118,6 +2167,12 @@ describe('badgeDetail', () => {
 		expect(badgeDetail(specialist, tFr, 'fr')).toEqual(['Relais', 'Niveau 1', '2026']);
 	});
 
+	it('names the discipline of any badge that has one', () => {
+		const unbeaten = { code: 'unbeaten', tier: 0, years: [2025, 2026], discipline: 'Dodgeball', partner: null };
+		expect(badgeDetail(unbeaten, tEn, 'en')).toEqual(['Dodgeball', '×2', '2025', '2026']);
+		expect(badgeDetail(unbeaten, tFr, 'fr')).toEqual(['Balle au prisonnier', '×2', '2025', '2026']);
+	});
+
 	it('leaves the partner of comrades to the page, keeping the year', () => {
 		const comrades = { code: 'comrades', tier: 0, years: [2026], discipline: null, partner: { id: 12 } };
 		expect(badgeDetail(comrades, tEn, 'en')).toEqual(['2026']);
@@ -2237,22 +2292,23 @@ export function badgeGlyph(badge) {
 }
 
 /**
- * The text parts of a profile tile's detail line, which the page joins with ' · ':
- * a tiered badge gives [discipline (specialist only), 'Tier 2', year reached]; comrades
- * gives [year], the page writing the partner link before it; any other badge gives
- * ['×2', ...years] when earned more than once, else [year].
+ * The text parts of a profile tile's detail line, which the page joins with ' · '. The
+ * discipline comes first whenever the badge has one (specialist, unbeaten, perfect-run),
+ * so two tiles of one code tell their disciplines apart. Then a tiered badge gives
+ * ['Tier 2', year reached]; comrades gives [year], the page writing the partner link
+ * before it; any other badge gives ['×2', ...years] when earned more than once, else
+ * [year].
  */
 export function badgeDetail(badge, t, locale) {
 	const years = badge.years.map(String);
+	const parts = badge.discipline ? [disciplineName(locale, badge.discipline)] : [];
 	if (isTiered(badge.code)) {
-		const parts = [];
-		if (badge.code === 'specialist' && badge.discipline) parts.push(disciplineName(locale, badge.discipline));
 		parts.push(t('badge.level', { tier: badge.tier }));
 		if (years.length) parts.push(years[years.length - 1]);
 		return parts;
 	}
-	if (badge.code === 'comrades') return years.slice(-1);
-	return years.length > 1 ? [t('badge.times', { n: years.length }), ...years] : years;
+	if (badge.code === 'comrades') return [...parts, ...years.slice(-1)];
+	return years.length > 1 ? [...parts, t('badge.times', { n: years.length }), ...years] : [...parts, ...years];
 }
 ```
 
@@ -2296,7 +2352,7 @@ In `fr.js`, after the `profile.*` keys:
 	'badge.comeback.name': 'Remontada',
 	'badge.comeback.rule': 'Monter sur le podium juste après une dernière place',
 	'badge.on-the-rise.name': 'Ascension',
-	'badge.on-the-rise.rule': 'Progresser au classement trois éditions de suite',
+	'badge.on-the-rise.rule': 'Progresser au classement deux éditions de suite',
 	'badge.icarus.name': 'Icare',
 	'badge.icarus.rule': 'Tomber dans la seconde moitié juste après un titre',
 	'badge.lucky-charm.name': 'Porte-bonheur',
@@ -2431,7 +2487,7 @@ In `en.js`, the same keys:
 	'badge.comeback.name': 'Comeback',
 	'badge.comeback.rule': 'Reach the podium right after a last place',
 	'badge.on-the-rise.name': 'On the rise',
-	'badge.on-the-rise.rule': 'Climb the ranking three editions in a row',
+	'badge.on-the-rise.rule': 'Climb the ranking two editions in a row',
 	'badge.icarus.name': 'Icarus',
 	'badge.icarus.rule': 'Drop to the bottom half right after a title',
 	'badge.lucky-charm.name': 'Lucky charm',
@@ -2810,12 +2866,12 @@ Expected: all pass, and the build succeeds.
 **Files:**
 - Modify: `CLAUDE.md`
 - Modify: `docker-compose.prod.example.yml`
-- Modify: `docs/superpowers/specs/2026-09-23-player-badges-design.md` (status line under the title: `> **Built 2026-09-23**, plan: docs/superpowers/plans/2026-09-23-player-badges.md.`)
+- Modify: `docs/superpowers/specs/2026-09-23-player-badges-design.md` (status line under the title: `> **Built 2026-09-23** in one go, all four phases at once; plan: docs/superpowers/plans/2026-09-23-player-badges.md.`)
 
 - [ ] **Step 1: `CLAUDE.md`**
 
 Add a **Player badges** paragraph after **Player profiles** in the backend section. It covers:
-- `badges.py`: `earned(today)` from `profiles._load`, plus results, games and guesses, and `BADGES_QUERIES` = 5 + 3 per sequence edition.
+- `badges.py`: `earned(today)` from `profiles._load`, plus results, games and guesses. `BADGES_QUERIES` is 5 + 3 per sequence edition when the sequence is not empty; with no sequence it is just `_load`'s 2.
 - The sequence rule: finished active editions with at least one player, by year. The earned-at rule: playing more never removes a badge.
 - `Badge` (migration `0033`): `Badge.Codes` is the catalogue in display order (63 codes). `MANUAL_CODES` are the six given by hand; `BadgeAdmin` offers only those and sets `is_manual`. A computed row is read-only except `is_active`, which revokes it, and the refresh keeps a revoked row.
 - What `refresh()` does: the `BadgeRefresh` row lock, delete, `bulk_create`, keep, manual rows untouched, `refreshed_at`.
@@ -2829,6 +2885,8 @@ Add a **Player badges** paragraph after **Player profiles** in the backend secti
 - `GET /profile/<id>/` carries `badges` from `profile_badges`, one query more than `/profiles/`.
 - The spec under `docs/superpowers/specs/`.
 
+In the **Edition transfer** paragraph, say that badges are not exported (`transfer.NOT_EXPORTED`): a real `import_edition` rebuilds the computed ones, manual badges are not transferred, and `--replace` cascade-deletes the replaced edition's badges.
+
 Add a 6th step to **Adding a discipline**: "Pick its god in `FAMILIES` and its kind in `KINDS` in `badges.py` (`test_badges.py` fails otherwise)."
 
 In the front **Presentation** paragraph, replace the sentence about `front/src/lib/img/badges/` ("... not imported anywhere yet") with one covering:
@@ -2841,7 +2899,7 @@ In the front **Presentation** paragraph, replace the sentence about `front/src/l
 
 ```yaml
     # Badges are rebuilt nightly by a crontab entry on the host (see CLAUDE.md, "Player badges"):
-    # 0 2 * * * cd <repo> && docker compose -f <this file> exec -T server python manage.py refresh_badges
+    # 0 2 * * * cd <repo> && docker compose -f <this file> exec -T server python manage.py refresh_badges >> /var/log/olympic-warriors-badges.log 2>&1
 ```
 
 - [ ] **Step 3: Full verification**
@@ -2867,10 +2925,20 @@ In the front **Presentation** paragraph, replace the sentence about `front/src/l
   - `chocolate` is also refused when the 4th place is shared with the last one.
   - The tier is written in the tile's detail line (`Tier 2`), and `Badge.svelte` stays `aria-hidden`.
   - The keys are `badge.level`, `badge.times` and `badge.with`.
+- **Plan review fixes (2026-09-23), already folded in:**
+  - `transfer.NOT_EXPORTED` (Task 1);
+  - the `World` spectator (a missed edition must stay in the sequence);
+  - `_last_rank` refuses a last rank of 3 or better;
+  - time results in the discipline helper;
+  - the `earned()`-based first-run expectation;
+  - the admin static-files override;
+  - the exact-dict profile test;
+  - the discipline first in any detail line;
+  - on-the-rise as three editions and two climbs, with the rule text to match.
 - **Order.**
   - Server Tasks 1 to 11 run one after the other. Tasks 3 to 8 build `badges.py` and `test_badges.py` up; each adds its rule to `RULES`.
   - The glyph Tasks 12 to 14 are independent of the server and of each other. They can run in parallel from the start, and do not commit.
-  - Task 15 needs the glyphs; Task 16 needs Task 15; Task 17 comes last.
+  - Task 15 needs the glyphs, and the controller commits all 62 glyphs before or with it: `badges.test.js` gates the front CI job. Task 16 needs Task 15; Task 17 comes last.
 - **Names used across tasks:**
   - `Earned`, `History`, `history`, `earned`, `RULES`, `refresh`, `RefreshReport` and `profile_badges`;
   - `FAMILIES`, `KINDS`, `GODS` and `CATALOGUE_ORDER`;
