@@ -6,6 +6,7 @@ from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.db.models import Prefetch
 from drf_spectacular.utils import extend_schema_field
+from .standings import compute_standings
 from olympic_warriors.models import (
     Player,
     Edition,
@@ -203,9 +204,10 @@ class SummaryPlayerSerializer(serializers.ModelSerializer):
 
 class SummaryTeamSerializer(serializers.ModelSerializer):
     """
-    A team's summary row. `ranking` and `total_points` are computed once by the parent
-    EditionSummarySerializer and handed in through context["totals"] instead of each
-    team recomputing Team.ranking/total_points (which would fan out per result).
+    A team's summary row. `ranking` and `total_points` come from the edition standings
+    computed once by EditionSummarySerializer and handed in through context["standings"],
+    instead of each team recomputing them. Both are null in a manual edition without a
+    rank for this team (ranking) or for every team (total_points).
     """
 
     ranking = serializers.SerializerMethodField()
@@ -216,14 +218,13 @@ class SummaryTeamSerializer(serializers.ModelSerializer):
         model = Team
         fields = ("id", "name", "ranking", "total_points", "players")
 
-    @extend_schema_field(serializers.IntegerField())
+    @extend_schema_field(serializers.IntegerField(allow_null=True))
     def get_ranking(self, obj):
-        totals = self.context["totals"]
-        return 1 + sum(1 for points in totals.values() if points > totals[obj.id])
+        return self.context["standings"].team(obj.id).ranking
 
-    @extend_schema_field(serializers.IntegerField())
+    @extend_schema_field(serializers.IntegerField(allow_null=True))
     def get_total_points(self, obj):
-        return self.context["totals"][obj.id]
+        return self.context["standings"].team(obj.id).total_points
 
     @extend_schema_field(SummaryPlayerSerializer(many=True))
     def get_players(self, obj):
@@ -232,7 +233,8 @@ class SummaryTeamSerializer(serializers.ModelSerializer):
 
 class SummaryResultSerializer(serializers.ModelSerializer):
     """
-    A team's result in a discipline. The ranking fields are null while the discipline's
+    A team's result in a discipline, its standing read from context["standings"] (see
+    _standing). The ranking fields are null while the discipline's
     reveal_score is off, or while the result itself has no score yet for its type: the
     summary is public and must not leak a standing early, nor 500 on a NULL score. With
     context["staff"] the stored points and time stay visible so an organiser can check and
@@ -242,9 +244,31 @@ class SummaryResultSerializer(serializers.ModelSerializer):
     HIDDEN_FIELDS = ("ranking", "points", "time", "points_difference", "global_points")
 
     result_type = serializers.ReadOnlyField()
-    ranking = serializers.IntegerField(read_only=True, allow_null=True)
-    points_difference = serializers.IntegerField(read_only=True, allow_null=True)
-    global_points = serializers.IntegerField(read_only=True, allow_null=True)
+    ranking = serializers.SerializerMethodField()
+    points_difference = serializers.SerializerMethodField()
+    global_points = serializers.SerializerMethodField()
+
+    def _standing(self, obj):
+        """
+        The result's standing: from context["standings"] inside the summary, computed
+        for the one result otherwise (the organiser score endpoints return a single row).
+        """
+        standings = self.context.get("standings")
+        if standings is None:
+            standings = compute_standings(obj.discipline.edition)
+        return standings.result(obj.id)
+
+    @extend_schema_field(serializers.IntegerField(allow_null=True))
+    def get_ranking(self, obj):
+        return self._standing(obj).ranking
+
+    @extend_schema_field(serializers.IntegerField(allow_null=True))
+    def get_points_difference(self, obj):
+        return self._standing(obj).points_difference
+
+    @extend_schema_field(serializers.IntegerField(allow_null=True))
+    def get_global_points(self, obj):
+        return self._standing(obj).global_points
 
     class Meta:
         model = TeamResult
@@ -352,7 +376,7 @@ class EditionSummarySerializer(serializers.Serializer):
                 )
             )
         )
-        totals = {team.id: team.total_points for team in teams}
+        standings = compute_standings(instance)
         results = (
             TeamResult.objects.filter(
                 discipline__edition=instance,
@@ -376,11 +400,13 @@ class EditionSummarySerializer(serializers.Serializer):
             .select_related("discipline", "round")
             .order_by("discipline_id", "round__order", "id")
         )
-        staff_context = {"staff": bool(self.context.get("staff"))}
+        staff_context = {"staff": bool(self.context.get("staff")), "standings": standings}
         return {
             "edition": SummaryEditionSerializer(instance).data,
             "disciplines": SummaryDisciplineSerializer(disciplines, many=True).data,
-            "teams": SummaryTeamSerializer(teams, many=True, context={"totals": totals}).data,
+            "teams": SummaryTeamSerializer(
+                teams, many=True, context={"standings": standings}
+            ).data,
             "results": SummaryResultSerializer(results, many=True, context=staff_context).data,
             "rounds": SummaryRoundSerializer(rounds, many=True).data,
             "games": SummaryGameSerializer(games, many=True, context=staff_context).data,
