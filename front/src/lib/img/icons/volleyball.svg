@@ -1,0 +1,6 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<circle cx="1000" cy="520" r="150" fill="white"/>
+<path d="M980 700L1060 1120M1060 1120L820 1330L700 1650M1060 1120L1160 1330L1000 1750M920 700L760 480L720 260M1060 720L1450 860L1600 720" stroke="white" stroke-width="150" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="1560" cy="330" r="200" stroke="white" stroke-width="60"/>
+<path d="M1560 330Q1600 180 1490 150M1560 330Q1700 380 1740 290M1560 330Q1440 400 1470 510" stroke="white" stroke-width="55" stroke-linecap="round"/>
+</svg>

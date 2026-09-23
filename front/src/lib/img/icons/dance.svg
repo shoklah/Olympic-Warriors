@@ -1,0 +1,7 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M1000 100V500" stroke="white" stroke-width="90" stroke-linecap="round"/>
+<circle cx="1000" cy="1150" r="650" stroke="white" stroke-width="120"/>
+<ellipse cx="1000" cy="1150" rx="300" ry="650" stroke="white" stroke-width="70"/>
+<path d="M350 1150H1650M430 850Q1000 950 1570 850M430 1450Q1000 1350 1570 1450" stroke="white" stroke-width="70" stroke-linecap="round"/>
+<path d="M300 250V550M150 400H450M1700 1750V1950M1600 1850H1800" stroke="white" stroke-width="80" stroke-linecap="round"/>
+</svg>

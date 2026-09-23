@@ -13,6 +13,16 @@ from olympic_warriors.models import (
     Discipline,
     GeneralCultureQuizz,
     Darts,
+    Volleyball,
+    JumpingRope,
+    Dance,
+    Frisbee,
+    Geoguessr,
+    Football,
+    Handball,
+    BurgerQuizz,
+    BlindfoldedObstacleCourse,
+    DiscThrow,
     ResultTypes,
 )
 
@@ -39,7 +49,7 @@ class DisciplineTestSetup(TestCase):
 
 
 class TestGeneralCultureQuizz(DisciplineTestSetup):
-    """Minimal discipline: no scheduling, one zero-point result per active team."""
+    """Minimal discipline: no scheduling, one resultless (points=None) row per active team."""
 
     def test_sets_name_and_result_type(self):
         quizz = GeneralCultureQuizz.objects.create(edition=self.edition)
@@ -47,11 +57,11 @@ class TestGeneralCultureQuizz(DisciplineTestSetup):
         self.assertEqual(quizz.name, "General Culture Quizz")
         self.assertEqual(quizz.result_type, ResultTypes.POINTS)
 
-    def test_creates_zero_point_result_per_active_team(self):
+    def test_creates_a_pointless_result_per_active_team(self):
         quizz = GeneralCultureQuizz.objects.create(edition=self.edition)
         results = TeamResult.objects.filter(discipline=quizz)
         self.assertEqual(results.count(), len(self.teams))
-        self.assertFalse(results.exclude(points=0).exists())
+        self.assertFalse(results.exclude(points__isnull=True).exists())
         self.assertFalse(results.filter(time__isnull=False).exists())
         self.assertFalse(results.filter(team=self.inactive_team).exists())
 
@@ -139,3 +149,48 @@ class TestDarts(DisciplineTestSetup):
             TeamResult.objects.filter(discipline=darts).values_list("team_id", "points")
         )
         self.assertEqual(points_after, points_before)
+
+
+FIRST_EDITIONS_DISCIPLINES = [
+    (Volleyball, "Volleyball", ResultTypes.POINTS),
+    (JumpingRope, "Jumping Rope", ResultTypes.TIME),
+    (Dance, "Dance", ResultTypes.POINTS),
+    (Frisbee, "Frisbee", ResultTypes.POINTS),
+    (Geoguessr, "Geoguessr", ResultTypes.POINTS),
+    (Football, "Football", ResultTypes.POINTS),
+    (Handball, "Handball", ResultTypes.POINTS),
+    (BurgerQuizz, "Burger Quizz", ResultTypes.POINTS),
+    (BlindfoldedObstacleCourse, "Blindfolded Obstacle Course", ResultTypes.TIME),
+    (DiscThrow, "Disc Throw", ResultTypes.POINTS),
+]
+
+
+class TestFirstEditionsDisciplines(DisciplineTestSetup):
+    """The disciplines of the first editions: name, result type and empty results."""
+
+    def test_sets_name_and_result_type(self):
+        for model, name, result_type in FIRST_EDITIONS_DISCIPLINES:
+            with self.subTest(name=name):
+                discipline = model.objects.create(edition=self.edition)
+                discipline.refresh_from_db()
+                self.assertEqual(discipline.name, name)
+                self.assertEqual(discipline.result_type, result_type)
+
+    def test_creates_an_empty_result_per_active_team(self):
+        for model, name, _ in FIRST_EDITIONS_DISCIPLINES:
+            with self.subTest(name=name):
+                discipline = model.objects.create(edition=self.edition)
+                results = TeamResult.objects.filter(discipline=discipline)
+                self.assertEqual(results.count(), len(self.teams))
+                self.assertFalse(results.filter(points__isnull=False).exists())
+                self.assertFalse(results.filter(time__isnull=False).exists())
+                self.assertFalse(results.filter(team=self.inactive_team).exists())
+
+    def test_schedules_no_rounds_or_games_by_default(self):
+        for model, name, _ in FIRST_EDITIONS_DISCIPLINES:
+            with self.subTest(name=name):
+                discipline = model.objects.create(edition=self.edition)
+                self.assertEqual(
+                    TeamSportRound.objects.filter(discipline=discipline).count(), 0
+                )
+                self.assertEqual(Game.objects.filter(discipline=discipline).count(), 0)

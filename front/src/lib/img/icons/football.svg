@@ -1,0 +1,8 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- Classic panels: a central pentagon, a spoke from each vertex, a rim pentagon between spokes. -->
+<defs><clipPath id="ball"><circle cx="1000" cy="1000" r="810"/></clipPath></defs>
+<circle cx="1000" cy="1000" r="850" stroke="white" stroke-width="120"/>
+<path d="M1000 720 1266 913 1165 1227 835 1227 734 913Z" fill="white"/>
+<path d="M1000 720L1000 150M1266 913L1808 737M1165 1227L1500 1688M835 1227L500 1688M734 913L192 737" stroke="white" stroke-width="80" stroke-linecap="round"/>
+<path d="M1374 485 L1291 228 L1510 69 L1728 228 L1645 485ZM1606 1197 L1825 1038 L2043 1197 L1960 1454 L1689 1454ZM1000 1637 L1219 1796 L1135 2053 L865 2053 L781 1796ZM394 1197 L311 1454 L40 1454 L-43 1197 L175 1038ZM626 485 L355 485 L272 228 L490 69 L709 228Z" fill="white" clip-path="url(#ball)"/>
+</svg>

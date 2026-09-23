@@ -64,9 +64,11 @@ class Game(models.Model):
     def league_points(self, team_id):
         """
         League points of a team in this game's discipline: 3 per win, 1 per draw, over the
-        discipline's active, played games. Unplayed games count for nothing.
+        discipline's active, played games of active rounds. Unplayed games count for nothing.
         """
-        games = Game.objects.filter(discipline=self.discipline, is_active=True, is_played=True)
+        games = Game.objects.filter(
+            discipline=self.discipline, round__is_active=True, is_active=True, is_played=True
+        )
         points = 0
         for game in games.filter(team1_id=team_id):
             points += 3 if game.score1 > game.score2 else (1 if game.score1 == game.score2 else 0)
@@ -166,6 +168,11 @@ class Discipline(models.Model):
             if not is_new:
                 # Teams may have joined the edition since the discipline was created
                 self.register_teams()
+            if self.result_type == ResultTypes.POINTS:
+                # A bye team gets no game, so Game.save() would never zero its points, and
+                # the Swiss pairing (ordered by points, nulls last in Postgres) would treat
+                # a still-null result as the strongest team.
+                TeamResult.objects.filter(discipline=self, points__isnull=True).update(points=0)
             self.schedule_games()
 
     def register_teams(self) -> None:
@@ -178,8 +185,16 @@ class Discipline(models.Model):
                 team=team,
                 discipline=self,
                 defaults={
-                    "points": 0 if self.result_type == ResultTypes.POINTS else None,
-                    "time": "00:00:00" if self.result_type == ResultTypes.TIME else None,
+                    # A discipline with games computes its points from them (0 before any is
+                    # played); one without keeps None until an organiser enters a value, and a
+                    # time is None until entered, so "no result yet" is a null, never a zero.
+                    "points": (
+                        0
+                        if self.result_type == ResultTypes.POINTS
+                        and self.pairing_system != self.PairingSystem.NONE
+                        else None
+                    ),
+                    "time": None,
                 }
             )
 

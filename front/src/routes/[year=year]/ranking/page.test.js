@@ -1,7 +1,7 @@
 import { screen } from '@testing-library/svelte';
 import { describe, expect, it } from 'vitest';
 import Page from './+page.svelte';
-import { summary } from '$lib/fixtures/summary.js';
+import { summary, summaryManual } from '$lib/fixtures/summary.js';
 import { renderWith } from '$lib/test-utils';
 
 describe('ranking page', () => {
@@ -50,5 +50,24 @@ describe('ranking page', () => {
 		expect(screen.getByRole('heading', { name: 'Classement' })).toBeInTheDocument();
 		expect(screen.getByRole('navigation', { name: 'Épreuves' })).toBeInTheDocument();
 		expect(screen.getAllByTestId('team-card')[0]).toHaveTextContent(/1\s*Bisons\s*Chloé Nguyen\s*5 pts/);
+	});
+
+	it('shows a hand-ranked edition without points', () => {
+		renderWith(Page, { data: { summary: summaryManual } });
+
+		const cards = screen.getAllByTestId('team-card');
+		expect(cards[0]).toHaveTextContent(/^\s*1\s*Bisons\s*Chloé Nguyen\s*$/);
+		expect(cards[1]).toHaveTextContent(/^\s*2\s*Aigles\s*Ana Lopez · Bob Martin\s*$/);
+		expect(cards[2]).toHaveTextContent(/^\s*—\s*Cerfs\s*$/);
+		expect(screen.queryByText(/pts/)).not.toBeInTheDocument();
+		expect(cards[0]).toHaveClass('gold');
+		expect(cards[2]).not.toHaveClass('bronze');
+	});
+
+	it('shows a hand-ranked edition without points in French', () => {
+		renderWith(Page, { data: { summary: summaryManual } }, 'fr');
+
+		expect(screen.getByRole('heading', { name: 'Classement' })).toBeInTheDocument();
+		expect(screen.queryByText(/pts/)).not.toBeInTheDocument();
 	});
 });

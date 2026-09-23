@@ -1,6 +1,6 @@
 from .Player import Player, PlayerRating
 from .Team import Team, TeamResult
-from .Edition import Edition
+from .Edition import Edition, latest_edition
 from .Discipline import Game, GameEvent, Discipline, TeamSportRound
 from .Blindtest import Blindtest, BlindtestRound, BlindtestGuess
 from .Crossfit import Crossfit
@@ -16,4 +16,14 @@ from .Fair import Fair
 from .ObstacleCourse import ObstacleCourse
 from .GeneralCultureQuizz import GeneralCultureQuizz
 from .Darts import Darts
+from .Volleyball import Volleyball
+from .JumpingRope import JumpingRope
+from .Dance import Dance
+from .Frisbee import Frisbee
+from .Geoguessr import Geoguessr
+from .Football import Football
+from .Handball import Handball
+from .BurgerQuizz import BurgerQuizz
+from .BlindfoldedObstacleCourse import BlindfoldedObstacleCourse
+from .DiscThrow import DiscThrow
 from .ResultTypes import ResultTypes

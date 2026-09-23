@@ -1,6 +1,5 @@
 <script>
     export let form;
-    import { enhance } from '$app/forms';
     import { fly } from "svelte/transition";
     import {slide} from "svelte/transition";
     import {cubicOut, quintOut} from "svelte/easing";
@@ -9,7 +8,8 @@
     const t = useT();
 </script>
 
-<form method="POST" action="?/login" use:enhance
+<!-- A plain POST: the redirect reloads the page so the organiser context is set from the new cookie. -->
+<form method="POST" action="?/login"
       in:fly={{ delay: 200, x: -200, duration: 300, easing: cubicOut }}>
 
     <!-- The action's message is English by construction (API and server code); the visitor gets the dictionary line. -->

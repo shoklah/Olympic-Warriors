@@ -1,4 +1,5 @@
 <script>
+	import { formatTime } from '$lib/edition';
 	import { iconFor } from '$lib/icons';
 	import { disciplineName, useLocale, useT } from '$lib/i18n';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
@@ -27,8 +28,10 @@
 	<p class="standing" data-testid="standing">
 		<MedalRank rank={data.team.ranking} ordinal />
 		<span class="label">{t('team.overall')}</span>
-		<span class="num points">{data.team.total_points}</span>
-		<span class="label">{t('team.pts')}</span>
+		{#if data.team.total_points !== null}
+			<span class="num points">{data.team.total_points}</span>
+			<span class="label">{t('team.pts')}</span>
+		{/if}
 	</p>
 
 	<div class="roster">
@@ -57,7 +60,7 @@
 					{#if !row.revealed}
 						{t('team.notRevealed')}
 					{:else if row.result_type === 'TIM'}
-						{row.time}
+						{formatTime(row.time)}
 					{:else}
 						{row.points} {t('team.pts')}
 					{/if}

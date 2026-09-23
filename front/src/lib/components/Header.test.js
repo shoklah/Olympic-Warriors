@@ -51,4 +51,27 @@ describe('Header', () => {
 		expect(screen.getByRole('link', { name: 'Ranking' })).toHaveAttribute('aria-current', 'page');
 		expect(screen.getByRole('combobox', { name: 'Edition' })).toBeInTheDocument();
 	});
+
+	it('shows the ORGA pill with a logout form to an organiser', () => {
+		renderWith(Header, {}, 'fr', true);
+
+		const button = screen.getByRole('button', { name: 'Orga · Se déconnecter' });
+		const form = button.closest('form');
+		expect(form).toHaveAttribute('action', '/logout');
+		expect(form.querySelector('input[name="redirectTo"]')).toHaveValue('/2026/ranking?tab=all');
+	});
+
+	it('shows a login link instead of the pill to a visitor', () => {
+		renderWith(Header, {}, 'en');
+		expect(screen.queryByRole('button', { name: /Log out/ })).toBeNull();
+		expect(screen.getByRole('link', { name: 'Log in' })).toHaveAttribute('href', '/login');
+	});
+
+	it('hides the login link from an organiser and words it in French', () => {
+		renderWith(Header, {}, 'fr', true);
+		expect(screen.queryByRole('link', { name: /Connexion/ })).toBeNull();
+
+		renderWith(Header, {}, 'fr');
+		expect(screen.getByRole('link', { name: 'Connexion' })).toHaveAttribute('href', '/login');
+	});
 });

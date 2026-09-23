@@ -6,12 +6,14 @@
 	import { page } from '$app/stores';
 	import { setContext } from 'svelte';
 	import { I18N } from '$lib/i18n';
+	import { ORGANISER } from '$lib/session';
 
 	export let data;
 
 	// The language is decided on the server per request; switching it is a full
 	// page load (plain form POST + redirect), so init-time context is enough.
 	setContext(I18N, data.locale);
+	setContext(ORGANISER, data.organiser);
 
 	// The hub and the login page carry no section, so they get no bottom tab bar.
 	const HUB_OR_LOGIN = new Set(['/', '/[year=year]', '/login']);

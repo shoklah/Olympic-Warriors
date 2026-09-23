@@ -2,10 +2,14 @@
 Logic for the Olympic Warriors app endpoints.
 """
 
+from datetime import time as time_of_day
+
+from django.db import transaction
 from django.db.models import Q
 from rest_framework.permissions import AllowAny
 from django.contrib.auth.models import User
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, parser_classes
+from rest_framework.parsers import JSONParser
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 
@@ -24,7 +28,15 @@ from .serializer import (
     BlindtestGuessUpdateSerializer,
     BlindtestRoundSerializer,
     EditionSummarySerializer,
+    GameScoreSerializer,
+    ResultValueSerializer,
+    RevealSerializer,
+    SummaryGameSerializer,
+    SummaryResultSerializer,
+    SummaryDisciplineSerializer,
+    SummaryRoundSerializer,
 )
+from .permissions import IsOrganiser
 from .models import (
     Player,
     Edition,
@@ -37,6 +49,7 @@ from .models import (
     TeamResult,
     BlindtestGuess,
     BlindtestRound,
+    latest_edition,
 )
 
 # Users
@@ -210,6 +223,10 @@ def getEditions(request):
 
 @extend_schema(
     summary="Everything the public front needs for one edition, by year",
+    description=(
+        "Public and player tokens get the revealed rankings only; a staff token also "
+        "returns every hidden game's score and every result's stored points or time."
+    ),
     responses={
         "200": EditionSummarySerializer,
         "404": OpenApiResponse(description="Edition not found"),
@@ -223,7 +240,8 @@ def getEditionSummary(request, year):
         edition = Edition.objects.get(year=year, is_active=True)
     except Edition.DoesNotExist:
         return Response({"error": "Edition not found"}, status=404)
-    serializer = EditionSummarySerializer(edition)
+    # Staff see game scores and stored results before the reveal; the ranking stays hidden.
+    serializer = EditionSummarySerializer(edition, context={"staff": request.user.is_staff})
     return Response(serializer.data)
 
 
@@ -1037,3 +1055,180 @@ def setBlindtestGuessAnswer(request, guess_id):
 
     serializer = BlindtestGuessSerializer(guess)
     return Response(serializer.data)
+
+# Organiser
+
+
+LATEST_ONLY = {"error": "Only the latest edition can be edited"}
+
+
+def _editable(edition):
+    """Only the active edition with the highest year can be edited from the site."""
+    latest = latest_edition()
+    return latest is not None and edition.id == latest.id
+
+
+def _minutes_seconds(text):
+    """"mm:ss" (minutes may exceed 59) to a time of day; None stays None."""
+    if text is None:
+        return None
+    minutes, seconds = (int(part) for part in text.split(":"))
+    return time_of_day(minutes // 60, minutes % 60, seconds)
+
+
+@extend_schema(
+    summary="Set a game's score and played flag (organisers, latest edition)",
+    request=GameScoreSerializer,
+    responses={
+        "200": SummaryGameSerializer,
+        "400": OpenApiResponse(description="Missing field or negative score"),
+        "401": OpenApiResponse(description="Unauthorized"),
+        "403": OpenApiResponse(description="Not an organiser"),
+        "404": OpenApiResponse(description="Game not found"),
+        "409": OpenApiResponse(description="Not the latest edition"),
+    },
+)
+@api_view(["PATCH"])
+@permission_classes([IsOrganiser])
+@parser_classes([JSONParser])  # a form-encoded body would read a missing boolean as False
+def setGameScore(request, game_id):
+    try:
+        game = Game.objects.select_related("discipline__edition").get(
+            id=game_id, is_active=True, discipline__is_active=True, round__is_active=True
+        )
+    except Game.DoesNotExist:
+        return Response({"error": "Game not found"}, status=404)
+    if not _editable(game.discipline.edition):
+        return Response(LATEST_ONLY, status=409)
+
+    serializer = GameScoreSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response({"error": "Bad request", "details": serializer.errors}, status=400)
+
+    for field, value in serializer.validated_data.items():
+        setattr(game, field, value)
+    game.save()  # recomputes the league points of both teams
+    return Response(SummaryGameSerializer(game, context={"staff": True}).data)
+
+
+@extend_schema(
+    summary="Set a team's points or time in a discipline without games (organisers, latest edition)",
+    request=ResultValueSerializer,
+    responses={
+        "200": SummaryResultSerializer,
+        "400": OpenApiResponse(description="Wrong field for the result type, bad value, or a discipline with games"),
+        "401": OpenApiResponse(description="Unauthorized"),
+        "403": OpenApiResponse(description="Not an organiser"),
+        "404": OpenApiResponse(description="Result not found"),
+        "409": OpenApiResponse(description="Not the latest edition"),
+    },
+)
+@api_view(["PATCH"])
+@permission_classes([IsOrganiser])
+@parser_classes([JSONParser])  # JSON only, like the other organiser writes
+def setTeamResult(request, result_id):
+    try:
+        result = TeamResult.objects.select_related("discipline__edition").get(
+            id=result_id, is_active=True, discipline__is_active=True, team__is_active=True
+        )
+    except TeamResult.DoesNotExist:
+        return Response({"error": "Result not found"}, status=404)
+    if not _editable(result.discipline.edition):
+        return Response(LATEST_ONLY, status=409)
+    if TeamSportRound.objects.filter(discipline=result.discipline, is_active=True).exists():
+        return Response({"error": "Points of a discipline with games are computed"}, status=400)
+
+    if not isinstance(request.data, dict):
+        return Response({"error": "Bad request"}, status=400)
+
+    result_type = result.discipline.result_type
+    field = {"PTS": "points", "TIM": "time"}.get(result_type)
+    if field is None:
+        return Response({"error": "This discipline takes no result"}, status=400)
+    if field not in request.data or len(request.data) != 1:
+        return Response({"error": f"Expected exactly the field '{field}'"}, status=400)
+
+    serializer = ResultValueSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response({"error": "Bad request", "details": serializer.errors}, status=400)
+
+    value = serializer.validated_data[field]
+    setattr(result, field, _minutes_seconds(value) if field == "time" else value)
+    result.save()
+    return Response(SummaryResultSerializer(result, context={"staff": True}).data)
+
+
+@extend_schema(
+    summary="Reveal or hide a discipline's results (organisers, latest edition)",
+    request=RevealSerializer,
+    responses={
+        "200": SummaryDisciplineSerializer,
+        "400": OpenApiResponse(description="Missing flag"),
+        "401": OpenApiResponse(description="Unauthorized"),
+        "403": OpenApiResponse(description="Not an organiser"),
+        "404": OpenApiResponse(description="Discipline not found"),
+        "409": OpenApiResponse(description="Not the latest edition"),
+    },
+)
+@api_view(["PATCH"])
+@permission_classes([IsOrganiser])
+@parser_classes([JSONParser])  # a form-encoded body would read a missing boolean as False
+def setDisciplineReveal(request, discipline_id):
+    try:
+        discipline = Discipline.objects.select_related("edition").get(
+            id=discipline_id, is_active=True
+        )
+    except Discipline.DoesNotExist:
+        return Response({"error": "Discipline not found"}, status=404)
+    if not _editable(discipline.edition):
+        return Response(LATEST_ONLY, status=409)
+
+    serializer = RevealSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response({"error": "Bad request", "details": serializer.errors}, status=400)
+
+    discipline.reveal_score = serializer.validated_data["reveal_score"]
+    discipline.save(update_fields=["reveal_score"])
+    return Response(SummaryDisciplineSerializer(discipline).data)
+
+
+@extend_schema(
+    summary="Close a round once every game is played (organisers, latest edition)",
+    request=None,
+    responses={
+        "200": SummaryRoundSerializer,
+        "401": OpenApiResponse(description="Unauthorized"),
+        "403": OpenApiResponse(description="Not an organiser"),
+        "404": OpenApiResponse(description="Round not found"),
+        "409": OpenApiResponse(description="Not the latest edition, already over, or games unplayed"),
+    },
+)
+@api_view(["PATCH"])
+@permission_classes([IsOrganiser])
+@parser_classes([JSONParser])  # JSON only, like the other organiser writes
+def closeRound(request, round_id):
+    with transaction.atomic():
+        try:
+            round_ = (
+                TeamSportRound.objects.select_for_update(of=("self",))
+                .select_related("discipline__edition")
+                .get(id=round_id, is_active=True, discipline__is_active=True)
+            )
+        except TeamSportRound.DoesNotExist:
+            return Response({"error": "Round not found"}, status=404)
+        if not _editable(round_.discipline.edition):
+            return Response(LATEST_ONLY, status=409)
+        if round_.is_over:
+            return Response({"error": "Round already over"}, status=409)
+        if Game.objects.filter(
+            round=round_, is_active=True, is_played=False,
+            discipline__is_active=True, round__is_active=True,
+        ).exists():
+            return Response({"error": "Some games are not played yet"}, status=409)
+
+        round_.is_over = True
+        try:
+            round_.save()  # schedules the next Swiss round when the discipline is Swiss
+        except ValueError:
+            return Response({"error": "Not enough teams to schedule the next round"}, status=409)
+    return Response(SummaryRoundSerializer(round_).data)

@@ -3,7 +3,8 @@
  * GET /edition/year/<year>/summary/. No fetching, no Svelte, fully unit-tested.
  */
 
-const byRankThenName = (a, b) => a.ranking - b.ranking || a.name.localeCompare(b.name);
+const rankOf = (row) => row.ranking ?? Number.POSITIVE_INFINITY; // no rank: sort last
+const byRankThenName = (a, b) => rankOf(a) - rankOf(b) || a.name.localeCompare(b.name);
 
 /** Teams of the edition sorted by global ranking, ties by name. */
 export function rankedTeams(summary) {
@@ -29,11 +30,10 @@ export function disciplineResults(summary, disciplineId) {
 	if (!discipline || !discipline.reveal_score) return null;
 
 	const names = new Map(summary.teams.map((t) => [t.id, t.name]));
-	const rank = (r) => r.ranking ?? Number.POSITIVE_INFINITY; // no score yet: sort last
 	return summary.results
 		.filter((r) => r.discipline === disciplineId)
 		.map((r) => ({ ...r, teamName: names.get(r.team) ?? null }))
-		.sort((a, b) => rank(a) - rank(b) || (a.teamName ?? '').localeCompare(b.teamName ?? ''));
+		.sort((a, b) => rankOf(a) - rankOf(b) || (a.teamName ?? '').localeCompare(b.teamName ?? ''));
 }
 
 /**
@@ -173,6 +173,7 @@ export function disciplineSchedule(summary, disciplineId) {
 	return [...rounds]
 		.sort((a, b) => a.order - b.order)
 		.map((round) => ({
+			id: round.id,
 			order: round.order,
 			isOver: round.is_over,
 			games: summary.games
@@ -241,4 +242,42 @@ export function teamGames(summary, teamId) {
 				.sort((a, b) => (a.round ?? Infinity) - (b.round ?? Infinity) || a.id - b.id)
 		}))
 		.filter((d) => d.games.length > 0);
+}
+
+/** "00:13:15" → "13:15", "01:02:03" → "1:02:03"; hours only when they are not zero. */
+export function formatTime(hhmmss) {
+	if (!hhmmss) return null;
+	const [h, m, s] = hhmmss.split(':');
+	return Number(h) === 0 ? `${m}:${s}` : `${Number(h)}:${m}:${s}`;
+}
+
+/**
+ * One entry line per team of a discipline, for the organiser's result form: the stored
+ * points and time as the staff summary carries them. Rank order once revealed, else by
+ * team name.
+ */
+export function disciplineEntries(summary, disciplineId) {
+	const names = teamNames(summary);
+	return summary.results
+		.filter((r) => r.discipline === disciplineId)
+		.map((r) => ({
+			id: r.id,
+			team: r.team,
+			teamName: nameOf(names, r.team),
+			points: r.points ?? null,
+			time: r.time ?? null,
+			ranking: r.ranking
+		}))
+		.sort((a, b) => rankOf(a) - rankOf(b) || (a.teamName ?? '').localeCompare(b.teamName ?? ''));
+}
+
+/**
+ * "01:02:03" → "62:03", "00:13:15" → "13:15": the mm:ss form the result entry field and
+ * the API accept, minutes rolling past 59 when the stored time has hours. null/undefined → null.
+ */
+export function entryTime(hhmmss) {
+	if (!hhmmss) return null;
+	const [h, m, s] = hhmmss.split(':');
+	const minutes = Number(h) * 60 + Number(m);
+	return `${minutes}:${s}`;
 }

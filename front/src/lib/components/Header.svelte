@@ -4,9 +4,11 @@
 	import logo from '$lib/img/logo.svg';
 	import { switchYearPath } from '$lib/edition';
 	import { useLocale, useT } from '$lib/i18n';
+	import { useOrganiser } from '$lib/session';
 
 	const locale = useLocale();
 	const t = useT();
+	const organiser = useOrganiser();
 
 	$: editions = $page.data.editions ?? [];
 	// On an error page the year in the URL may be one with no edition, so fall back to the latest.
@@ -38,6 +40,17 @@
 					<option value={e.year} selected={e.year === year}>{e.year}</option>
 				{/each}
 			</select>
+		{/if}
+		{#if organiser}
+			<!-- A plain POST like the language switch: the redirect reloads the page as a visitor. -->
+			<form method="POST" action="/logout" class="orga">
+				<input type="hidden" name="redirectTo" value={$page.url.pathname + $page.url.search} />
+				<!-- The accessible name must contain the visible text (WCAG 2.5.3). -->
+				<button aria-label="{t('orga.pill')} · {t('orga.logout')}">{t('orga.pill')}</button>
+			</form>
+		{:else}
+			<!-- Same slot as the pill: a visitor gets the way in, an organiser the way out. -->
+			<a class="login" href="/login">{t('header.login')}</a>
 		{/if}
 		<!-- A plain POST (no use:enhance): the redirect reloads the page in the new language. -->
 		<form method="POST" action="/lang" class="lang" aria-label={t('header.language')}>
@@ -157,6 +170,53 @@
 		outline-offset: -3px;
 	}
 
+	.orga {
+		margin: 0;
+	}
+
+	.orga button {
+		min-height: 44px;
+		padding: 0 0.9em;
+		background: var(--accent);
+		color: var(--bg);
+		border: 1px solid var(--accent);
+		border-radius: var(--radius-pill);
+		font-family: var(--font-display);
+		font-size: 1.1rem;
+		letter-spacing: 0.08em;
+		cursor: pointer;
+	}
+
+	.orga button:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
+	}
+
+	.login {
+		display: inline-flex;
+		align-items: center;
+		min-height: 44px;
+		padding: 0 0.9em;
+		border: 1px solid var(--line-strong);
+		border-radius: var(--radius-pill);
+		color: var(--muted);
+		font-family: var(--font-display);
+		font-size: 1.1rem;
+		letter-spacing: 0.08em;
+		text-decoration: none;
+	}
+
+	.login:hover {
+		color: var(--accent);
+		border-color: var(--accent);
+		text-decoration: none;
+	}
+
+	.login:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
+	}
+
 	nav {
 		display: flex;
 		justify-content: center;
@@ -205,6 +265,36 @@
 	@media (max-width: 999.98px) {
 		nav {
 			display: none;
+		}
+	}
+
+	/* Four controls in the top bar on a phone: tighter gaps and padding so nothing overflows. */
+	@media (max-width: 599.98px) {
+		header {
+			padding: 10px 12px;
+		}
+
+		.logo {
+			gap: 0.5rem;
+		}
+
+		select,
+		.lang button,
+		.orga button,
+		.login {
+			font-size: 1rem;
+			letter-spacing: 0.05em;
+		}
+
+		select,
+		.login,
+		.orga button {
+			padding-left: 0.6em;
+			padding-right: 0.6em;
+		}
+
+		.lang button {
+			padding: 0 0.7em;
 		}
 	}
 </style>

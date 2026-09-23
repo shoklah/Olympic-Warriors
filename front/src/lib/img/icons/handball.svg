@@ -1,0 +1,7 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- A wide goal seen from the front: short posts, the net filling the frame, a ball bottom right cut out of the net. -->
+<defs><mask id="hole"><rect width="2000" height="2000" fill="white"/><circle cx="1330" cy="1360" r="330" fill="black"/></mask></defs>
+<path d="M150 1560V440H1850V1560" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M430 440V1500M710 440V1500M990 440V1500M1270 440V1500M1550 440V1500M150 700H1850M150 960H1850M150 1220H1850M150 1480H1850" stroke="white" stroke-width="36" stroke-linecap="round" mask="url(#hole)"/>
+<circle cx="1330" cy="1360" r="250" stroke="white" stroke-width="100"/>
+</svg>

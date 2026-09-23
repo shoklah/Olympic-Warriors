@@ -34,6 +34,14 @@ class Edition(models.Model):
     def __str__(self) -> str:
         return f"{self.year} - {self.host}"
 
+    @property
+    def ranking_is_manual(self) -> bool:
+        """
+        True when an active team of the edition carries a final_rank: the edition
+        ranking is then that stored order, and totals are not shown.
+        """
+        return self.team_set.filter(is_active=True, final_rank__isnull=False).exists()
+
     def create_players_from_registration_form(self, registration_form):
         """
         Create or update users, players and skill ratings from the registration form.
@@ -137,3 +145,11 @@ class Edition(models.Model):
 
         # Call the original save method to save the object
         super().save(*args, **kwargs)
+
+
+def latest_edition():
+    """
+    The active edition with the highest year: the only one the site may edit. None when
+    there is no edition at all.
+    """
+    return Edition.objects.filter(is_active=True).order_by("-year").first()
