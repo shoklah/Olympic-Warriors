@@ -1,101 +1,114 @@
 # Olympic Warriors
 
-Website and back office for **Olympic Warriors**, a yearly team event that mixes two dozen disciplines: rugby, dodgeball, relay, blindtest, quizzes, darts and more. Each year is an *edition* with its own teams, players and disciplines. The public site shows the schedule, results and overall ranking of every edition in French and English. On the day, organisers enter scores from the same site.
+Website and back office for **Olympic Warriors**, a yearly team event whose disciplines come from a catalogue of about two dozen: rugby, dodgeball, relay, blindtest, quizzes, darts and more. Each year is an *edition* with its own teams, players and disciplines. The public site shows the schedule, results and overall ranking of every edition, in French and English. On the day, organisers enter scores from the same site.
 
-- **Public pages** for each edition (`/<year>`): a hub with a countdown, the overall ranking (podium, rosters, points), the list of disciplines, each discipline's ranking and schedule, and each team's games.
-- **Scheduling**: a discipline can be a round robin (every round is generated up front, with referees assigned) or a Swiss system (the next round is generated when the previous one closes).
-- **Scores stay hidden** until an organiser reveals the discipline. Visitors see the pairings before that, but no scores.
-- **Organiser tools**: with a staff account, you can enter game scores, points or times, reveal disciplines and close Swiss rounds from the discipline page.
-- **Registration import**: uploading the registration form CSV on an edition creates its players and their skill ratings.
-- **Edition transfer**: you can export an edition to JSON and import it into another database, for example from local to production.
+- **Public pages** for each edition (`/<year>`):
+  - a hub with a countdown
+  - the overall ranking (podium, rosters, points)
+  - the list of disciplines
+  - each discipline's ranking and schedule
+  - each team's results and games
+- **Scheduling.** Each discipline uses one of two pairing systems:
+  - Round robin: every round is generated up front, with referees assigned.
+  - Swiss: the next round is generated when the previous one closes.
+- **Scores stay hidden** until an organiser reveals the discipline. Visitors can see the pairings before that.
+- **Organiser tools.** A staff account logged in at `/login` can do the following from the discipline pages of the latest edition:
+  - enter game scores, points or times
+  - reveal disciplines
+  - close Swiss rounds
+- **Registration import.** Uploading the registration form CSV on an edition creates its players and their skill ratings.
+- **Edition transfer.** An edition can be exported to JSON and imported into another database, for example from local to production.
 
 ## Stack
 
-| Part | Tech |
-| --- | --- |
-| `server/` | Python 3.11, Django 4.2, Django REST Framework, drf-spectacular, PostgreSQL 16 |
-| `front/` | SvelteKit 2, Svelte 4 (plain JS), `adapter-node`, Vitest, Node 22 |
-| Tooling | Docker Compose for dev and prod, GitHub Actions |
+| Part | Tech | Details |
+| --- | --- | --- |
+| [`server/`](server/) | Python 3.11, Django 4.2, Django REST Framework, PostgreSQL 16 | [server/README.md](server/README.md) |
+| [`front/`](front/) | SvelteKit 2, Svelte 4 (plain JS), `adapter-node`, Vitest, Node 22 | [front/README.md](front/README.md) |
+| Tooling | Docker Compose (dev and prod), GitHub Actions | |
 
 ```
 browser ──> front (SvelteKit, server-side loads) ──> server (Django REST API) ──> PostgreSQL
 ```
 
-The front never touches the database. For each edition it reads `/editions/` and one summary payload, `/edition/year/<year>/summary/`. Rankings are computed on the fly and never stored.
+The front never touches the database. For each edition it reads `/editions/` and one summary payload, `/edition/year/<year>/summary/`. Rankings are computed on the fly rather than stored. The one exception is a finishing order entered by hand for an old edition that has no result data.
 
 ## Repository layout
 
 ```
-server/                          Django project, single app olympic_warriors
-  olympic_warriors/models/         one file per model, one per discipline
-  olympic_warriors/schedule/       round robin and Swiss pairing
-  olympic_warriors/management/     createsu, create_tokens_for_users, export_edition, import_edition
-  olympic_warriors/tests/          Django tests
-front/                           SvelteKit site
-  src/routes/                      pages (every edition page lives under /<year>)
-  src/lib/                         components, pure helpers (edition.js), i18n, fixtures
-docs/superpowers/                design specs and implementation plans, one per feature
+server/                          Django project (single app olympic_warriors): models, API, admin,
+                                 schedulers, management commands, tests
+front/                           SvelteKit site: routes, components, i18n, tests
+docs/superpowers/specs/          one design spec per feature
+docs/superpowers/plans/          the matching implementation plans
 docker-compose.yml               development stack
-docker-compose.prod.example.yml  production template (gunicorn, adapter-node, nginx + certbot, stage)
+docker-compose.prod.example.yml  production template (gunicorn, Node, nginx + certbot, stage stack)
 .github/workflows/test.yml       CI
 CLAUDE.md                        detailed architecture notes
 ```
 
+`server/docker-compose.yml` is stale. Always use the compose file at the root.
+
 ## Getting started
 
-You need Docker with Compose v2. Node 22 is only needed if you want to run the front tests outside Docker.
+You need Docker with Compose v2. You don't need Python or Node on your machine.
 
-1. **Create the two env files.** Both are gitignored.
+1. **Prepare the server config.**
+   - Copy the env template, then set `SECRET_KEY` in `server/dev.env` to any non-empty string. Keep `server` in `ALLOWED_HOSTS`, because the front container calls the API under that hostname.
 
-   ```bash
-   cp server/.env.example server/dev.env
-   ```
+     ```bash
+     cp server/.env.example server/dev.env
+     ```
+
+   - Create the log folder. The server writes its log file to `server/logs/`, which is not in the repository, and without that folder the server crashes at startup.
+
+     ```bash
+     mkdir -p server/logs
+     ```
+
+2. **Prepare the front config.** The template already points at the compose API.
 
    ```bash
    cp front/.env.example front/.env
    ```
 
-   In `server/dev.env`, set `SECRET_KEY` to any non-empty string. Keep `server` in `ALLOWED_HOSTS`, because the front container calls the API under that hostname.
-
-2. **Start the stack.** This runs the migrations, the Django dev server and the Vite dev server.
+3. **Start the stack.** This runs the migrations, the Django dev server and the Vite dev server. It stays in the foreground, so use a second terminal for the next steps.
 
    ```bash
    docker compose up --build
    ```
 
-3. **Create an admin account.** The username and password come from `SU_USERNAME` and `SU_PASSWORD` in `dev.env`.
+4. **Create an admin account.** The username and password come from `SU_USERNAME` and `SU_PASSWORD` in `dev.env`.
 
    ```bash
    docker compose exec server python manage.py createsu
    ```
 
-4. **Add an edition** in the Django admin, or import one with `import_edition` (see below).
+5. **Add an edition.** Until one exists, the site's home page is a 404 ("No edition yet"). Either create an edition in the Django admin, or import a file someone exported with `export_edition` (see [server/README.md](server/README.md#management-commands)).
 
-| Service | URL |
+Once the stack is up, these are the local addresses:
+
+| Service | Address |
 | --- | --- |
 | Site | http://localhost:5173 |
-| API | http://localhost:3003 |
+| API | http://localhost:3003 (there is no page at `/`; try `/editions/`) |
 | Django admin | http://localhost:3003/admin/ |
 | API docs (Swagger) | http://localhost:3003/api/schema/swagger/ |
-| pgAdmin | http://localhost:5051 (`pgadmin4@pgadmin.org` / `admin`) |
-| PostgreSQL | `localhost:5433`, database `mydb-dev`, `user` / `password` |
+| pgAdmin | http://localhost:5051, login `pgadmin4@pgadmin.org` / `admin`. To add the database inside pgAdmin, use host `db` and port `5433`. |
+| PostgreSQL from your machine | `localhost:5433`, database `mydb-dev`, user `user` / `password` |
 
-A few things can trip you up:
+Three things tend to trip people up:
 
-- `dev.env` is only read when the server starts. After editing it, run `docker compose restart server`.
-- `API_URL` in `front/.env` is baked in at build time. Use `http://server:3003` inside Compose and `http://localhost:3003` when the front runs natively.
-- `node_modules` in the front container is an anonymous volume. After a dependency or Dockerfile change, run `docker compose up -d -V --build front`.
+- `server/dev.env` is only read when the server starts. After editing it, run `docker compose restart server`.
+- `API_URL` in `front/.env` is baked in at build time. Use `http://server:3003` inside Compose, and `http://localhost:3003` when the front runs natively.
+- The front container's `node_modules` is an anonymous volume. After a dependency or Dockerfile change, run `docker compose up -d -V --build front` to recreate it.
 
 ## Everyday commands
 
-Backend commands run inside the `server` container. The tests need the Compose Postgres.
+Everything runs through the containers:
 
 ```bash
 docker compose exec server python manage.py test
-```
-
-```bash
-docker compose exec server python manage.py test olympic_warriors.tests.test_players.TestPlayersAPI.test_get_players
 ```
 
 ```bash
@@ -103,65 +116,53 @@ docker compose exec server python manage.py makemigrations
 ```
 
 ```bash
-docker compose exec server python manage.py create_tokens_for_users
-```
-
-Move an edition between databases. The document carries no database ids. Use `--dry-run` to check the import first and `--replace` to overwrite that year.
-
-```bash
-docker compose exec server python manage.py export_edition 2026 --out /server/edition-2026.json
+docker compose exec front npm test
 ```
 
 ```bash
-docker compose exec server python manage.py import_edition /server/edition-2026.json --dry-run
+docker compose exec front npm run build
 ```
 
-Lint the backend the way CI does:
+The part READMEs have the rest:
 
-```bash
-pylint --load-plugins pylint_django --ignore=lib server/
-```
-
-The front commands run inside `front/`:
-
-```bash
-npm test
-```
-
-```bash
-npm run build
-```
-
-## Adding a discipline
-
-Each discipline is a Django model that subclasses `Discipline`. In short:
-
-1. Add the model in `server/olympic_warriors/models/`, export it from `models/__init__.py` and register it in `admin.py`.
-2. Run `makemigrations`.
-3. Add an SVG icon in `front/src/lib/img/icons/` and the French name in `front/src/lib/i18n/disciplines.js`.
-
-The full checklist, including the front test that enforces the icon and the translation, is in [CLAUDE.md](CLAUDE.md).
+- [server/README.md](server/README.md): configuration, the domain model and scoring rules, the API, management commands, edition transfer, lint, adding a discipline.
+- [front/README.md](front/README.md): running the front natively, routes, data flow, i18n, organiser tools, design tokens, test conventions.
 
 ## CI
 
-[`.github/workflows/test.yml`](.github/workflows/test.yml) runs on every push:
+[`.github/workflows/test.yml`](.github/workflows/test.yml) runs on every push and on pull requests to `main` and `dev`. It has two jobs:
 
-- **`front`** (gating): `npm ci`, `npm test`, `npm run build` on Node 22.
-- **`test`** (advisory): pylint with `continue-on-error`, then a boot of the Compose stack. The Django migrate and test steps are commented out, so run the backend tests locally before merging.
+- **`front`** blocks the merge on failure. It runs `npm ci`, `npm test` and `npm run build` on Node 22.
+- **`test`** is advisory. It runs pylint with `continue-on-error`, then builds the images and starts the containers. Nothing checks that the containers stay up, and the Django migrate and test steps are commented out. Run the backend tests locally before merging.
 
 ## Deployment
 
-Copy [`docker-compose.prod.example.yml`](docker-compose.prod.example.yml) as the starting point. It runs the API under gunicorn, the front as a Node server, nginx with Let's Encrypt in front of both, and a stage copy of the stack next to production.
+[`docker-compose.prod.example.yml`](docker-compose.prod.example.yml) is the starting point. It runs:
 
-- `ENV=prod` makes the server read `server/prod.env` instead of `dev.env`. Any real environment variable overrides the file.
-- The front needs `ORIGIN=https://<public host>`. Without it, SvelteKit refuses the language switch (a form POST) behind the TLS-terminating proxy.
-- The login throttle identifies clients by the last `X-Forwarded-For` entry. The app ports are therefore bound to `127.0.0.1`, and every nginx location that proxies to the server or the front must set `X-Forwarded-For $proxy_add_x_forwarded_for`.
-- The nginx site config lives on the host under `nginx/user_conf.d` and is not in the repository.
-- To move an edition from local to production, use `export_edition` / `import_edition`. Media files are not in the export: on production `mediafiles` is a Docker volume, so copy them with `docker compose cp`. The runbook is in [the edition transfer spec](docs/superpowers/specs/2026-09-19-edition-transfer-design.md).
+- the API under gunicorn
+- the front as a Node server
+- nginx with Let's Encrypt in front of both
+- a stage copy of the stack next to production
+
+Before the first deploy, work through these points:
+
+- **Fill in the template.** The database settings and `ports` are blank, and so is `CERTBOT_EMAIL`. Adjust the absolute `/opt/OW_stage/...` paths of the stage stack as well.
+- **Server config.** Create `server/prod.env`: `ENV=prod` reads it instead of `dev.env`. The file is copied into the image at build time, so after editing it, rebuild `server` rather than restarting it.
+- **Migrations.** Nothing runs them in production. After each deploy that adds migrations, run `migrate`. After the first deploy, also run `createsu`.
+- **Front config.** `front/.env` must hold the production `API_URL` before you build the front image.
+- **`ORIGIN`.** Set it on each front, `front-stage` included (the template has it only on `front`). Without it, SvelteKit refuses the language switch behind the TLS-terminating proxy.
+- **Client IPs.** The login throttle identifies clients by the last `X-Forwarded-For` entry. For that reason:
+  - The app ports are bound to `127.0.0.1`.
+  - Every nginx location that proxies to the server or the front must set `X-Forwarded-For $proxy_add_x_forwarded_for`.
+- **nginx site config.** It lives on the host under `nginx/user_conf.d` and is not in the repository.
+- **Moving an edition.** To copy an edition from local to production, use `export_edition` / `import_edition`. Media files are not part of the export. On production `mediafiles` is a Docker volume, so copy them with `docker compose cp`. The runbook is in [the edition transfer spec](docs/superpowers/specs/2026-09-19-edition-transfer-design.md).
+
+Each part's README has its production details.
 
 ## Further reading
 
-- [CLAUDE.md](CLAUDE.md): architecture in depth, covering scoring, standings, the summary endpoint, soft deletes, auth, i18n, the front's data flow and theme.
+- [server/README.md](server/README.md) and [front/README.md](front/README.md): each part in depth.
+- [CLAUDE.md](CLAUDE.md): architecture notes for the whole repository, kept up to date with every change.
 - [`docs/superpowers/specs/`](docs/superpowers/specs/): one design document per feature.
 - The Swagger UI at `/api/schema/swagger/` on a running server.
 
