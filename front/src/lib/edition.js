@@ -3,8 +3,8 @@
  * GET /edition/year/<year>/summary/. No fetching, no Svelte, fully unit-tested.
  */
 
-const rank = (team) => team.ranking ?? Number.POSITIVE_INFINITY; // no rank: sort last
-const byRankThenName = (a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name);
+const rankOf = (row) => row.ranking ?? Number.POSITIVE_INFINITY; // no rank: sort last
+const byRankThenName = (a, b) => rankOf(a) - rankOf(b) || a.name.localeCompare(b.name);
 
 /** Teams of the edition sorted by global ranking, ties by name. */
 export function rankedTeams(summary) {
@@ -30,11 +30,10 @@ export function disciplineResults(summary, disciplineId) {
 	if (!discipline || !discipline.reveal_score) return null;
 
 	const names = new Map(summary.teams.map((t) => [t.id, t.name]));
-	const rank = (r) => r.ranking ?? Number.POSITIVE_INFINITY; // no score yet: sort last
 	return summary.results
 		.filter((r) => r.discipline === disciplineId)
 		.map((r) => ({ ...r, teamName: names.get(r.team) ?? null }))
-		.sort((a, b) => rank(a) - rank(b) || (a.teamName ?? '').localeCompare(b.teamName ?? ''));
+		.sort((a, b) => rankOf(a) - rankOf(b) || (a.teamName ?? '').localeCompare(b.teamName ?? ''));
 }
 
 /**
@@ -259,7 +258,6 @@ export function formatTime(hhmmss) {
  */
 export function disciplineEntries(summary, disciplineId) {
 	const names = teamNames(summary);
-	const rank = (r) => r.ranking ?? Number.POSITIVE_INFINITY;
 	return summary.results
 		.filter((r) => r.discipline === disciplineId)
 		.map((r) => ({
@@ -270,7 +268,7 @@ export function disciplineEntries(summary, disciplineId) {
 			time: r.time ?? null,
 			ranking: r.ranking
 		}))
-		.sort((a, b) => rank(a) - rank(b) || (a.teamName ?? '').localeCompare(b.teamName ?? ''));
+		.sort((a, b) => rankOf(a) - rankOf(b) || (a.teamName ?? '').localeCompare(b.teamName ?? ''));
 }
 
 /**

@@ -51,6 +51,14 @@ describe('rankedTeams', () => {
 			['Cerfs', null]
 		]);
 	});
+
+	it('keeps two unranked teams in name order after the ranked ones', () => {
+		const twoUnranked = {
+			...summaryManual,
+			teams: summaryManual.teams.map((t) => (t.name === 'Aigles' ? { ...t, ranking: null } : t))
+		};
+		expect(rankedTeams(twoUnranked).map((t) => t.name)).toEqual(['Bisons', 'Aigles', 'Cerfs']);
+	});
 });
 
 describe('disciplineResults', () => {
