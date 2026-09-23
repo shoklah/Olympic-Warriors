@@ -116,7 +116,106 @@ def _places(h):
                 yield Earned(user_id, C.WOODEN_SPOON, edition_id)
 
 
-RULES = (_places,)
+TITLE_STREAKS = {2: C.BACK_TO_BACK, 3: C.THREEPEAT, 4: C.DYNASTY}
+
+
+def _on_podium(seat):
+    rank = _rank(seat)
+    return rank is not None and rank <= 3
+
+
+def _runs(h, seats, holds):
+    """
+    (sequence index, run length) for every edition of the sequence: how many consecutive
+    editions end there where holds(seat) is true for the person, 0 when it is not.
+    """
+    length = 0
+    for i in range(len(h.sequence)):
+        seat = seats.get(i)
+        length = length + 1 if seat is not None and holds(seat) else 0
+        yield i, length
+
+
+def _streaks(h):
+    """back-to-back, threepeat, dynasty and podium-regular: once per streak, at the
+    edition completing it."""
+    for user_id, seats in h.seats.items():
+        for i, length in _runs(h, seats, lambda seat: _rank(seat) == 1):
+            if length in TITLE_STREAKS:
+                yield Earned(user_id, TITLE_STREAKS[length], h.sequence[i].id)
+        for i, length in _runs(h, seats, _on_podium):
+            if length == 3:
+                yield Earned(user_id, C.PODIUM_REGULAR, h.sequence[i].id)
+
+
+def _career(h):
+    """phoenix, legend, full-set, eternal-second, janus, comeback, on-the-rise, icarus and
+    lucky-charm."""
+    for user_id, seats in h.seats.items():
+        yield from _career_of(h, user_id, seats)
+
+
+def _career_of(h, user_id, seats):
+    out, once = [], set()
+
+    def earn(code, edition_id, repeat=False):
+        if repeat or code not in once:
+            once.add(code)
+            out.append(Earned(user_id, code, edition_id))
+
+    titles = seconds = rise = 0
+    places, counted = set(), []
+    had_last = previous_last = False
+    previous_rank = previous_share = None
+    for i, edition in enumerate(h.sequence):
+        seat = seats.get(i)
+        rank = _rank(seat)
+        last = rank is not None and rank == h.last_ranks[i]
+        edition_id = edition.id
+
+        if rank == 1:
+            if titles and previous_rank != 1:
+                earn(C.PHOENIX, edition_id, repeat=True)
+            titles += 1
+            if titles == 3:
+                earn(C.LEGEND, edition_id)
+        if rank == 2:
+            seconds += 1
+            if seconds == 2 and not titles:
+                earn(C.ETERNAL_SECOND, edition_id)
+        if rank is not None and rank <= 3:
+            places.add(rank)
+            if places == {1, 2, 3}:
+                earn(C.FULL_SET, edition_id)
+        had_last = had_last or last
+        if titles and had_last:
+            earn(C.JANUS, edition_id)
+        if previous_last and rank is not None and rank <= 3:
+            earn(C.COMEBACK, edition_id, repeat=True)
+        if previous_rank == 1 and rank is not None and rank > seat.teams / 2:
+            earn(C.ICARUS, edition_id, repeat=True)
+
+        # Relative rank: 0 for first, 1 for last, so editions of different sizes compare.
+        share = None if rank is None else (rank - 1) / (seat.teams - 1)
+        if share is None:
+            rise = 0
+        elif previous_share is not None and share < previous_share:
+            rise += 1
+        else:
+            rise = 1
+        if rise == 3:
+            earn(C.ON_THE_RISE, edition_id, repeat=True)
+
+        if rank is not None:
+            counted.append(rank)
+            if len(counted) == 3 and all(r <= 3 for r in counted):
+                earn(C.LUCKY_CHARM, edition_id)
+
+        previous_rank, previous_share, previous_last = rank, share, last
+    return out
+
+
+RULES = (_places, _streaks, _career)
 
 
 def earned(today=None):
