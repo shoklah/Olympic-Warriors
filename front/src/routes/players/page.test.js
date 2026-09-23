@@ -13,20 +13,25 @@ describe('players leaderboard page', () => {
 		renderWith(Page, { data });
 
 		expect(screen.getByRole('heading', { level: 1, name: 'Players' })).toBeInTheDocument();
-		expect(screen.getByText('Ranked by 1st places, then 2nd, then 3rd…')).toBeInTheDocument();
+		expect(screen.getByText('The Warriors hall of fame')).toBeInTheDocument();
 		const rows = screen.getAllByTestId('player-row');
 		expect(rows).toHaveLength(4);
-		expect(rows[0]).toHaveTextContent(/1\s*Léa Martin\s*1\s*2\s*1st place in 2024, 2nd place in 2026/);
-		expect(rows[1]).toHaveTextContent(/2\s*Hugo Maurinier\s*1\s*1st place in 2025/);
-		expect(rows[2]).toHaveTextContent(/2\s*Inès Moreau\s*1\s*1st place in 2025/);
+		expect(rows[0]).toHaveTextContent(
+			/1\s*Léa Martin\s*1\s*2\s*1st place in 2024, 2nd place in 2026\s*1\.5\s*avg rank/
+		);
+		expect(rows[1]).toHaveTextContent(/2\s*Hugo Maurinier\s*1\s*1st place in 2025\s*1\.0\s*avg rank/);
+		expect(rows[2]).toHaveTextContent(/2\s*Inès Moreau\s*1\s*1st place in 2025\s*1\.0\s*avg rank/);
 		expect(rows[3]).toHaveTextContent(
-			/4\s*Xavier Baby\s*2\s*3\s*4\s*2nd place in 2026, 3rd place in 2023, 4th place in 2021/
+			/4\s*Xavier Baby\s*2\s*3\s*4\s*2nd place in 2026, 3rd place in 2023, 4th place in 2021\s*3\.0\s*avg rank/
 		);
 		expect(rows[0]).toHaveAttribute('href', '/players/12');
 		expect(within(rows[0]).getByTestId('places')).toHaveAttribute('aria-hidden', 'true');
-		expect(rows[0]).not.toHaveTextContent(/%|avg/);
+		expect(rows[0]).not.toHaveTextContent(/%/);
+		rows.forEach((row) => expect(within(row).getByTestId('average')).toBeInTheDocument());
 		expect(
-			screen.getByRole('link', { name: /^1\s*Léa Martin\s*1st place in 2024, 2nd place in 2026$/ })
+			screen.getByRole('link', {
+				name: /^1\s*Léa Martin\s*1st place in 2024, 2nd place in 2026\s*1\.5\s*avg rank$/
+			})
 		).toBeInTheDocument();
 	});
 
@@ -75,6 +80,7 @@ describe('players leaderboard page', () => {
 		expect(rows[0]).toHaveTextContent(/Ana Petit\s*1 edition/);
 		expect(rows[1]).toHaveTextContent(/Jules Roux\s*2 editions/);
 		expect(rows[1]).toHaveAttribute('href', '/players/41');
+		rows.forEach((row) => expect(within(row).queryByTestId('average')).toBeNull());
 	});
 
 	it('has no not-ranked section when everyone is ranked', () => {
@@ -95,9 +101,11 @@ describe('players leaderboard page', () => {
 		renderWith(Page, { data }, 'fr');
 
 		expect(screen.getByRole('heading', { level: 1, name: 'Joueurs' })).toBeInTheDocument();
-		expect(screen.getByText('Classés par nombre de 1res places, puis de 2es, puis de 3es…')).toBeInTheDocument();
+		expect(screen.getByText('Le panthéon des Warriors')).toBeInTheDocument();
 		const rows = screen.getAllByTestId('player-row');
-		expect(rows[0]).toHaveTextContent(/1\s*Léa Martin\s*1\s*2\s*1re place en 2024, 2e place en 2026/);
+		expect(rows[0]).toHaveTextContent(
+			/1\s*Léa Martin\s*1\s*2\s*1re place en 2024, 2e place en 2026\s*1,5\s*rang moyen/
+		);
 		expect(screen.getByRole('heading', { name: 'Pas encore classés' })).toBeInTheDocument();
 	});
 });

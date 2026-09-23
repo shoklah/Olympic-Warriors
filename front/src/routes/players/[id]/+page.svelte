@@ -1,7 +1,7 @@
 <script>
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import MedalRank from '$lib/components/MedalRank.svelte';
-	import { editionStatus, formatAverage, formatShare, fullName } from '$lib/players';
+	import { editionStatus, formatAverage, fullName } from '$lib/players';
 	import { useLocale, useT } from '$lib/i18n';
 
 	export let data;
@@ -27,15 +27,10 @@
 		</a>
 	{/if}
 
-	<!-- Two figures at the same size: neither is the headline. -->
 	<div class="figures">
 		<div class="figure" data-testid="average-rank">
 			<span class="label">{t('profile.averageRank')}</span>
 			<span class="num value">{formatAverage(profile.average_rank, locale)}</span>
-		</div>
-		<div class="figure" data-testid="beaten">
-			<span class="label">{t('profile.beaten')}</span>
-			<span class="num value">{formatShare(profile.average_beaten, locale)}</span>
 		</div>
 	</div>
 

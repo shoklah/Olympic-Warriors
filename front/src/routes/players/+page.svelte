@@ -1,6 +1,6 @@
 <script>
 	import MedalRank from '$lib/components/MedalRank.svelte';
-	import { fullName, shownPlaces } from '$lib/players';
+	import { formatAverage, fullName, shownPlaces } from '$lib/players';
 	import { ordinal } from '$lib/edition';
 	import { useLocale, useT } from '$lib/i18n';
 
@@ -51,6 +51,10 @@
 							</span>
 							<span class="visually-hidden">{spoken(player.places)}</span>
 						</span>
+						<span class="average" data-testid="average">
+							<span class="num value">{formatAverage(player.average_rank, locale)}</span>
+							<span class="label">{t('players.averageRank')}</span>
+						</span>
 					</a>
 				</li>
 			{/each}
@@ -97,7 +101,7 @@
 
 	.row {
 		display: grid;
-		grid-template-columns: 44px minmax(0, 1fr);
+		grid-template-columns: 44px minmax(0, 1fr) auto;
 		align-items: center;
 		gap: 12px;
 		--medal-size: 1.9rem;
@@ -194,5 +198,18 @@
 		font-size: 0.95rem;
 		line-height: 1.3;
 		color: var(--muted);
+	}
+
+	.average {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-end;
+		gap: 2px;
+	}
+
+	.average .value {
+		font-size: 1.6rem;
+		line-height: 1;
+		letter-spacing: 0.06em;
 	}
 </style>

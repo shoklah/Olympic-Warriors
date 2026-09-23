@@ -1,10 +1,9 @@
 import { localeFrom } from '$lib/i18n/locale.js';
 
 /**
- * Formatting and small helpers for player pages. `formatAverage` and `formatShare` are
- * profile-only now: the leaderboard rows show places, not averages. Pure and
- * locale-aware: anything but `en` is French, like `t` and `ordinal`. A missing figure
- * prints as a dash.
+ * Formatting and small helpers for player pages. `formatAverage` prints the average rank
+ * shown on both the leaderboard rows and the profile page. Pure and locale-aware: anything
+ * but `en` is French, like `t` and `ordinal`. A missing figure prints as a dash.
  */
 const missing = (value) => value === null || value === undefined;
 
@@ -15,15 +14,6 @@ export function formatAverage(value, locale) {
 		minimumFractionDigits: 1,
 		maximumFractionDigits: 1
 	}).format(value);
-}
-
-/** A whole percentage (0 to 100): 71% in English, 71 % in French. */
-export function formatShare(value, locale) {
-	if (missing(value)) return '—';
-	return new Intl.NumberFormat(localeFrom(locale), {
-		style: 'percent',
-		maximumFractionDigits: 0
-	}).format(value / 100);
 }
 
 /** How a profile's edition row reads: ranked, still running, or over without a rank. */

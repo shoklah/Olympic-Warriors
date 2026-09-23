@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_PLACES, editionStatus, formatAverage, formatShare, fullName, shownPlaces } from './players.js';
+import { MAX_PLACES, editionStatus, formatAverage, fullName, shownPlaces } from './players.js';
 
 describe('formatAverage', () => {
 	it('prints one decimal with the locale separator', () => {
@@ -14,20 +14,6 @@ describe('formatAverage', () => {
 
 	it('dashes a missing average', () => {
 		expect(formatAverage(null, 'en')).toBe('—');
-	});
-});
-
-describe('formatShare', () => {
-	it('prints a whole percentage, with a no-break space in French', () => {
-		expect(formatShare(71, 'en')).toBe('71%');
-		// Node 22's ICU puts U+00A0 (not the narrow U+202F) before % in French.
-		expect(formatShare(71, 'fr')).toBe('71\u00a0%');
-		expect(formatShare(0, 'en')).toBe('0%');
-		expect(formatShare(100, 'en')).toBe('100%');
-	});
-
-	it('dashes a missing share', () => {
-		expect(formatShare(null, 'fr')).toBe('—');
 	});
 });
 

@@ -5,7 +5,7 @@ import Page from './+page.svelte';
 import { profile, profileUnranked } from '$lib/fixtures/players.js';
 
 describe('player profile page', () => {
-	it('shows the name, the all-time position and the two figures', () => {
+	it('shows the name, the all-time position and the average rank figure', () => {
 		renderWith(Page, { data: { profile } });
 
 		expect(screen.getByRole('heading', { level: 1, name: 'Xavier Baby' })).toBeInTheDocument();
@@ -18,7 +18,10 @@ describe('player profile page', () => {
 			screen.getByRole('link', { name: '3 all-time · position on the players leaderboard' })
 		).toBe(position);
 		expect(screen.getByTestId('average-rank')).toHaveTextContent(/Average rank\s*2\.5/);
-		expect(screen.getByTestId('beaten')).toHaveTextContent(/Teams beaten\s*76%/);
+		expect(screen.queryByTestId('beaten')).toBeNull();
+		expect(screen.queryByText(/%/)).toBeNull();
+		expect(screen.queryByText('Teams beaten')).toBeNull();
+		expect(screen.queryByText('Équipes battues')).toBeNull();
 		expect(screen.getByText('4 editions · 2 counted')).toBeInTheDocument();
 		expect(screen.queryByText('No ranked edition yet')).toBeNull();
 	});
@@ -42,7 +45,7 @@ describe('player profile page', () => {
 
 		expect(screen.queryByTestId('position')).toBeNull();
 		expect(screen.getByTestId('average-rank')).toHaveTextContent(/Average rank\s*—/);
-		expect(screen.getByTestId('beaten')).toHaveTextContent(/Teams beaten\s*—/);
+		expect(screen.queryByTestId('beaten')).toBeNull();
 		expect(screen.getByText('No ranked edition yet')).toBeInTheDocument();
 		expect(screen.getByText('1 edition · 0 counted')).toBeInTheDocument();
 	});
@@ -55,7 +58,7 @@ describe('player profile page', () => {
 		expect(screen.getByRole('heading', { level: 2, name: 'Éditions' })).toBeInTheDocument();
 		expect(screen.getByTestId('position')).toHaveTextContent(/3\s*général/);
 		expect(screen.getByTestId('average-rank')).toHaveTextContent(/Rang moyen\s*2,5/);
-		expect(screen.getByTestId('beaten')).toHaveTextContent(/Équipes battues\s*76\s%/);
+		expect(screen.queryByTestId('beaten')).toBeNull();
 		expect(screen.getByText('4 éditions · 2 classées')).toBeInTheDocument();
 		const rows = screen.getAllByTestId('edition-row');
 		expect(rows[0]).toHaveTextContent(/2030\s*Les Aigles\s*En cours/);
