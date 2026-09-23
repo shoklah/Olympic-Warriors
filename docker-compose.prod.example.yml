@@ -6,8 +6,13 @@ services:
       context: ./server
       dockerfile: Dockerfile.prod
     command: gunicorn olympic_warriors.wsgi:application --bind 0.0.0.0:3003
+    # Loopback only: the login throttle trusts the last X-Forwarded-For entry (NUM_PROXIES=1),
+    # so a client reaching Django without nginx or the front could name any IP. nginx reaches
+    # it as server:3003 on the compose network, and must set X-Forwarded-For on that location
+    # too (proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;), or the header is the
+    # client's own. The same holds for every app port below.
     ports:
-      - "3003:3003"
+      - "127.0.0.1:3003:3003"
     volumes:
       - ./server/:/server
       - static_volume:/home/app/web/staticfiles
@@ -45,7 +50,7 @@ services:
       dockerfile: Dockerfile.stage
     command: gunicorn olympic_warriors.wsgi:application --bind 0.0.0.0:3004
     ports:
-      - "3004:3004"
+      - "127.0.0.1:3004:3004"
     volumes:
       - /opt/OW_stage/Olympic-Warriors/server/:/home/stage/web/
       - static_volume_stage:/home/stage/web/staticfiles
@@ -83,10 +88,13 @@ services:
       context: ./front
       dockerfile: Dockerfile.stage
     ports:
-      - "4000:4000"
+      - "127.0.0.1:4000:4000"
     environment:
       - PORT=4000
       - NODE_ENV=PRODUCTION
+      # As on front below.
+      - ADDRESS_HEADER=x-forwarded-for
+      - XFF_DEPTH=1
     volumes:
       - ./front/:/usr/src/app
       - /usr/src/app/node_modules
@@ -97,12 +105,17 @@ services:
       context: ./front
       dockerfile: Dockerfile.prod
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
       - PORT=3000
       - NODE_ENV=PRODUCTION
       # Public origin of the site: SvelteKit refuses form POSTs (the language switch) whose Origin differs.
       - ORIGIN=https://olympicwarriors.com
+      # Visitor IP for getClientAddress(), which the login forwards to the API's throttle; without it
+      # every login shares nginx's bucket. Only with nginx setting X-Forwarded-For on this location
+      # (proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;), or visitors can forge it.
+      - ADDRESS_HEADER=x-forwarded-for
+      - XFF_DEPTH=1
     volumes:
       - ./front/:/usr/src/app
       - /usr/src/app/node_modules

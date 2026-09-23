@@ -18,7 +18,6 @@ Including another URLconf
 import os
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 
-from rest_framework.authtoken import views as auth_views
 from django.contrib import admin
 from django.urls import path
 from django.conf import settings
@@ -35,8 +34,8 @@ urlpatterns = [
     path("api/schema/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
     # admin
     path("admin/", admin.site.urls),
-    # authentication
-    path("auth/token/", auth_views.obtain_auth_token, name="auth_token"),
+    # authentication (the only throttled API view: LoginRateThrottle, with the admin login)
+    path("auth/token/", views.ThrottledObtainAuthToken.as_view(), name="auth_token"),
     # users
     path("user/<int:user_id>/", views.getUser),
     path("users/", views.getUsers),
@@ -47,6 +46,9 @@ urlpatterns = [
     path("players/edition/<int:edition_id>/", views.getPlayersByEdition),
     path("players/user/<int:user_id>/edition/<int:edition_id>/", views.getPlayerByUserAndEdition),
     path("players/team/<int:team_id>/", views.getPlayersByTeam),
+    # profiles (public, by user id)
+    path("profiles/", views.getProfiles),
+    path("profile/<int:user_id>/", views.getProfile),
     # editions
     path("edition/<int:edition_id>/", views.getEdition),
     path("edition/year/<int:year>/summary/", views.getEditionSummary),
@@ -84,7 +86,7 @@ urlpatterns = [
         "games/discipline/<int:discipline_id>/team/<int:team_id>/refereed/",
         views.getRefereedGamesByDisciplineAndTeam,
     ),
-    path("games/round/<int:round>/", views.getGamesByRound),
+    path("games/round/<int:round_id>/", views.getGamesByRound),
     # game events
     path("event/<int:event_id>/", views.getGameEvent),
     path("event/create/", views.createGameEvent),
@@ -116,7 +118,7 @@ urlpatterns = [
     path("blindtest/rounds/edition/<int:edition_id>/", views.getBlindtestRoundsByEdition),
     path("blindtest/guess/<int:guess_id>/answer/", views.setBlindtestGuessAnswer),
     # team results
-    path("result/<int:result_id>/", views.getTeamResult),
+    path("result/<int:team_result_id>/", views.getTeamResult),
     path("result/<int:result_id>/value/", views.setTeamResult),
     path("results/", views.getTeamResults),
     path("results/team/<int:team_id>/", views.getTeamResultsByTeam),

@@ -117,7 +117,27 @@ class PlayerRatingSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
-class GameSerializer(serializers.ModelSerializer):
+class RevealGameScoresMixin:
+    """
+    Nulls score1 and score2 while the game's discipline is not revealed, unless
+    context["staff"] is set. Every game serializer mixes it in, so no endpoint shows a
+    score the summary hides. Serialise games with their discipline selected.
+    """
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if not instance.discipline.reveal_score and not self.context.get("staff"):
+            data["score1"] = None
+            data["score2"] = None
+        return data
+
+
+class GameSerializer(RevealGameScoresMixin, serializers.ModelSerializer):
+    """A game. The scores are null until its discipline is revealed, except for staff."""
+
+    score1 = serializers.IntegerField(read_only=True, allow_null=True)
+    score2 = serializers.IntegerField(read_only=True, allow_null=True)
+
     class Meta:
         model = Game
         fields = "__all__"
@@ -138,8 +158,8 @@ class TeamSportRoundSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(GameSerializer(many=True))
     def get_games(self, obj):
-        games = Game.objects.filter(round=obj)
-        return GameSerializer(games, many=True).data
+        games = Game.objects.filter(round=obj, is_active=True).select_related("discipline")
+        return GameSerializer(games, many=True, context=self.context).data
 
 
 class BlindtestGuessSerializer(serializers.ModelSerializer):
@@ -149,8 +169,8 @@ class BlindtestGuessSerializer(serializers.ModelSerializer):
 
 
 class BlindtestGuessUpdateSerializer(serializers.Serializer):
-    artist = serializers.CharField(max_length=255, required=True)
-    song = serializers.CharField(max_length=255, required=True)
+    artist = serializers.CharField(max_length=255, required=True, allow_blank=True)
+    song = serializers.CharField(max_length=255, required=True, allow_blank=True)
 
 
 class BlindtestRoundSerializer(serializers.ModelSerializer):
@@ -164,18 +184,6 @@ class BlindtestRoundSerializer(serializers.ModelSerializer):
     def get_guesses(self, obj):
         guesses = BlindtestGuess.objects.filter(blindtest_round=obj)
         return BlindtestGuessSerializer(guesses, many=True).data
-
-
-class TeamResultSerializer(serializers.ModelSerializer):
-    ranking = serializers.ReadOnlyField()
-    global_points = serializers.ReadOnlyField()
-    points_difference = serializers.ReadOnlyField()
-    result_type = serializers.ReadOnlyField()
-    team_name = serializers.CharField(source="team.name")
-
-    class Meta:
-        model = TeamResult
-        fields = "__all__"
 
 
 # Edition summary: everything the public front needs for one edition in one payload.
@@ -199,7 +207,7 @@ class SummaryPlayerSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Player
-        fields = ("id", "first_name", "last_name")
+        fields = ("id", "user", "first_name", "last_name")
 
 
 class SummaryTeamSerializer(serializers.ModelSerializer):
@@ -235,13 +243,12 @@ class SummaryResultSerializer(serializers.ModelSerializer):
     """
     A team's result in a discipline, its standing read from context["standings"] (see
     _standing). The ranking fields are null while the discipline's reveal_score is off,
-    or while the result itself has no score yet for its type: the summary is public and
-    must not leak a standing early, nor 500 on a NULL score. With context["staff"] the
-    stored points and time stay visible so an organiser can check and edit them; the
-    ranking stays hidden for staff too until the discipline is revealed.
+    or while the result itself has no score yet for its type (see _hidden): the summary
+    is public and must not leak a standing early, nor 500 on a NULL score. With
+    context["staff"] the stored points and time stay visible so an organiser can check
+    and edit them; the ranking stays hidden for staff too until the discipline is
+    revealed. Serialise results with their discipline selected.
     """
-
-    HIDDEN_FIELDS = ("ranking", "points", "time", "points_difference", "global_points")
 
     result_type = serializers.ReadOnlyField()
     ranking = serializers.SerializerMethodField()
@@ -263,17 +270,28 @@ class SummaryResultSerializer(serializers.ModelSerializer):
             standings = cache[edition_id]
         return standings.result(obj.id)
 
+    @staticmethod
+    def _hidden(obj):
+        """Whether the result's standing is withheld: not revealed, or no score yet."""
+        missing_score = (
+            (obj.result_type == ResultTypes.POINTS and obj.points is None)
+            or (obj.result_type == ResultTypes.TIME and obj.time is None)
+            or obj.result_type == ResultTypes.NONE
+            or not obj.result_type
+        )
+        return not obj.discipline.reveal_score or missing_score
+
     @extend_schema_field(serializers.IntegerField(allow_null=True))
     def get_ranking(self, obj):
-        return self._standing(obj).ranking
+        return None if self._hidden(obj) else self._standing(obj).ranking
 
     @extend_schema_field(serializers.IntegerField(allow_null=True))
     def get_points_difference(self, obj):
-        return self._standing(obj).points_difference
+        return None if self._hidden(obj) else self._standing(obj).points_difference
 
     @extend_schema_field(serializers.IntegerField(allow_null=True))
     def get_global_points(self, obj):
-        return self._standing(obj).global_points
+        return None if self._hidden(obj) else self._standing(obj).global_points
 
     class Meta:
         model = TeamResult
@@ -290,29 +308,20 @@ class SummaryResultSerializer(serializers.ModelSerializer):
         )
 
     def to_representation(self, instance):
-        missing_score = (
-            (instance.result_type == ResultTypes.POINTS and instance.points is None)
-            or (instance.result_type == ResultTypes.TIME and instance.time is None)
-            or instance.result_type == ResultTypes.NONE
-            or not instance.result_type
-        )
-        if instance.discipline.reveal_score and not missing_score:
-            return super().to_representation(instance)
-        hidden = {
-            "id": instance.id,
-            "team": instance.team_id,
-            "discipline": instance.discipline_id,
-            "result_type": instance.result_type,
-        }
-        hidden.update({field: None for field in self.HIDDEN_FIELDS})
-        if self.context.get("staff"):
-            hidden["points"] = instance.points
-            hidden["time"] = (
-                self.fields["time"].to_representation(instance.time)
-                if instance.time is not None
-                else None
-            )
-        return hidden
+        data = super().to_representation(instance)
+        if self._hidden(instance) and not self.context.get("staff"):
+            data["points"] = None
+            data["time"] = None
+        return data
+
+
+class TeamResultSerializer(SummaryResultSerializer):
+    """The summary's result row, plus the team's name and the active flag."""
+
+    team_name = serializers.CharField(source="team.name", read_only=True)
+
+    class Meta(SummaryResultSerializer.Meta):
+        fields = SummaryResultSerializer.Meta.fields + ("team_name", "is_active")
 
 
 class SummaryRoundSerializer(serializers.ModelSerializer):
@@ -321,11 +330,11 @@ class SummaryRoundSerializer(serializers.ModelSerializer):
         fields = ("id", "discipline", "order", "is_over")
 
 
-class SummaryGameSerializer(serializers.ModelSerializer):
+class SummaryGameSerializer(RevealGameScoresMixin, serializers.ModelSerializer):
     """
     A scheduled game. Pairings, referee and the played flag are always visible;
     the scores are null while the discipline's reveal_score is off, unless
-    context["staff"] is set.
+    context["staff"] is set (RevealGameScoresMixin).
     """
 
     score1 = serializers.IntegerField(read_only=True, allow_null=True)
@@ -344,13 +353,6 @@ class SummaryGameSerializer(serializers.ModelSerializer):
             "score1",
             "score2",
         )
-
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        if not instance.discipline.reveal_score and not self.context.get("staff"):
-            data["score1"] = None
-            data["score2"] = None
-        return data
 
 
 class EditionSummarySerializer(serializers.Serializer):
@@ -438,3 +440,66 @@ class ResultValueSerializer(serializers.Serializer):
 
 class RevealSerializer(serializers.Serializer):
     reveal_score = serializers.BooleanField()
+
+
+class ProfileTeamSerializer(serializers.Serializer):
+    """A participation's team."""
+
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+
+
+class ProfileEditionSerializer(serializers.Serializer):
+    """
+    One edition of a profile (a Participation); rank is null until the edition is over,
+    and whenever the team has no rank (see profiles.Participation).
+    """
+
+    year = serializers.IntegerField()
+    team = serializers.SerializerMethodField()
+    rank = serializers.IntegerField(allow_null=True)
+    teams = serializers.IntegerField()
+    finished = serializers.BooleanField()
+
+    @extend_schema_field(ProfileTeamSerializer(allow_null=True))
+    def get_team(self, obj):
+        if obj.team_id is None:
+            return None
+        return {"id": obj.team_id, "name": obj.team_name}
+
+
+class PlaceSerializer(serializers.Serializer):
+    """One counted edition of a person: the year and the team's rank that year."""
+
+    year = serializers.IntegerField()
+    rank = serializers.IntegerField()
+
+
+class LeaderboardRowSerializer(serializers.Serializer):
+    """
+    A person on the all-time leaderboard (a PlayerRecord, see olympic_warriors.profiles):
+    places and average rank; the order comes from the places only.
+    Public: names only, never the username (the login name) nor the email.
+    """
+
+    id = serializers.IntegerField(source="user_id", help_text="The user id, not a Player id")
+    first_name = serializers.CharField()
+    last_name = serializers.CharField()
+    played = serializers.IntegerField()
+    counted = serializers.IntegerField()
+    average_rank = serializers.FloatField(allow_null=True)
+    places = PlaceSerializer(many=True, help_text="Counted editions, best rank first")
+    position = serializers.IntegerField(allow_null=True)
+
+
+class ProfileSerializer(serializers.Serializer):
+    """A person's profile: position, counted editions and average rank, plus every edition,
+    newest first."""
+
+    id = serializers.IntegerField(source="user_id", help_text="The user id, not a Player id")
+    first_name = serializers.CharField()
+    last_name = serializers.CharField()
+    position = serializers.IntegerField(allow_null=True)
+    counted = serializers.IntegerField()
+    average_rank = serializers.FloatField(allow_null=True)
+    editions = ProfileEditionSerializer(source="participations", many=True)

@@ -94,6 +94,13 @@ describe('team page', () => {
 		expect(screen.getByTestId('standing')).toHaveTextContent(/^\s*—\s*au général\s*$/);
 		expect(screen.queryByText('pts')).not.toBeInTheDocument();
 	});
+
+	it('links each roster name to the player profile', () => {
+		renderWith(Page, { data: dataFor(1) });
+
+		expect(screen.getByRole('link', { name: 'Ana Lopez' })).toHaveAttribute('href', '/players/11');
+		expect(screen.getByRole('link', { name: 'Bob Martin' })).toHaveAttribute('href', '/players/12');
+	});
 });
 
 describe('team page load', () => {

@@ -8,6 +8,7 @@ from django.db import transaction
 from django.db.models import Q
 from rest_framework.permissions import AllowAny
 from django.contrib.auth.models import User
+from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.decorators import api_view, permission_classes, parser_classes
 from rest_framework.parsers import JSONParser
 from rest_framework.response import Response
@@ -35,8 +36,12 @@ from .serializer import (
     SummaryResultSerializer,
     SummaryDisciplineSerializer,
     SummaryRoundSerializer,
+    LeaderboardRowSerializer,
+    ProfileSerializer,
 )
+from .profiles import leaderboard
 from .permissions import IsOrganiser
+from .throttling import LoginRateThrottle
 from .models import (
     Player,
     Edition,
@@ -51,6 +56,18 @@ from .models import (
     BlindtestRound,
     latest_edition,
 )
+
+# Authentication
+
+class ThrottledObtainAuthToken(ObtainAuthToken):
+    """
+    Exchange a username and password for the user's token ({"token": ...}). Limited per
+    client IP (LoginRateThrottle, LOGIN_THROTTLE_RATE): past the limit every attempt, even
+    with the right password, gets a 429 with Retry-After. DRF's stock view has no throttle.
+    """
+
+    throttle_classes = [LoginRateThrottle]
+
 
 # Users
 
@@ -182,6 +199,46 @@ def getPlayersByTeam(request, team_id):
     players = Player.objects.filter(team=team_id, is_active=True)
     serializer = PlayerSerializer(players, many=True)
     return Response(serializer.data)
+
+
+# Profiles
+
+
+@extend_schema(
+    summary="Every person who played, in all-time leaderboard order",
+    description=(
+        "Ranked people first, like a medal table on their places (more 1st places, then "
+        "more 2nd places, and so on; identical places share a position), then the ones "
+        "with no counted edition yet (finished, ranked, at least two teams), by name and "
+        "without a position."
+    ),
+    responses={
+        "200": LeaderboardRowSerializer(many=True),
+        "500": OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def getProfiles(request):
+    return Response(LeaderboardRowSerializer(leaderboard(), many=True).data)
+
+
+@extend_schema(
+    summary="One person's editions, average rank and all-time position, by user id",
+    responses={
+        "200": ProfileSerializer,
+        "404": OpenApiResponse(description="Player not found"),
+        "500": OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def getProfile(request, user_id):
+    # The same leaderboard as /profiles/, so a profile can never disagree on a position.
+    record = next((r for r in leaderboard() if r.user_id == user_id), None)
+    if record is None:
+        return Response({"error": "Player not found"}, status=404)
+    return Response(ProfileSerializer(record).data)
 
 
 # Editions
@@ -388,6 +445,33 @@ def getPlayerRatingsByPlayer(request, player_id):
 
 # Games
 
+# The game, round and result views show the rows and apply the reveal rule of the edition
+# summary: scores stay null until the discipline is revealed, except for staff.
+
+
+def _reveal_context(request):
+    """Serializer context of the reveal rule: staff see the scores before the reveal."""
+    return {"staff": request.user.is_staff}
+
+
+def _games():
+    """The games the summary lists: active, in an active round of an active discipline."""
+    return Game.objects.filter(
+        is_active=True, round__is_active=True, discipline__is_active=True
+    ).select_related("discipline")
+
+
+def _rounds():
+    """The rounds the summary lists: active, of an active discipline."""
+    return TeamSportRound.objects.filter(is_active=True, discipline__is_active=True)
+
+
+def _results():
+    """The results the summary lists: active, of an active discipline and an active team."""
+    return TeamResult.objects.filter(
+        is_active=True, discipline__is_active=True, team__is_active=True
+    ).select_related("team", "discipline__edition")
+
 
 @extend_schema(
     summary="Get a game by ID",
@@ -400,11 +484,11 @@ def getPlayerRatingsByPlayer(request, player_id):
 @api_view(["GET"])
 def getGame(request, game_id):
     try:
-        game = Game.objects.get(id=game_id)
+        game = _games().get(id=game_id)
     except Game.DoesNotExist:
         return Response({"error": "Game not found"}, status=404)
 
-    serializer = GameSerializer(game)
+    serializer = GameSerializer(game, context=_reveal_context(request))
     return Response(serializer.data)
 
 
@@ -418,8 +502,8 @@ def getGame(request, game_id):
 )
 @api_view(["GET"])
 def getGames(request):
-    games = Game.objects.filter(is_active=True)
-    serializer = GameSerializer(games, many=True)
+    games = _games()
+    serializer = GameSerializer(games, many=True, context=_reveal_context(request))
     return Response(serializer.data)
 
 
@@ -433,10 +517,8 @@ def getGames(request):
 )
 @api_view(["GET"])
 def getGamesByTeam(request, team_id):
-    games = Game.objects.filter(
-        (Q(team1=team_id) | Q(team2=team_id) | Q(referees=team_id)), is_active=True
-    )
-    serializer = GameSerializer(games, many=True)
+    games = _games().filter(Q(team1=team_id) | Q(team2=team_id) | Q(referees=team_id))
+    serializer = GameSerializer(games, many=True, context=_reveal_context(request))
     return Response(serializer.data)
 
 
@@ -450,22 +532,23 @@ def getGamesByTeam(request, team_id):
 )
 @api_view(["GET"])
 def getGamesByDiscipline(request, discipline_id):
-    games = Game.objects.filter(discipline=discipline_id, is_active=True)
-    serializer = GameSerializer(games, many=True)
+    games = _games().filter(discipline=discipline_id)
+    serializer = GameSerializer(games, many=True, context=_reveal_context(request))
     return Response(serializer.data)
 
 
 @extend_schema(
-    summary="Get games played by a team",
+    summary="Get the games a team plays in (not refereed ones), played or not",
     responses={
         "200": GameSerializer(many=True),
         "401": OpenApiResponse(description="Unauthorized"),
         "500": OpenApiResponse(description="Internal server error"),
     },
 )
+@api_view(["GET"])
 def getPlayedGamesByTeam(request, team_id):
-    games = Game.objects.filter((Q(team1=team_id) | Q(team2=team_id)), is_active=True)
-    serializer = GameSerializer(games, many=True)
+    games = _games().filter(Q(team1=team_id) | Q(team2=team_id))
+    serializer = GameSerializer(games, many=True, context=_reveal_context(request))
     return Response(serializer.data)
 
 
@@ -477,9 +560,10 @@ def getPlayedGamesByTeam(request, team_id):
         "500": OpenApiResponse(description="Internal server error"),
     },
 )
+@api_view(["GET"])
 def getRefereedGamesByTeam(request, team_id):
-    games = Game.objects.filter(referees=team_id, is_active=True)
-    serializer = GameSerializer(games, many=True)
+    games = _games().filter(referees=team_id)
+    serializer = GameSerializer(games, many=True, context=_reveal_context(request))
     return Response(serializer.data)
 
 
@@ -493,8 +577,8 @@ def getRefereedGamesByTeam(request, team_id):
 )
 @api_view(["GET"])
 def getGamesByEdition(request, edition_id):
-    games = Game.objects.filter(discipline__edition=edition_id, is_active=True)
-    serializer = GameSerializer(games, many=True)
+    games = _games().filter(discipline__edition=edition_id)
+    serializer = GameSerializer(games, many=True, context=_reveal_context(request))
     return Response(serializer.data)
 
 
@@ -508,17 +592,15 @@ def getGamesByEdition(request, edition_id):
 )
 @api_view(["GET"])
 def getGamesByDisciplineAndTeam(request, discipline_id, team_id):
-    games = Game.objects.filter(
-        (Q(team1=team_id) | Q(team2=team_id) | Q(referees=team_id)),
-        discipline=discipline_id,
-        is_active=True,
+    games = _games().filter(
+        Q(team1=team_id) | Q(team2=team_id) | Q(referees=team_id), discipline=discipline_id
     )
-    serializer = GameSerializer(games, many=True)
+    serializer = GameSerializer(games, many=True, context=_reveal_context(request))
     return Response(serializer.data)
 
 
 @extend_schema(
-    summary="Get games played by a team for a discipline",
+    summary="Get the games a team plays in for a discipline (not refereed ones), played or not",
     responses={
         "200": GameSerializer(many=True),
         "401": OpenApiResponse(description="Unauthorized"),
@@ -527,12 +609,8 @@ def getGamesByDisciplineAndTeam(request, discipline_id, team_id):
 )
 @api_view(["GET"])
 def getPlayedGamesByDisciplineAndTeam(request, team_id, discipline_id):
-    games = Game.objects.filter(
-        (Q(team1=team_id) | Q(team2=team_id)),
-        discipline=discipline_id,
-        is_active=True,
-    )
-    serializer = GameSerializer(games, many=True)
+    games = _games().filter(Q(team1=team_id) | Q(team2=team_id), discipline=discipline_id)
+    serializer = GameSerializer(games, many=True, context=_reveal_context(request))
     return Response(serializer.data)
 
 
@@ -546,12 +624,8 @@ def getPlayedGamesByDisciplineAndTeam(request, team_id, discipline_id):
 )
 @api_view(["GET"])
 def getRefereedGamesByDisciplineAndTeam(request, team_id, discipline_id):
-    games = Game.objects.filter(
-        referees=team_id,
-        discipline=discipline_id,
-        is_active=True,
-    )
-    serializer = GameSerializer(games, many=True)
+    games = _games().filter(referees=team_id, discipline=discipline_id)
+    serializer = GameSerializer(games, many=True, context=_reveal_context(request))
     return Response(serializer.data)
 
 
@@ -565,8 +639,8 @@ def getRefereedGamesByDisciplineAndTeam(request, team_id, discipline_id):
 )
 @api_view(["GET"])
 def getGamesByRound(request, round_id):
-    games = Game.objects.filter(round=round_id, is_active=True)
-    serializer = GameSerializer(games, many=True)
+    games = _games().filter(round=round_id)
+    serializer = GameSerializer(games, many=True, context=_reveal_context(request))
     return Response(serializer.data)
 
 
@@ -712,10 +786,10 @@ def deleteGameEvent(request, event_id):
 @api_view(["GET"])
 def getRound(request, round_id):
     try:
-        round = TeamSportRound.objects.get(id=round_id)
+        round = _rounds().get(id=round_id)
     except TeamSportRound.DoesNotExist:
         return Response({"error": "Round not found"}, status=404)
-    serializer = TeamSportRoundSerializer(round)
+    serializer = TeamSportRoundSerializer(round, context=_reveal_context(request))
     return Response(serializer.data)
 
 
@@ -729,8 +803,8 @@ def getRound(request, round_id):
 )
 @api_view(["GET"])
 def getRounds(request):
-    rounds = TeamSportRound.objects.filter(is_active=True)
-    serializer = TeamSportRoundSerializer(rounds, many=True)
+    rounds = _rounds()
+    serializer = TeamSportRoundSerializer(rounds, many=True, context=_reveal_context(request))
     return Response(serializer.data)
 
 
@@ -744,8 +818,8 @@ def getRounds(request):
 )
 @api_view(["GET"])
 def getRoundsByDiscipline(request, discipline_id):
-    rounds = TeamSportRound.objects.filter(discipline=discipline_id, is_active=True)
-    serializer = TeamSportRoundSerializer(rounds, many=True)
+    rounds = _rounds().filter(discipline=discipline_id)
+    serializer = TeamSportRoundSerializer(rounds, many=True, context=_reveal_context(request))
     return Response(serializer.data)
 
 
@@ -764,10 +838,10 @@ def getRoundsByDiscipline(request, discipline_id):
 @api_view(["GET"])
 def getTeamResult(request, team_result_id):
     try:
-        team_result = TeamResult.objects.get(id=team_result_id)
+        team_result = _results().get(id=team_result_id)
     except TeamResult.DoesNotExist:
         return Response({"error": "Team result not found"}, status=404)
-    serializer = TeamResultSerializer(team_result)
+    serializer = TeamResultSerializer(team_result, context=_reveal_context(request))
     return Response(serializer.data)
 
 
@@ -781,8 +855,8 @@ def getTeamResult(request, team_result_id):
 )
 @api_view(["GET"])
 def getTeamResults(request):
-    team_results = TeamResult.objects.filter(is_active=True)
-    serializer = TeamResultSerializer(team_results, many=True)
+    team_results = _results()
+    serializer = TeamResultSerializer(team_results, many=True, context=_reveal_context(request))
     return Response(serializer.data)
 
 
@@ -796,8 +870,8 @@ def getTeamResults(request):
 )
 @api_view(["GET"])
 def getTeamResultsByTeam(request, team_id):
-    team_results = TeamResult.objects.filter(team=team_id, is_active=True)
-    serializer = TeamResultSerializer(team_results, many=True)
+    team_results = _results().filter(team=team_id)
+    serializer = TeamResultSerializer(team_results, many=True, context=_reveal_context(request))
     return Response(serializer.data)
 
 
@@ -811,10 +885,8 @@ def getTeamResultsByTeam(request, team_id):
 )
 @api_view(["GET"])
 def getTeamResultsByEdition(request, edition_id):
-    team_results = TeamResult.objects.filter(
-        discipline__edition=edition_id, is_active=True
-    ).select_related("team", "discipline")
-    serializer = TeamResultSerializer(team_results, many=True)
+    team_results = _results().filter(discipline__edition=edition_id)
+    serializer = TeamResultSerializer(team_results, many=True, context=_reveal_context(request))
     return Response(serializer.data)
 
 
@@ -828,8 +900,8 @@ def getTeamResultsByEdition(request, edition_id):
 )
 @api_view(["GET"])
 def getTeamResultsByDiscipline(request, discipline_id):
-    team_results = TeamResult.objects.filter(discipline=discipline_id, is_active=True)
-    serializer = TeamResultSerializer(team_results, many=True)
+    team_results = _results().filter(discipline=discipline_id)
+    serializer = TeamResultSerializer(team_results, many=True, context=_reveal_context(request))
     return Response(serializer.data)
 
 
@@ -895,7 +967,9 @@ def getBlindtestGuessesByTeam(request, team_id):
 )
 @api_view(["GET"])
 def getBlindtestGuessesByBlindtest(request, blindtest_id):
-    guesses = BlindtestGuess.objects.filter(blindtest=blindtest_id, is_active=True)
+    guesses = BlindtestGuess.objects.filter(
+        blindtest_round__blindtest=blindtest_id, is_active=True
+    )
     serializer = BlindtestGuessSerializer(guesses, many=True)
     return Response(serializer.data)
 
@@ -910,7 +984,9 @@ def getBlindtestGuessesByBlindtest(request, blindtest_id):
 )
 @api_view(["GET"])
 def getBlindtestGuessesByTeamAndBlindtest(request, team_id, blindtest_id):
-    guesses = BlindtestGuess.objects.filter(team=team_id, blindtest=blindtest_id, is_active=True)
+    guesses = BlindtestGuess.objects.filter(
+        team=team_id, blindtest_round__blindtest=blindtest_id, is_active=True
+    )
     serializer = BlindtestGuessSerializer(guesses, many=True)
     return Response(serializer.data)
 

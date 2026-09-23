@@ -14,7 +14,7 @@
 
     <!-- The action's message is English by construction (API and server code); the visitor gets the dictionary line. -->
     {#if form?.error }<p class="error" transition:slide={{ duration: 800, easing: quintOut }}>
-        {t('login.failed')}
+        {t(form.throttled ? 'login.throttled' : 'login.failed')}
     </p>{/if}
 
     {#if form?.missing && form?.missing.username}<p class="error" id="username-error" transition:slide={{ duration: 800, easing: quintOut }}>

@@ -2,8 +2,14 @@
 Admin dashboard configuration for the Olympic Warriors app.
 """
 
+import math
+
 from django.contrib.admin import site, ModelAdmin, TabularInline
+from django.contrib.admin.forms import AdminAuthenticationForm
+from django.core.exceptions import ValidationError
+from django.forms import ModelChoiceField, ModelForm
 from django.http import HttpRequest
+from .throttling import LoginRateThrottle
 from .models import (
     Player,
     PlayerRating,
@@ -57,6 +63,35 @@ def request_only_active(request: HttpRequest) -> HttpRequest:
     return request
 
 
+class ThrottledAdminAuthenticationForm(AdminAuthenticationForm):
+    """
+    The admin login form, limited per client IP in the same bucket as /auth/token/
+    (LoginRateThrottle, LOGIN_THROTTLE_RATE): organisers log into both with one password, so
+    either door counts against the other. Every submitted form counts, failed or not; past the
+    limit the form comes back with the "throttled" error before any password is checked, so
+    the right one is refused too.
+    """
+
+    error_messages = {
+        **AdminAuthenticationForm.error_messages,
+        # In French, like the rest of the admin (LANGUAGE_CODE "fr", no LocaleMiddleware).
+        "throttled": "Trop de tentatives de connexion depuis cette adresse. "
+        "Réessayez dans %(wait)d s.",
+    }
+
+    def clean(self):
+        throttle = LoginRateThrottle()
+        if not throttle.allow_request(self.request, None):
+            # wait() is None when the count outgrew the rate (lowered since): a whole window.
+            wait = throttle.wait() or throttle.duration
+            raise ValidationError(
+                self.error_messages["throttled"],
+                code="throttled",
+                params={"wait": math.ceil(wait)},
+            )
+        return super().clean()
+
+
 class BlindtestGuessInline(TabularInline):
     """
     Inline for the BlindtestGuess model to be accessed from the Blindtest model.
@@ -86,12 +121,26 @@ class PlayerRatingInline(TabularInline):
     extra = 1
 
 
+class PlayerInlineForm(ModelForm):
+    """
+    On the team page `team` is the inline's hidden foreign key, and the tabular inline
+    never renders a hidden field's errors: repeat them among the row's errors, since
+    Player.clean() puts its errors on `team`.
+    """
+
+    def non_field_errors(self):
+        return self.error_class(
+            [*super().non_field_errors(), *self.errors.get("team", [])], error_class="nonfield"
+        )
+
+
 class PlayerInline(TabularInline):
     """
     Inline for the Player model to be accessed from the Team model.
     """
 
     model = Player
+    form = PlayerInlineForm
     extra = 1
 
 
@@ -113,13 +162,22 @@ class DodgeballEventInline(TabularInline):
     extra = 1
 
 
+class TeamWithYearChoiceField(ModelChoiceField):
+    """Team choices labelled with their year: team names repeat across editions."""
+
+    def label_from_instance(self, obj):
+        return f"{obj.name} ({obj.edition.year})"
+
+
 class PlayerAdmin(ModelAdmin):
     """
     Admin dashboard configuration for the Player model.
     """
 
     list_display = ["user", "rating", "team", "edition"]
+    list_editable = ["team"]
     list_filter = ["team", "edition", "is_active"]
+    list_select_related = ["user", "edition", "team"]
     search_fields = [
         "user__first_name",
         "user__last_name",
@@ -128,6 +186,15 @@ class PlayerAdmin(ModelAdmin):
         "edition__year",
     ]
     inlines = [PlayerRatingInline]
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        """Teams labelled `name (year)`, newest edition first."""
+        if db_field.name == "team":
+            kwargs["queryset"] = Team.objects.select_related("edition").order_by(
+                "-edition__year", "name"
+            )
+            kwargs["form_class"] = TeamWithYearChoiceField
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
     def changelist_view(self, request, extra_context=None):
         """
@@ -421,6 +488,8 @@ class DodgeballEventAdmin(GameEventAdmin):
         request = request_only_active(request)
         return super().changelist_view(request, extra_context)
 
+
+site.login_form = ThrottledAdminAuthenticationForm
 
 site.register(Player, PlayerAdmin)
 site.register(Team, TeamAdmin)

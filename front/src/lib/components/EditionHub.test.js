@@ -90,4 +90,27 @@ describe('EditionHub', () => {
 		expect(screen.getByAltText('Relais')).toBeInTheDocument();
 		expect(screen.getByRole('navigation', { name: 'Éditions' })).toBeInTheDocument();
 	});
+
+	it('links the players leaderboard before the start, while the ranking waits', () => {
+		vi.setSystemTime(new Date('2026-09-17T07:00:00Z'));
+		renderWith(EditionHub, { summary, editions });
+
+		expect(screen.getByRole('link', { name: 'Players' })).toHaveAttribute('href', '/players');
+		expect(screen.queryByRole('link', { name: 'Ranking' })).toBeNull();
+	});
+
+	it('links the players leaderboard beside the ranking once started', () => {
+		vi.setSystemTime(new Date('2026-09-19T08:00:00Z'));
+		renderWith(EditionHub, { summary, editions });
+
+		expect(screen.getByRole('link', { name: 'Ranking' })).toHaveAttribute('href', '/2026/ranking');
+		expect(screen.getByRole('link', { name: 'Players' })).toHaveAttribute('href', '/players');
+	});
+
+	it('words the players link in French', () => {
+		vi.setSystemTime(new Date('2026-09-19T08:00:00Z'));
+		renderWith(EditionHub, { summary, editions }, 'fr');
+
+		expect(screen.getByRole('link', { name: 'Joueurs' })).toHaveAttribute('href', '/players');
+	});
 });

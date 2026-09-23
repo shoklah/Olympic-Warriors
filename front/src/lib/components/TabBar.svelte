@@ -20,6 +20,8 @@
 				// A team page is reached from the ranking, so it lights that item.
 				{ name: t('nav.ranking'), url: `/${current}/ranking`, also: `/${current}/teams` },
 				{ name: t('nav.disciplines'), url: `/${current}/disciplines` },
+				// Spans every edition, so it points outside the year segment.
+				{ name: t('nav.players'), url: '/players' },
 				...(photosUrl ? [{ name: t('nav.photos'), url: photosUrl, external: true }] : [])
 			]
 		: [];

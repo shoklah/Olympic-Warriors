@@ -53,11 +53,18 @@
 		<div class="label"><span class="num">{parts.minutes}</span>{t('hub.minutes')}</div>
 		<div class="label"><span class="num">{parts.seconds}</span>{t('hub.seconds')}</div>
 	</div>
-{:else}
-	<div id="ranking">
-		<a href="/{edition.year}/ranking">{t('hub.ranking')}</a>
-	</div>
 {/if}
+
+<!-- The leaderboard covers past editions, so its link shows before the start too; on a
+     phone the hub has no tab bar, and this is the way in. -->
+<div class="actions">
+	{#if phase !== 'upcoming'}
+		<a href="/{edition.year}/ranking">{t('hub.ranking')}</a>
+	{/if}
+	<!-- Outlined only once the ranking button is also shown: before the start it is the
+	     sole button, so it stays the filled main call. -->
+	<a class:secondary={phase !== 'upcoming'} href="/players">{t('hub.players')}</a>
+</div>
 
 {#if editions.length > 1}
 	<!-- Same rule as the discipline rail: every edition listed, the current one highlighted. -->
@@ -83,22 +90,26 @@
 		flex-direction: column;
 		justify-content: space-around;
 		opacity: 0.3;
+		/* Even icons zig-zag out by 80px, less on phones: never more than the columns'
+		   inset minus the 1rem page gutter, so they never widen the page. */
+		--inset: 20vw;
+		--zigzag: min(80px, var(--inset) - 1rem);
 	}
 
 	.sportcolumn.left {
-		left: 20vw;
+		left: var(--inset);
 	}
 
 	.sportcolumn.left :nth-child(even) {
-		transform: translate(-80px, 0);
+		transform: translate(calc(-1 * var(--zigzag)), 0);
 	}
 
 	.sportcolumn.right {
-		right: 20vw;
+		right: var(--inset);
 	}
 
 	.sportcolumn.right :nth-child(even) {
-		transform: translate(80px, 0);
+		transform: translate(var(--zigzag), 0);
 	}
 
 	.sportcolumn img {
@@ -115,14 +126,22 @@
 	}
 
 	#countdown,
-	#ranking {
+	.actions {
 		display: flex;
 		justify-content: center;
-		gap: 2rem;
 		margin: 1rem 0;
 	}
 
-	#ranking a {
+	#countdown {
+		gap: 2rem;
+	}
+
+	.actions {
+		flex-wrap: wrap;
+		gap: 1rem;
+	}
+
+	.actions a {
 		background: var(--accent);
 		color: var(--bg);
 		font-family: var(--font-display);
@@ -134,9 +153,17 @@
 		text-decoration: none;
 	}
 
-	#ranking a:hover,
-	#ranking a:focus-visible {
+	.actions a:hover,
+	.actions a:focus-visible {
 		opacity: 0.8;
+	}
+
+	/* Same shape as the other button, outlined: shown only when the ranking button is also
+	   present, so there is always exactly one filled, main call to action. */
+	.actions a.secondary {
+		background: transparent;
+		color: var(--accent);
+		box-shadow: inset 0 0 0 2px var(--accent);
 	}
 
 	#countdown .label {
@@ -204,7 +231,7 @@
 	/* Everything after the hero paints above it, whatever the hero overflows. */
 	.where,
 	#countdown,
-	#ranking,
+	.actions,
 	.editions {
 		position: relative;
 		z-index: 1;
@@ -242,7 +269,11 @@
 			width: calc(60vh * 1664 / 1108);
 		}
 
-		#ranking a {
+		.actions {
+			padding: 0 1rem;
+		}
+
+		.actions a {
 			padding: 0.6rem 2rem;
 			font-size: 1.2rem;
 		}

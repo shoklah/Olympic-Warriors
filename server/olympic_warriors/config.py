@@ -59,6 +59,14 @@ class BaseConfig(BaseSettings):
     ALLOWED_HOSTS: list = ["*"]
     CSRF_TRUSTED_ORIGINS: list = ["https://*", "http://*"]
 
+    # Login attempts per client IP, /auth/token/ and /admin/login/ together, in DRF's
+    # "<count>/<sec|min|hour|day>".
+    LOGIN_THROTTLE_RATE: str = "5/min"
+    # Proxies in front of Django that append the client IP to X-Forwarded-For: nginx for a
+    # direct API call, the front for a login through the site. DRF trusts that many entries
+    # from the right; only correct if nothing reaches Django without passing one of them.
+    NUM_PROXIES: int = 1
+
     @model_validator(mode="after")
     def validate_log_level(self):
         """

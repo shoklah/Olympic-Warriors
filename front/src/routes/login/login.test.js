@@ -21,4 +21,11 @@ describe('login form', () => {
 		expect(screen.queryByText(/token not received/)).toBeNull();
 		expect(screen.getByPlaceholderText('Username')).toHaveValue('ana');
 	});
+
+	it('asks to wait, not to check the credentials, once the API throttles the attempts', () => {
+		renderWith(Login, { form: { error: 'Request was throttled.', throttled: true, username: 'ana' } }, 'fr');
+
+		expect(screen.getByText('Trop de tentatives : réessayez plus tard')).toBeInTheDocument();
+		expect(screen.queryByText(/vérifiez vos identifiants/)).toBeNull();
+	});
 });

@@ -232,6 +232,12 @@ class TestEditionSummarySerializer(SummarySetup, TestCase):
         self.assertEqual(teams[1]["ranking"], 1)
         self.assertEqual(teams[1]["total_points"], 5)
 
+    def test_roster_players_carry_their_user_id(self):
+        aigles = self.summary()["teams"][0]
+        users = {u.username: u.id for u in User.objects.filter(username__in=["ana", "bob"])}
+
+        self.assertEqual([p["user"] for p in aigles["players"]], [users["ana"], users["bob"]])
+
     def test_inactive_team_excluded(self):
         self.team_c.is_active = False
         self.team_c.save()
