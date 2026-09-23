@@ -26,19 +26,29 @@ describe('iconFor', () => {
 /** Every `self.name = '...'` in server/olympic_warriors/models/*.py. Keep in sync by hand. */
 const DISCIPLINE_NAMES = [
 	'Basketball',
+	'Blindfolded Obstacle Course',
 	'Blindtest',
+	'Burger Quizz',
 	'Crossfit',
+	'Dance',
 	'Darts',
+	'Disc Throw',
 	'Dodgeball',
 	'Fair',
+	'Football',
+	'Frisbee',
 	'General Culture Quizz',
+	'Geoguessr',
 	'Geography Quizz',
+	'Handball',
 	'Hide and Seek',
+	'Jumping Rope',
 	'Obstacle Course',
 	'Orienteering',
 	'Petanque',
 	'Relay',
-	'Rugby'
+	'Rugby',
+	'Volleyball'
 ];
 
 describe('every discipline model has an icon', () => {
