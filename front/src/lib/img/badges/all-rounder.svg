@@ -1,15 +1,8 @@
 <svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
-<!-- A pocket multi-tool, a blade, a corkscrew and a screwdriver fanned out. -->
-<g transform="rotate(64 460 1400)">
-<path d="M420 930V480H500V930" stroke="white" stroke-width="90" stroke-linecap="round" stroke-linejoin="round"/>
-</g>
-<g transform="rotate(31 460 1400)">
-<path d="M460 1100V960Q610 902 460 845Q310 788 460 730Q610 672 460 615Q310 558 460 500" stroke="white" stroke-width="80" stroke-linecap="round" stroke-linejoin="round"/>
-</g>
-<g transform="rotate(-4 460 1400)">
-<path d="M340 1200V400C484 460 580 568 580 712V1200" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
-</g>
-<path d="M460 1260H1540A140 140 0 0 1 1540 1540H460A140 140 0 0 1 460 1260Z" stroke="white" stroke-width="130" stroke-linecap="round" stroke-linejoin="round"/>
-<circle cx="460" cy="1400" r="50" fill="white"/>
-<circle cx="1540" cy="1400" r="50" fill="white"/>
+<!-- A Swiss army knife: a blade opened to the upper right, a cap lifter to the upper left, two rivets. -->
+<path d="M1109 1128L1752 438C1778 616 1720 988 1560 1161L1367 1368" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M353 1163L225 716L369 675L388 742L329 843L432 896L497 1122" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M479 1121H1161A209 209 0 0 1 1161 1539H479A209 209 0 0 1 479 1121Z" stroke="white" stroke-width="130" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="479" cy="1330" r="60" fill="white"/>
+<circle cx="1161" cy="1330" r="60" fill="white"/>
 </svg>

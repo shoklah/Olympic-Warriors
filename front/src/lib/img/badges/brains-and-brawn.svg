@@ -1,11 +1,9 @@
 <svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
 <!-- A brain on the left, a flexed arm on the right. -->
-<g transform="translate(28 80) scale(0.95)">
-<path d="M258 1055A110 110 0 0 1 210 884A111 111 0 0 1 279 718A121 121 0 0 1 441 611A127 127 0 0 1 645 597A123 123 0 0 1 825 681A113 113 0 0 1 922 836A106 106 0 0 1 908 1006Q570 1270 258 1055Z" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M700 1190Q720 1300 780 1380" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M360 840Q450 760 530 840M610 680Q650 790 760 770M450 1030Q570 950 650 1060M760 950Q820 890 880 960" stroke="white" stroke-width="80" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M1380 650C1420 700 1500 690 1530 630C1570 520 1480 430 1350 435C1220 440 1160 560 1210 700C1150 900 1080 1150 1070 1330C1060 1440 1150 1500 1300 1500H1640C1780 1490 1860 1380 1860 1230A265 265 0 0 0 1410 1040" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M1440 745C1400 850 1420 950 1410 1040" stroke="white" stroke-width="100" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M1500 1310C1580 1250 1690 1260 1750 1320" stroke="white" stroke-width="80" stroke-linecap="round" stroke-linejoin="round"/>
-</g>
+<path d="M310 1115A107 107 0 0 1 275 947A112 112 0 0 1 377 798A125 125 0 0 1 570 740A125 125 0 0 1 763 798A112 112 0 0 1 865 947A107 107 0 0 1 830 1115Q570 1330 310 1115Z" stroke="white" stroke-width="125" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M700 1255Q710 1350 745 1430" stroke="white" stroke-width="125" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M400 1000Q490 890 580 980M510 1120Q610 1050 700 1130" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1300 1130A215 215 0 1 1 1710 1260C1710 1410 1580 1490 1400 1490H1070C990 1490 950 1450 950 1380C960 1010 1030 590 1240 460C1340 410 1430 480 1420 570C1410 650 1320 690 1250 640" stroke="white" stroke-width="125" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1260 710C1160 830 1210 1030 1130 1190" stroke="white" stroke-width="115" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1520 1190C1400 1120 1260 1160 1170 1270" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
