@@ -1,11 +1,12 @@
-import { render, screen } from '@testing-library/svelte';
+import { screen } from '@testing-library/svelte';
 import { describe, expect, it } from 'vitest';
 import Page from './+page.svelte';
 import { summary } from '$lib/fixtures/summary.js';
+import { renderWith } from '$lib/test-utils';
 
 describe('ranking page', () => {
 	it('lists teams in rank order with total points', () => {
-		render(Page, { data: { summary } });
+		renderWith(Page, { data: { summary } });
 
 		const rows = screen.getAllByTestId('team-row');
 		expect(rows).toHaveLength(3);
@@ -17,7 +18,7 @@ describe('ranking page', () => {
 	});
 
 	it('medals the top three by rank, not by row position', () => {
-		render(Page, { data: { summary } });
+		renderWith(Page, { data: { summary } });
 
 		const rows = screen.getAllByTestId('team-row');
 		expect(rows[0]).toHaveClass('gold');
@@ -26,7 +27,7 @@ describe('ranking page', () => {
 	});
 
 	it('links every discipline and dims the hidden ones', () => {
-		render(Page, { data: { summary } });
+		renderWith(Page, { data: { summary } });
 
 		const relay = screen.getByRole('link', { name: 'Relay' });
 		expect(relay).toHaveAttribute('href', '/2026/disciplines/10');
@@ -36,5 +37,13 @@ describe('ranking page', () => {
 		expect(orienteering).toHaveAttribute('href', '/2026/disciplines/11');
 		expect(orienteering).not.toHaveAttribute('aria-disabled');
 		expect(orienteering).toHaveClass('unrevealed');
+	});
+
+	it('speaks French under fr', () => {
+		renderWith(Page, { data: { summary } }, 'fr');
+
+		expect(screen.getByRole('heading', { name: 'Classement' })).toBeInTheDocument();
+		expect(screen.getByRole('navigation', { name: 'Épreuves' })).toBeInTheDocument();
+		expect(screen.getAllByTestId('team-row')[0]).toHaveTextContent(/1\s*Bisons\s*5 pts/);
 	});
 });

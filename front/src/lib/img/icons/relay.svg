@@ -1,5 +1,6 @@
 <svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
-<circle cx="1250" cy="300" r="150" fill="white"/>
-<path d="M1140 520L880 1020M880 1020L1250 1180L1200 1650M880 1020L560 1250L250 1550M1120 560L1420 700L1580 480M1120 560L780 700L560 560" stroke="white" stroke-width="130" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M120 1000H380M200 1200H400M1400 1700H1750" stroke="white" stroke-width="90" stroke-linecap="round"/>
+<!-- The same runner as crossfit.svg and orienteering.svg (Tabler "run"), 75 units per grid step, stroke 2 steps. -->
+<circle cx="1225" cy="325" r="75" stroke="white" stroke-width="150"/>
+<path d="M550 1300L925 1375L981 1262M1375 1600V1300L1075 1075L1150 625M775 925V700L1150 625L1375 850L1600 925" stroke="white" stroke-width="150" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M150 800H400M230 1000H450M1500 1750H1850" stroke="white" stroke-width="90" stroke-linecap="round"/>
 </svg>

@@ -1,11 +1,12 @@
-import { render, screen } from '@testing-library/svelte';
+import { screen } from '@testing-library/svelte';
 import { describe, expect, it } from 'vitest';
 import Page from './+page.svelte';
 import { summary } from '$lib/fixtures/summary.js';
+import { renderWith } from '$lib/test-utils';
 
 describe('teams grid', () => {
 	it('lists every team in rank order with its roster', () => {
-		render(Page, { data: { summary } });
+		renderWith(Page, { data: { summary } });
 
 		const cards = screen.getAllByTestId('team-card');
 		expect(cards.map((card) => card.getAttribute('href'))).toEqual([
@@ -17,5 +18,10 @@ describe('teams grid', () => {
 		expect(cards[1]).toHaveTextContent('Aigles');
 		expect(cards[2]).toHaveTextContent('Cerfs');
 		expect(screen.getByText('Ana Lopez')).toBeInTheDocument();
+	});
+
+	it('speaks French under fr', () => {
+		renderWith(Page, { data: { summary } }, 'fr');
+		expect(screen.getByRole('heading', { name: 'Équipes' })).toBeInTheDocument();
 	});
 });

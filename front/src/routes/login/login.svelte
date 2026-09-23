@@ -4,28 +4,36 @@
     import { fly } from "svelte/transition";
     import {slide} from "svelte/transition";
     import {cubicOut, quintOut} from "svelte/easing";
+    import { useT } from '$lib/i18n';
+
+    const t = useT();
 </script>
 
 <form method="POST" action="?/login" use:enhance
       in:fly={{ delay: 200, x: -200, duration: 300, easing: cubicOut }}>
 
+    <!-- The action's message is English by construction (API and server code); the visitor gets the dictionary line. -->
     {#if form?.error }<p class="error" transition:slide={{ duration: 800, easing: quintOut }}>
-        {form.error}
+        {t('login.failed')}
     </p>{/if}
 
-    {#if form?.missing && form?.missing.username}<p class="error" transition:slide={{ duration: 800, easing: quintOut }}>
-        The username field is required
+    {#if form?.missing && form?.missing.username}<p class="error" id="username-error" transition:slide={{ duration: 800, easing: quintOut }}>
+        {t('login.missing')}
     </p>{/if}
-    <input name="username" placeholder="Username" value={form?.username ?? ''}
-           class:missing={form?.missing?.username} autofocus>
+    <input name="username" placeholder={t('login.username')} value={form?.username ?? ''}
+           class:missing={form?.missing?.username}
+           aria-invalid={form?.missing?.username ? 'true' : undefined}
+           aria-describedby={form?.missing?.username ? 'username-error' : undefined} autofocus>
 
-    {#if form?.missing && form?.missing.password}<p class="error" transition:slide={{ duration: 800, easing: quintOut }}>
-        You forgot the password...
+    {#if form?.missing && form?.missing.password}<p class="error" id="password-error" transition:slide={{ duration: 800, easing: quintOut }}>
+        {t('login.missing')}
     </p>{/if}
-    <input type="password" name="password" placeholder="Password"
-           class:missing={form?.missing?.password}>
+    <input type="password" name="password" placeholder={t('login.password')}
+           class:missing={form?.missing?.password}
+           aria-invalid={form?.missing?.password ? 'true' : undefined}
+           aria-describedby={form?.missing?.password ? 'password-error' : undefined}>
 
-    <button>Log In</button>
+    <button>{t('login.submit')}</button>
 </form>
 
 <style>

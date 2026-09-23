@@ -1,11 +1,23 @@
 <script>
 	import { page } from '$app/stores';
+	import { useT } from '$lib/i18n';
+
+	const t = useT();
+
+	// Thrown messages (loaders, api.js, the framework) are English by construction, so
+	// the visitor gets the dictionary line; the raw message shows only in dev.
+	$: message =
+		$page.status === 404
+			? t('error.notFound')
+			: import.meta.env.DEV && $page.error?.message
+				? $page.error.message
+				: t('error.generic');
 </script>
 
 <section>
 	<h1>{$page.status}</h1>
-	<p>{$page.error?.message ?? 'Something went wrong'}</p>
-	<a href="/">Back to the Olympic Warriors</a>
+	<p>{message}</p>
+	<a href="/">{t('error.back')}</a>
 </section>
 
 <style>

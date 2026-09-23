@@ -1,11 +1,12 @@
-import { render, screen } from '@testing-library/svelte';
+import { screen } from '@testing-library/svelte';
 import { describe, expect, it } from 'vitest';
 import DisciplineRail from './DisciplineRail.svelte';
 import { summary } from '$lib/fixtures/summary.js';
+import { renderWith } from '$lib/test-utils';
 
 describe('DisciplineRail', () => {
 	it('links revealed disciplines and disables hidden ones', () => {
-		render(DisciplineRail, { year: 2026, disciplines: summary.disciplines, currentId: null });
+		renderWith(DisciplineRail, { year: 2026, disciplines: summary.disciplines, currentId: null });
 
 		expect(screen.getByRole('navigation', { name: 'Disciplines' })).toBeInTheDocument();
 
@@ -21,7 +22,7 @@ describe('DisciplineRail', () => {
 	});
 
 	it('marks the current discipline and nothing else', () => {
-		render(DisciplineRail, { year: 2026, disciplines: summary.disciplines, currentId: 10 });
+		renderWith(DisciplineRail, { year: 2026, disciplines: summary.disciplines, currentId: 10 });
 
 		const relay = screen.getByRole('link', { name: 'Relay' });
 		expect(relay).toHaveAttribute('aria-current', 'page');
@@ -33,8 +34,15 @@ describe('DisciplineRail', () => {
 	});
 
 	it('marks nothing without a current discipline', () => {
-		render(DisciplineRail, { year: 2026, disciplines: summary.disciplines });
+		renderWith(DisciplineRail, { year: 2026, disciplines: summary.disciplines });
 
 		expect(screen.getByRole('link', { name: 'Relay' })).not.toHaveAttribute('aria-current');
+	});
+
+	it('names the tiles in French under fr', () => {
+		renderWith(DisciplineRail, { year: 2026, disciplines: summary.disciplines, currentId: null }, 'fr');
+
+		expect(screen.getByRole('navigation', { name: 'Épreuves' })).toBeInTheDocument();
+		expect(screen.getByRole('link', { name: 'Relais' })).toHaveAttribute('href', '/2026/disciplines/10');
 	});
 });

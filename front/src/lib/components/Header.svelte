@@ -3,6 +3,10 @@
 	import { goto } from '$app/navigation';
 	import logo from '$lib/img/logo.svg';
 	import { switchYearPath } from '$lib/edition';
+	import { useLocale, useT } from '$lib/i18n';
+
+	const locale = useLocale();
+	const t = useT();
 
 	$: editions = $page.data.editions ?? [];
 	// On an error page the year in the URL may be one with no edition, so fall back to the latest.
@@ -10,11 +14,11 @@
 	$: edition = editions.find((e) => e.year === year);
 	$: tabs = year
 		? [
-				{ name: 'Ranking', url: `/${year}/ranking` },
-				{ name: 'Teams', url: `/${year}/teams` },
-				{ name: 'Disciplines', url: `/${year}/disciplines` },
+				{ name: t('nav.ranking'), url: `/${year}/ranking` },
+				{ name: t('nav.teams'), url: `/${year}/teams` },
+				{ name: t('nav.disciplines'), url: `/${year}/disciplines` },
 				...(edition?.photos_url
-					? [{ name: 'Photos', url: edition.photos_url, external: true }]
+					? [{ name: t('nav.photos'), url: edition.photos_url, external: true }]
 					: [])
 			]
 		: [];
@@ -28,16 +32,22 @@
 			<img src={logo} alt="OW" />
 		</a>
 		{#if editions.length > 0}
-			<select aria-label="Edition" value={year} on:change={switchYear}>
+			<select aria-label={t('header.edition')} value={year} on:change={switchYear}>
 				{#each editions as e}
 					<!-- Svelte 4 SSR ignores `value` on the select, so mark the option itself. -->
 					<option value={e.year} selected={e.year === year}>{e.year}</option>
 				{/each}
 			</select>
 		{/if}
+		<!-- A plain POST (no use:enhance): the redirect reloads the page in the new language. -->
+		<form method="POST" action="/lang" class="lang" aria-label={t('header.language')}>
+			<input type="hidden" name="redirectTo" value={$page.url.pathname + $page.url.search} />
+			<button name="lang" value="fr" aria-current={locale === 'fr' ? 'true' : undefined}>FR</button>
+			<button name="lang" value="en" aria-current={locale === 'en' ? 'true' : undefined}>EN</button>
+		</form>
 	</div>
 
-	<nav aria-label="Sections">
+	<nav aria-label={t('nav.sections')}>
 		<ul>
 			{#if year}
 				{#each tabs as tab}
@@ -102,6 +112,47 @@
 
 	select option {
 		color: black;
+	}
+
+	.lang {
+		display: flex;
+		margin: 0;
+		border: 1px solid var(--accent);
+		border-radius: var(--radius-pill);
+		overflow: hidden;
+		/* Same height as the year select beside it, border included. */
+		min-height: 44px;
+	}
+
+	.lang button {
+		background: transparent;
+		border: 0;
+		color: var(--muted);
+		padding: 0 0.9em;
+		font-family: var(--font-display);
+		font-size: 1.1rem;
+		letter-spacing: 0.08em;
+		cursor: pointer;
+	}
+
+	.lang button[aria-current='true'] {
+		color: var(--accent);
+		background: var(--bg-raised);
+		cursor: default;
+	}
+
+	/* Round the outer ends so the focus ring follows the pill instead of being clipped. */
+	.lang button:first-child {
+		border-radius: var(--radius-pill) 0 0 var(--radius-pill);
+	}
+
+	.lang button:last-child {
+		border-radius: 0 var(--radius-pill) var(--radius-pill) 0;
+	}
+
+	.lang button:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: -3px;
 	}
 
 	nav {

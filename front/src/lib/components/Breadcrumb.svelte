@@ -1,13 +1,17 @@
 <script>
+	import { useT } from '$lib/i18n';
+
 	/**
 	 * Trail of the current page, root first. The last item is the current page
 	 * and is never a link, whether or not it carries a href.
 	 * @type {{label: string, href?: string}[]}
 	 */
 	export let items = [];
+
+	const t = useT();
 </script>
 
-<nav class="breadcrumb label" aria-label="Breadcrumb">
+<nav class="breadcrumb label" aria-label={t('breadcrumb.label')}>
 	{#each items as item, i}
 		{#if i > 0}
 			<span class="separator" aria-hidden="true">{' › '}</span>
