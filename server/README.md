@@ -57,21 +57,16 @@ cp server/.env.example server/dev.env
 ```
 
 ```bash
-mkdir -p server/logs
-```
-
-```bash
 docker compose up --build
 ```
 
 - **`dev.env`:** set a non-empty `SECRET_KEY`. The rest of the example works as it is with the compose database.
-- **`server/logs/`:** the server writes its log file there, but the folder is not in the repository. Without it, every `manage.py` command fails at startup with `Unable to configure handler 'file'`.
 - **What the `server` service runs:** `migrate`, then `runserver 0.0.0.0:3003`. It mounts `./server`, so code changes reload without a rebuild.
 - **Editing `dev.env`:** the file is read only at startup, so run `docker compose restart server` afterwards.
 
 ### Without Docker
 
-You need Python 3.11 and a PostgreSQL server. First create `server/dev.env` and `server/logs/` as described above. The easiest way to get a database is to start only the compose database:
+You need Python 3.11 and a PostgreSQL server. First create `server/dev.env` as described above. The easiest way to get a database is to start only the compose database:
 
 ```bash
 docker compose up -d db
@@ -119,7 +114,7 @@ Any other value leaves the configuration empty, and Django fails to start. A rea
 | `DEBUG` | required | `True` in dev. |
 | `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`, `DB_PORT` | required | The PostgreSQL connection. The compose database is `db`, port `5433`. |
 | `DATABASE_URL` | unset | Replaces the `DB_*` connection when set. It is read from the real environment only, never from the env file, and the loader still requires the `DB_*` keys. |
-| `LOG_FILE` | `asset_monitor.log` | Path relative to `server/`. The example uses `logs/olympic_warriors.log`, whose folder must exist. |
+| `LOG_FILE` | `asset_monitor.log` | Path relative to `server/`. The example uses `logs/olympic_warriors.log`. The settings create the folder at startup when it is missing (it is gitignored). |
 | `LOG_LEVEL_CONSOLE`, `LOG_LEVEL_FILE` | `INFO` | One of `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`. |
 | `SU_USERNAME`, `SU_PASSWORD` | `admin` / `password` | Read by `createsu`. |
 | `ALLOWED_HOSTS` | `["*"]` | A JSON list. It must include `server`, the hostname the front container uses, or every front page fails with a 400. |
@@ -352,10 +347,7 @@ pylint --load-plugins pylint_django --ignore=lib server/
 
 `docker-compose.prod.example.yml` at the repository root is the template. It runs `Dockerfile.prod` under gunicorn on port 3003, bound to `127.0.0.1`, with nginx in front.
 
-- **The image contains the code.** `Dockerfile.prod` copies `server/` into the image, `prod.env` included. After changing code or `prod.env`, rebuild the image: a restart is not enough.
-- **Build prerequisites.** The build runs `collectstatic` with `ENV` unset, so it loads `dev.env` rather than `prod.env`. The build context therefore needs:
-  - a `server/dev.env` with at least `SECRET_KEY`, `DEBUG` and the `DB_*` keys
-  - the `server/logs/` folder, which gunicorn needs at runtime as well
+- **The image contains the code.** `Dockerfile.prod` copies `server/` into the image, `prod.env` included. After changing code or `prod.env`, rebuild the image: a restart is not enough. The build itself runs `collectstatic` with `ENV=prod`, so `prod.env` must be in the build context with at least `SECRET_KEY`, `DEBUG` and the `DB_*` keys. It does not connect to the database.
 - **Static files.** whitenoise serves them from `staticfiles/`. The production compose file mounts a named volume there, and Docker fills that volume from the image only when it is created, so rebuilding does not refresh it. After a deploy that changes static files, run `docker compose exec server python manage.py collectstatic --no-input`.
 - **Migrations are manual.** The production command only starts gunicorn, so after a deploy that adds migrations, run `docker compose exec server python manage.py migrate`. The first time, also run `createsu`.
 - **Media files** (`mediafiles/`) live in a Docker volume shared with nginx, which serves them.
