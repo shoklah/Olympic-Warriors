@@ -46,11 +46,13 @@ describe('player profile page', () => {
 		expect(screen.getByRole('heading', { level: 2, name: 'Badges' })).toBeInTheDocument();
 		const tiles = screen.getAllByTestId('badge');
 		expect(tiles).toHaveLength(4);
-		expect(tiles[0]).toHaveTextContent(/Champion\s*×2 · 2024 · 2026\s*Win an edition/);
-		expect(tiles[1]).toHaveTextContent(/Veteran\s*Tier 2 · 2026\s*Play 3, 5, then 10 editions/);
-		expect(tiles[2]).toHaveTextContent(/Comrades in arms\s*with\s*Léa Martin\s*·\s*2026/);
-		expect(within(tiles[2]).getByRole('link', { name: 'Léa Martin' })).toHaveAttribute('href', '/players/12');
-		expect(tiles[3]).toHaveTextContent(/Specialist\s*Relay · Tier 1 · 2026/);
+		expect(tiles[0]).toHaveTextContent(/Veteran\s*Tier 1 · 2026\s*Play 3, 5, then 10 editions/);
+		expect(tiles[1]).toHaveTextContent(/Comrades in arms\s*with\s*Léa Martin\s*·\s*2026/);
+		expect(within(tiles[1]).getByRole('link', { name: 'Léa Martin' })).toHaveAttribute('href', '/players/12');
+		expect(tiles[2]).toHaveTextContent(/Specialist\s*Relay · Tier 1 · 2026/);
+		expect(tiles[3]).toHaveTextContent(
+			/Clean sweep\s*×2 · 2023 · 2026\s*Win three disciplines or more in one edition/
+		);
 		expect(screen.queryByText(/future-badge/)).toBeNull();
 	});
 
@@ -85,10 +87,12 @@ describe('player profile page', () => {
 		expect(rows[1]).toHaveTextContent(/2026\s*MxM\s*2\s*\/ 6/);
 		expect(rows[2]).toHaveTextContent(/2024\s*Pas d'équipe/);
 		const tiles = screen.getAllByTestId('badge');
-		expect(tiles[0]).toHaveTextContent(/Champion\s*×2 · 2024 · 2026\s*Gagner une édition/);
-		expect(tiles[1]).toHaveTextContent(/Vétéran\s*Niveau 2 · 2026/);
-		expect(tiles[2]).toHaveTextContent(/Compagnons d'armes\s*avec\s*Léa Martin/);
-		expect(tiles[3]).toHaveTextContent(/Spécialiste\s*Relais · Niveau 1 · 2026/);
+		expect(tiles[0]).toHaveTextContent(/Vétéran\s*Niveau 1 · 2026/);
+		expect(tiles[1]).toHaveTextContent(/Compagnons d'armes\s*avec\s*Léa Martin/);
+		expect(tiles[2]).toHaveTextContent(/Spécialiste\s*Relais · Niveau 1 · 2026/);
+		expect(tiles[3]).toHaveTextContent(
+			/Razzia\s*×2 · 2023 · 2026\s*Gagner au moins trois disciplines lors d'une même édition/
+		);
 	});
 
 	it('says nothing is ranked yet, in French too', () => {
