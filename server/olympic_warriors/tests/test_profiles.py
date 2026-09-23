@@ -10,7 +10,7 @@ from django.contrib.auth.models import User
 from django.test import SimpleTestCase, TestCase
 
 from olympic_warriors.models import Edition, Player, Relay, Team, TeamResult
-from olympic_warriors.profiles import beaten_share, paris_today, participations
+from olympic_warriors.profiles import beaten_share, leaderboard, paris_today, participations
 
 TODAY = date(2026, 9, 23)
 # The editions query, the players query, then three per finished edition with players
@@ -198,3 +198,58 @@ class TestParticipations(ProfilesSetup, TestCase):
 
         with self.assertNumQueries(PROFILES_QUERIES):
             participations(TODAY)
+
+
+class TestLeaderboard(ProfilesSetup, TestCase):
+    def rows(self, today=TODAY):
+        return {record.first_name: record for record in leaderboard(today)}
+
+    def test_averages_over_counted_editions_only(self):
+        rows = self.rows()
+
+        # Ana: 1st of 4 and 1st of 3; the running 2026 is played but not counted.
+        self.assertEqual((rows["Ana"].played, rows["Ana"].counted), (3, 2))
+        self.assertEqual((rows["Ana"].average_rank, rows["Ana"].average_beaten), (1.0, 100))
+        # Bob: 2nd of 4 (2/3 beaten) and 2nd of 3 (1/2 beaten): 58%.
+        self.assertEqual((rows["Bob"].average_rank, rows["Bob"].average_beaten), (2.0, 58))
+        # Dan: 3rd of 4 (1/3 beaten).
+        self.assertEqual((rows["Dan"].average_rank, rows["Dan"].average_beaten), (3.0, 33))
+
+    def test_ranked_by_share_then_mean_rank_then_editions_with_shared_positions(self):
+        order = [(record.first_name, record.position) for record in leaderboard(TODAY)]
+
+        # Ana and Chloé tie on (100%, 1.0): shared 1st, Ana first for her 2 editions.
+        # Then the not-ranked-yet group by last name: Adam (Eve), Brun (Fay).
+        self.assertEqual(
+            order,
+            [("Ana", 1), ("Chloé", 1), ("Bob", 3), ("Dan", 4), ("Eve", None), ("Fay", None)],
+        )
+
+    def test_nothing_counted_means_no_figures_and_no_position(self):
+        rows = self.rows()
+
+        for name in ("Eve", "Fay"):
+            self.assertEqual(rows[name].counted, 0)
+            self.assertIsNone(rows[name].average_rank)
+            self.assertIsNone(rows[name].average_beaten)
+            self.assertIsNone(rows[name].position)
+        self.assertEqual(rows["Eve"].played, 1)
+
+    def test_an_edition_with_a_single_team_is_not_counted(self):
+        solo_year = Edition.objects.create(
+            year=2023, host="Tours", start_date="2023-09-16", end_date="2023-09-17"
+        )
+        solo = Team.objects.create(name="Solo", edition=solo_year, final_rank=1)
+        gus = self.person("Gus", "Roy")
+        self.play(gus, solo_year, solo)
+
+        gus_row = self.rows()["Gus"]
+
+        self.assertEqual((gus_row.played, gus_row.counted, gus_row.position), (1, 0, None))
+
+    def test_the_running_edition_counts_once_it_is_over(self):
+        rows = self.rows(date(2026, 10, 1))
+
+        # 2026 had nothing revealed: Renards and Sangliers are both 1st of 2.
+        self.assertEqual((rows["Eve"].counted, rows["Eve"].average_beaten), (1, 100))
+        self.assertEqual((rows["Ana"].counted, rows["Ana"].average_rank), (3, 1.0))

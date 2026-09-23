@@ -18,7 +18,7 @@ The rules (see the player profiles design spec under docs/superpowers/specs/):
 """
 
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -123,3 +123,67 @@ def participations(today=None):
         user_id: (users[user_id], tuple(sorted(parts, key=lambda p: p.year, reverse=True)))
         for user_id, parts in by_user.items()
     }
+
+
+@dataclass(frozen=True)
+class PlayerRecord:
+    """A person's editions and averages, with their place on the leaderboard."""
+
+    user_id: int
+    first_name: str
+    last_name: str
+    participations: tuple[Participation, ...]
+    counted: int
+    average_rank: float | None
+    average_beaten: int | None
+    position: int | None = None
+
+    @property
+    def played(self):
+        """Editions taken part in, finished or not."""
+        return len(self.participations)
+
+
+def _record(user, parts):
+    """A person's record without a position: counted editions and their averages."""
+    counted = [part for part in parts if part.counted]
+    average_rank = average_beaten = None
+    if counted:
+        average_rank = round(sum(part.rank for part in counted) / len(counted), 1)
+        shares = [beaten_share(part.rank, part.teams) for part in counted]
+        average_beaten = round(100 * sum(shares) / len(shares))
+    return PlayerRecord(
+        user_id=user.id,
+        first_name=user.first_name,
+        last_name=user.last_name,
+        participations=parts,
+        counted=len(counted),
+        average_rank=average_rank,
+        average_beaten=average_beaten,
+    )
+
+
+def _by_name(record):
+    return (record.last_name.casefold(), record.first_name.casefold(), record.user_id)
+
+
+def leaderboard(today=None):
+    """
+    Every person: the ranked ones in leaderboard order with their shared positions, then
+    the ones with nothing counted yet, by name and without a position. Positions compare
+    the rounded (share, mean rank) pair that the API returns.
+    """
+    records = [_record(user, parts) for user, parts in participations(today).values()]
+    ranked = sorted(
+        (record for record in records if record.counted),
+        key=lambda r: (-r.average_beaten, r.average_rank, -r.counted, *_by_name(r)),
+    )
+    placed = []
+    position, previous = None, None
+    for index, record in enumerate(ranked, start=1):
+        pair = (record.average_beaten, record.average_rank)
+        if pair != previous:
+            position, previous = index, pair
+        placed.append(replace(record, position=position))
+    waiting = sorted((record for record in records if not record.counted), key=_by_name)
+    return placed + waiting
