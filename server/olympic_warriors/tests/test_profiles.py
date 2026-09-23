@@ -281,6 +281,21 @@ class TestLeaderboard(ProfilesSetup, TestCase):
 
         self.assertEqual((rows["Eve"].counted, rows["Eve"].position), (0, None))
 
+    def test_a_computed_edition_with_results_but_none_ranked_does_not_count(self):
+        # A discipline exists with scores entered, but nothing was revealed: still
+        # nothing to rank from, same as no discipline at all.
+        relay = Relay.objects.create(edition=self.y2026, reveal_score=False)
+        for team, points in [(self.renards, 5), (self.sangliers, 0)]:
+            TeamResult.objects.filter(discipline=relay, team=team).update(points=points)
+
+        result = participations(date(2026, 10, 1))
+        self.assertIsNone(result[self.eve.id][1][0].rank)
+        self.assertIsNone(result[self.ana.id][1][0].rank)  # 2026 sorts first, newest year
+
+        rows = self.rows(date(2026, 10, 1))
+        self.assertEqual((rows["Eve"].counted, rows["Eve"].position), (0, None))
+        self.assertEqual(rows["Ana"].counted, 2)
+
     def test_query_budget_matches_participations(self):
         with self.assertNumQueries(PROFILES_QUERIES):
             leaderboard(TODAY)
@@ -333,9 +348,12 @@ class TestRecordAndPlace(SimpleTestCase):
         self.assertEqual(record.average_rank, 1.7)
 
     def test_an_accented_last_name_sorts_with_its_base_letter(self):
-        ebert = self.user(4, "Elo", "Ébert")
-        zabo = self.user(5, "Zoe", "Zabo")
-        # Neither counts (no participations): both land in the waiting group, by name.
-        placed = _place([_record(zabo, ()), _record(ebert, ())])
+        # Ébert belongs between Durand and Faure: a key that merely dropped the accented
+        # character (rather than decomposing it to "e") would instead sort it first.
+        durand = self.user(4, "A", "Durand")
+        ebert = self.user(5, "B", "Ébert")
+        faure = self.user(6, "C", "Faure")
+        # None of them count (no participations): all land in the waiting group, by name.
+        placed = _place([_record(faure, ()), _record(durand, ()), _record(ebert, ())])
 
-        self.assertEqual([record.last_name for record in placed], ["Ébert", "Zabo"])
+        self.assertEqual([record.last_name for record in placed], ["Durand", "Ébert", "Faure"])

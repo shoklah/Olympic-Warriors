@@ -51,7 +51,8 @@ class Participation:
     """One person's edition: their team, its rank among `teams` active teams, and whether
     the edition is over. rank is None without a team, for an inactive team, for a
     hand-ranked team without a final_rank or with one of 0, before the edition ends, or
-    for a computed edition where nothing has a rank yet (see "Edition rank" above)."""
+    for a computed edition where nothing has a rank yet (see the rules in the module
+    docstring above, and "Edition rank" in the design spec)."""
 
     year: int
     team_id: int | None
@@ -105,7 +106,9 @@ def _is_ranked(standing):
     Otherwise compute_standings ties every team for 1st on nothing (no discipline
     revealed or scored), and missing data must never count as a win.
     """
-    return _hand_ranked(standing) or any(result.ranking != 0 for result in standing.results.values())
+    if _hand_ranked(standing):
+        return True
+    return any(result.ranking != 0 for result in standing.results.values())
 
 
 def participations(today=None):
@@ -131,18 +134,17 @@ def participations(today=None):
     finished = {pk for pk, edition in editions.items() if edition.end_date < today}
     with_players = {edition_id for _, edition_id in chosen}
     standings = {pk: compute_standings(editions[pk]) for pk in sorted(with_players & finished)}
+    ranked = {pk for pk, standing in standings.items() if _is_ranked(standing)}
 
     by_user = {}
     for (user_id, edition_id), player in chosen.items():
         edition = editions[edition_id]
         team = _valid_team(player)
         rank = None
-        if team is not None and edition_id in standings:
-            standing = standings[edition_id]
-            if _is_ranked(standing):
-                # A hand-entered final_rank of 0 means no rank too.
-                rank = standing.team(team.id).ranking or None
-        user, parts = by_user.setdefault(user_id, (player.user, []))
+        if team is not None and edition_id in ranked:
+            # A hand-entered final_rank of 0 means no rank too.
+            rank = standings[edition_id].team(team.id).ranking or None
+        _, parts = by_user.setdefault(user_id, (player.user, []))
         parts.append(
             Participation(
                 year=edition.year,
