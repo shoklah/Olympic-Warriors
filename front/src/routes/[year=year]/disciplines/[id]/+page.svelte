@@ -22,7 +22,6 @@
 	$: rounds = (data.schedule ?? []).filter((round) => round.games.length > 0);
 	// The difference is summed from game scores, so a discipline without rounds
 	// has nothing but zeroes to show.
-	$: showDifference = data.schedule !== null;
 
 	// Organiser view: only on the latest edition, for a staff user (data.editable).
 	$: editable = Boolean(data.editable);
@@ -138,7 +137,7 @@
 		<div id="results">
 			{#each data.results as result}
 				{@const difference =
-					showDifference && result.result_type === 'PTS' && result.points_difference !== null
+					hasRounds && result.result_type === 'PTS' && result.points_difference !== null
 						? formatDifference(result.points_difference)
 						: null}
 				<a

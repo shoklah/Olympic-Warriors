@@ -99,5 +99,12 @@ describe('ScoreSheet', () => {
 		expect(screen.getByRole('dialog', { name: 'Tour 1 · arbitre : Aigles' })).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeInTheDocument();
 		expect(screen.getByRole('checkbox', { name: 'Joué' })).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Un point de moins pour Cerfs' })).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Un point de plus pour Bisons' })).toBeInTheDocument();
+	});
+
+	it('words a failed save in French', () => {
+		renderWith(ScoreSheet, { game, roundNumber: 1, open: true, error: 'orga.error.unauthorised' }, 'fr');
+		expect(screen.getByRole('alert')).toHaveTextContent('Session expirée, reconnectez-vous');
 	});
 });

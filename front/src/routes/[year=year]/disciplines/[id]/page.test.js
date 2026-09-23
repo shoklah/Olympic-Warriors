@@ -238,6 +238,16 @@ describe('discipline page for an organiser', () => {
 		expect(screen.getAllByRole('button', { name: 'Enregistrer' })).toHaveLength(3);
 	});
 
+	it('words the round controls in French under fr', () => {
+		renderWith(Page, { data: dataFor(summaryStaff, 11, true) }, 'fr', true);
+		expect(screen.getByRole('button', { name: 'Clore le tour' })).toBeInTheDocument();
+		expect(screen.getAllByTitle('Saisir le score').length).toBeGreaterThan(0);
+
+		const closed = { ...summaryStaff, rounds: summaryStaff.rounds.map((r) => (r.id === 22 ? { ...r, is_over: true } : r)) };
+		renderWith(Page, { data: dataFor(closed, 11, true) }, 'fr', true);
+		expect(screen.getByText('Terminé')).toBeInTheDocument();
+	});
+
 	it('shows a failed score in the open sheet, hides it once dismissed, and returns focus on cancel', async () => {
 		renderWith(
 			Page,

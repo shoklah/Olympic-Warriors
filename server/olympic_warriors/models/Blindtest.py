@@ -78,7 +78,8 @@ class BlindtestGuess(models.Model):
         Update team result points
         """
         team_result = TeamResult.objects.get(team=self.team, discipline=self.blindtest)
-        team_result.points += points
+        # A fresh result of a discipline without games is None, never 0.
+        team_result.points = (team_result.points or 0) + points
         team_result.save()
 
     def save(self, *args, **kwargs):
