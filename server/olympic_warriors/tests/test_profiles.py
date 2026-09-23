@@ -14,7 +14,6 @@ from rest_framework.test import APIClient
 from olympic_warriors.models import Edition, Player, Relay, Team, TeamResult
 from olympic_warriors.profiles import (
     Participation,
-    beaten_share,
     leaderboard,
     paris_today,
     participations,
@@ -26,22 +25,6 @@ TODAY = date(2026, 9, 23)
 # The editions query, the players query, then three per finished edition with players
 # (2024 and 2025 in ProfilesSetup; 2026 is still running).
 PROFILES_QUERIES = 2 + 3 * 2
-
-
-class TestBeatenShare(SimpleTestCase):
-    def test_first_beats_every_other_team_and_last_none(self):
-        self.assertEqual(beaten_share(1, 6), 1.0)
-        self.assertEqual(beaten_share(6, 6), 0.0)
-        self.assertAlmostEqual(beaten_share(2, 8), 6 / 7)
-
-    def test_no_share_without_a_rank_or_with_a_single_team(self):
-        self.assertIsNone(beaten_share(None, 6))
-        self.assertIsNone(beaten_share(1, 1))
-        self.assertIsNone(beaten_share(1, 0))
-
-    def test_clamped_when_a_hand_entered_rank_is_out_of_range(self):
-        self.assertEqual(beaten_share(9, 6), 0.0)
-        self.assertEqual(beaten_share(0, 6), 1.0)
 
 
 class TestParisToday(SimpleTestCase):
@@ -226,11 +209,12 @@ class TestLeaderboard(ProfilesSetup, TestCase):
 
         # Ana: 1st of 4 and 1st of 3; the running 2026 is played but not counted.
         self.assertEqual((rows["Ana"].played, rows["Ana"].counted), (3, 2))
-        self.assertEqual((rows["Ana"].average_rank, rows["Ana"].average_beaten), (1.0, 100))
-        # Bob: 2nd of 4 (2/3 beaten) and 2nd of 3 (1/2 beaten): 58%.
-        self.assertEqual((rows["Bob"].average_rank, rows["Bob"].average_beaten), (2.0, 58))
-        # Dan: 3rd of 4 (1/3 beaten).
-        self.assertEqual((rows["Dan"].average_rank, rows["Dan"].average_beaten), (3.0, 33))
+        self.assertEqual(rows["Ana"].average_rank, 1.0)
+        self.assertFalse(hasattr(rows["Ana"], "average_beaten"))
+        # Bob: 2nd of 4 and 2nd of 3.
+        self.assertEqual(rows["Bob"].average_rank, 2.0)
+        # Dan: 3rd of 4.
+        self.assertEqual(rows["Dan"].average_rank, 3.0)
 
     def test_ranked_like_a_medal_table(self):
         order = [(record.first_name, record.position) for record in leaderboard(TODAY)]
@@ -256,7 +240,6 @@ class TestLeaderboard(ProfilesSetup, TestCase):
         for name in ("Eve", "Fay"):
             self.assertEqual(rows[name].counted, 0)
             self.assertIsNone(rows[name].average_rank)
-            self.assertIsNone(rows[name].average_beaten)
             self.assertIsNone(rows[name].position)
         self.assertEqual(rows["Eve"].played, 1)
 
@@ -279,8 +262,8 @@ class TestLeaderboard(ProfilesSetup, TestCase):
 
         rows = self.rows(date(2026, 10, 1))
 
-        # Eve is Sangliers, 2nd of 2: nothing beaten.
-        self.assertEqual((rows["Eve"].counted, rows["Eve"].average_beaten), (1, 0))
+        # Eve is Sangliers, 2nd of 2.
+        self.assertEqual((rows["Eve"].counted, rows["Eve"].average_rank), (1, 2.0))
         # Ana is Renards, 1st of 2, on top of her two other 1st places.
         self.assertEqual((rows["Ana"].counted, rows["Ana"].average_rank), (3, 1.0))
 
@@ -414,12 +397,16 @@ class TestProfileEndpoints(ProfilesSetup, TestCase):
                 "last_name": "Lopez",
                 "played": 3,
                 "counted": 2,
+                "average_rank": 1.0,
                 "places": [{"year": 2025, "rank": 1}, {"year": 2024, "rank": 1}],
                 "position": 1,
             },
         )
+        self.assertNotIn("average_beaten", response.data[0])
         self.assertEqual(response.data[1]["position"], 2)  # Chloé: one 1st place
+        self.assertEqual(response.data[1]["average_rank"], 1.0)
         self.assertEqual((response.data[4]["places"], response.data[4]["position"]), ([], None))
+        self.assertIsNone(response.data[4]["average_rank"])
 
     def test_profile_lists_every_edition_newest_first(self):
         response = self.client.get(f"/profile/{self.ana.id}/")
@@ -434,9 +421,9 @@ class TestProfileEndpoints(ProfilesSetup, TestCase):
                 "position": 1,
                 "counted": 2,
                 "average_rank": 1.0,
-                "average_beaten": 100,
             },
         )
+        self.assertNotIn("average_beaten", response.data)
         self.assertEqual(
             response.data["editions"],
             [

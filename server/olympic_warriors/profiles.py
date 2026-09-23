@@ -13,14 +13,13 @@ The rules (see the player profiles design spec under docs/superpowers/specs/):
   a rank yet (nothing revealed or scored would otherwise tie every team for 1st on
   nothing, and missing data must never count as a win);
 - a participation counts when finished, ranked, and the edition has at least 2 teams;
-- the share beaten is (teams - rank) / (teams - 1), clamped to [0, 1];
-- averages are over counted participations: mean rank to one decimal, mean share as a
-  whole percentage;
+- the average rank is the mean rank over counted participations, to one decimal; it is
+  shown on the leaderboard and the profile and plays no part in the order;
 - the leaderboard ranks people like a medal table on their places (the ranks of their
   counted participations): more 1st places first, then more 2nd places, and so on; an
   extra lower place counts in a person's favour; identical places share a position and
   are listed by name; people with nothing counted follow by name, without a position.
-  The averages are profile figures and play no part in the order.
+  The average rank plays no part in the order.
 """
 
 import math
@@ -42,13 +41,6 @@ def paris_today():
     return datetime.now(PARIS).date()
 
 
-def beaten_share(rank, teams):
-    """Share of the other teams finished behind: 1.0 for first, 0.0 for last."""
-    if rank is None or teams < 2:
-        return None
-    return min(1.0, max(0.0, (teams - rank) / (teams - 1)))
-
-
 @dataclass(frozen=True)
 class Participation:
     """One person's edition: their team, its rank among `teams` active teams, and whether
@@ -66,8 +58,8 @@ class Participation:
 
     @property
     def counts(self):
-        """Whether the edition feeds the places and the averages: over, ranked, and more than
-        one team."""
+        """Whether the edition feeds the places and the average rank: over, ranked, and more
+        than one team."""
         return self.finished and self.rank is not None and self.teams >= 2
 
 
@@ -168,7 +160,7 @@ def participations(today=None):
 
 @dataclass(frozen=True)
 class PlayerRecord:
-    """A person's editions, places and averages, with their place on the leaderboard."""
+    """A person's editions, places and average rank, with their place on the leaderboard."""
 
     user_id: int
     first_name: str
@@ -177,7 +169,6 @@ class PlayerRecord:
     places: tuple[Participation, ...]  # the counted participations, best rank first
     counted: int
     average_rank: float | None
-    average_beaten: int | None
     position: int | None = None
 
     @property
@@ -187,13 +178,11 @@ class PlayerRecord:
 
 
 def _record(user, parts):
-    """A person's record without a position: counted editions, places and averages."""
+    """A person's record without a position: counted editions, places and average rank."""
     counted_parts = [part for part in parts if part.counts]
-    average_rank = average_beaten = None
+    average_rank = None
     if counted_parts:
         average_rank = round(sum(part.rank for part in counted_parts) / len(counted_parts), 1)
-        shares = [beaten_share(part.rank, part.teams) for part in counted_parts]
-        average_beaten = round(100 * sum(shares) / len(shares))
     return PlayerRecord(
         user_id=user.id,
         first_name=user.first_name,
@@ -202,7 +191,6 @@ def _record(user, parts):
         places=tuple(sorted(counted_parts, key=lambda part: (part.rank, -part.year))),
         counted=len(counted_parts),
         average_rank=average_rank,
-        average_beaten=average_beaten,
     )
 
 

@@ -476,7 +476,7 @@ class PlaceSerializer(serializers.Serializer):
 class LeaderboardRowSerializer(serializers.Serializer):
     """
     A person on the all-time leaderboard (a PlayerRecord, see olympic_warriors.profiles):
-    places only, the averages are on the profile.
+    places and average rank; the order comes from the places only.
     Public: names only, never the username (the login name) nor the email.
     """
 
@@ -485,12 +485,13 @@ class LeaderboardRowSerializer(serializers.Serializer):
     last_name = serializers.CharField()
     played = serializers.IntegerField()
     counted = serializers.IntegerField()
+    average_rank = serializers.FloatField(allow_null=True)
     places = PlaceSerializer(many=True, help_text="Counted editions, best rank first")
     position = serializers.IntegerField(allow_null=True)
 
 
 class ProfileSerializer(serializers.Serializer):
-    """A person's profile: position, counted editions and averages, plus every edition,
+    """A person's profile: position, counted editions and average rank, plus every edition,
     newest first."""
 
     id = serializers.IntegerField(source="user_id", help_text="The user id, not a Player id")
@@ -499,5 +500,4 @@ class ProfileSerializer(serializers.Serializer):
     position = serializers.IntegerField(allow_null=True)
     counted = serializers.IntegerField()
     average_rank = serializers.FloatField(allow_null=True)
-    average_beaten = serializers.IntegerField(allow_null=True)
     editions = ProfileEditionSerializer(source="participations", many=True)
