@@ -43,5 +43,7 @@ export default {
 	'login.failed': 'Connexion impossible : vérifiez vos identifiants',
 	'login.username': 'Identifiant',
 	'login.password': 'Mot de passe',
-	'login.missing': 'Champ obligatoire'
+	'login.missing': 'Champ obligatoire',
+	'orga.pill': 'Orga',
+	'orga.logout': 'Se déconnecter'
 };

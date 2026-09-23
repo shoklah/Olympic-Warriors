@@ -39,5 +39,7 @@ export default {
 	'login.failed': 'Login failed: check your credentials',
 	'login.username': 'Username',
 	'login.password': 'Password',
-	'login.missing': 'Required'
+	'login.missing': 'Required',
+	'orga.pill': 'Orga',
+	'orga.logout': 'Log out'
 };

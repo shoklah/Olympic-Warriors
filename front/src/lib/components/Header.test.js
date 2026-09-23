@@ -51,4 +51,18 @@ describe('Header', () => {
 		expect(screen.getByRole('link', { name: 'Ranking' })).toHaveAttribute('aria-current', 'page');
 		expect(screen.getByRole('combobox', { name: 'Edition' })).toBeInTheDocument();
 	});
+
+	it('shows the ORGA pill with a logout form to an organiser', () => {
+		renderWith(Header, {}, 'fr', true);
+
+		const form = screen.getByRole('form', { name: 'Se déconnecter' });
+		expect(form).toHaveAttribute('action', '/logout');
+		expect(form.querySelector('input[name="redirectTo"]')).toHaveValue('/2026/ranking?tab=all');
+		expect(screen.getByRole('button', { name: 'Se déconnecter' })).toHaveTextContent('Orga');
+	});
+
+	it('shows nothing of it to a visitor', () => {
+		renderWith(Header, {}, 'en');
+		expect(screen.queryByRole('form', { name: 'Log out' })).toBeNull();
+	});
 });
