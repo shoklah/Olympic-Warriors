@@ -91,11 +91,12 @@ def leaderboard(today=None) -> list[PlayerRecord]   # sorted as defined above
 ```
 
 `leaderboard()` runs these queries:
-- the active editions (1);
+- the active editions, annotated with their active team count (1);
 - the active players of those editions with `user` and `team` (1);
-- `compute_standings` for each edition (3 each).
+- `compute_standings` for each **finished** edition that has a player (3 each). An
+  unfinished edition's rank is `None` whatever its standings, so it is not computed.
 
-That makes `2 + 3 × editions` queries in total. `today` defaults to the Paris date and can
+That makes `2 + 3 × finished editions with players` queries in total. `today` defaults to the Paris date and can
 be injected for tests. The profile endpoint uses the same `leaderboard()` and picks its
 row, so a profile and the leaderboard can never disagree on a position.
 
@@ -205,8 +206,9 @@ server-only.
 
 - `Breadcrumb`: Joueurs → the name.
 - `h1` the name.
-- **Position line.** `MedalRank` for the all-time position with the label "général" /
-  "all-time", linking to `/players`. It is omitted when `position` is null.
+- **Position line.** `MedalRank` for the all-time position as a plain number (a French
+  ordinal would have to guess the player's gender: 1er or 1re), with the label
+  "général" / "all-time", linking to `/players`. It is omitted when `position` is null.
 - **Two figures**, side by side at the same size, neither one the headline:
   - Average rank: `average_rank`, shown as `2,5` in French and `2.5` in English.
   - Teams beaten: `average_beaten`, shown as `71 %` in French and `71%` in English.
@@ -218,14 +220,17 @@ server-only.
   - the team, linking to `/<year>/teams/<team id>`, or "Pas d'équipe" / "No team
     recorded" when there is none;
   - then one of:
-    - `MedalRank` for the rank followed by "/ <teams>", when finished with a rank;
+    - `MedalRank` for the rank as a plain number (no ordinal) followed by "/ <teams>",
+      when finished with a rank, e.g. `2 / 6`;
     - an "En cours" / "In progress" tag, when not finished;
     - `—`, when finished without a rank.
 
 ### Roster links
 
-The player chips on `/<year>/ranking` and `/<year>/teams/<id>` become links to
-`/players/<player.user>`, and keep their chip styling.
+The player chips on `/<year>/teams/<id>` become links to `/players/<player.user>`, and
+keep their chip styling. The names on `/<year>/ranking` stay plain text: each team card
+there is already a single link, and a link cannot contain another link. From the
+ranking, a profile is reached through the team page.
 
 ### Navigation
 
@@ -238,7 +243,9 @@ The player chips on `/<year>/ranking` and `/<year>/teams/<id>` become links to
   the year segment).
 - The tab bar shows on both new routes, because neither is in `HUB_OR_LOGIN`.
 - `EditionHub` gets a "Joueurs" / "Players" link to `/players`, next to its existing
-  ranking link and in the same style. On a phone the hub has neither the tab bar nor the
+  ranking link and in the same shape, but outlined rather than filled, so the edition's
+  ranking stays the main call to action. It also shows before the start, under the
+  countdown, because the leaderboard covers past editions. On a phone the hub has neither the tab bar nor the
   header tabs, and without this link the leaderboard would be two taps away from the
   home page.
 
@@ -312,14 +319,14 @@ Front:
   - one French test.
 - `players/[id]/page.test.js`:
   - the headline figures;
-  - edition rows read like `2026 MxM 2nd / 6`, `2030 Les Aigles In progress` and
+  - edition rows read like `2026 MxM 2 / 6`, `2030 Les Aigles In progress` and
     `2024 No team recorded`;
   - the no-ranked-edition state;
   - one French test.
 - `Header` and `TabBar` tests: the Players item, its href, and `aria-current` on
   `/players` and `/players/34`.
 - `EditionHub` test: the Players link to `/players`.
-- Ranking and team page tests: roster chips link to `/players/<user>`.
+- Team page test: roster chips link to `/players/<user>`.
 - Fixtures: `summary.js` players gain `user`, plus new profile and leaderboard fixtures.
 
 `npm test` and `npm run build` must pass (the CI gate). The Django suite runs through the
