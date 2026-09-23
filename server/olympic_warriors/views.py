@@ -8,6 +8,7 @@ from django.db import transaction
 from django.db.models import Q
 from rest_framework.permissions import AllowAny
 from django.contrib.auth.models import User
+from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.decorators import api_view, permission_classes, parser_classes
 from rest_framework.parsers import JSONParser
 from rest_framework.response import Response
@@ -37,6 +38,7 @@ from .serializer import (
     SummaryRoundSerializer,
 )
 from .permissions import IsOrganiser
+from .throttling import LoginRateThrottle
 from .models import (
     Player,
     Edition,
@@ -51,6 +53,18 @@ from .models import (
     BlindtestRound,
     latest_edition,
 )
+
+# Authentication
+
+class ThrottledObtainAuthToken(ObtainAuthToken):
+    """
+    Exchange a username and password for the user's token ({"token": ...}). Limited per
+    client IP (LoginRateThrottle, LOGIN_THROTTLE_RATE): past the limit every attempt, even
+    with the right password, gets a 429 with Retry-After. DRF's stock view has no throttle.
+    """
+
+    throttle_classes = [LoginRateThrottle]
+
 
 # Users
 

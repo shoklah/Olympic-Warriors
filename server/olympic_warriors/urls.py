@@ -18,7 +18,6 @@ Including another URLconf
 import os
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 
-from rest_framework.authtoken import views as auth_views
 from django.contrib import admin
 from django.urls import path
 from django.conf import settings
@@ -35,8 +34,8 @@ urlpatterns = [
     path("api/schema/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
     # admin
     path("admin/", admin.site.urls),
-    # authentication
-    path("auth/token/", auth_views.obtain_auth_token, name="auth_token"),
+    # authentication (the only throttled view: LoginRateThrottle)
+    path("auth/token/", views.ThrottledObtainAuthToken.as_view(), name="auth_token"),
     # users
     path("user/<int:user_id>/", views.getUser),
     path("users/", views.getUsers),
