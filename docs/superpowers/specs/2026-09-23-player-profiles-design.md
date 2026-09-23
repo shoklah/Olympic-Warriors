@@ -30,8 +30,13 @@ Nothing here builds steps 2 or 3, but the payloads leave room for them (see
   when:
   - the player has no team;
   - the team is inactive;
-  - the team has no `final_rank` in a hand-ranked edition;
-  - the edition has not finished (see below).
+  - the team has no `final_rank` in a hand-ranked edition, or a `final_rank` of 0;
+  - the edition has not finished (see below);
+  - the edition is computed (not hand-ranked) and none of its results has a rank, because
+    nothing was revealed or no discipline has a result type. The standings would then
+    rank every team 1st on nothing, and missing data must never count as a win (decided
+    2026-09-23 after the code review; the 2024 data on prod, still with
+    `result_type='NON'`, is a live case).
 - **Teams.** The number of active teams in the edition.
 - **Finished.** `edition.end_date < today`, where today is the calendar date in
   Europe/Paris. `settings.TIME_ZONE` is UTC, so the date is taken with
