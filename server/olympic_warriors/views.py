@@ -495,7 +495,7 @@ def getGamesByDiscipline(request, discipline_id):
 
 
 @extend_schema(
-    summary="Get games played by a team",
+    summary="Get the games a team plays in (not refereed ones), played or not",
     responses={
         "200": GameSerializer(many=True),
         "401": OpenApiResponse(description="Unauthorized"),
@@ -557,7 +557,7 @@ def getGamesByDisciplineAndTeam(request, discipline_id, team_id):
 
 
 @extend_schema(
-    summary="Get games played by a team for a discipline",
+    summary="Get the games a team plays in for a discipline (not refereed ones), played or not",
     responses={
         "200": GameSerializer(many=True),
         "401": OpenApiResponse(description="Unauthorized"),
@@ -793,9 +793,9 @@ def getRoundsByDiscipline(request, discipline_id):
     },
 )
 @api_view(["GET"])
-def getTeamResult(request, result_id):
+def getTeamResult(request, team_result_id):
     try:
-        team_result = _results().get(id=result_id)
+        team_result = _results().get(id=team_result_id)
     except TeamResult.DoesNotExist:
         return Response({"error": "Team result not found"}, status=404)
     serializer = TeamResultSerializer(team_result, context=_reveal_context(request))

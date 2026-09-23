@@ -115,7 +115,7 @@ urlpatterns = [
     path("blindtest/rounds/edition/<int:edition_id>/", views.getBlindtestRoundsByEdition),
     path("blindtest/guess/<int:guess_id>/answer/", views.setBlindtestGuessAnswer),
     # team results
-    path("result/<int:result_id>/", views.getTeamResult),
+    path("result/<int:team_result_id>/", views.getTeamResult),
     path("result/<int:result_id>/value/", views.setTeamResult),
     path("results/", views.getTeamResults),
     path("results/team/<int:team_id>/", views.getTeamResultsByTeam),
