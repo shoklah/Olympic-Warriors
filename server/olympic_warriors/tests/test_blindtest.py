@@ -174,6 +174,15 @@ class TestBlindtestOtherEditionTeam(BlindtestSetup):
         self.assertFalse(TeamResult.objects.filter(team=self.stranger).exists())
         self.assertFalse(BlindtestGuess.objects.filter(team=self.stranger).exists())
 
+    def test_guess_without_points_is_refused_too(self):
+        with self.assertRaises(ValidationError):
+            BlindtestGuess.objects.create(team=self.stranger, blindtest_round=self.round)
+        guess = self.guess(self.red)
+        guess.team = self.stranger
+        with self.assertRaises(ValidationError):
+            guess.save()
+        self.assertEqual(self.guess(self.red).team_id, self.red.pk)
+
     def test_full_clean_refuses_the_guess(self):
         guess = BlindtestGuess(team=self.stranger, blindtest_round=self.round)
         with self.assertRaisesMessage(
@@ -244,6 +253,49 @@ class TestBlindtestAdmin(BlindtestSetup):
         self.assertEqual(response.status_code, 302)
         self.assertEqual((self.points(self.red), self.points(self.blue)), (1, 2))
 
+    def add_round(self, team, blindtest=None, **flags):
+        data = {
+            "blindtest": blindtest.pk if blindtest else "",
+            "order": 1,
+            "is_active": "on",
+            "blindtest_round-TOTAL_FORMS": 1,
+            "blindtest_round-INITIAL_FORMS": 0,
+            "blindtest_round-MIN_NUM_FORMS": 0,
+            "blindtest_round-MAX_NUM_FORMS": 1000,
+            "blindtest_round-0-team": team.pk,
+            "blindtest_round-0-artist": "",
+            "blindtest_round-0-song": "",
+            "blindtest_round-0-is_active": "on",
+        }
+        for flag in flags:
+            data[f"blindtest_round-0-{flag}"] = "on"
+        return self.client.post("/admin/olympic_warriors/blindtestround/add/", data)
+
+    def test_adding_a_round_scores_its_inline_guess(self):
+        response = self.add_round(self.red, self.blindtest, is_song_correct=True)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(self.blindtest.blindtest.count(), 11)
+        self.assertEqual(self.points(self.red), 1)
+
+    def test_adding_a_round_refuses_a_team_of_another_edition(self):
+        previous = Edition.objects.create(
+            year=2025, host="Lyon", start_date="2025-09-20", end_date="2025-09-21"
+        )
+        stranger = Team.objects.create(name="Red", edition=previous)
+
+        response = self.add_round(stranger, self.blindtest, is_song_correct=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "The team is not part of the edition of the blindtest")
+        self.assertEqual(self.blindtest.blindtest.count(), 10)
+        self.assertFalse(TeamResult.objects.filter(team=stranger).exists())
+
+    def test_adding_a_round_without_its_blindtest_shows_the_form_error(self):
+        response = self.add_round(self.red, is_song_correct=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.blindtest.blindtest.count(), 10)
+        self.assertIsNone(self.points(self.red))
+
     def test_guess_form_refuses_a_team_of_another_edition(self):
         previous = Edition.objects.create(
             year=2025, host="Lyon", start_date="2025-09-20", end_date="2025-09-21"
@@ -300,3 +352,14 @@ class TestBlindtestGuessEndpoints(BlindtestSetup):
 
     def test_unknown_blindtest_lists_nothing(self):
         self.assertEqual(self.ids("/blindtest/guesses/blindtest/0/"), [])
+
+    def test_answer_may_leave_the_song_blank(self):
+        guess = self.guess(self.blue)
+        response = self.client.patch(
+            f"/blindtest/guess/{guess.pk}/answer/",
+            {"artist": "Daft Punk", "song": ""},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        guess.refresh_from_db()
+        self.assertEqual((guess.artist, guess.song), ("Daft Punk", ""))

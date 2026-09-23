@@ -3,7 +3,7 @@ Models for Blindtest discipline
 """
 
 from django.db import models
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
 
 from .Discipline import Discipline
@@ -86,15 +86,17 @@ class BlindtestGuess(models.Model):
         Refuse a team of another edition in the admin form rather than failing on save
         """
         super().clean()
-        # An inline guess of a round not saved yet has no round to check against.
-        if self.team_id and self.blindtest_round_id:
+        try:
+            # An inline guess of a round being added holds that unsaved round, not its id.
             self._team_validation()
+        except ObjectDoesNotExist:
+            # No team, round or blindtest chosen yet: their own field errors report it.
+            pass
 
     def _update_points(self, points):
         """
         Update the team result points of the blindtest the guess belongs to
         """
-        self._team_validation()
         # A team that joined the edition after the blindtest was created has no result yet:
         # create it as Discipline.register_teams() would, with points None.
         team_result, _ = TeamResult.objects.get_or_create(
@@ -106,8 +108,9 @@ class BlindtestGuess(models.Model):
 
     def save(self, *args, **kwargs):
         """
-        Override save method to update team result points if needed
+        Override save method to check the team and update team result points if needed
         """
+        self._team_validation()
         if self.pk:
             old_guess = BlindtestGuess.objects.get(pk=self.pk)
             if old_guess.is_artist_correct and not self.is_artist_correct:
