@@ -222,10 +222,11 @@ class TestTeamResult(OrganiserSetup):
             self.client.patch(f"/result/{self.time_result.id}/value/", 5, format="json").status_code,
             400,
         )
-        self.assertEqual(
-            self.client.patch(f"/result/{self.time_result.id}/value/", None, format="json").status_code,
-            400,
+        # A real JSON null: the test client turns data=None into an empty body, so send the text.
+        response = self.client.patch(
+            f"/result/{self.time_result.id}/value/", "null", content_type="application/json"
         )
+        self.assertEqual(response.status_code, 400)
 
     def test_404_on_unknown_result(self):
         self.assertEqual(self.client.patch("/result/999/value/", {"points": 1}).status_code, 404)
@@ -275,6 +276,19 @@ class TestCloseRound(OrganiserSetup):
         response = self.client.patch(f"/round/{first.id}/close/")
         self.assertEqual(response.status_code, 200, response.data)
         self.assertTrue(TeamSportRound.objects.filter(discipline=swiss, order=1).exists())
+
+    def test_409_when_too_few_teams_remain_for_the_next_swiss_round(self):
+        swiss = Discipline.objects.create(
+            name="Petanque", edition=self.edition, result_type="PTS",
+            pairing_system=Discipline.PairingSystem.SWISS, max_rounds=3,
+        )
+        first = TeamSportRound.objects.get(discipline=swiss, order=0)
+        Game.objects.filter(round=first).update(is_played=True)
+        # Two of the three teams withdraw: the scheduler cannot pair the one left.
+        TeamResult.objects.filter(discipline=swiss, team__in=[self.b, self.c]).update(is_active=False)
+        response = self.client.patch(f"/round/{first.id}/close/")
+        self.assertEqual(response.status_code, 409, response.data)
+        self.assertFalse(TeamSportRound.objects.get(id=first.id).is_over)
 
     def test_409_outside_the_latest_edition(self):
         old_round = TeamSportRound.objects.create(discipline=self.old_darts, order=0)
