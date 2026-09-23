@@ -29,3 +29,8 @@ export function editionStatus(participation) {
 	if (!participation.finished) return 'inProgress';
 	return participation.rank === null ? 'unranked' : 'ranked';
 }
+
+/** "First Last", either half dropped when blank; "—" when both are (a bare auth.User allows it). */
+export function fullName(person) {
+	return [person.first_name, person.last_name].filter(Boolean).join(' ') || '—';
+}

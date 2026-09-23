@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { editionStatus, formatAverage, formatShare } from './players.js';
+import { editionStatus, formatAverage, formatShare, fullName } from './players.js';
 
 describe('formatAverage', () => {
 	it('prints one decimal with the locale separator', () => {
@@ -42,5 +42,23 @@ describe('editionStatus', () => {
 
 	it('is unranked when over without a rank', () => {
 		expect(editionStatus({ finished: true, rank: null })).toBe('unranked');
+	});
+});
+
+describe('fullName', () => {
+	it('joins first and last name', () => {
+		expect(fullName({ first_name: 'Xavier', last_name: 'Baby' })).toBe('Xavier Baby');
+	});
+
+	it('keeps just the first name when the last name is blank', () => {
+		expect(fullName({ first_name: 'Xavier', last_name: '' })).toBe('Xavier');
+	});
+
+	it('keeps just the last name when the first name is blank', () => {
+		expect(fullName({ first_name: '', last_name: 'Baby' })).toBe('Baby');
+	});
+
+	it('dashes when both are blank', () => {
+		expect(fullName({ first_name: '', last_name: '' })).toBe('—');
 	});
 });

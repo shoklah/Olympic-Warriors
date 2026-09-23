@@ -14,6 +14,7 @@ describe('player profile page', () => {
 		const position = screen.getByTestId('position');
 		expect(position).toHaveTextContent(/3\s*all-time/);
 		expect(position).toHaveAttribute('href', '/players');
+		expect(screen.getByRole('link', { name: 'All-time position: 3' })).toBe(position);
 		expect(screen.getByTestId('average-rank')).toHaveTextContent(/Average rank\s*2\.5/);
 		expect(screen.getByTestId('beaten')).toHaveTextContent(/Teams beaten\s*76%/);
 		expect(screen.getByText('4 editions · 2 counted')).toBeInTheDocument();
@@ -47,12 +48,22 @@ describe('player profile page', () => {
 	it('speaks French under fr', () => {
 		renderWith(Page, { data: { profile } }, 'fr');
 
+		const breadcrumb = screen.getByRole('navigation', { name: "Fil d'Ariane" });
+		expect(within(breadcrumb).getByRole('link', { name: 'Joueurs' })).toHaveAttribute('href', '/players');
+		expect(screen.getByRole('heading', { level: 2, name: 'Éditions' })).toBeInTheDocument();
 		expect(screen.getByTestId('position')).toHaveTextContent(/3\s*général/);
 		expect(screen.getByTestId('average-rank')).toHaveTextContent(/Rang moyen\s*2,5/);
 		expect(screen.getByTestId('beaten')).toHaveTextContent(/Équipes battues\s*76\s%/);
 		expect(screen.getByText('4 éditions · 2 classées')).toBeInTheDocument();
 		const rows = screen.getAllByTestId('edition-row');
 		expect(rows[0]).toHaveTextContent(/2030\s*Les Aigles\s*En cours/);
+		expect(rows[1]).toHaveTextContent(/2026\s*MxM\s*2\s*\/ 6/);
 		expect(rows[2]).toHaveTextContent(/2024\s*Pas d'équipe/);
+	});
+
+	it('says nothing is ranked yet, in French too', () => {
+		renderWith(Page, { data: { profile: profileUnranked } }, 'fr');
+
+		expect(screen.getByText("Aucune édition classée pour l'instant")).toBeInTheDocument();
 	});
 });

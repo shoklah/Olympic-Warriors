@@ -1,7 +1,7 @@
 <script>
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import MedalRank from '$lib/components/MedalRank.svelte';
-	import { editionStatus, formatAverage, formatShare } from '$lib/players';
+	import { editionStatus, formatAverage, formatShare, fullName } from '$lib/players';
 	import { useLocale, useT } from '$lib/i18n';
 
 	export let data;
@@ -10,7 +10,7 @@
 	const t = useT();
 
 	$: profile = data.profile;
-	$: name = `${profile.first_name} ${profile.last_name}`;
+	$: name = fullName(profile);
 </script>
 
 <div class="page">
@@ -19,7 +19,12 @@
 
 	{#if profile.position !== null}
 		<!-- A plain number: a French ordinal would have to guess the player's gender. -->
-		<a class="position" href="/players" data-testid="position">
+		<a
+			class="position"
+			href="/players"
+			data-testid="position"
+			aria-label={t('profile.positionLabel', { n: profile.position })}
+		>
 			<MedalRank rank={profile.position} />
 			<span class="label">{t('profile.allTime')}</span>
 		</a>
@@ -121,6 +126,7 @@
 	}
 
 	.value {
+		margin-top: auto;
 		font-size: 2.1rem;
 		line-height: 1;
 		letter-spacing: 0.04em;
@@ -136,6 +142,7 @@
 	.editions {
 		margin: 0 0 2rem;
 		padding: 0;
+		border-bottom: 1px solid var(--line);
 		list-style: none;
 	}
 
@@ -154,6 +161,17 @@
 		letter-spacing: 0.06em;
 		color: var(--accent);
 		text-decoration: none;
+	}
+
+	.year:hover {
+		text-decoration: underline;
+	}
+
+	.year:focus-visible,
+	.team:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
+		border-radius: 2px;
 	}
 
 	.team {

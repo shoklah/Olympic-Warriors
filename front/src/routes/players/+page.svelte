@@ -1,6 +1,6 @@
 <script>
 	import MedalRank from '$lib/components/MedalRank.svelte';
-	import { formatAverage, formatShare } from '$lib/players';
+	import { formatAverage, formatShare, fullName } from '$lib/players';
 	import { useLocale, useT } from '$lib/i18n';
 
 	export let data;
@@ -30,7 +30,7 @@
 					>
 						<MedalRank rank={player.position} />
 						<span class="text">
-							<span class="name">{player.first_name} {player.last_name}</span>
+							<span class="name">{fullName(player)}</span>
 							<span class="detail"
 								>{t('players.over', {
 									value: formatAverage(player.average_rank, locale),
@@ -51,7 +51,7 @@
 			{#each waiting as player}
 				<li>
 					<a class="row waiting" href="/players/{player.id}" data-testid="unranked-row">
-						<span class="name">{player.first_name} {player.last_name}</span>
+						<span class="name">{fullName(player)}</span>
 						<span class="detail">{t('players.editions', { n: player.played })}</span>
 					</a>
 				</li>

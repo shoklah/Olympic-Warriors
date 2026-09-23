@@ -20,7 +20,7 @@ describe('player profile load', () => {
 	it('answers 404 to anything but digits without calling the API', async () => {
 		const fetch = vi.fn();
 
-		for (const id of ['abc', '../admin', '12a', '']) {
+		for (const id of ['abc', '../admin', '12a', '', '0055', '0', '123456789012']) {
 			await expect(load({ fetch, params: { id } })).rejects.toMatchObject({ status: 404 });
 		}
 		expect(fetch).not.toHaveBeenCalled();
