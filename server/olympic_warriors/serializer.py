@@ -199,7 +199,7 @@ class SummaryPlayerSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Player
-        fields = ("id", "first_name", "last_name")
+        fields = ("id", "user", "first_name", "last_name")
 
 
 class SummaryTeamSerializer(serializers.ModelSerializer):
