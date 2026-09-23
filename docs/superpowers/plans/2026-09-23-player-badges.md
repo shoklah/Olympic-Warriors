@@ -2004,7 +2004,7 @@ The house style (`front/src/lib/img/icons/*.svg` follows it too):
 | `bronze` | A medal on a V ribbon with a 3, like `chocolate.svg` without the bite |
 | `legend` | Zeus' thunderbolt: a bold zigzag bolt |
 | `podium-regular` | A three-step podium with a circular loop arrow above it |
-| `full-set` | Three round medals fanned out on their ribbons |
+| `full-set` | Three whole medals hanging side by side from one bar |
 | `eternal-second` | A bicycle wheel (rim, hub, a few spokes) hanging from a medal's V ribbon |
 | `janus` | Two faces in profile, back to back, sharing one head |
 | `comeback` | A floor line with an arrow curving up out of it to the upper right |
@@ -2012,7 +2012,7 @@ The house style (`front/src/lib/img/icons/*.svg` follows it too):
 | `lucky-charm` | A four-leaf clover with a stem |
 | `rookie` | An olive sprout: a short stem with two leaves, from a ground line |
 | `argonaut` | The Argo from the side: a galley hull with a curled prow and a row of oars, **no sail** (so it differs from `homecoming`) |
-| `ever-present` | A loom: a frame, vertical warp threads, and a shuttle across them |
+| `ever-present` | An unbroken chain of three links (a loom read as a fence) |
 | `globetrotter` | A globe (circle with meridian and parallels) with a map pin on it |
 | `networker` | Five or six dots linked by lines, like a constellation |
 
@@ -2041,7 +2041,7 @@ The house style (`front/src/lib/img/icons/*.svg` follows it too):
 |---|---|
 | `ares` | A Corinthian helmet from the side with a crest on top |
 | `hades` | The same helmet drawn with **dashed** strokes (`stroke-dasharray`), the helm of invisibility |
-| `dionysus` | A wine cup (kantharos: bowl, two handles, foot) |
+| `dionysus` | A bunch of grapes with a vine leaf (a cup read as a trophy) |
 | `unbeaten` | A heater shield (flat top, pointed bottom) |
 | `perfect-run` | The same shield with a five-pointed star inside |
 | `shutout` | A padlock, closed |

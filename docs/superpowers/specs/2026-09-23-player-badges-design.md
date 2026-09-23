@@ -104,7 +104,7 @@ Every place badge needs a counted participation.
 | `phoenix` | Phénix | Phoenix | A title in an edition whose previous edition in the sequence gave the person no title, when they already had one before | each | gold | Phoenix rising from a flame ✓ |
 | `legend` | Légende | Legend | 3 titles in total | once | gold | Zeus' thunderbolt |
 | `podium-regular` | Abonné au podium | Podium regular | Podium in 3 consecutive editions | streak | silver | A podium with a loop arrow |
-| `full-set` | Collection complète | Full set | At least one 1st, one 2nd and one 3rd place | once | gold | Three medals fanned out |
+| `full-set` | Collection complète | Full set | At least one 1st, one 2nd and one 3rd place | once | gold | Three medals hanging from one bar |
 | `eternal-second` | Poulidor | Eternal second | A second 2nd place while still without a title | once | silver | A bicycle wheel hanging from a medal ribbon |
 | `janus` | Janus | Janus | A title and a last place | once | plain | Two-faced head |
 | `comeback` | Remontada | Comeback | Last place, then podium in the next edition | each | silver | An arrow rising from the floor |
@@ -125,7 +125,7 @@ These need only a participation in a finished edition, not a rank.
 | `rookie` | Bizut | Rookie | First participation | once | plain | Olive sprout |
 | `veteran` | Vétéran | Veteran | 3 / 5 / 10 participations | tiers | tiers | Three chevrons ✓ |
 | `argonaut` | Argonaute | Argonaut | Played the first finished edition, roster or not (when that edition has no roster, nobody earns it) | once | gold | The Argo's prow and oars |
-| `ever-present` | Pénélope | Ever-present | 4 / 6 / 8 consecutive editions played | tiers | tiers | A loom |
+| `ever-present` | Pénélope | Ever-present | 4 / 6 / 8 consecutive editions played | tiers | tiers | An unbroken chain |
 | `homecoming` | Ulysse | Homecoming | Plays again after missing at least 2 consecutive editions | each | plain | Ulysses' ship under sail ✓ |
 | `globetrotter` | Globe-trotteur | Globetrotter | Editions in 3 different `Edition.host` values (trimmed, case- and accent-insensitive) | once | bronze | Map pin on a globe |
 
@@ -177,7 +177,7 @@ at the first such win. All nine earn `olympus`.
 | `theseus` | Thésée | Theseus | Orienteering | bronze | Labyrinth |
 | `ares` | Arès | Ares | Rugby, Football, Handball, Basketball, Volleyball, Dodgeball | bronze | Crested helmet |
 | `hades` | Hadès | Hades | Hide and Seek | bronze | The same helmet drawn in dashes (the helm of invisibility) |
-| `dionysus` | Dionysos | Dionysus | Fair | bronze | Wine cup |
+| `dionysus` | Dionysos | Dionysus | Fair | bronze | A bunch of grapes |
 | `olympus` | Olympe | Mount Olympus | All nine gods | gold | A mountain topped by a temple |
 
 **Kinds**, for `brains-and-brawn`: the mind disciplines are the four Athena ones and
