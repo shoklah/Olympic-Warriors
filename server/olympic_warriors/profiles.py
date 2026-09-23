@@ -165,15 +165,9 @@ def participations(today=None):
         edition = editions[edition_id]
         team = _valid_team(player)
         rank = None
-        team_disciplines = ()
         if team is not None and edition_id in ranked:
             # A hand-entered final_rank of 0 means no rank too.
             rank = standings[edition_id].team(team.id).ranking or None
-            team_disciplines = tuple(
-                DisciplinePlace(discipline.discipline_name, edition.year, discipline.standing.ranking)
-                for discipline in standings[edition_id].disciplines_of(team.id)
-                if discipline.standing.ranking > 0
-            )
         _, parts = by_user.setdefault(user_id, (player.user, []))
         part = Participation(
             year=edition.year,
@@ -184,7 +178,15 @@ def participations(today=None):
             finished=edition_id in finished,
         )
         if part.counts:
-            part = replace(part, disciplines=team_disciplines)
+            # counts implies both a team and a ranked edition (rank is only ever set below).
+            disciplines = tuple(
+                DisciplinePlace(
+                    discipline.discipline_name, edition.year, discipline.standing.ranking
+                )
+                for discipline in standings[edition_id].disciplines_of(team.id)
+                if discipline.standing.ranking > 0
+            )
+            part = replace(part, disciplines=disciplines)
         parts.append(part)
 
     return {
@@ -254,32 +256,49 @@ def _medal_key(ranks):
     return (*ranks, math.inf)
 
 
+def _places_key(places):
+    """Medal-table key of a sequence of places (Participations or DisciplinePlaces, each
+    exposing `.rank`): forwards their ranks, best first, to _medal_key."""
+    return _medal_key(place.rank for place in places)
+
+
+def _positioned(items, key):
+    """
+    `items` (already sorted by `key`) with their shared position: consecutive items whose
+    key compares equal reuse the same position (e.g. 1, 2, 2, 4). Yields (position, item)
+    pairs in `items` order.
+    """
+    position, previous = None, None
+    for index, item in enumerate(items, start=1):
+        current = key(item)
+        if current != previous:
+            position, previous = index, current
+        yield position, item
+
+
 def _discipline_places(counted_parts):
     """
     A person's discipline places: their counted participations' places grouped by
     discipline name, each sorted best first (lower rank, then newer year), then the
     groups ordered and positioned like the leaderboard's medal table (identical medal
-    keys share a position), with the name as tie-break.
+    keys share a position, see _positioned), with the name as tie-break.
     """
     by_name = defaultdict(list)
     for part in counted_parts:
         for place in part.disciplines:
             by_name[place.name].append(place)
 
-    groups = [
-        (name, tuple(sorted(places, key=lambda place: (place.rank, -place.year))))
-        for name, places in by_name.items()
-    ]
-    groups.sort(key=lambda group: (_medal_key(place.rank for place in group[1]), _sort_key(group[0])))
-
-    placed = []
-    position, previous = None, None
-    for index, (name, places) in enumerate(groups, start=1):
-        key = _medal_key(place.rank for place in places)
-        if key != previous:
-            position, previous = index, key
-        placed.append(DisciplinePlaces(name=name, places=places, position=position))
-    return tuple(placed)
+    groups = sorted(
+        (
+            (name, tuple(sorted(places, key=lambda place: (place.rank, -place.year))))
+            for name, places in by_name.items()
+        ),
+        key=lambda group: (_places_key(group[1]), _sort_key(group[0])),
+    )
+    return tuple(
+        DisciplinePlaces(name=name, places=places, position=position)
+        for position, (name, places) in _positioned(groups, lambda group: _places_key(group[1]))
+    )
 
 
 def _place(records):
@@ -290,15 +309,12 @@ def _place(records):
     """
     ranked = sorted(
         (record for record in records if record.counted),
-        key=lambda r: (_medal_key(place.rank for place in r.places), *_by_name(r)),
+        key=lambda r: (_places_key(r.places), *_by_name(r)),
     )
-    placed = []
-    position, previous = None, None
-    for index, record in enumerate(ranked, start=1):
-        key = _medal_key(place.rank for place in record.places)
-        if key != previous:
-            position, previous = index, key
-        placed.append(replace(record, position=position))
+    placed = [
+        replace(record, position=position)
+        for position, record in _positioned(ranked, lambda r: _places_key(r.places))
+    ]
     waiting = sorted((record for record in records if not record.counted), key=_by_name)
     return placed + waiting
 

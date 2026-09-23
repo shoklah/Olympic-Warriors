@@ -209,6 +209,19 @@ class TestTeamStandings(StandingsSetup):
         self.assertEqual(standings.disciplines_of(self.ghost.id), ())  # inactive team
         self.assertEqual(standings.disciplines_of(999999), ())
 
+    def test_disciplines_of_are_ordered_by_discipline_id(self):
+        # Darts (from setUp) is created first, so it has the lowest id: creation order
+        # doubles as discipline id order here, letting us pin the exact expected order.
+        self.play(self.team_a, 5, self.team_b, 2)
+        second = Relay.objects.create(edition=self.edition, reveal_score=True)
+        third = Orienteering.objects.create(edition=self.edition, reveal_score=True)
+        standings = compute_standings(self.edition)
+
+        ids = [d.discipline_id for d in standings.disciplines_of(self.team_a.id)]
+
+        self.assertEqual(ids, [self.darts.id, second.id, third.id])
+        self.assertEqual(ids, sorted(ids))
+
 
 class TestManualRanking(StandingsSetup):
     def test_stored_ranks_replace_the_computed_ones_and_totals_are_null(self):

@@ -19,7 +19,7 @@ extra query cost since results are already loaded with their discipline.
 """
 
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from .models import Game, Team, TeamResult
 from .models.ResultTypes import ResultTypes
@@ -59,7 +59,7 @@ class Standings:
 
     results: dict[int, ResultStanding]
     teams: dict[int, TeamStanding]
-    by_team: dict[int, tuple[DisciplineStanding, ...]] = field(default_factory=dict)
+    team_disciplines: dict[int, tuple[DisciplineStanding, ...]]
 
     def result(self, result_id):
         """Standing of a result, or the zero standing when it is not part of the edition."""
@@ -72,7 +72,7 @@ class Standings:
     def disciplines_of(self, team_id):
         """A team's discipline standings, discipline id order, or () when the team is not
         active in the edition."""
-        return self.by_team.get(team_id, ())
+        return self.team_disciplines.get(team_id, ())
 
 
 def global_points(ranking, registered):
@@ -119,14 +119,17 @@ def compute_standings(edition):
     for discipline_results in by_discipline.values():
         result_standings.update(_rank_discipline(discipline_results, differences))
 
-    by_team = defaultdict(list)
-    for result in sorted(results, key=lambda result: (result.discipline_id, result.id)):
-        by_team[result.team_id].append(
+    team_disciplines = defaultdict(list)
+    for result in sorted(results, key=lambda r: (r.discipline_id, r.id)):
+        team_disciplines[result.team_id].append(
             DisciplineStanding(
                 result.discipline_id, result.discipline.name, result_standings[result.id]
             )
         )
-    by_team = {team_id: tuple(standings) for team_id, standings in by_team.items()}
+    team_disciplines = {
+        team_id: tuple(discipline_standings)
+        for team_id, discipline_standings in team_disciplines.items()
+    }
 
     totals = {team.id: 0 for team in teams}
     for result in results:
@@ -145,7 +148,9 @@ def compute_standings(edition):
             for team in teams
         }
 
-    return Standings(results=result_standings, teams=team_standings, by_team=by_team)
+    return Standings(
+        results=result_standings, teams=team_standings, team_disciplines=team_disciplines
+    )
 
 
 def _score_key(result, differences):

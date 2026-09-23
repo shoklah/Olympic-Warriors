@@ -19,6 +19,7 @@ from olympic_warriors.profiles import (
     leaderboard,
     paris_today,
     participations,
+    _discipline_places,
     _place,
     _record,
 )
@@ -429,6 +430,56 @@ class TestRecordAndPlace(SimpleTestCase):
         placed = _place([_record(faure, ()), _record(durand, ()), _record(ebert, ())])
 
         self.assertEqual([record.last_name for record in placed], ["Durand", "Ébert", "Faure"])
+
+
+class TestDisciplinePlacesGrouping(SimpleTestCase):
+    """`_discipline_places` groups and positions a person's places, no database needed."""
+
+    @staticmethod
+    def counted(*discipline_ranks):
+        """A counted Participation (finished, ranked, teams >= 2) carrying these
+        (name, year, rank) discipline places."""
+        disciplines = tuple(
+            DisciplinePlace(name, year, rank) for name, year, rank in discipline_ranks
+        )
+        return Participation(2024, None, None, 1, 10, True, disciplines=disciplines)
+
+    def test_shared_positions_can_land_away_from_first(self):
+        # Fencing alone in 1st, Archery and Chess tied for 2nd, Darts alone with a 4th:
+        # positions 1, 2, 2, 4, not the ordinal 1, 2, 2, 3.
+        part = self.counted(
+            ("Fencing", 2024, 1),
+            ("Archery", 2024, 2),
+            ("Chess", 2024, 2),
+            ("Darts", 2024, 4),
+        )
+
+        self.assertEqual(
+            _discipline_places([part]),
+            (
+                DisciplinePlaces("Fencing", (DisciplinePlace("Fencing", 2024, 1),), 1),
+                DisciplinePlaces("Archery", (DisciplinePlace("Archery", 2024, 2),), 2),
+                DisciplinePlaces("Chess", (DisciplinePlace("Chess", 2024, 2),), 2),
+                DisciplinePlaces("Darts", (DisciplinePlace("Darts", 2024, 4),), 4),
+            ),
+        )
+
+    def test_equal_ranks_in_one_discipline_are_ordered_newest_first(self):
+        older = self.counted(("Relay", 2023, 1))
+        newer = self.counted(("Relay", 2024, 1))
+
+        result = _discipline_places([older, newer])
+
+        self.assertEqual(
+            result,
+            (
+                DisciplinePlaces(
+                    "Relay",
+                    (DisciplinePlace("Relay", 2024, 1), DisciplinePlace("Relay", 2023, 1)),
+                    1,
+                ),
+            ),
+        )
 
 
 class TestProfileEndpoints(ProfilesSetup, TestCase):

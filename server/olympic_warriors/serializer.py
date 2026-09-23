@@ -469,7 +469,9 @@ class ProfileEditionSerializer(serializers.Serializer):
 
 
 class PlaceSerializer(serializers.Serializer):
-    """One counted edition of a person: the year and the team's rank that year."""
+    """A year and the team's rank that year: one counted edition on the leaderboard
+    (LeaderboardRowSerializer.places), or one discipline place on a profile
+    (DisciplinePlacesSerializer.places)."""
 
     year = serializers.IntegerField()
     rank = serializers.IntegerField()
@@ -478,7 +480,8 @@ class PlaceSerializer(serializers.Serializer):
 class DisciplinePlacesSerializer(serializers.Serializer):
     """A person's places in one discipline across editions, best first (see
     profiles.DisciplinePlaces), with the discipline's shared position among the
-    person's own disciplines."""
+    person's own disciplines. `name` is the database Discipline.name, untranslated:
+    the front is responsible for mapping it to a display name."""
 
     name = serializers.CharField()
     position = serializers.IntegerField()
