@@ -1,0 +1,9 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- Hermes' winged sandal, a wing at the heel. -->
+<g transform="translate(95 5) scale(0.92)">
+<path d="M560 1560C500 1480 510 1280 590 990H870C890 1160 990 1280 1270 1340C1540 1390 1800 1400 1800 1490C1800 1545 1740 1560 1660 1560Z" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M570 1460H1790" stroke="white" stroke-width="90" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M580 1130H880M1040 1280L980 1450M1250 1335L1210 1450" stroke="white" stroke-width="80" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M600 1120C592 921 379 738 104 593Q112 724 180 774Q150 862 235 917Q206 1014 298 1060Q285 1154 386 1186Q471 1165 600 1120Z" stroke="white" stroke-width="100" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+</svg>

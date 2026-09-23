@@ -1,0 +1,15 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- A pocket multi-tool, a blade, a corkscrew and a screwdriver fanned out. -->
+<g transform="rotate(64 460 1400)">
+<path d="M420 930V480H500V930" stroke="white" stroke-width="90" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<g transform="rotate(31 460 1400)">
+<path d="M460 1100V960Q610 902 460 845Q310 788 460 730Q610 672 460 615Q310 558 460 500" stroke="white" stroke-width="80" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<g transform="rotate(-4 460 1400)">
+<path d="M340 1200V400C484 460 580 568 580 712V1200" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<path d="M460 1260H1540A140 140 0 0 1 1540 1540H460A140 140 0 0 1 460 1260Z" stroke="white" stroke-width="130" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="460" cy="1400" r="50" fill="white"/>
+<circle cx="1540" cy="1400" r="50" fill="white"/>
+</svg>
