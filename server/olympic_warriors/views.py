@@ -895,7 +895,9 @@ def getBlindtestGuessesByTeam(request, team_id):
 )
 @api_view(["GET"])
 def getBlindtestGuessesByBlindtest(request, blindtest_id):
-    guesses = BlindtestGuess.objects.filter(blindtest=blindtest_id, is_active=True)
+    guesses = BlindtestGuess.objects.filter(
+        blindtest_round__blindtest=blindtest_id, is_active=True
+    )
     serializer = BlindtestGuessSerializer(guesses, many=True)
     return Response(serializer.data)
 
@@ -910,7 +912,9 @@ def getBlindtestGuessesByBlindtest(request, blindtest_id):
 )
 @api_view(["GET"])
 def getBlindtestGuessesByTeamAndBlindtest(request, team_id, blindtest_id):
-    guesses = BlindtestGuess.objects.filter(team=team_id, blindtest=blindtest_id, is_active=True)
+    guesses = BlindtestGuess.objects.filter(
+        team=team_id, blindtest_round__blindtest=blindtest_id, is_active=True
+    )
     serializer = BlindtestGuessSerializer(guesses, many=True)
     return Response(serializer.data)
 

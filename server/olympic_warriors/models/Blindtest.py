@@ -61,8 +61,8 @@ class BlindtestGuess(models.Model):
     blindtest_round = models.ForeignKey(
         BlindtestRound, on_delete=models.CASCADE, related_name='blindtest_round'
     )
-    artist = models.CharField(max_length=255, default='')
-    song = models.CharField(max_length=255, default='')
+    artist = models.CharField(max_length=255, default='', blank=True)
+    song = models.CharField(max_length=255, default='', blank=True)
     is_artist_correct = models.BooleanField(default=False)
     is_song_correct = models.BooleanField(default=False)
 

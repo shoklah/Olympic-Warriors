@@ -6,6 +6,7 @@ that blindtest, and flipping it back takes the point away.
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.test import TestCase, override_settings
+from rest_framework.test import APIClient
 
 from olympic_warriors.models import Blindtest, BlindtestGuess, Edition, Team, TeamResult
 
@@ -174,18 +175,14 @@ class TestBlindtestOtherEditionTeam(BlindtestSetup):
         self.assertFalse(BlindtestGuess.objects.filter(team=self.stranger).exists())
 
     def test_full_clean_refuses_the_guess(self):
-        guess = BlindtestGuess(
-            team=self.stranger, blindtest_round=self.round, artist="Daft Punk", song="Da Funk"
-        )
+        guess = BlindtestGuess(team=self.stranger, blindtest_round=self.round)
         with self.assertRaisesMessage(
             ValidationError, "The team is not part of the edition of the blindtest"
         ):
             guess.full_clean()
 
-    def test_full_clean_accepts_a_team_of_the_edition(self):
-        BlindtestGuess(
-            team=self.red, blindtest_round=self.round, artist="Daft Punk", song="Da Funk"
-        ).full_clean()
+    def test_full_clean_accepts_a_team_of_the_edition_without_answers(self):
+        self.guess(self.red).full_clean()
 
 
 @override_settings(STATICFILES_STORAGE="django.contrib.staticfiles.storage.StaticFilesStorage")
@@ -198,12 +195,12 @@ class TestBlindtestAdmin(BlindtestSetup):
         self.client.force_login(User.objects.get(username="root"))
 
     def guess_form(self, guess, **overrides):
-        # The admin form requires both answers: artist and song are not blank=True.
+        # Answers left blank: a team may give no artist or no song.
         data = {
             "team": guess.team_id,
             "blindtest_round": guess.blindtest_round_id,
-            "artist": "Daft Punk",
-            "song": "Da Funk",
+            "artist": "",
+            "song": "",
             "is_active": "on",
         }
         data.update(overrides)
@@ -263,3 +260,43 @@ class TestBlindtestAdmin(BlindtestSetup):
         self.assertContains(response, "The team is not part of the edition of the blindtest")
         self.assertEqual(self.guess(self.red).team_id, self.red.pk)
         self.assertFalse(TeamResult.objects.filter(team=stranger).exists())
+
+
+class TestBlindtestGuessEndpoints(BlindtestSetup):
+    """Guesses listed by blindtest, and by team and blindtest, through the round."""
+
+    def setUp(self):
+        super().setUp()
+        self.client = APIClient()
+        self.client.force_authenticate(
+            user=User.objects.create_user("player", "player@example.com", "pw")
+        )
+        self.other_blindtest = Blindtest.objects.create(edition=self.edition)
+        self.hidden = self.guess(self.red)
+        self.hidden.is_active = False
+        self.hidden.save()
+
+    def ids(self, url):
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        return sorted(guess["id"] for guess in response.json())
+
+    def expected(self, **filters):
+        guesses = BlindtestGuess.objects.filter(is_active=True, **filters)
+        return sorted(guesses.values_list("id", flat=True))
+
+    def test_guesses_by_blindtest(self):
+        ids = self.ids(f"/blindtest/guesses/blindtest/{self.blindtest.pk}/")
+        self.assertEqual(len(ids), 19)
+        self.assertEqual(ids, self.expected(blindtest_round__blindtest=self.blindtest))
+        self.assertNotIn(self.hidden.pk, ids)
+
+    def test_guesses_by_team_and_blindtest(self):
+        ids = self.ids(f"/blindtest/guesses/blindtest/{self.blindtest.pk}/team/{self.blue.pk}/")
+        self.assertEqual(len(ids), 10)
+        self.assertEqual(
+            ids, self.expected(blindtest_round__blindtest=self.blindtest, team=self.blue)
+        )
+
+    def test_unknown_blindtest_lists_nothing(self):
+        self.assertEqual(self.ids("/blindtest/guesses/blindtest/0/"), [])
