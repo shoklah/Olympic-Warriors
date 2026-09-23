@@ -14,8 +14,8 @@
 	$: edition = editions.find((e) => e.year === year);
 	$: tabs = year
 		? [
-				{ name: t('nav.ranking'), url: `/${year}/ranking` },
-				{ name: t('nav.teams'), url: `/${year}/teams` },
+				// A team page is reached from the ranking, so it lights that tab.
+				{ name: t('nav.ranking'), url: `/${year}/ranking`, also: `/${year}/teams` },
 				{ name: t('nav.disciplines'), url: `/${year}/disciplines` },
 				...(edition?.photos_url
 					? [{ name: t('nav.photos'), url: edition.photos_url, external: true }]
@@ -57,7 +57,9 @@
 						{:else}
 							<a
 								href={tab.url}
-								aria-current={$page.url.pathname.startsWith(tab.url) ? 'page' : undefined}
+								aria-current={[tab.url, tab.also].some((u) => u && $page.url.pathname.startsWith(u))
+									? 'page'
+									: undefined}
 							>
 								{tab.name}
 							</a>

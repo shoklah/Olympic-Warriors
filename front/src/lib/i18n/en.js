@@ -1,7 +1,6 @@
 /** English messages. Same keys as fr.js, which is the reference. */
 export default {
 	'nav.ranking': 'Ranking',
-	'nav.teams': 'Teams',
 	'nav.disciplines': 'Disciplines',
 	'nav.photos': 'Photos',
 	'nav.sections': 'Sections',
@@ -26,7 +25,6 @@ export default {
 	'discipline.notRevealed': 'Results not revealed yet',
 	'game.played': 'played',
 	'game.referee': 'ref: {name}',
-	'teams.title': 'Teams',
 	'team.overall': 'overall',
 	'team.pts': 'pts',
 	'team.results': 'Results',
