@@ -66,7 +66,8 @@ class Participation:
 
     @property
     def counts(self):
-        """Whether the edition feeds the averages: over, ranked, and more than one team."""
+        """Whether the edition feeds the places and the averages: over, ranked, and more than
+        one team."""
         return self.finished and self.rank is not None and self.teams >= 2
 
 
@@ -186,7 +187,7 @@ class PlayerRecord:
 
 
 def _record(user, parts):
-    """A person's record without a position: counted editions and their averages."""
+    """A person's record without a position: counted editions, places and averages."""
     counted_parts = [part for part in parts if part.counts]
     average_rank = average_beaten = None
     if counted_parts:

@@ -490,7 +490,8 @@ class LeaderboardRowSerializer(serializers.Serializer):
 
 
 class ProfileSerializer(serializers.Serializer):
-    """A person's profile: the leaderboard figures plus every edition, newest first."""
+    """A person's profile: position, counted editions and averages, plus every edition,
+    newest first."""
 
     id = serializers.IntegerField(source="user_id", help_text="The user id, not a Player id")
     first_name = serializers.CharField()

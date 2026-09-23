@@ -1,5 +1,5 @@
 """
-Tests for olympic_warriors.profiles: a person's editions, averages and leaderboard place,
+Tests for olympic_warriors.profiles: a person's editions, places, averages and leaderboard place,
 computed from the edition standings, and the two public endpoints serving them.
 """
 
@@ -320,7 +320,9 @@ class TestRecordAndPlace(SimpleTestCase):
     @staticmethod
     def parts(*ranks_by_year):
         """Counted participations from (year, rank) pairs, each in a 10-team edition."""
-        return tuple(Participation(year, None, None, rank, 10, True) for year, rank in ranks_by_year)
+        return tuple(
+            Participation(year, None, None, rank, 10, True) for year, rank in ranks_by_year
+        )
 
     def placed(self, *records):
         return [(record.first_name, record.position) for record in _place(list(records))]
@@ -360,7 +362,9 @@ class TestRecordAndPlace(SimpleTestCase):
 
         record = _record(self.user(4, "R", "Roy"), parts)
 
-        self.assertEqual([(p.year, p.rank) for p in record.places], [(2023, 1), (2024, 2), (2022, 2)])
+        self.assertEqual(
+            [(p.year, p.rank) for p in record.places], [(2023, 1), (2024, 2), (2022, 2)]
+        )
 
     def test_average_rank_can_be_fractional(self):
         user = self.user(3, "R", "Roy")
