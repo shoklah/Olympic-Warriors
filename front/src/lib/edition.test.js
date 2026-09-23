@@ -375,4 +375,11 @@ describe('teamGames', () => {
 		const odd = { ...summary, games: [{ ...summary.games[0], referees: 42 }] };
 		expect(teamGames(odd, 2)[0].games[0].refereeName).toBeNull();
 	});
+
+	it('lists a game the team both plays and referees once, as played', () => {
+		const odd = { ...summary, games: [{ ...summary.games[0], referees: 2 }] };
+		const [relay] = teamGames(odd, 2);
+		expect(relay.games).toHaveLength(1);
+		expect(relay.games[0].refereeName).toBe('Bisons');
+	});
 });

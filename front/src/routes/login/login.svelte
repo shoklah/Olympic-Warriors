@@ -16,17 +16,21 @@
         {form.error}
     </p>{/if}
 
-    {#if form?.missing && form?.missing.username}<p class="error" transition:slide={{ duration: 800, easing: quintOut }}>
+    {#if form?.missing && form?.missing.username}<p class="error" id="username-error" transition:slide={{ duration: 800, easing: quintOut }}>
         {t('login.missing')}
     </p>{/if}
     <input name="username" placeholder={t('login.username')} value={form?.username ?? ''}
-           class:missing={form?.missing?.username} autofocus>
+           class:missing={form?.missing?.username}
+           aria-invalid={form?.missing?.username ? 'true' : undefined}
+           aria-describedby={form?.missing?.username ? 'username-error' : undefined} autofocus>
 
-    {#if form?.missing && form?.missing.password}<p class="error" transition:slide={{ duration: 800, easing: quintOut }}>
+    {#if form?.missing && form?.missing.password}<p class="error" id="password-error" transition:slide={{ duration: 800, easing: quintOut }}>
         {t('login.missing')}
     </p>{/if}
     <input type="password" name="password" placeholder={t('login.password')}
-           class:missing={form?.missing?.password}>
+           class:missing={form?.missing?.password}
+           aria-invalid={form?.missing?.password ? 'true' : undefined}
+           aria-describedby={form?.missing?.password ? 'password-error' : undefined}>
 
     <button>{t('login.title')}</button>
 </form>

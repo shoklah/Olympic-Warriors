@@ -4,9 +4,14 @@
 
 	const t = useT();
 
-	// The loaders throw their 404s with an English message; the page words it.
+	// Thrown messages (loaders, api.js, the framework) are English by construction, so
+	// the visitor gets the dictionary line; the raw message shows only in dev.
 	$: message =
-		$page.status === 404 ? t('error.notFound') : ($page.error?.message ?? t('error.generic'));
+		$page.status === 404
+			? t('error.notFound')
+			: import.meta.env.DEV && $page.error?.message
+				? $page.error.message
+				: t('error.generic');
 </script>
 
 <section>

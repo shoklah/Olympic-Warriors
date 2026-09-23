@@ -1,9 +1,9 @@
 <script>
 	import { useT } from '$lib/i18n';
 
-	/** Home team name. */
+	/** Home team name; null when the id matched no team (the "unknown" label is shown). @type {string | null} */
 	export let team1Name;
-	/** Away team name. */
+	/** Away team name, same rule. @type {string | null} */
 	export let team2Name;
 	/** @type {number | null} */
 	export let score1 = null;
@@ -31,18 +31,20 @@
 	$: team2Class = !hasScore || score1 === score2 ? '' : score2 > score1 ? 'winner' : 'loser';
 	$: own1 = highlightId !== null && team1Id === highlightId;
 	$: own2 = highlightId !== null && team2Id === highlightId;
+	$: name1 = team1Name ?? t('team.unknown');
+	$: name2 = team2Name ?? t('team.unknown');
 </script>
 
 <div class="game-row" data-testid="game-row">
 	<p class="teams">
-		{#if roundLabel !== null}
+		{#if roundLabel}
 			<span class="round label">{roundLabel}</span>
 		{/if}
 
 		{#if team1Href && !own1}
-			<a class="team {team1Class}" href={team1Href}>{team1Name ?? t('team.unknown')}</a>
+			<a class="team {team1Class}" href={team1Href}>{name1}</a>
 		{:else}
-			<span class="team {team1Class}" class:own={own1}>{team1Name ?? t('team.unknown')}</span>
+			<span class="team {team1Class}" class:own={own1}>{name1}</span>
 		{/if}
 
 		{#if hasScore}
@@ -54,9 +56,9 @@
 		{/if}
 
 		{#if team2Href && !own2}
-			<a class="team right {team2Class}" href={team2Href}>{team2Name ?? t('team.unknown')}</a>
+			<a class="team right {team2Class}" href={team2Href}>{name2}</a>
 		{:else}
-			<span class="team right {team2Class}" class:own={own2}>{team2Name ?? t('team.unknown')}</span>
+			<span class="team right {team2Class}" class:own={own2}>{name2}</span>
 		{/if}
 	</p>
 	{#if refereeName}
@@ -99,12 +101,9 @@
 		color: var(--muted);
 	}
 
+	/* The own team keeps the accent whatever the outcome; `.winner` still adds its weight. */
 	.team.own {
 		color: var(--accent);
-	}
-
-	.team.own.winner {
-		font-weight: 600;
 	}
 
 	.team:focus-visible {

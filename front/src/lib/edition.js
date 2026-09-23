@@ -230,7 +230,7 @@ export function teamGames(summary, teamId) {
 					team2Id: g.team2,
 					team1Name: nameOf(names, g.team1),
 					team2Name: nameOf(names, g.team2),
-					refereeName: g.referees == null ? null : nameOf(names, g.referees),
+					refereeName: nameOf(names, g.referees),
 					isPlayed: g.is_played,
 					score1: g.score1,
 					score2: g.score2
