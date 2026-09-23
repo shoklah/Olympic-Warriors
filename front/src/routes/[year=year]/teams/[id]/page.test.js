@@ -1,5 +1,6 @@
-import { render, screen } from '@testing-library/svelte';
+import { screen, within } from '@testing-library/svelte';
 import { describe, expect, it } from 'vitest';
+import { renderWith } from '$lib/test-utils';
 import Page from './+page.svelte';
 import { load } from './+page.js';
 import { findTeam, teamGames, teamResults } from '$lib/edition';
@@ -14,7 +15,7 @@ const dataFor = (id) => ({
 
 describe('team page', () => {
 	it('shows the name, global rank, total points and the full roster', () => {
-		render(Page, { data: dataFor(1) });
+		renderWith(Page, { data: dataFor(1) });
 
 		expect(screen.getByRole('heading', { name: 'Aigles' })).toBeInTheDocument();
 		expect(screen.getByTestId('standing')).toHaveTextContent(/2nd\s*overall\s*3\s*pts/);
@@ -23,7 +24,7 @@ describe('team page', () => {
 	});
 
 	it('shows one tile per discipline with a dash when not revealed', () => {
-		render(Page, { data: dataFor(1) });
+		renderWith(Page, { data: dataFor(1) });
 
 		const rows = screen.getAllByTestId('discipline-row');
 		expect(rows).toHaveLength(2);
@@ -31,29 +32,47 @@ describe('team page', () => {
 		expect(rows[1]).toHaveTextContent(/Orienteering\s*—/);
 	});
 
-	it('lists games per discipline with result, to play and referee rows', () => {
-		render(Page, { data: dataFor(1) });
+	it('lists the games the team played as discipline-page rows with the own team highlighted', () => {
+		renderWith(Page, { data: dataFor(1) });
 
 		expect(screen.getByRole('heading', { name: 'Games' })).toBeInTheDocument();
 		const rows = screen.getAllByTestId('game-row');
-		expect(rows).toHaveLength(4);
-		expect(rows[0]).toHaveTextContent(/Round 1 · vs Bisons · 9 : 12 · lost/);
-		expect(rows[1]).toHaveTextContent(/Round 1 · referee · Cerfs vs Bisons/);
-		expect(rows[2]).toHaveTextContent(/Round 2 · vs Cerfs · 7 : 7 · draw/);
-		expect(rows[3]).toHaveTextContent(/Round 1 · vs Bisons · played/);
+		expect(rows).toHaveLength(3);
+		expect(rows[0]).toHaveTextContent(/R1\s*Bisons\s*12 : 9\s*Aigles/);
+		expect(rows[0]).toHaveTextContent('ref: Cerfs');
+		expect(rows[1]).toHaveTextContent(/R2\s*Aigles\s*7 : 7\s*Cerfs/);
+		expect(rows[2]).toHaveTextContent(/R1\s*Aigles\s*played\s*Bisons/);
+
+		expect(within(rows[0]).getByText('Aigles')).toHaveClass('own');
+		expect(within(rows[0]).getByText('Aigles')).toHaveClass('loser');
+		expect(within(rows[0]).queryByRole('link', { name: 'Aigles' })).toBeNull();
+		expect(within(rows[0]).getByRole('link', { name: 'Bisons' })).toHaveAttribute('href', '/2026/teams/2');
 	});
 
-	it('says to play for an unplayed game', () => {
-		render(Page, { data: dataFor(2) });
-		expect(screen.getAllByTestId('game-row')[1]).toHaveTextContent(/Round 1 · vs Cerfs · to play/);
-		expect(screen.getAllByTestId('game-row')[0]).toHaveTextContent(
-			/Round 1 · vs Aigles · 12 : 9 · won/
-		);
+	it('dashes an unplayed game and lists no refereed game', () => {
+		renderWith(Page, { data: dataFor(2) });
+
+		const rows = screen.getAllByTestId('game-row');
+		expect(rows).toHaveLength(3);
+		expect(rows[0]).toHaveTextContent(/R1\s*Bisons\s*12 : 9\s*Aigles/);
+		expect(rows[1]).toHaveTextContent(/R1\s*Cerfs\s*— : —\s*Bisons/);
+		// Game 203 (Orienteering) is the third row; the refereed Relay game of Aigles never shows for Bisons.
+		expect(rows[2]).toHaveTextContent(/R1\s*Aigles\s*played\s*Bisons/);
 	});
 
 	it('has no games section when the team has no games', () => {
-		render(Page, { data: { ...dataFor(1), games: [] } });
+		renderWith(Page, { data: { ...dataFor(1), games: [] } });
 		expect(screen.queryByRole('heading', { name: 'Games' })).toBeNull();
+	});
+
+	it('speaks French under fr', () => {
+		renderWith(Page, { data: dataFor(2) }, 'fr');
+
+		expect(screen.getByTestId('standing')).toHaveTextContent(/1re\s*au général\s*5\s*pts/);
+		expect(screen.getByRole('heading', { name: 'Matchs' })).toBeInTheDocument();
+		expect(screen.getByRole('heading', { name: 'Relais' })).toBeInTheDocument();
+		expect(screen.getAllByTestId('game-row')[0]).toHaveTextContent(/T1\s*Bisons\s*12 : 9\s*Aigles/);
+		expect(screen.getAllByTestId('discipline-row')[1]).toHaveTextContent(/Course d'orientation\s*—\s*non dévoilé/);
 	});
 });
 

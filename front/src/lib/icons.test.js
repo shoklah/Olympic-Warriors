@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { iconFor, iconSlug } from './icons.js';
+import { FRENCH_NAMES, SAME_IN_FRENCH } from './i18n/disciplines.js';
 
 describe('iconSlug', () => {
 	it('lowercases and strips spaces and apostrophes', () => {
@@ -43,5 +44,15 @@ const DISCIPLINE_NAMES = [
 describe('every discipline model has an icon', () => {
 	it.each(DISCIPLINE_NAMES)('%s', (name) => {
 		expect(iconFor(name)).not.toMatch(/default\.svg$/);
+	});
+});
+
+describe('every discipline model has a French name', () => {
+	it.each(DISCIPLINE_NAMES)('%s', (name) => {
+		expect(name in FRENCH_NAMES || SAME_IN_FRENCH.includes(name)).toBe(true);
+	});
+
+	it('lists no discipline twice', () => {
+		for (const name of Object.keys(FRENCH_NAMES)) expect(SAME_IN_FRENCH).not.toContain(name);
 	});
 });

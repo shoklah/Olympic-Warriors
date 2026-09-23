@@ -4,14 +4,17 @@
 	import title from '$lib/img/title.svg';
 	import { iconFor } from '$lib/icons';
 	import { countdownParts, editionPhase, formatDateRange } from '$lib/edition';
+	import { disciplineName, useLocale, useT } from '$lib/i18n';
 
 	export let summary;
 	export let editions;
 
+	const locale = useLocale();
+	const t = useT();
+
 	$: edition = summary.edition;
 	$: half = Math.ceil(summary.disciplines.length / 2);
 	$: columns = [summary.disciplines.slice(0, half), summary.disciplines.slice(half)];
-	$: others = editions.filter((e) => e.year !== edition.year);
 
 	let now = new Date();
 	$: phase = editionPhase(edition, now);
@@ -24,37 +27,49 @@
 </script>
 
 <div class="fullscreen">
-	<img id="eclipse" src={eclipse} alt="" />
-	<img id="title" src={title} alt="OLYMPIC WARRIORS" />
+	<!-- The title is anchored to the moon, not to the hero box: `.moon` is the rendered
+	     image (its aspect ratio, contained in the hero), and the disc sits at 49.3% / 53% of it. -->
+	<div class="moon">
+		<img id="eclipse" src={eclipse} alt="" />
+		<img id="title" src={title} alt="OLYMPIC WARRIORS" />
+	</div>
 
-	{#each columns.filter((c) => c.length > 0) as column}
-		<div class="sportcolumn">
+	{#each columns.filter((c) => c.length > 0) as column, i}
+		<!-- Explicit sides: the .moon div would otherwise be the columns' "first of type". -->
+		<div class="sportcolumn" class:left={i === 0} class:right={i === 1}>
 			{#each column as discipline}
-				<img src={iconFor(discipline.name)} alt={discipline.name} />
+				<img src={iconFor(discipline.name)} alt={disciplineName(locale, discipline.name)} />
 			{/each}
 		</div>
 	{/each}
 </div>
 
-<p class="where">{edition.host} · {formatDateRange(edition.start_date, edition.end_date)}</p>
+<p class="where">{edition.host} · {formatDateRange(edition.start_date, edition.end_date, locale)}</p>
 
 {#if phase === 'upcoming'}
 	<div id="countdown">
-		<div class="label"><span class="num">{parts.days}</span>Days</div>
-		<div class="label"><span class="num">{parts.hours}</span>Hours</div>
-		<div class="label"><span class="num">{parts.minutes}</span>Minutes</div>
-		<div class="label"><span class="num">{parts.seconds}</span>Seconds</div>
+		<div class="label"><span class="num">{parts.days}</span>{t('hub.days')}</div>
+		<div class="label"><span class="num">{parts.hours}</span>{t('hub.hours')}</div>
+		<div class="label"><span class="num">{parts.minutes}</span>{t('hub.minutes')}</div>
+		<div class="label"><span class="num">{parts.seconds}</span>{t('hub.seconds')}</div>
 	</div>
 {:else}
 	<div id="ranking">
-		<a href="/{edition.year}/ranking">Ranking</a>
+		<a href="/{edition.year}/ranking">{t('hub.ranking')}</a>
 	</div>
 {/if}
 
-{#if others.length > 0}
-	<nav class="editions" aria-label="Other editions">
-		{#each others as other}
-			<a href="/{other.year}">{other.year}</a>
+{#if editions.length > 1}
+	<!-- Same rule as the discipline rail: every edition listed, the current one highlighted. -->
+	<nav class="editions" aria-label={t('hub.editions')}>
+		{#each editions as other}
+			<a
+				href="/{other.year}"
+				class:current={other.year === edition.year}
+				aria-current={other.year === edition.year ? 'page' : undefined}
+			>
+				{other.year}
+			</a>
 		{/each}
 	</nav>
 {/if}
@@ -70,19 +85,19 @@
 		opacity: 0.3;
 	}
 
-	.sportcolumn:first-of-type {
+	.sportcolumn.left {
 		left: 20vw;
 	}
 
-	.sportcolumn:first-of-type :nth-child(even) {
+	.sportcolumn.left :nth-child(even) {
 		transform: translate(-80px, 0);
 	}
 
-	.sportcolumn:last-of-type {
+	.sportcolumn.right {
 		right: 20vw;
 	}
 
-	.sportcolumn:last-of-type :nth-child(even) {
+	.sportcolumn.right :nth-child(even) {
 		transform: translate(80px, 0);
 	}
 
@@ -163,14 +178,25 @@
 		background-color: var(--accent);
 	}
 
-	/* Fills the hero and never overflows it: object-fit keeps the eclipse whole. */
+	.editions a.current {
+		color: var(--bg);
+		background-color: var(--accent);
+		border-color: var(--accent);
+	}
+
+	/* The eclipse image is 1664 x 1108: as tall as the hero, or as wide as the viewport. */
+	.moon {
+		position: relative;
+		width: calc(65vh * 1664 / 1108);
+		max-width: 100%;
+		aspect-ratio: 1664 / 1108;
+	}
+
 	#eclipse {
 		position: absolute;
 		inset: 0;
 		width: 100%;
 		height: 100%;
-		object-fit: contain;
-		transform: translate(1%, 0);
 		z-index: -1;
 	}
 
@@ -183,9 +209,13 @@
 		z-index: 1;
 	}
 
+	/* Centred on the dark disc (31% of the image wide), well inside it. */
 	#title {
-		width: min(25%, 300px);
 		position: absolute;
+		left: 49.3%;
+		top: 53%;
+		width: 24%;
+		transform: translate(-50%, -50%);
 	}
 
 	.fullscreen {
@@ -203,12 +233,12 @@
 			width: min(100px, 20vw);
 		}
 
-		#title {
-			width: min(25%, 200px);
-		}
-
 		.fullscreen {
 			height: 60vh;
+		}
+
+		.moon {
+			width: calc(60vh * 1664 / 1108);
 		}
 
 		#ranking a {

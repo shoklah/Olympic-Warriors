@@ -1,13 +1,17 @@
 <script>
 	import { iconFor } from '$lib/icons';
+	import { disciplineName, useLocale, useT } from '$lib/i18n';
 
 	export let year;
 	export let disciplines;
 	/** Id of the discipline whose page is showing, or null on the ranking page. */
 	export let currentId = null;
+
+	const locale = useLocale();
+	const t = useT();
 </script>
 
-<nav aria-label="Disciplines">
+<nav aria-label={t('nav.disciplines')}>
 	{#each disciplines as discipline}
 		<a
 			class="tile"
@@ -15,7 +19,7 @@
 			class:current={discipline.id === currentId}
 			href="/{year}/disciplines/{discipline.id}"
 			aria-current={discipline.id === currentId ? 'page' : undefined}
-			aria-label={discipline.name}
+			aria-label={disciplineName(locale, discipline.name)}
 		>
 			<img src={iconFor(discipline.name)} alt="" />
 		</a>

@@ -1,7 +1,9 @@
 <script>
-	/** Home team name. */
+	import { useT } from '$lib/i18n';
+
+	/** Home team name; null when the id matched no team (the "unknown" label is shown). @type {string | null} */
 	export let team1Name;
-	/** Away team name. */
+	/** Away team name, same rule. @type {string | null} */
 	export let team2Name;
 	/** @type {number | null} */
 	export let score1 = null;
@@ -14,18 +16,35 @@
 	export let team1Href = null;
 	/** @type {string | null} */
 	export let team2Href = null;
+	/** Short round label ("R1") rendered in a narrow column before the pairing, or null. */
+	export let roundLabel = null;
+	/** Ids of the two teams, needed only with `highlightId`. */
+	export let team1Id = null;
+	export let team2Id = null;
+	/** The team whose page this row is on: accent colour, plain text instead of a link. */
+	export let highlightId = null;
+
+	const t = useT();
 
 	$: hasScore = isPlayed && score1 !== null && score2 !== null;
 	$: team1Class = !hasScore || score1 === score2 ? '' : score1 > score2 ? 'winner' : 'loser';
 	$: team2Class = !hasScore || score1 === score2 ? '' : score2 > score1 ? 'winner' : 'loser';
+	$: own1 = highlightId !== null && team1Id === highlightId;
+	$: own2 = highlightId !== null && team2Id === highlightId;
+	$: name1 = team1Name ?? t('team.unknown');
+	$: name2 = team2Name ?? t('team.unknown');
 </script>
 
 <div class="game-row" data-testid="game-row">
 	<p class="teams">
-		{#if team1Href}
-			<a class="team {team1Class}" href={team1Href}>{team1Name}</a>
+		{#if roundLabel}
+			<span class="round label">{roundLabel}</span>
+		{/if}
+
+		{#if team1Href && !own1}
+			<a class="team {team1Class}" href={team1Href}>{name1}</a>
 		{:else}
-			<span class="team {team1Class}">{team1Name}</span>
+			<span class="team {team1Class}" class:own={own1}>{name1}</span>
 		{/if}
 
 		{#if hasScore}
@@ -33,17 +52,17 @@
 		{:else if !isPlayed}
 			<span class="score num unplayed">— : —</span>
 		{:else}
-			<span class="score pending">played</span>
+			<span class="score pending">{t('game.played')}</span>
 		{/if}
 
-		{#if team2Href}
-			<a class="team right {team2Class}" href={team2Href}>{team2Name}</a>
+		{#if team2Href && !own2}
+			<a class="team right {team2Class}" href={team2Href}>{name2}</a>
 		{:else}
-			<span class="team right {team2Class}">{team2Name}</span>
+			<span class="team right {team2Class}" class:own={own2}>{name2}</span>
 		{/if}
 	</p>
 	{#if refereeName}
-		<p class="referee">ref: {refereeName}</p>
+		<p class="referee">{t('game.referee', { name: refereeName })}</p>
 	{/if}
 </div>
 
@@ -74,6 +93,23 @@
 
 	.team.right {
 		text-align: right;
+	}
+
+	.round {
+		flex: none;
+		min-width: 2.4rem;
+		color: var(--muted);
+	}
+
+	/* The own team is in accent: bold when it won, faded and thin when it lost, so the
+	   outcome reads from its name alone, not only from the opponent's contrast. */
+	.team.own {
+		color: var(--accent);
+	}
+
+	.team.own.loser {
+		opacity: 0.55;
+		font-weight: 400;
 	}
 
 	.team:focus-visible {

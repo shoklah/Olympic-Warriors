@@ -3,8 +3,11 @@
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import DisciplineRail from '$lib/components/DisciplineRail.svelte';
 	import MedalRank from '$lib/components/MedalRank.svelte';
+	import { useT } from '$lib/i18n';
 
 	export let data;
+
+	const t = useT();
 
 	$: year = data.summary.edition.year;
 	$: teams = rankedTeams(data.summary);
@@ -12,30 +15,40 @@
 </script>
 
 <div class="page">
-	<Breadcrumb items={[{ label: String(year), href: `/${year}` }, { label: 'Ranking' }]} />
-	<h1>Ranking</h1>
+	<Breadcrumb items={[{ label: String(year), href: `/${year}` }, { label: t('nav.ranking') }]} />
+	<h1>{t('ranking.title')}</h1>
 
-	<div class="columns">
-		<div id="disciplines">
-			<DisciplineRail {year} {disciplines} />
-		</div>
+	<div class="rail">
+		<DisciplineRail {year} {disciplines} />
+	</div>
 
-		<div id="teams">
-			{#each teams as team}
-				<a
-					class="team-row"
-					class:gold={team.ranking === 1}
-					class:silver={team.ranking === 2}
-					class:bronze={team.ranking === 3}
-					data-testid="team-row"
-					href="/{year}/teams/{team.id}"
-				>
-					<MedalRank rank={team.ranking} />
+	<!-- The only list of teams: the podium and the rosters in one card each. -->
+	<div class="list">
+		{#each teams as team}
+			<a
+				class="team-card"
+				class:gold={team.ranking === 1}
+				class:silver={team.ranking === 2}
+				class:bronze={team.ranking === 3}
+				data-testid="team-card"
+				href="/{year}/teams/{team.id}"
+			>
+				<MedalRank rank={team.ranking} />
+				<span class="text">
 					<span class="name">{team.name}</span>
-					<span class="num pts">{team.total_points} pts</span>
-				</a>
-			{/each}
-		</div>
+					<!-- One span per player so each name stays a single text node, with real
+					     separator spans so copied text keeps the dots. -->
+					<span class="roster">
+						{#each team.players as player, i}
+							{#if i > 0}<span class="sep" aria-hidden="true">{' · '}</span>{/if}<span
+								>{player.first_name} {player.last_name}</span
+							>
+						{/each}
+					</span>
+				</span>
+				<span class="num pts">{team.total_points} {t('team.pts')}</span>
+			</a>
+		{/each}
 	</div>
 </div>
 
@@ -44,25 +57,18 @@
 		margin: 0 0 0.8rem;
 	}
 
-	.columns {
-		display: flex;
-		flex-direction: column;
-		gap: 14px;
-		margin-bottom: 2rem;
+	.rail {
+		margin-bottom: 14px;
 	}
 
-	.team-row:focus-visible {
-		outline: 2px solid var(--accent);
-		outline-offset: -2px;
-	}
-
-	#teams {
+	.list {
 		display: flex;
 		flex-direction: column;
 		gap: 6px;
+		margin-bottom: 2rem;
 	}
 
-	.team-row {
+	.team-card {
 		display: grid;
 		grid-template-columns: 44px minmax(0, 1fr) auto;
 		align-items: center;
@@ -70,63 +76,64 @@
 		--medal-size: 1.9rem;
 		padding: 10px 12px;
 		background: var(--bg-raised);
-		border-radius: var(--radius);
+		border: 1px solid var(--line);
 		border-left: 4px solid var(--line-strong);
+		border-radius: var(--radius);
 		color: var(--text);
 		text-decoration: none;
-		transition: background 0.2s ease;
+		transition:
+			transform 0.2s ease,
+			background 0.2s ease;
 	}
 
-	.team-row:hover {
+	.team-card:hover {
 		background: var(--line);
+		transform: translateY(-2px);
 		text-decoration: none;
 	}
 
-	.team-row.gold {
+	.team-card:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: -2px;
+	}
+
+	.team-card.gold {
 		border-left-color: var(--gold);
 	}
 
-	.team-row.silver {
+	.team-card.silver {
 		border-left-color: var(--silver);
 	}
 
-	.team-row.bronze {
+	.team-card.bronze {
 		border-left-color: var(--bronze);
 	}
 
-	.name {
-		font-weight: 600;
-		font-size: 1rem;
+	.text {
 		min-width: 0;
+	}
+
+	.name {
+		display: block;
+		font-weight: 600;
 		overflow-wrap: anywhere;
+	}
+
+	.roster {
+		display: block;
+		margin-top: 2px;
+		font-size: 0.75rem;
+		color: var(--muted);
+		overflow-wrap: anywhere;
+	}
+
+	.sep {
+		color: var(--ghost);
 	}
 
 	.pts {
 		font-size: 1.6rem;
 		line-height: 1;
 		letter-spacing: 0.06em;
-	}
-
-	@media (min-width: 1000px) {
-		.columns {
-			flex-direction: row;
-			align-items: flex-start;
-			gap: 20px;
-		}
-
-		#teams {
-			order: 1;
-			flex: 1;
-		}
-
-		#disciplines {
-			order: 2;
-		}
-
-		/* The rail is the component's own <nav>: stack it beside the rows. */
-		#disciplines :global(nav) {
-			flex-direction: column;
-			overflow: visible;
-		}
 	}
 </style>

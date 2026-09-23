@@ -187,33 +187,46 @@ describe('formatDifference', () => {
 });
 
 describe('ordinal', () => {
-	it('suffixes the usual ranks', () => {
-		expect(ordinal(1)).toBe('1st');
-		expect(ordinal(2)).toBe('2nd');
-		expect(ordinal(3)).toBe('3rd');
-		expect(ordinal(4)).toBe('4th');
+	it('suffixes the usual English ranks', () => {
+		expect(ordinal(1, 'en')).toBe('1st');
+		expect(ordinal(2, 'en')).toBe('2nd');
+		expect(ordinal(3, 'en')).toBe('3rd');
+		expect(ordinal(4, 'en')).toBe('4th');
 	});
 
-	it('keeps the teens in th', () => {
-		expect(ordinal(11)).toBe('11th');
-		expect(ordinal(12)).toBe('12th');
-		expect(ordinal(13)).toBe('13th');
+	it('keeps the English teens in th', () => {
+		expect(ordinal(11, 'en')).toBe('11th');
+		expect(ordinal(12, 'en')).toBe('12th');
+		expect(ordinal(13, 'en')).toBe('13th');
 	});
 
-	it('suffixes above twenty and above a hundred', () => {
-		expect(ordinal(21)).toBe('21st');
-		expect(ordinal(22)).toBe('22nd');
-		expect(ordinal(23)).toBe('23rd');
-		expect(ordinal(101)).toBe('101st');
-		expect(ordinal(111)).toBe('111th');
+	it('suffixes above twenty and above a hundred in English', () => {
+		expect(ordinal(21, 'en')).toBe('21st');
+		expect(ordinal(22, 'en')).toBe('22nd');
+		expect(ordinal(23, 'en')).toBe('23rd');
+		expect(ordinal(101, 'en')).toBe('101st');
+		expect(ordinal(111, 'en')).toBe('111th');
+	});
+
+	it('writes French ranks for a team: 1re then Ne', () => {
+		expect(ordinal(1, 'fr')).toBe('1re');
+		expect(ordinal(2, 'fr')).toBe('2e');
+		expect(ordinal(3, 'fr')).toBe('3e');
+		expect(ordinal(11, 'fr')).toBe('11e');
+		expect(ordinal(21, 'fr')).toBe('21e');
+	});
+
+	it('falls back to French for an unknown locale', () => {
+		expect(ordinal(2, 'de')).toBe('2e');
+		expect(ordinal(2)).toBe('2e');
 	});
 });
 
 describe('switchYearPath', () => {
 	it('replaces the year segment and keeps the section', () => {
-		expect(switchYearPath('/2026/teams', 2025)).toBe('/2025/teams');
+		expect(switchYearPath('/2026/teams', 2025)).toBe('/2025/ranking');
 		expect(switchYearPath('/2026/disciplines/12', 2025)).toBe('/2025/disciplines');
-		expect(switchYearPath('/2026/teams/3', 2025)).toBe('/2025/teams');
+		expect(switchYearPath('/2026/teams/3', 2025)).toBe('/2025/ranking');
 		expect(switchYearPath('/2026', 2025)).toBe('/2025');
 	});
 
@@ -225,15 +238,25 @@ describe('switchYearPath', () => {
 
 describe('formatDateRange', () => {
 	it('prints one date for a single-day edition', () => {
-		expect(formatDateRange('2026-09-19', '2026-09-19')).toBe('19 September 2026');
+		expect(formatDateRange('2026-09-19', '2026-09-19', 'en')).toBe('19 September 2026');
+		expect(formatDateRange('2026-09-19', '2026-09-19', 'fr')).toBe('19 septembre 2026');
 	});
 
 	it('names the month once within a month', () => {
-		expect(formatDateRange('2026-09-19', '2026-09-20')).toBe('19 – 20 September 2026');
+		expect(formatDateRange('2026-09-19', '2026-09-20', 'en')).toBe('19 – 20 September 2026');
+		expect(formatDateRange('2026-09-19', '2026-09-20', 'fr')).toBe('19 – 20 septembre 2026');
 	});
 
 	it('names both months across a month boundary', () => {
-		expect(formatDateRange('2026-09-30', '2026-10-01')).toBe('30 September – 1 October 2026');
+		expect(formatDateRange('2026-09-30', '2026-10-01', 'en')).toBe('30 September – 1 October 2026');
+		expect(formatDateRange('2026-09-30', '2026-10-01', 'fr')).toBe('30 septembre – 1er octobre 2026');
+		expect(formatDateRange('2026-10-01', '2026-10-01', 'fr')).toBe('1er octobre 2026');
+		expect(formatDateRange('2026-10-01', '2026-10-02', 'fr')).toBe('1er – 2 octobre 2026');
+	});
+
+	it('falls back to French for an unknown locale', () => {
+		expect(formatDateRange('2026-09-19', '2026-09-19', 'de')).toBe('19 septembre 2026');
+		expect(formatDateRange('2026-09-19', '2026-09-19')).toBe('19 septembre 2026');
 	});
 });
 
@@ -267,9 +290,11 @@ describe('disciplineSchedule', () => {
 		expect(disciplineSchedule(summary, 999)).toBeNull();
 	});
 
-	it('names an unknown team Unknown', () => {
+	it('gives a null name to an unknown or missing referee', () => {
 		const odd = { ...summary, games: [{ ...summary.games[0], referees: 42 }] };
-		expect(disciplineSchedule(odd, 10)[0].games[0].refereeName).toBe('Unknown');
+		expect(disciplineSchedule(odd, 10)[0].games[0].refereeName).toBeNull();
+		const none = { ...summary, games: [{ ...summary.games[0], referees: null }] };
+		expect(disciplineSchedule(none, 10)[0].games[0].refereeName).toBeNull();
 	});
 
 	it('includes a round with no games as an empty entry', () => {
@@ -284,81 +309,83 @@ describe('disciplineSchedule', () => {
 
 describe('disciplineSubtitle', () => {
 	it('counts the rounds and the games of the discipline', () => {
-		expect(disciplineSubtitle(summary, summary.disciplines[0])).toBe('2 rounds · 3 games');
-	});
-
-	it('keeps a single round and a single game singular', () => {
-		expect(disciplineSubtitle(summary, summary.disciplines[1])).toBe('1 round · 1 game');
+		expect(disciplineSubtitle(summary, summary.disciplines[0])).toEqual({ rounds: 2, games: 3 });
+		expect(disciplineSubtitle(summary, summary.disciplines[1])).toEqual({ rounds: 1, games: 1 });
 	});
 
 	it('counts the games even when the discipline has none yet', () => {
 		const noGames = { ...summary, games: summary.games.filter((g) => g.discipline !== 10) };
-		expect(disciplineSubtitle(noGames, summary.disciplines[0])).toBe('2 rounds · 0 games');
+		expect(disciplineSubtitle(noGames, summary.disciplines[0])).toEqual({ rounds: 2, games: 0 });
 	});
 
-	it('falls back to the result type when the discipline has no round', () => {
+	it('gives the result type when the discipline has no round', () => {
 		const noRounds = { ...summary, rounds: [], games: [] };
-		expect(disciplineSubtitle(noRounds, { id: 10, result_type: 'PTS' })).toBe('points');
-		expect(disciplineSubtitle(noRounds, { id: 10, result_type: 'TIM' })).toBe('time');
-		expect(disciplineSubtitle(noRounds, { id: 10, result_type: 'NON' })).toBe('');
+		expect(disciplineSubtitle(noRounds, { id: 10, result_type: 'PTS' })).toEqual({ resultType: 'PTS' });
+		expect(disciplineSubtitle(noRounds, { id: 10, result_type: 'TIM' })).toEqual({ resultType: 'TIM' });
+		expect(disciplineSubtitle(noRounds, { id: 10, result_type: 'NON' })).toEqual({ resultType: 'NON' });
 	});
 
 	it('ignores reveal_score', () => {
 		const hidden = { ...summary.disciplines[0], reveal_score: false };
-		expect(disciplineSubtitle(summary, hidden)).toBe('2 rounds · 3 games');
+		expect(disciplineSubtitle(summary, hidden)).toEqual({ rounds: 2, games: 3 });
 	});
 });
 
 describe('roundCount', () => {
 	const round = (...played) => ({ games: played.map((isPlayed) => ({ isPlayed })) });
 
-	it('counts the games of a round once every one is played', () => {
-		expect(roundCount(round(true, true, true))).toEqual({ text: '3 games', todo: false });
-	});
-
-	it('keeps a single game singular', () => {
-		expect(roundCount(round(true))).toEqual({ text: '1 game', todo: false });
-	});
-
-	it('counts what is left to play while a game is unplayed', () => {
-		expect(roundCount(round(true, false, false))).toEqual({ text: '2 to play', todo: true });
+	it('counts the games and what is left to play', () => {
+		expect(roundCount(round(true, true, true))).toEqual({ left: 0, total: 3 });
+		expect(roundCount(round(true))).toEqual({ left: 0, total: 1 });
+		expect(roundCount(round(true, false, false))).toEqual({ left: 2, total: 3 });
 	});
 });
 
 describe('teamGames', () => {
-	it('lists play and referee rows per discipline, own score first', () => {
+	it('lists the games the team played per discipline, in round order, referee named', () => {
 		const [relay, orienteering] = teamGames(summary, 1);
 		expect(relay.disciplineName).toBe('Relay');
 		expect(relay.games).toEqual([
-			{ id: 200, round: 0, role: 'play', opponentId: 2, opponentName: 'Bisons', team1Name: 'Bisons', team2Name: 'Aigles', isPlayed: true, ownScore: 9, theirScore: 12, result: 'loss' },
-			{ id: 201, round: 0, role: 'referee', opponentId: null, opponentName: null, team1Name: 'Cerfs', team2Name: 'Bisons', isPlayed: false, ownScore: null, theirScore: null, result: null },
-			{ id: 202, round: 1, role: 'play', opponentId: 3, opponentName: 'Cerfs', team1Name: 'Aigles', team2Name: 'Cerfs', isPlayed: true, ownScore: 7, theirScore: 7, result: 'draw' }
+			{ id: 200, round: 0, team1Id: 2, team2Id: 1, team1Name: 'Bisons', team2Name: 'Aigles', refereeName: 'Cerfs', isPlayed: true, score1: 12, score2: 9 },
+			{ id: 202, round: 1, team1Id: 1, team2Id: 3, team1Name: 'Aigles', team2Name: 'Cerfs', refereeName: 'Bisons', isPlayed: true, score1: 7, score2: 7 }
 		]);
-		expect(orienteering.games[0]).toMatchObject({ role: 'play', opponentName: 'Bisons', isPlayed: true, ownScore: null, result: null });
+		expect(orienteering.games).toEqual([
+			{ id: 203, round: 0, team1Id: 1, team2Id: 2, team1Name: 'Aigles', team2Name: 'Bisons', refereeName: 'Cerfs', isPlayed: true, score1: null, score2: null }
+		]);
 	});
 
-	it('reports a win and an unplayed game', () => {
-		const [relay] = teamGames(summary, 2);
-		expect(relay.games.map((g) => [g.role, g.isPlayed, g.result])).toEqual([
-			['play', true, 'win'],
-			['play', false, null],
-			['referee', true, null]
-		]);
+	it('leaves out the games the team only referees', () => {
+		expect(teamGames(summary, 1).flatMap((d) => d.games.map((g) => g.id))).not.toContain(201);
+		const [relay] = teamGames(summary, 3);
+		expect(relay.games.map((g) => g.id)).toEqual([201, 202]);
 	});
 
 	it('omits disciplines where the team has no game', () => {
+		// Cerfs only referee the Orienteering game, so that discipline is not listed for them.
+		expect(teamGames(summary, 3).map((d) => d.disciplineName)).toEqual(['Relay']);
 		const none = { ...summary, games: summary.games.filter((g) => g.discipline !== 11) };
-		expect(teamGames(none, 3).map((d) => d.disciplineName)).toEqual(['Relay']);
+		expect(teamGames(none, 1).map((d) => d.disciplineName)).toEqual(['Relay']);
 	});
 
 	it('returns an empty array for an unknown team', () => {
 		expect(teamGames(summary, 999)).toEqual([]);
 	});
 
-	it('treats a team that is both player and referee in one game as playing', () => {
+	it('keeps a game whose referee is unknown, with a null name', () => {
+		const odd = { ...summary, games: [{ ...summary.games[0], referees: 42 }] };
+		expect(teamGames(odd, 2)[0].games[0].refereeName).toBeNull();
+	});
+
+	it('gives no round to a game whose round is not in the summary, sorted last', () => {
+		const odd = { ...summary, games: [...summary.games, { ...summary.games[0], id: 299, round: 99 }] };
+		const [relay] = teamGames(odd, 2);
+		expect(relay.games.map((g) => [g.id, g.round])).toEqual([[200, 0], [201, 0], [299, null]]);
+	});
+
+	it('lists a game the team both plays and referees once, as played', () => {
 		const odd = { ...summary, games: [{ ...summary.games[0], referees: 2 }] };
-		const [discipline] = teamGames(odd, 2);
-		expect(discipline.games).toHaveLength(1);
-		expect(discipline.games[0].role).toBe('play');
+		const [relay] = teamGames(odd, 2);
+		expect(relay.games).toHaveLength(1);
+		expect(relay.games[0].refereeName).toBe('Bisons');
 	});
 });

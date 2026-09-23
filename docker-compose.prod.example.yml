@@ -101,6 +101,8 @@ services:
     environment:
       - PORT=3000
       - NODE_ENV=PRODUCTION
+      # Public origin of the site: SvelteKit refuses form POSTs (the language switch) whose Origin differs.
+      - ORIGIN=https://olympicwarriors.com
     volumes:
       - ./front/:/usr/src/app
       - /usr/src/app/node_modules

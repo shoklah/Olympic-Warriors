@@ -1,4 +1,6 @@
 <script>
+	import { useT } from '$lib/i18n';
+
 	/**
 	 * Year of the edition the tabs point at; nothing renders without one.
 	 * @type {number | string | null}
@@ -9,20 +11,22 @@
 	/** External album of the edition, when it has one. */
 	export let photosUrl = null;
 
+	const t = useT();
+
 	$: current = Number(year);
 	$: visible = year !== null && year !== undefined && !Number.isNaN(current);
 	$: items = visible
 		? [
-				{ name: 'Ranking', url: `/${current}/ranking` },
-				{ name: 'Teams', url: `/${current}/teams` },
-				{ name: 'Disciplines', url: `/${current}/disciplines` },
-				...(photosUrl ? [{ name: 'Photos', url: photosUrl, external: true }] : [])
+				// A team page is reached from the ranking, so it lights that item.
+				{ name: t('nav.ranking'), url: `/${current}/ranking`, also: `/${current}/teams` },
+				{ name: t('nav.disciplines'), url: `/${current}/disciplines` },
+				...(photosUrl ? [{ name: t('nav.photos'), url: photosUrl, external: true }] : [])
 			]
 		: [];
 </script>
 
 {#if visible}
-	<nav class="tabbar" aria-label="Sections">
+	<nav class="tabbar" aria-label={t('nav.sections')}>
 		{#each items as item}
 			{#if item.external}
 				<a href={item.url} target="_blank" rel="noopener">
@@ -32,7 +36,9 @@
 			{:else}
 				<a
 					href={item.url}
-					aria-current={pathname.startsWith(item.url) ? 'page' : undefined}
+					aria-current={[item.url, item.also].some((u) => u && pathname.startsWith(u))
+						? 'page'
+						: undefined}
 				>
 					<span class="icon" aria-hidden="true"></span>
 					<span class="name">{item.name}</span>
