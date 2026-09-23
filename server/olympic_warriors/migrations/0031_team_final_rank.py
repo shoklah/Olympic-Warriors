@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('olympic_warriors', '0029_game_score_labels'),
+        ('olympic_warriors', '0030_first_editions_disciplines'),
     ]
 
     operations = [
