@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/svelte';
+import { screen, within } from '@testing-library/svelte';
 import { describe, expect, it, vi } from 'vitest';
 import { renderWith } from '$lib/test-utils';
 import Header from './Header.svelte';
@@ -73,5 +73,26 @@ describe('Header', () => {
 
 		renderWith(Header, {}, 'fr');
 		expect(screen.getByRole('link', { name: 'Connexion' })).toHaveAttribute('href', '/login');
+	});
+
+	it('links the players leaderboard after the disciplines, outside any year', () => {
+		renderWith(Header, {}, 'en');
+
+		const nav = screen.getByRole('navigation', { name: 'Sections' });
+		expect(within(nav).getAllByRole('link').map((a) => a.textContent.trim())).toEqual([
+			'Ranking',
+			'Disciplines',
+			'Players',
+			'Photos'
+		]);
+		const players = screen.getByRole('link', { name: 'Players' });
+		expect(players).toHaveAttribute('href', '/players');
+		expect(players).not.toHaveAttribute('aria-current');
+	});
+
+	it('words the players tab in French', () => {
+		renderWith(Header, {}, 'fr');
+
+		expect(screen.getByRole('link', { name: 'Joueurs' })).toHaveAttribute('href', '/players');
 	});
 });

@@ -53,11 +53,16 @@
 		<div class="label"><span class="num">{parts.minutes}</span>{t('hub.minutes')}</div>
 		<div class="label"><span class="num">{parts.seconds}</span>{t('hub.seconds')}</div>
 	</div>
-{:else}
-	<div id="ranking">
-		<a href="/{edition.year}/ranking">{t('hub.ranking')}</a>
-	</div>
 {/if}
+
+<!-- The leaderboard covers past editions, so its link shows before the start too; on a
+     phone the hub has no tab bar, and this is the way in. -->
+<div id="ranking">
+	{#if phase !== 'upcoming'}
+		<a href="/{edition.year}/ranking">{t('hub.ranking')}</a>
+	{/if}
+	<a class="secondary" href="/players">{t('hub.players')}</a>
+</div>
 
 {#if editions.length > 1}
 	<!-- Same rule as the discipline rail: every edition listed, the current one highlighted. -->
@@ -137,6 +142,18 @@
 	#ranking a:hover,
 	#ranking a:focus-visible {
 		opacity: 0.8;
+	}
+
+	#ranking {
+		flex-wrap: wrap;
+		gap: 1rem;
+	}
+
+	/* Same shape as the ranking button, outlined: the edition's ranking stays the main call. */
+	#ranking a.secondary {
+		background: transparent;
+		color: var(--accent);
+		box-shadow: inset 0 0 0 2px var(--accent);
 	}
 
 	#countdown .label {
