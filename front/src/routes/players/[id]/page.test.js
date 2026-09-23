@@ -123,6 +123,67 @@ describe('player profile page', () => {
 		expect(rows[0].querySelector('.places')).toHaveAttribute('aria-hidden', 'true');
 	});
 
+	it('gives the best-discipline icons an empty alt (decorative)', () => {
+		renderWith(Page, { data: { profile } });
+
+		const card = screen.getByTestId('best-discipline');
+		const imgs = card.querySelectorAll('img');
+		expect(imgs.length).toBeGreaterThan(0);
+		imgs.forEach((img) => expect(img).toHaveAttribute('alt', ''));
+	});
+
+	it('colours the top three discipline-row ranks gold, silver and bronze', () => {
+		renderWith(Page, { data: { profile } });
+
+		const rows = screen.getAllByTestId('discipline-row');
+		const relayRanks = rows[0].querySelectorAll('.place-rank');
+		expect(relayRanks[0]).toHaveTextContent('1');
+		expect(relayRanks[0]).toHaveClass('gold');
+		expect(relayRanks[1]).toHaveTextContent('2');
+		expect(relayRanks[1]).toHaveClass('silver');
+
+		const dartsRank = rows[2].querySelector('.place-rank');
+		expect(dartsRank).toHaveTextContent('3');
+		expect(dartsRank).toHaveClass('bronze');
+	});
+
+	it('renders every place of a discipline even with many of them', () => {
+		const manyPlaces = {
+			...profile,
+			disciplines: [
+				{
+					name: 'Relay',
+					position: 1,
+					places: Array.from({ length: 6 }, (_, i) => ({ year: 2026 - i, rank: i + 1 }))
+				}
+			]
+		};
+		renderWith(Page, { data: { profile: manyPlaces } });
+
+		const row = screen.getByTestId('discipline-row');
+		const ranks = row.querySelectorAll('.place-rank');
+		expect(ranks).toHaveLength(6);
+		expect(Array.from(ranks).map((el) => el.textContent)).toEqual(['1', '2', '3', '4', '5', '6']);
+		expect(row.querySelectorAll('.place-year')).toHaveLength(6);
+	});
+
+	it('gives the best-discipline "+N" a spoken context', () => {
+		const tied = {
+			...profile,
+			disciplines: ['Relay', 'Darts', 'Crossfit', 'Petanque'].map((name) => ({
+				name,
+				position: 1,
+				places: [{ year: 2026, rank: 1 }]
+			}))
+		};
+		renderWith(Page, { data: { profile: tied } });
+
+		const card = screen.getByTestId('best-discipline');
+		const more = within(card).getByText('+1');
+		expect(more).toHaveAttribute('aria-hidden', 'true');
+		expect(within(card).getByText('and 1 more discipline')).toBeInTheDocument();
+	});
+
 	it('speaks French for the best-discipline card and the by-discipline section', () => {
 		renderWith(Page, { data: { profile } }, 'fr');
 

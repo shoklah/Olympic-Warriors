@@ -34,6 +34,7 @@ export default {
 	'profile.inProgress': 'In progress',
 	'profile.bestDiscipline': { one: 'Signature event', other: 'Signature events' },
 	'profile.byDiscipline': 'By discipline',
+	'profile.moreDisciplines': { one: 'and {n} more discipline', other: 'and {n} more disciplines' },
 	'ranking.title': 'Ranking',
 	'disciplines.title': 'Disciplines',
 	'discipline.rounds': { one: '{n} round', other: '{n} rounds' },

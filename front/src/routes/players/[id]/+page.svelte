@@ -13,7 +13,9 @@
 
 	$: profile = data.profile;
 	$: name = fullName(profile);
-	$: best = bestDisciplines(profile.disciplines);
+	// Defensive: a front deployed ahead of a server that doesn't carry `disciplines` yet.
+	$: disciplines = profile.disciplines ?? [];
+	$: best = bestDisciplines(disciplines);
 
 	/** "1st place in 2026, 2nd place in 2023", spoken for the visually hidden readers. */
 	const spoken = (places) =>
@@ -42,14 +44,15 @@
 		<div class="figure" data-testid="best-discipline">
 			<span class="label">{t('profile.bestDiscipline', { n: Math.max(best.count, 1) })}</span>
 			{#if best.count > 0}
-				<span class="best-list">
+				<ul class="best-list" role="list">
 					{#each best.shown as d}
-						<span class="best"><img src={iconFor(d.name)} alt="" />{disciplineName(locale, d.name)}</span>
+						<li class="best"><img src={iconFor(d.name)} alt="" />{disciplineName(locale, d.name)}</li>
 					{/each}
-					{#if best.more > 0}
-						<span class="num more">{t('players.more', { n: best.more })}</span>
-					{/if}
-				</span>
+				</ul>
+				{#if best.more > 0}
+					<span class="num more" aria-hidden="true">{t('players.more', { n: best.more })}</span>
+					<span class="visually-hidden">{t('profile.moreDisciplines', { n: best.more })}</span>
+				{/if}
 			{:else}
 				<span class="num value">—</span>
 			{/if}
@@ -90,16 +93,16 @@
 		{/each}
 	</ul>
 
-	{#if profile.disciplines.length > 0}
+	{#if disciplines.length > 0}
 		<h2>{t('profile.byDiscipline')}</h2>
 		<ul class="disciplines" role="list">
-			{#each profile.disciplines as d}
+			{#each disciplines as d}
 				<li class="discipline" data-testid="discipline-row">
 					<img src={iconFor(d.name)} alt="" />
 					<span class="name">{disciplineName(locale, d.name)}</span>
 					<span class="places" aria-hidden="true">
 						{#each d.places as p}
-							<span class="place"
+							<span class="discipline-place"
 								><span
 									class="num place-rank"
 									class:gold={p.rank === 1}
@@ -154,6 +157,13 @@
 		margin-bottom: 0.6rem;
 	}
 
+	/* Two 14rem cards don't fit below 360px: stack them instead of squeezing. */
+	@media (max-width: 359.98px) {
+		.figures {
+			grid-template-columns: minmax(0, 14rem);
+		}
+	}
+
 	.figure {
 		display: flex;
 		flex-direction: column;
@@ -177,7 +187,9 @@
 		display: flex;
 		flex-direction: column;
 		gap: 4px;
-		margin-top: auto;
+		margin: auto 0 0;
+		padding: 0;
+		list-style: none;
 	}
 
 	.best {
@@ -185,7 +197,8 @@
 		align-items: center;
 		gap: 6px;
 		font-size: 0.95rem;
-		overflow-wrap: anywhere;
+		overflow-wrap: break-word;
+		hyphens: auto;
 		color: var(--ink);
 	}
 
@@ -195,8 +208,9 @@
 		flex-shrink: 0;
 	}
 
-	.best-list .more {
-		font-size: 0.85rem;
+	.more {
+		font-size: 0.95rem;
+		line-height: 1.3;
 		color: var(--muted);
 	}
 
@@ -279,7 +293,7 @@
 
 	.discipline {
 		display: grid;
-		grid-template-columns: 20px minmax(0, 1fr) auto;
+		grid-template-columns: 20px minmax(7rem, 1fr) auto;
 		align-items: center;
 		gap: 12px;
 		padding: 10px 0;
@@ -300,19 +314,21 @@
 		display: flex;
 		flex-wrap: wrap;
 		align-items: baseline;
+		justify-content: flex-end;
 		gap: 4px 10px;
 		justify-self: end;
 	}
 
-	.place {
+	.discipline-place {
 		display: inline-flex;
 		align-items: baseline;
 		gap: 4px;
 	}
 
 	.place-rank {
-		font-size: 1.3rem;
-		line-height: 1;
+		font-size: 1.15rem;
+		line-height: 1.1;
+		letter-spacing: 0.04em;
 		color: var(--muted);
 	}
 

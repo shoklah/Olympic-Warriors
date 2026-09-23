@@ -38,6 +38,7 @@ export default {
 	'profile.inProgress': 'En cours',
 	'profile.bestDiscipline': { one: 'Épreuve fétiche', other: 'Épreuves fétiches' },
 	'profile.byDiscipline': 'Par épreuve',
+	'profile.moreDisciplines': { one: 'et {n} autre épreuve', other: 'et {n} autres épreuves' },
 	'ranking.title': 'Classement',
 	'disciplines.title': 'Épreuves',
 	'discipline.rounds': { one: '{n} tour', other: '{n} tours' },
