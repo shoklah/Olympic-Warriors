@@ -132,7 +132,7 @@ The part READMEs have the rest:
 
 [`.github/workflows/test.yml`](.github/workflows/test.yml) runs on every push and on pull requests to `main` and `dev`. It has two jobs:
 
-- **`front`** blocks the merge on failure. It runs `npm ci`, `npm test` and `npm run build` on Node 22.
+- **`front`** is the job that counts. It runs `npm ci`, `npm test` and `npm run build` on Node 22, and any failure fails the workflow. It is not a required status check, so look at it before merging.
 - **`test`** is advisory. It runs pylint with `continue-on-error`, then builds the images and starts the containers. Nothing checks that the containers stay up, and the Django migrate and test steps are commented out. Run the backend tests locally before merging.
 
 ## Deployment
@@ -147,10 +147,11 @@ The part READMEs have the rest:
 Before the first deploy, work through these points:
 
 - **Fill in the template.** The database settings and `ports` are blank, and so is `CERTBOT_EMAIL`. Adjust the absolute `/opt/OW_stage/...` paths of the stage stack as well.
-- **Server config.** Create `server/prod.env`: `ENV=prod` reads it instead of `dev.env`. The file is copied into the image at build time, so after editing it, rebuild `server` rather than restarting it.
+- **Server config.** Create `server/prod.env`: `ENV=prod` reads it instead of `dev.env`. Also create the log folder with `mkdir -p server/logs`. Both are copied into the image at build time, so after editing `prod.env`, rebuild `server` rather than restarting it.
+- **`dev.env` at build time.** The image build runs `collectstatic` with `ENV` unset, which loads `server/dev.env`. That file must therefore exist in the build context too, with at least `SECRET_KEY`, `DEBUG` and the `DB_*` keys.
 - **Migrations.** Nothing runs them in production. After each deploy that adds migrations, run `migrate`. After the first deploy, also run `createsu`.
 - **Front config.** `front/.env` must hold the production `API_URL` before you build the front image.
-- **`ORIGIN`.** Set it on each front, `front-stage` included (the template has it only on `front`). Without it, SvelteKit refuses the language switch behind the TLS-terminating proxy.
+- **`ORIGIN`.** Set it on each front, `front-stage` included (the template has it only on `front`). Without it, SvelteKit refuses every form POST behind the TLS-terminating proxy: the language switch, login, logout and the organiser tools.
 - **Client IPs.** The login throttle identifies clients by the last `X-Forwarded-For` entry. For that reason:
   - The app ports are bound to `127.0.0.1`.
   - Every nginx location that proxies to the server or the front must set `X-Forwarded-For $proxy_add_x_forwarded_for`.

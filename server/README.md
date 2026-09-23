@@ -71,13 +71,13 @@ docker compose up --build
 
 ### Without Docker
 
-You need Python 3.11 and a PostgreSQL server. The easiest way is to start only the compose database:
+You need Python 3.11 and a PostgreSQL server. First create `server/dev.env` and `server/logs/` as described above. The easiest way to get a database is to start only the compose database:
 
 ```bash
 docker compose up -d db
 ```
 
-Then, in `server/dev.env`, set `DB_HOST=localhost`. The port stays `5433`. From `server/`:
+The compose `server` service needs `DB_HOST=db` in `dev.env`, so keep it there. Pass `DB_HOST=localhost` as a real environment variable instead, which wins over the file. The port stays `5433`. From `server/`:
 
 ```bash
 python -m venv venv
@@ -92,11 +92,11 @@ pip install -r requirements.txt
 ```
 
 ```bash
-python manage.py migrate
+DB_HOST=localhost python manage.py migrate
 ```
 
 ```bash
-python manage.py runserver 0.0.0.0:3003
+DB_HOST=localhost python manage.py runserver 0.0.0.0:3003
 ```
 
 - **Working directory:** run `manage.py` from `server/`, because the configuration reads `dev.env` from the current directory.
@@ -111,7 +111,7 @@ python manage.py runserver 0.0.0.0:3003
 | `dev`, or unset | `DevConfig` | `dev.env` |
 | `prod` | `ProdConfig` | `prod.env` |
 
-Any other value leaves the configuration empty, and Django fails to start. A real environment variable always overrides the same key in the file. Both files are gitignored, and `.env.example` is the template for both.
+Any other value leaves the configuration empty, and Django fails to start. A real environment variable always overrides the same key in the file. That override assigns the raw string without validation, so only override string and number keys this way. As an environment variable, `DEBUG=False` is a non-empty string and therefore true, and a JSON list stays a string. Change booleans and lists in the file. Both files are gitignored, and `.env.example` is the template for both.
 
 | Variable | Default | Notes |
 | --- | --- | --- |
@@ -196,7 +196,7 @@ The model properties `TeamResult.ranking`, `Team.total_points` and similar recom
 When a discipline gets a pairing system, either at creation or later while it still has no round, the scheduler creates its games. Both schedulers create games as unplayed.
 
 - **Round robin** (`schedule/round_robin.py`) generates every round up front with the circle method. It assigns a refereeing team from the teams not playing. `max_rounds` defaults to one full round robin.
-- **Swiss** (`schedule/swiss.py`) generates only the next round. It runs again each time a round is closed. `max_rounds` defaults to log2 of the team count.
+- **Swiss** (`schedule/swiss.py`) generates only the next round. It runs again each time a round is closed. `max_rounds` defaults to log2 of the team count, rounded up.
 
 ## API
 
@@ -217,7 +217,7 @@ Every endpoint requires a token unless it is listed as public below.
 | `GET /edition/year/<year>/summary/` | The whole edition in one payload (see below) |
 | `GET /disciplines/`, `/discipline/<id>/`, `/disciplines/<edition_id>/` | Disciplines |
 
-The front only reads `/editions/` and the summary.
+`/auth/token/`, the admin login page and `/api/schema/*` need no token either. Of the read endpoints, the front uses only `/editions/` and the summary. It also calls `/user/current/`, `/auth/token/` and the organiser endpoints below.
 
 The summary returns the edition's active rows: `edition`, `disciplines`, `teams` (each with its roster, `ranking` and `total_points`), `results`, `rounds` and `games`. Until a discipline is revealed, its scores are hidden:
 
@@ -233,7 +233,7 @@ These endpoints are for staff users only. They return 401 without a token, 403 f
 | Endpoint | Body |
 | --- | --- |
 | `PATCH /game/<id>/score/` | `{"score1": 12, "score2": 9, "is_played": true}` |
-| `PATCH /result/<id>/value/` | `{"points": 5}` or `{"time": "12:34"}` (`mm:ss`), or `null` to clear. Only for a discipline without rounds. |
+| `PATCH /result/<id>/value/` | `{"points": 5}` or `{"time": "12:34"}` (`mm:ss`). Send `{"points": null}` or `{"time": null}` to clear. Only for a discipline without rounds. |
 | `PATCH /discipline/<id>/reveal/` | `{"reveal_score": true}` |
 | `PATCH /round/<id>/close/` | No body. Refused until every game of the round is played. For a Swiss discipline it schedules the next round. |
 
@@ -253,7 +253,7 @@ The client IP is the last `X-Forwarded-For` entry, as set by nginx, or by the fr
 
 ### Writing a view
 
-Put per-view policy decorators such as `@permission_classes` **below** `@api_view`. Above it, DRF 3.16+ raises a `TypeError` at import, and the server does not start.
+Put per-view policy decorators such as `@permission_classes` **below** `@api_view`. Placed above it, the pinned DRF 3.15 silently ignores them, and the view falls back to `IsAuthenticated`. For an organiser endpoint, that would let any logged-in player write. DRF 3.16+ raises a `TypeError` at import instead. `test_public_endpoints` and `test_organiser` catch the first case.
 
 ## Admin
 
@@ -261,7 +261,7 @@ The Django admin at `/admin/` is where an edition is prepared. Any staff account
 
 - **Set up the edition.** Create the edition and upload its registration CSV. That creates the players, as described in the next section.
 - **Build the teams.** Create the teams and assign players to them.
-- **Add disciplines** for the edition. Each discipline type has its own admin entry. Choose the result type, the pairing system and the maximum number of rounds.
+- **Add disciplines** for the edition. Each discipline type has its own admin entry and sets its own name and result type. You choose the pairing system and the maximum number of rounds. Create the teams first: a discipline creates results only for the teams that exist when it is created.
 - **Fix games from the changelist.** `score1`, `score2` and `is_played` are editable directly in the list.
 - **Enter the rest by hand:** blindtest guesses, results of disciplines without games, and `final_rank` for an old edition without results.
 
@@ -289,7 +289,7 @@ Run these inside the container, for example `docker compose exec server python m
 | `export_edition <year> --out <file>` | Writes an edition to JSON, with no database ids. |
 | `import_edition <file> [--dry-run] [--replace]` | Imports an edition. `--dry-run` reports what would happen and rolls back. `--replace` first deletes the edition with the same year (users are kept). |
 
-The exported file contains player names and emails. It is gitignored, but delete it once you have finished with it.
+The exported file contains player names and emails. Write it as `server/edition-<year>.json` (in the container, `--out /server/edition-2026.json`), because that is the only name the repository ignores. Delete the file once you have finished with it.
 
 ### Edition transfer
 
@@ -336,10 +336,14 @@ pylint --load-plugins pylint_django --ignore=lib server/
    - `models/Rugby.py` also has a `GameEvent` subclass and scoring.
 2. **Export it** from `models/__init__.py`.
 3. **Register it** with `site.register(<Name>, DisciplineAdmin)` in `admin.py`.
-4. **Create its table:**
+4. **Create its table.** Write the migration, then restart the server, which applies migrations when it starts:
 
    ```bash
    docker compose exec server python manage.py makemigrations
+   ```
+
+   ```bash
+   docker compose restart server
    ```
 
 5. **Add it to the front.** Add an SVG icon and a French name there, as described in [front/README.md](../front/README.md#adding-a-discipline-icon). A front test fails until both exist.
@@ -348,7 +352,11 @@ pylint --load-plugins pylint_django --ignore=lib server/
 
 `docker-compose.prod.example.yml` at the repository root is the template. It runs `Dockerfile.prod` under gunicorn on port 3003, bound to `127.0.0.1`, with nginx in front.
 
-- **The image contains the code.** `Dockerfile.prod` copies `server/` into the image, `prod.env` included, and runs `collectstatic` at build time. whitenoise then serves the static files. After changing code or `prod.env`, rebuild the image: a restart is not enough.
+- **The image contains the code.** `Dockerfile.prod` copies `server/` into the image, `prod.env` included. After changing code or `prod.env`, rebuild the image: a restart is not enough.
+- **Build prerequisites.** The build runs `collectstatic` with `ENV` unset, so it loads `dev.env` rather than `prod.env`. The build context therefore needs:
+  - a `server/dev.env` with at least `SECRET_KEY`, `DEBUG` and the `DB_*` keys
+  - the `server/logs/` folder, which gunicorn needs at runtime as well
+- **Static files.** whitenoise serves them from `staticfiles/`. The production compose file mounts a named volume there, and Docker fills that volume from the image only when it is created, so rebuilding does not refresh it. After a deploy that changes static files, run `docker compose exec server python manage.py collectstatic --no-input`.
 - **Migrations are manual.** The production command only starts gunicorn, so after a deploy that adds migrations, run `docker compose exec server python manage.py migrate`. The first time, also run `createsu`.
 - **Media files** (`mediafiles/`) live in a Docker volume shared with nginx, which serves them.
 - **nginx must set `X-Forwarded-For`** (`proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`) on the locations that proxy to the server and to the front. Otherwise the login throttle trusts an IP the client chose.

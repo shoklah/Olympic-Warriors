@@ -65,7 +65,7 @@ npm run dev
 | `npm run build` | Production build into `build/` |
 | `npm run preview` | Serves the production build locally |
 
-There is no `check` or `lint` script. CI runs `npm ci`, `npm test` and `npm run build` on Node 22, and a failure blocks the merge.
+There is no `check` or `lint` script. CI runs `npm ci`, `npm test` and `npm run build` on Node 22, and any failure fails the workflow.
 
 ## Routes
 
@@ -74,7 +74,7 @@ Every edition page lives under a four-digit year segment. `src/params/year.js` m
 | Path | Page |
 | --- | --- |
 | `/` | The latest edition's hub, without a redirect. Returns 404 "No edition yet" until an edition exists. |
-| `/<year>` | The edition hub: the discipline icons, host and dates, a countdown before the event and a link to the ranking after it, and links to the other editions |
+| `/<year>` | The edition hub: the discipline icons, host and dates, a countdown before the event and a link to the ranking once it has started, and links to the other editions |
 | `/<year>/ranking` | The team ranking: podium, rosters, points, with the discipline rail under the title |
 | `/<year>/disciplines` | Every discipline of the edition |
 | `/<year>/disciplines/<id>` | One discipline: its ranking, then its schedule by round. For organisers, also the scoring tools. |
@@ -111,7 +111,7 @@ src/
   error.html            static fallback error page
   hooks.server.js       sets <html lang> from the lang cookie, and Vary: Cookie
   params/year.js        the four-digit year matcher
-  routes/               pages, layouts, form actions, and a page.test.js beside each page
+  routes/               pages, layouts, form actions, and a page.test.js beside most pages
     styles.css          design tokens and global utilities
   lib/
     api.js              fetch helpers that throw SvelteKit errors
@@ -210,7 +210,7 @@ After adding a discipline on the server (see [server/README.md](../server/README
 
 ## Tests
 
-Tests sit next to what they cover: `src/lib/*.test.js` for the helpers, and `page.test.js` beside each `+page.svelte`. They run on the summary payloads in `src/lib/fixtures/summary.js`:
+Tests sit next to what they cover: `src/lib/*.test.js` for the helpers, and a `page.test.js` beside most pages. The hub pages are covered by `EditionHub.test.js`. They run on the summary payloads in `src/lib/fixtures/summary.js`:
 
 | Fixture | What it contains |
 | --- | --- |
@@ -222,7 +222,7 @@ Tests sit next to what they cover: `src/lib/*.test.js` for the helpers, and `pag
 Conventions:
 
 - **Render with `renderWith`.** Use `renderWith(Component, props, locale, organiser)` from `src/lib/test-utils.js`. It defaults to English, and the fourth argument turns on the organiser view. A plain `render()` has no context, so the component renders in French. Keep at least one French test for every translated page or component.
-- **Assert on text, not classes.** For example, a ranking row reads `1 Bisons 5 pts` and a team's game row reads `R1 Bisons 12 : 9 Aigles`. If you change a row's markup, update those assertions in the same commit.
+- **Assert on text, not classes.** For example, a ranking card reads `1 Bisons Chloé Nguyen 5 pts` and a team's game row reads `R1 Bisons 12 : 9 Aigles`. If you change a row's markup, update those assertions in the same commit.
 - **Stub `use:enhance`.** Pages or components that use it need this stub:
 
   ```js
@@ -240,5 +240,5 @@ The production compose file (`docker-compose.prod.example.yml` at the repository
 | Variable | Why |
 | --- | --- |
 | `PORT` | The port the Node server listens on: 3000 for production, 4000 for stage. |
-| `ORIGIN` | The public origin, such as `https://olympicwarriors.com`. SvelteKit refuses form POSTs whose `Origin` differs, so without it the language switch fails with a 403 behind nginx. Set it on every front, stage included. |
+| `ORIGIN` | The public origin, such as `https://olympicwarriors.com`. SvelteKit refuses form POSTs whose `Origin` differs. Without it, every form (the language switch, login, logout, the organiser tools) fails with a 403 behind nginx. Set it on every front, stage included. |
 | `ADDRESS_HEADER=x-forwarded-for`, `XFF_DEPTH=1` | Let the login see the visitor's IP rather than nginx's. Only set these if nginx sets `X-Forwarded-For` on the location that proxies to the front, because otherwise a visitor can forge the header. |
