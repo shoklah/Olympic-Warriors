@@ -445,6 +445,33 @@ def getPlayerRatingsByPlayer(request, player_id):
 
 # Games
 
+# The game, round and result views show the rows and apply the reveal rule of the edition
+# summary: scores stay null until the discipline is revealed, except for staff.
+
+
+def _reveal_context(request):
+    """Serializer context of the reveal rule: staff see the scores before the reveal."""
+    return {"staff": request.user.is_staff}
+
+
+def _games():
+    """The games the summary lists: active, in an active round of an active discipline."""
+    return Game.objects.filter(
+        is_active=True, round__is_active=True, discipline__is_active=True
+    ).select_related("discipline")
+
+
+def _rounds():
+    """The rounds the summary lists: active, of an active discipline."""
+    return TeamSportRound.objects.filter(is_active=True, discipline__is_active=True)
+
+
+def _results():
+    """The results the summary lists: active, of an active discipline and an active team."""
+    return TeamResult.objects.filter(
+        is_active=True, discipline__is_active=True, team__is_active=True
+    ).select_related("team", "discipline__edition")
+
 
 @extend_schema(
     summary="Get a game by ID",
@@ -457,11 +484,11 @@ def getPlayerRatingsByPlayer(request, player_id):
 @api_view(["GET"])
 def getGame(request, game_id):
     try:
-        game = Game.objects.get(id=game_id)
+        game = _games().get(id=game_id)
     except Game.DoesNotExist:
         return Response({"error": "Game not found"}, status=404)
 
-    serializer = GameSerializer(game)
+    serializer = GameSerializer(game, context=_reveal_context(request))
     return Response(serializer.data)
 
 
@@ -475,8 +502,8 @@ def getGame(request, game_id):
 )
 @api_view(["GET"])
 def getGames(request):
-    games = Game.objects.filter(is_active=True)
-    serializer = GameSerializer(games, many=True)
+    games = _games()
+    serializer = GameSerializer(games, many=True, context=_reveal_context(request))
     return Response(serializer.data)
 
 
@@ -490,10 +517,8 @@ def getGames(request):
 )
 @api_view(["GET"])
 def getGamesByTeam(request, team_id):
-    games = Game.objects.filter(
-        (Q(team1=team_id) | Q(team2=team_id) | Q(referees=team_id)), is_active=True
-    )
-    serializer = GameSerializer(games, many=True)
+    games = _games().filter(Q(team1=team_id) | Q(team2=team_id) | Q(referees=team_id))
+    serializer = GameSerializer(games, many=True, context=_reveal_context(request))
     return Response(serializer.data)
 
 
@@ -507,8 +532,8 @@ def getGamesByTeam(request, team_id):
 )
 @api_view(["GET"])
 def getGamesByDiscipline(request, discipline_id):
-    games = Game.objects.filter(discipline=discipline_id, is_active=True)
-    serializer = GameSerializer(games, many=True)
+    games = _games().filter(discipline=discipline_id)
+    serializer = GameSerializer(games, many=True, context=_reveal_context(request))
     return Response(serializer.data)
 
 
@@ -522,8 +547,8 @@ def getGamesByDiscipline(request, discipline_id):
 )
 @api_view(["GET"])
 def getPlayedGamesByTeam(request, team_id):
-    games = Game.objects.filter((Q(team1=team_id) | Q(team2=team_id)), is_active=True)
-    serializer = GameSerializer(games, many=True)
+    games = _games().filter(Q(team1=team_id) | Q(team2=team_id))
+    serializer = GameSerializer(games, many=True, context=_reveal_context(request))
     return Response(serializer.data)
 
 
@@ -537,8 +562,8 @@ def getPlayedGamesByTeam(request, team_id):
 )
 @api_view(["GET"])
 def getRefereedGamesByTeam(request, team_id):
-    games = Game.objects.filter(referees=team_id, is_active=True)
-    serializer = GameSerializer(games, many=True)
+    games = _games().filter(referees=team_id)
+    serializer = GameSerializer(games, many=True, context=_reveal_context(request))
     return Response(serializer.data)
 
 
@@ -552,8 +577,8 @@ def getRefereedGamesByTeam(request, team_id):
 )
 @api_view(["GET"])
 def getGamesByEdition(request, edition_id):
-    games = Game.objects.filter(discipline__edition=edition_id, is_active=True)
-    serializer = GameSerializer(games, many=True)
+    games = _games().filter(discipline__edition=edition_id)
+    serializer = GameSerializer(games, many=True, context=_reveal_context(request))
     return Response(serializer.data)
 
 
@@ -567,12 +592,10 @@ def getGamesByEdition(request, edition_id):
 )
 @api_view(["GET"])
 def getGamesByDisciplineAndTeam(request, discipline_id, team_id):
-    games = Game.objects.filter(
-        (Q(team1=team_id) | Q(team2=team_id) | Q(referees=team_id)),
-        discipline=discipline_id,
-        is_active=True,
+    games = _games().filter(
+        Q(team1=team_id) | Q(team2=team_id) | Q(referees=team_id), discipline=discipline_id
     )
-    serializer = GameSerializer(games, many=True)
+    serializer = GameSerializer(games, many=True, context=_reveal_context(request))
     return Response(serializer.data)
 
 
@@ -586,12 +609,8 @@ def getGamesByDisciplineAndTeam(request, discipline_id, team_id):
 )
 @api_view(["GET"])
 def getPlayedGamesByDisciplineAndTeam(request, team_id, discipline_id):
-    games = Game.objects.filter(
-        (Q(team1=team_id) | Q(team2=team_id)),
-        discipline=discipline_id,
-        is_active=True,
-    )
-    serializer = GameSerializer(games, many=True)
+    games = _games().filter(Q(team1=team_id) | Q(team2=team_id), discipline=discipline_id)
+    serializer = GameSerializer(games, many=True, context=_reveal_context(request))
     return Response(serializer.data)
 
 
@@ -605,12 +624,8 @@ def getPlayedGamesByDisciplineAndTeam(request, team_id, discipline_id):
 )
 @api_view(["GET"])
 def getRefereedGamesByDisciplineAndTeam(request, team_id, discipline_id):
-    games = Game.objects.filter(
-        referees=team_id,
-        discipline=discipline_id,
-        is_active=True,
-    )
-    serializer = GameSerializer(games, many=True)
+    games = _games().filter(referees=team_id, discipline=discipline_id)
+    serializer = GameSerializer(games, many=True, context=_reveal_context(request))
     return Response(serializer.data)
 
 
@@ -624,8 +639,8 @@ def getRefereedGamesByDisciplineAndTeam(request, team_id, discipline_id):
 )
 @api_view(["GET"])
 def getGamesByRound(request, round_id):
-    games = Game.objects.filter(round=round_id, is_active=True)
-    serializer = GameSerializer(games, many=True)
+    games = _games().filter(round=round_id)
+    serializer = GameSerializer(games, many=True, context=_reveal_context(request))
     return Response(serializer.data)
 
 
@@ -771,10 +786,10 @@ def deleteGameEvent(request, event_id):
 @api_view(["GET"])
 def getRound(request, round_id):
     try:
-        round = TeamSportRound.objects.get(id=round_id)
+        round = _rounds().get(id=round_id)
     except TeamSportRound.DoesNotExist:
         return Response({"error": "Round not found"}, status=404)
-    serializer = TeamSportRoundSerializer(round)
+    serializer = TeamSportRoundSerializer(round, context=_reveal_context(request))
     return Response(serializer.data)
 
 
@@ -788,8 +803,8 @@ def getRound(request, round_id):
 )
 @api_view(["GET"])
 def getRounds(request):
-    rounds = TeamSportRound.objects.filter(is_active=True)
-    serializer = TeamSportRoundSerializer(rounds, many=True)
+    rounds = _rounds()
+    serializer = TeamSportRoundSerializer(rounds, many=True, context=_reveal_context(request))
     return Response(serializer.data)
 
 
@@ -803,8 +818,8 @@ def getRounds(request):
 )
 @api_view(["GET"])
 def getRoundsByDiscipline(request, discipline_id):
-    rounds = TeamSportRound.objects.filter(discipline=discipline_id, is_active=True)
-    serializer = TeamSportRoundSerializer(rounds, many=True)
+    rounds = _rounds().filter(discipline=discipline_id)
+    serializer = TeamSportRoundSerializer(rounds, many=True, context=_reveal_context(request))
     return Response(serializer.data)
 
 
@@ -823,10 +838,10 @@ def getRoundsByDiscipline(request, discipline_id):
 @api_view(["GET"])
 def getTeamResult(request, team_result_id):
     try:
-        team_result = TeamResult.objects.get(id=team_result_id)
+        team_result = _results().get(id=team_result_id)
     except TeamResult.DoesNotExist:
         return Response({"error": "Team result not found"}, status=404)
-    serializer = TeamResultSerializer(team_result)
+    serializer = TeamResultSerializer(team_result, context=_reveal_context(request))
     return Response(serializer.data)
 
 
@@ -840,8 +855,8 @@ def getTeamResult(request, team_result_id):
 )
 @api_view(["GET"])
 def getTeamResults(request):
-    team_results = TeamResult.objects.filter(is_active=True)
-    serializer = TeamResultSerializer(team_results, many=True)
+    team_results = _results()
+    serializer = TeamResultSerializer(team_results, many=True, context=_reveal_context(request))
     return Response(serializer.data)
 
 
@@ -855,8 +870,8 @@ def getTeamResults(request):
 )
 @api_view(["GET"])
 def getTeamResultsByTeam(request, team_id):
-    team_results = TeamResult.objects.filter(team=team_id, is_active=True)
-    serializer = TeamResultSerializer(team_results, many=True)
+    team_results = _results().filter(team=team_id)
+    serializer = TeamResultSerializer(team_results, many=True, context=_reveal_context(request))
     return Response(serializer.data)
 
 
@@ -870,10 +885,8 @@ def getTeamResultsByTeam(request, team_id):
 )
 @api_view(["GET"])
 def getTeamResultsByEdition(request, edition_id):
-    team_results = TeamResult.objects.filter(
-        discipline__edition=edition_id, is_active=True
-    ).select_related("team", "discipline")
-    serializer = TeamResultSerializer(team_results, many=True)
+    team_results = _results().filter(discipline__edition=edition_id)
+    serializer = TeamResultSerializer(team_results, many=True, context=_reveal_context(request))
     return Response(serializer.data)
 
 
@@ -887,8 +900,8 @@ def getTeamResultsByEdition(request, edition_id):
 )
 @api_view(["GET"])
 def getTeamResultsByDiscipline(request, discipline_id):
-    team_results = TeamResult.objects.filter(discipline=discipline_id, is_active=True)
-    serializer = TeamResultSerializer(team_results, many=True)
+    team_results = _results().filter(discipline=discipline_id)
+    serializer = TeamResultSerializer(team_results, many=True, context=_reveal_context(request))
     return Response(serializer.data)
 
 
