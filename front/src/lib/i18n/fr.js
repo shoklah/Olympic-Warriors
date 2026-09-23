@@ -25,7 +25,7 @@ export default {
 	'players.over': { one: 'moy. {value} sur {n} édition', other: 'moy. {value} sur {n} éditions' },
 	'players.editions': { one: '{n} édition', other: '{n} éditions' },
 	'profile.allTime': 'général',
-	'profile.positionLabel': 'Position au général : {n}',
+	'profile.positionHint': 'position au classement des joueurs',
 	'profile.averageRank': 'Rang moyen',
 	'profile.beaten': 'Équipes battues',
 	'profile.counted': { one: '{n} classée', other: '{n} classées' },

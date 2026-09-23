@@ -19,14 +19,11 @@
 
 	{#if profile.position !== null}
 		<!-- A plain number: a French ordinal would have to guess the player's gender. -->
-		<a
-			class="position"
-			href="/players"
-			data-testid="position"
-			aria-label={t('profile.positionLabel', { n: profile.position })}
-		>
+		<a class="position" href="/players" data-testid="position">
 			<MedalRank rank={profile.position} />
 			<span class="label">{t('profile.allTime')}</span>
+			<!-- The accessible name must contain the visible text (WCAG 2.5.3). -->
+			<span class="visually-hidden"> · {t('profile.positionHint')}</span>
 		</a>
 	{/if}
 

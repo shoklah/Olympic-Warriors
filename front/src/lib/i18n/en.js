@@ -21,7 +21,7 @@ export default {
 	'players.over': { one: 'avg {value} over {n} edition', other: 'avg {value} over {n} editions' },
 	'players.editions': { one: '{n} edition', other: '{n} editions' },
 	'profile.allTime': 'all-time',
-	'profile.positionLabel': 'All-time position: {n}',
+	'profile.positionHint': 'position on the players leaderboard',
 	'profile.averageRank': 'Average rank',
 	'profile.beaten': 'Teams beaten',
 	'profile.counted': { one: '{n} counted', other: '{n} counted' },

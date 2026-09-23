@@ -14,7 +14,9 @@ describe('player profile page', () => {
 		const position = screen.getByTestId('position');
 		expect(position).toHaveTextContent(/3\s*all-time/);
 		expect(position).toHaveAttribute('href', '/players');
-		expect(screen.getByRole('link', { name: 'All-time position: 3' })).toBe(position);
+		expect(
+			screen.getByRole('link', { name: '3 all-time · position on the players leaderboard' })
+		).toBe(position);
 		expect(screen.getByTestId('average-rank')).toHaveTextContent(/Average rank\s*2\.5/);
 		expect(screen.getByTestId('beaten')).toHaveTextContent(/Teams beaten\s*76%/);
 		expect(screen.getByText('4 editions · 2 counted')).toBeInTheDocument();
