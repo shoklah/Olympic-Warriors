@@ -233,8 +233,9 @@ The `.lang` form in the header follows the year select: transparent
 background, accent border on the pair, buttons in the display face 1.1rem,
 letter-spacing 0.08em, `--muted` text, the `aria-current` one `--accent` on
 `--bg-raised`. `GameRow`'s `.round` column uses the `.label` utility in `--muted` (never
-`--faint`, which is for large text only). `.team.own` is `var(--accent)`
-and keeps `font-weight: 600` when it is also `winner`.
+`--faint`, which is for large text only). `.team.own` is `var(--accent)`,
+keeps `font-weight: 600` when it is also `winner`, and drops to `opacity: 0.55`
+and weight 400 when it is `loser`, so the outcome reads from the own name alone.
 
 ## Static fallback
 

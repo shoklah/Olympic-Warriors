@@ -101,9 +101,15 @@
 		color: var(--muted);
 	}
 
-	/* The own team keeps the accent whatever the outcome; `.winner` still adds its weight. */
+	/* The own team is in accent: bold when it won, faded and thin when it lost, so the
+	   outcome reads from its name alone, not only from the opponent's contrast. */
 	.team.own {
 		color: var(--accent);
+	}
+
+	.team.own.loser {
+		opacity: 0.55;
+		font-weight: 400;
 	}
 
 	.team:focus-visible {
