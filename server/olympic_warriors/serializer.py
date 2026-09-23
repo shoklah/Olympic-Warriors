@@ -448,7 +448,10 @@ class ProfileTeamSerializer(serializers.Serializer):
 
 
 class ProfileEditionSerializer(serializers.Serializer):
-    """One edition of a profile (a Participation); rank stays null until it is over."""
+    """
+    One edition of a profile (a Participation); rank is null until the edition is over,
+    and whenever the team has no rank (see profiles.Participation).
+    """
 
     year = serializers.IntegerField()
     team = serializers.SerializerMethodField()
@@ -469,7 +472,7 @@ class LeaderboardRowSerializer(serializers.Serializer):
     Public: names only, never the username (the login name) nor the email.
     """
 
-    id = serializers.IntegerField(source="user_id")
+    id = serializers.IntegerField(source="user_id", help_text="The user id, not a Player id")
     first_name = serializers.CharField()
     last_name = serializers.CharField()
     played = serializers.IntegerField()
@@ -482,7 +485,7 @@ class LeaderboardRowSerializer(serializers.Serializer):
 class ProfileSerializer(serializers.Serializer):
     """A person's profile: the leaderboard figures plus every edition, newest first."""
 
-    id = serializers.IntegerField(source="user_id")
+    id = serializers.IntegerField(source="user_id", help_text="The user id, not a Player id")
     first_name = serializers.CharField()
     last_name = serializers.CharField()
     position = serializers.IntegerField(allow_null=True)

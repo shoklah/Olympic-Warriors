@@ -462,6 +462,6 @@ class TestProfileEndpoints(ProfilesSetup, TestCase):
 
     def test_both_endpoints_run_in_a_fixed_number_of_queries(self):
         with self.assertNumQueries(PROFILES_QUERIES):
-            self.client.get("/profiles/")
+            self.assertEqual(self.client.get("/profiles/").status_code, 200)
         with self.assertNumQueries(PROFILES_QUERIES):
-            self.client.get(f"/profile/{self.ana.id}/")
+            self.assertEqual(self.client.get(f"/profile/{self.ana.id}/").status_code, 200)
