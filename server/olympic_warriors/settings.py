@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 
 from pathlib import Path
 import os
+import tempfile
 import dj_database_url
 
 from django.utils.translation import gettext_lazy as _
@@ -105,6 +106,19 @@ else:
     }
 
 
+# Cache
+# Only the login throttle uses it. Gunicorn workers are separate processes, and the
+# local-memory default is per process, so each worker would keep its own count: files are
+# shared by every worker of the container. Losing them on a restart only resets the counts.
+
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.filebased.FileBasedCache",
+        "LOCATION": os.path.join(tempfile.gettempdir(), "olympic_warriors_cache"),
+    }
+}
+
+
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
 
@@ -165,6 +179,11 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 LOGIN_REDIRECT_URL = "/"
 
+# The log folder is not in the repository (logs are gitignored): create it here, or dictConfig
+# fails on the file handler and no manage.py command starts on a fresh clone or image.
+LOG_FILE_PATH = os.path.join(BASE_DIR, settings.LOG_FILE)
+os.makedirs(os.path.dirname(LOG_FILE_PATH), exist_ok=True)
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
@@ -172,7 +191,7 @@ LOGGING = {
         "file": {
             "level": settings.LOG_LEVEL_FILE,
             "class": "logging.FileHandler",
-            "filename": os.path.join(BASE_DIR, settings.LOG_FILE),
+            "filename": LOG_FILE_PATH,
         },
         "console": {
             "level": settings.LOG_LEVEL_CONSOLE,
@@ -214,6 +233,13 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
+    # No DEFAULT_THROTTLE_CLASSES: only the token view throttles (LoginRateThrottle, which the
+    # admin login form shares from admin.py).
+    'DEFAULT_THROTTLE_RATES': {
+        'login': settings.LOGIN_THROTTLE_RATE,
+    },
+    # int(): a real env var reaches the config as a string (BaseConfig.override_if_env).
+    'NUM_PROXIES': int(settings.NUM_PROXIES),
 }
 
 # Spectacular settings

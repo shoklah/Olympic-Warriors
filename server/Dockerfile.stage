@@ -33,5 +33,6 @@ RUN chown -R stage:stage $APP_HOME
 # change to the app user
 USER stage
 
-RUN python manage.py collectstatic --no-input
+# ENV=prod: without it the config loads dev.env, which a production build context lacks.
+RUN ENV=prod python manage.py collectstatic --no-input
 

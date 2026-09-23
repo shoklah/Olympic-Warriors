@@ -51,9 +51,9 @@ export function apiGet(fetch, url, token = null) {
 	return request(fetch, url, { method: 'GET', headers: {} }, token);
 }
 
-/** POST a JSON body; throws a SvelteKit error on any failure. */
-export function apiPost(fetch, url, body, token = null) {
-	return request(fetch, url, jsonOptions('POST', body), token);
+/** POST a JSON body, with any extra `headers`; throws a SvelteKit error on any failure. */
+export function apiPost(fetch, url, body, token = null, headers = {}) {
+	return request(fetch, url, jsonOptions('POST', body, headers), token);
 }
 
 /** PATCH a JSON body; throws a SvelteKit error on any failure. */
@@ -61,8 +61,8 @@ export function apiPatch(fetch, url, body, token = null) {
 	return request(fetch, url, jsonOptions('PATCH', body), token);
 }
 
-const jsonOptions = (method, body) => ({
+const jsonOptions = (method, body, headers = {}) => ({
 	method,
-	headers: { 'content-type': 'application/json' },
+	headers: { 'content-type': 'application/json', ...headers },
 	body: JSON.stringify(body)
 });

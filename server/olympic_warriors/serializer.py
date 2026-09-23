@@ -149,8 +149,8 @@ class BlindtestGuessSerializer(serializers.ModelSerializer):
 
 
 class BlindtestGuessUpdateSerializer(serializers.Serializer):
-    artist = serializers.CharField(max_length=255, required=True)
-    song = serializers.CharField(max_length=255, required=True)
+    artist = serializers.CharField(max_length=255, required=True, allow_blank=True)
+    song = serializers.CharField(max_length=255, required=True, allow_blank=True)
 
 
 class BlindtestRoundSerializer(serializers.ModelSerializer):
