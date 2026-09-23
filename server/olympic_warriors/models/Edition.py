@@ -34,6 +34,14 @@ class Edition(models.Model):
     def __str__(self) -> str:
         return f"{self.year} - {self.host}"
 
+    @property
+    def ranking_is_manual(self) -> bool:
+        """
+        True when an active team of the edition carries a final_rank: the edition
+        ranking is then that stored order, and totals are not shown.
+        """
+        return self.team_set.filter(is_active=True, final_rank__isnull=False).exists()
+
     def create_players_from_registration_form(self, registration_form):
         """
         Create or update users, players and skill ratings from the registration form.

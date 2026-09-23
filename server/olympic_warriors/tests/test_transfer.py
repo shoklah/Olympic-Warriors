@@ -312,3 +312,18 @@ class ImportEditionTests(TestCase):
         with self.assertRaises(TransferError):
             import_edition({**self.document, "users": None})
         self.assertFalse(Edition.objects.filter(year=2024).exists())
+
+
+class TestFinalRankTransfer(TestCase):
+    """Team.final_rank is an ordinary team field: exported and imported like the others."""
+
+    def test_final_rank_round_trips(self):
+        edition = build_edition(2023)
+        Team.objects.filter(edition=edition, name="Red").update(final_rank=1)
+        document = export_edition(2023)
+        edition.delete()
+
+        import_edition(document)
+
+        self.assertEqual(Team.objects.get(edition__year=2023, name="Red").final_rank, 1)
+        self.assertIsNone(Team.objects.get(edition__year=2023, name="Blue").final_rank)
