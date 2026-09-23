@@ -408,3 +408,217 @@ class TestCareer(World, TestCase):
         self.play(ana, [2, 3, 1, 6])
 
         self.assertEqual(years_of(ana, C.LUCKY_CHARM), [2023])
+
+
+LOYALTY_CODES = (
+    C.ROOKIE,
+    C.VETERAN,
+    C.ARGONAUT,
+    C.EVER_PRESENT,
+    C.HOMECOMING,
+    C.GLOBETROTTER,
+)
+
+
+def tiers_of(user, code, today=TODAY):
+    """The (year, tier) pairs at which the user earned `code`, sorted."""
+    return sorted((year, tier) for c, year, tier, *_ in badges_of(user, today) if c == code)
+
+
+class TestLoyalty(World, TestCase):
+    def tour(self, user, hosts):
+        """Seat `user` on a team in consecutive editions from 2021, held at `hosts`."""
+        for year, host in zip(range(2021, 2021 + len(hosts)), hosts):
+            edition, teams = self.edition(year, host=host)
+            self.seat(user, edition, teams[0])
+
+    def test_rookie_at_the_first_finished_edition_played(self):
+        ana = self.person("Ana")
+        self.play(ana, [None, 2, 3])
+
+        self.assertEqual(years_of(ana, C.ROOKIE), [2022])
+
+    def test_a_running_edition_gives_no_loyalty_badge(self):
+        ana = self.person("Ana")
+        e2030, t2030 = self.edition(2030, finished=False)
+        self.seat(ana, e2030, t2030[0])
+
+        self.assertEqual([b for b in badges_of(ana) if b[0] in LOYALTY_CODES], [])
+
+    def test_veteran_tiers(self):
+        ana = self.person("Ana")
+        self.play(ana, [4] * 10)
+
+        self.assertEqual(tiers_of(ana, C.VETERAN), [(2023, 1), (2025, 2), (2030, 3)])
+
+    def test_veteran_editions_need_not_be_consecutive(self):
+        ana = self.person("Ana")
+        self.play(ana, [2, None, 2, None, 2])
+
+        self.assertEqual(tiers_of(ana, C.VETERAN), [(2025, 1)])
+
+    def test_argonaut_for_playing_the_first_finished_edition(self):
+        ana = self.person("Ana")
+        self.play(ana, [3, 3])
+
+        self.assertEqual(years_of(ana, C.ARGONAUT), [2021])
+
+    def test_no_argonaut_when_the_first_edition_has_no_roster(self):
+        ana = self.person("Ana")
+        self.edition(2020, spectator=False)
+        self.play(ana, [3])
+
+        self.assertEqual([e for e in earned(TODAY) if e.code == C.ARGONAUT], [])
+
+    def test_no_argonaut_for_a_start_in_the_second_edition(self):
+        ana = self.person("Ana")
+        self.play(ana, [None, 3])
+
+        self.assertEqual(years_of(ana, C.ARGONAUT), [])
+        spectator = User.objects.get(username="u-Spectator2021")
+        self.assertEqual(years_of(spectator, C.ARGONAUT), [2021])
+
+    def test_ever_present_tiers(self):
+        ana = self.person("Ana")
+        self.play(ana, [5] * 8)
+
+        self.assertEqual(tiers_of(ana, C.EVER_PRESENT), [(2024, 1), (2026, 2), (2028, 3)])
+
+    def test_a_new_run_after_a_break_earns_no_tier_again(self):
+        ana = self.person("Ana")
+        self.play(ana, [5, 5, 5, 5, None, 5, 5, 5, 5])
+
+        self.assertEqual(tiers_of(ana, C.EVER_PRESENT), [(2024, 1)])
+
+    def test_playing_without_a_team_or_a_rank_keeps_the_run(self):
+        ana = self.person("Ana")
+        e2022, _ = self.edition(2022)
+        e2023, t2023 = self.edition(2023, ranks=[1, 2, 3, None])
+        self.play(ana, [2, None, None, 2])
+        self.seat(ana, e2022)  # no team
+        self.seat(ana, e2023, t2023[3])  # a team without a rank
+
+        self.assertEqual(tiers_of(ana, C.EVER_PRESENT), [(2024, 1)])
+
+    def test_homecoming_after_missing_two_editions(self):
+        ana = self.person("Ana")
+        self.play(ana, [3, None, None, 3])
+
+        self.assertEqual(years_of(ana, C.HOMECOMING), [2024])
+
+    def test_no_homecoming_after_missing_one_edition(self):
+        ana = self.person("Ana")
+        self.play(ana, [3, None, 3])
+
+        self.assertEqual(years_of(ana, C.HOMECOMING), [])
+
+    def test_homecoming_at_each_return(self):
+        ana = self.person("Ana")
+        self.play(ana, [3, None, None, 3, None, None, 3])
+
+        self.assertEqual(years_of(ana, C.HOMECOMING), [2024, 2027])
+
+    def test_a_first_edition_is_not_a_homecoming(self):
+        ana = self.person("Ana")
+        self.play(ana, [None, None, None, 3])
+
+        self.assertEqual(years_of(ana, C.HOMECOMING), [])
+
+    def test_hosts_match_whatever_the_case_and_spaces(self):
+        ana = self.person("Ana")
+        self.tour(ana, ["Paris", " paris ", "Nantes"])
+
+        self.assertEqual(years_of(ana, C.GLOBETROTTER), [])
+
+    def test_globetrotter_at_the_third_host(self):
+        ana = self.person("Ana")
+        self.tour(ana, ["Paris", " paris ", "Nantes", "Lyon"])
+
+        self.assertEqual(years_of(ana, C.GLOBETROTTER), [2024])
+
+    def test_a_fourth_host_earns_nothing_more(self):
+        ana = self.person("Ana")
+        self.tour(ana, ["Paris", " paris ", "Nantes", "Lyon", "Marseille"])
+
+        self.assertEqual(years_of(ana, C.GLOBETROTTER), [2024])
+
+    def test_hosts_match_whatever_the_accents(self):
+        ana = self.person("Ana")
+        self.tour(ana, ["Orléans", "Orleans", "Paris"])
+
+        self.assertEqual(years_of(ana, C.GLOBETROTTER), [])
+
+
+def comrades_of(user, today=TODAY):
+    """The (year, partner id) of the user's comrades badges, sorted."""
+    return sorted(
+        (year, partner) for c, year, _, _, partner in badges_of(user, today) if c == C.COMRADES
+    )
+
+
+class TestTeammates(World, TestCase):
+    def setUp(self):
+        self.ana, self.bob = self.person("Ana"), self.person("Bob")
+
+    def share(self, years, same=True):
+        """Ana and Bob in each of `years`, on the same team or on two different ones."""
+        for year in years:
+            edition, teams = self.edition(year)
+            self.seat(self.ana, edition, teams[0])
+            self.seat(self.bob, edition, teams[0] if same else teams[1])
+
+    def meet(self, year, mates):
+        """Ana and `mates` on the same team in a new edition of `year`."""
+        edition, teams = self.edition(year)
+        for user in (self.ana, *mates):
+            self.seat(user, edition, teams[0])
+
+    def crowd(self, year):
+        """Ten new people."""
+        return [self.person(f"Mate{year}-{n}") for n in range(10)]
+
+    def test_comrades_after_three_editions_together(self):
+        self.share([2021])
+        self.share([2022], same=False)
+        self.share([2023, 2024])
+
+        self.assertEqual(comrades_of(self.ana), [(2024, self.bob.id)])
+        self.assertEqual(comrades_of(self.bob), [(2024, self.ana.id)])
+
+    def test_two_editions_together_give_nothing(self):
+        self.share([2021, 2022])
+
+        self.assertEqual(comrades_of(self.ana), [])
+        self.assertEqual(comrades_of(self.bob), [])
+
+    def test_the_same_editions_on_different_teams_give_nothing(self):
+        self.share([2021, 2022, 2023], same=False)
+
+        self.assertEqual(comrades_of(self.ana), [])
+        self.assertEqual(comrades_of(self.bob), [])
+
+    def test_a_fourth_edition_together_earns_nothing_more(self):
+        self.share([2021, 2022, 2023, 2024])
+
+        self.assertEqual(comrades_of(self.ana), [(2023, self.bob.id)])
+        self.assertEqual(comrades_of(self.bob), [(2023, self.ana.id)])
+
+    def test_networker_at_twenty_teammates(self):
+        self.meet(2021, self.crowd(2021))
+        self.meet(2022, self.crowd(2022))
+
+        self.assertEqual(tiers_of(self.ana, C.NETWORKER), [(2022, 1)])
+
+    def test_networker_tiers_at_forty_and_sixty(self):
+        for year in range(2021, 2027):
+            self.meet(year, self.crowd(year))
+
+        self.assertEqual(tiers_of(self.ana, C.NETWORKER), [(2022, 1), (2024, 2), (2026, 3)])
+
+    def test_meeting_the_same_people_again_adds_nothing(self):
+        mates = self.crowd(2021)
+        self.meet(2021, mates)
+        self.meet(2022, mates)
+        self.meet(2023, self.crowd(2023))
+
+        self.assertEqual(tiers_of(self.ana, C.NETWORKER), [(2023, 1)])

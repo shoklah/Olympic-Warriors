@@ -10,10 +10,12 @@ streak. Each rule is evaluated over the history up to each edition in turn, and 
 earned at the edition that completes it: playing more never takes a badge away.
 """
 
+from collections import Counter, defaultdict
 from dataclasses import dataclass
+from itertools import combinations
 
 from .models import Badge
-from .profiles import _load, _participations, paris_today
+from .profiles import _load, _participations, _sort_key, paris_today
 
 C = Badge.Codes
 
@@ -215,7 +217,77 @@ def _career_of(h, user_id, seats):
     return out
 
 
-RULES = (_places, _streaks, _career)
+VETERAN_TIERS = {3: 1, 5: 2, 10: 3}
+EVER_PRESENT_TIERS = {4: 1, 6: 2, 8: 3}
+NETWORKER_TIERS = ((20, 1), (40, 2), (60, 3))
+
+
+def _loyalty(h):
+    """rookie, veteran, argonaut, ever-present, homecoming and globetrotter: a
+    participation is enough, team or rank not needed."""
+    for user_id, seats in h.seats.items():
+        played = run = 0
+        seen = None
+        hosts, present = set(), set()
+        for i, edition in enumerate(h.sequence):
+            if i not in seats:
+                run = 0
+                continue
+            edition_id = edition.id
+            played += 1
+            run += 1
+            if played == 1:
+                yield Earned(user_id, C.ROOKIE, edition_id)
+            if played in VETERAN_TIERS:
+                yield Earned(user_id, C.VETERAN, edition_id, tier=VETERAN_TIERS[played])
+            tier = EVER_PRESENT_TIERS.get(run)
+            if tier and tier not in present:
+                present.add(tier)
+                yield Earned(user_id, C.EVER_PRESENT, edition_id, tier=tier)
+            if seen is not None and i - seen > 2:  # missed at least 2 consecutive editions
+                yield Earned(user_id, C.HOMECOMING, edition_id)
+            seen = i
+            host = _sort_key(edition.host.strip())
+            if host not in hosts:
+                hosts.add(host)
+                if len(hosts) == 3:
+                    yield Earned(user_id, C.GLOBETROTTER, edition_id)
+        # The first finished edition is index 0 exactly when it has a roster.
+        if 0 in seats and h.sequence[0].id == h.first_edition_id:
+            yield Earned(user_id, C.ARGONAUT, h.first_edition_id)
+
+
+def _teams(h, i):
+    """{team id: sorted user ids} of the people seated on a valid team at sequence index i."""
+    teams = defaultdict(list)
+    for user_id, seats in h.seats.items():
+        seat = seats.get(i)
+        if seat is not None and seat.team_id is not None:
+            teams[seat.team_id].append(user_id)
+    return {team_id: sorted(users) for team_id, users in teams.items()}
+
+
+def _teammates(h):
+    """comrades (once per partner, both ways) and networker (tiers)."""
+    together = Counter()
+    mates = defaultdict(set)
+    for i, edition in enumerate(h.sequence):
+        edition_id = edition.id
+        for users in _teams(h, i).values():
+            for a, b in combinations(users, 2):
+                together[(a, b)] += 1
+                if together[(a, b)] == 3:
+                    yield Earned(a, C.COMRADES, edition_id, partner_id=b)
+                    yield Earned(b, C.COMRADES, edition_id, partner_id=a)
+            for user_id in users:
+                before = len(mates[user_id])
+                mates[user_id].update(other for other in users if other != user_id)
+                for threshold, tier in NETWORKER_TIERS:
+                    if before < threshold <= len(mates[user_id]):
+                        yield Earned(user_id, C.NETWORKER, edition_id, tier=tier)
+
+
+RULES = (_places, _streaks, _career, _loyalty, _teammates)
 
 
 def earned(today=None):
