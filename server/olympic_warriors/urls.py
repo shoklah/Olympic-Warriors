@@ -83,7 +83,7 @@ urlpatterns = [
         "games/discipline/<int:discipline_id>/team/<int:team_id>/refereed/",
         views.getRefereedGamesByDisciplineAndTeam,
     ),
-    path("games/round/<int:round>/", views.getGamesByRound),
+    path("games/round/<int:round_id>/", views.getGamesByRound),
     # game events
     path("event/<int:event_id>/", views.getGameEvent),
     path("event/create/", views.createGameEvent),
@@ -115,7 +115,7 @@ urlpatterns = [
     path("blindtest/rounds/edition/<int:edition_id>/", views.getBlindtestRoundsByEdition),
     path("blindtest/guess/<int:guess_id>/answer/", views.setBlindtestGuessAnswer),
     # team results
-    path("result/<int:result_id>/", views.getTeamResult),
+    path("result/<int:team_result_id>/", views.getTeamResult),
     path("result/<int:result_id>/value/", views.setTeamResult),
     path("results/", views.getTeamResults),
     path("results/team/<int:team_id>/", views.getTeamResultsByTeam),
