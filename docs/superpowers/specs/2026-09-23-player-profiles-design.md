@@ -155,10 +155,16 @@ selected for the names. The test pins it either way.
   and other admin pages use it.
 - Known cost: a `list_editable` foreign key evaluates its queryset once per row, which is
   one query per row. That is fine at 25 rows.
-- `Player.clean()` refuses two mistakes, each with a `ValidationError` on its field:
-  - `team`: a team whose `edition_id` differs from the player's;
-  - `user`: another active `Player` of the same user in the same edition, when this row
-    is active.
+- `Player.clean()` refuses two mistakes, both with a `ValidationError` keyed on `team`:
+  - a team whose `edition_id` differs from the player's;
+  - another active `Player` of the same user in the same edition, when this row is
+    active.
+
+  Both errors are keyed on `team` because it is the only field that every admin form for
+  `Player` has (the `list_editable` changelist form, the `TeamAdmin` inline, the change
+  form). An error keyed on a field the form lacks makes Django raise `ValueError` ("has
+  no field named"), which would turn a changelist save into a 500. This was checked on
+  Django 4.2.19.
 
   The admin form and the `list_editable` formset both run `full_clean`, so the error
   shows on the row. The registration import and `import_edition` do not call `clean()`,
