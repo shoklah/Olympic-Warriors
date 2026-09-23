@@ -36,6 +36,8 @@ export default {
 	'profile.editions': 'Éditions',
 	'profile.noTeam': "Pas d'équipe",
 	'profile.inProgress': 'En cours',
+	'profile.bestDiscipline': { one: 'Épreuve fétiche', other: 'Épreuves fétiches' },
+	'profile.byDiscipline': 'Par épreuve',
 	'ranking.title': 'Classement',
 	'disciplines.title': 'Épreuves',
 	'discipline.rounds': { one: '{n} tour', other: '{n} tours' },

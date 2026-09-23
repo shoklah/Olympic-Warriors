@@ -71,4 +71,66 @@ describe('player profile page', () => {
 
 		expect(screen.getByText("Aucune édition classée pour l'instant")).toBeInTheDocument();
 	});
+
+	it('shows the best-discipline card with the top discipline', () => {
+		renderWith(Page, { data: { profile } });
+
+		const card = screen.getByTestId('best-discipline');
+		expect(card).toHaveTextContent(/Signature event\s*Relay/);
+		expect(card.querySelector('img')).toHaveAttribute('src', expect.stringMatching(/relay\.svg$/));
+		expect(card).not.toHaveTextContent('Crossfit');
+		expect(card).not.toHaveTextContent('Darts');
+	});
+
+	it('lists every tied best discipline with the plural label and no +N', () => {
+		const tied = {
+			...profile,
+			disciplines: [
+				{ name: 'Relay', position: 1, places: [{ year: 2026, rank: 1 }] },
+				{ name: 'Darts', position: 1, places: [{ year: 2026, rank: 1 }] }
+			]
+		};
+		renderWith(Page, { data: { profile: tied } });
+
+		const card = screen.getByTestId('best-discipline');
+		expect(card).toHaveTextContent('Signature events');
+		expect(card).toHaveTextContent('Relay');
+		expect(card).toHaveTextContent('Darts');
+		expect(card).not.toHaveTextContent('+');
+	});
+
+	it('dashes the best-discipline card and hides the section without any discipline place', () => {
+		renderWith(Page, { data: { profile: profileUnranked } });
+
+		expect(screen.getByTestId('best-discipline')).toHaveTextContent(/Signature event\s*—/);
+		expect(screen.queryByRole('heading', { name: 'By discipline' })).toBeNull();
+	});
+
+	it('lists the places per discipline, best discipline first', () => {
+		renderWith(Page, { data: { profile } });
+
+		expect(screen.getByRole('heading', { name: 'By discipline' })).toBeInTheDocument();
+		const rows = screen.getAllByTestId('discipline-row');
+		expect(rows).toHaveLength(3);
+		expect(rows[0]).toHaveTextContent(/Relay\s*1\s*2026\s*2\s*2023/);
+		expect(within(rows[0]).getByText('1st place in 2026, 2nd place in 2023')).toBeInTheDocument();
+
+		const rankFour = within(rows[1]).getByText('4');
+		expect(rankFour).not.toHaveClass('gold');
+		expect(rankFour).not.toHaveClass('silver');
+		expect(rankFour).not.toHaveClass('bronze');
+
+		expect(rows[0].querySelector('.places')).toHaveAttribute('aria-hidden', 'true');
+	});
+
+	it('speaks French for the best-discipline card and the by-discipline section', () => {
+		renderWith(Page, { data: { profile } }, 'fr');
+
+		const card = screen.getByTestId('best-discipline');
+		expect(card).toHaveTextContent(/Épreuve fétiche\s*Relais/);
+		expect(screen.getByRole('heading', { name: 'Par épreuve' })).toBeInTheDocument();
+		const rows = screen.getAllByTestId('discipline-row');
+		expect(rows[0]).toHaveTextContent(/Relais\s*1\s*2026\s*2\s*2023/);
+		expect(within(rows[0]).getByText('1re place en 2026, 2e place en 2023')).toBeInTheDocument();
+	});
 });

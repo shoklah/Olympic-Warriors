@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_PLACES, editionStatus, formatAverage, fullName, shownPlaces } from './players.js';
+import { MAX_PLACES, bestDisciplines, editionStatus, formatAverage, fullName, shownPlaces } from './players.js';
 
 describe('formatAverage', () => {
 	it('prints one decimal with the locale separator', () => {
@@ -61,5 +61,22 @@ describe('shownPlaces', () => {
 		const { shown, more } = shownPlaces(places(MAX_PLACES + 2));
 		expect(shown).toEqual(places(MAX_PLACES));
 		expect(more).toBe(2);
+	});
+});
+
+describe('bestDisciplines', () => {
+	const d = (name, position) => ({ name, position, places: [{ year: 2025, rank: position }] });
+
+	it('keeps the disciplines at position 1', () => {
+		expect(bestDisciplines([d('Relay', 1), d('Darts', 2)])).toEqual({ shown: [d('Relay', 1)], more: 0, count: 1 });
+	});
+
+	it('keeps every tied best discipline up to the cap', () => {
+		const tied = ['A', 'B', 'C', 'D', 'E'].map((n) => d(n, 1));
+		expect(bestDisciplines(tied)).toEqual({ shown: tied.slice(0, 3), more: 2, count: 5 });
+	});
+
+	it('is empty without disciplines', () => {
+		expect(bestDisciplines([])).toEqual({ shown: [], more: 0, count: 0 });
 	});
 });

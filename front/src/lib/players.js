@@ -34,3 +34,12 @@ export const MAX_PLACES = 8;
 export function shownPlaces(places, max = MAX_PLACES) {
 	return { shown: places.slice(0, max), more: Math.max(0, places.length - max) };
 }
+
+/**
+ * The player's best disciplines (position 1, ties included), the first `max` of them and
+ * how many more there are.
+ */
+export function bestDisciplines(disciplines, max = 3) {
+	const best = disciplines.filter((d) => d.position === 1);
+	return { shown: best.slice(0, max), more: Math.max(0, best.length - max), count: best.length };
+}

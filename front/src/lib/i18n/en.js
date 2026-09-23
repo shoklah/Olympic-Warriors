@@ -32,6 +32,8 @@ export default {
 	'profile.editions': 'Editions',
 	'profile.noTeam': 'No team recorded',
 	'profile.inProgress': 'In progress',
+	'profile.bestDiscipline': { one: 'Signature event', other: 'Signature events' },
+	'profile.byDiscipline': 'By discipline',
 	'ranking.title': 'Ranking',
 	'disciplines.title': 'Disciplines',
 	'discipline.rounds': { one: '{n} round', other: '{n} rounds' },
