@@ -14,7 +14,7 @@
 
 ## Working environment
 
-Main checkout `/Users/shoklah/Work/Playground/Olympic-Warriors`, branch `claude/organiser-tools` (spec committed). Everything runs in the compose stack:
+Main checkout `/Users/shoklah/Work/Playground/Olympic-Warriors`, branch `claude/organiser-tools` (spec committed). The user asked for this work to run directly in the main checkout on this branch; do not switch branches. Everything runs in the compose stack:
 
 ```bash
 docker compose exec -T server python manage.py test olympic_warriors.tests.test_organiser   # one Django module
@@ -167,7 +167,35 @@ Add to the imports at the top of the file: `Crossfit` in the `olympic_warriors.m
 Run: `docker compose exec -T server python manage.py test olympic_warriors.tests.test_summary`
 Expected: ImportError on `latest_edition`.
 
-- [ ] **Step 3: Permission and latest edition**
+- [ ] **Step 3: Permission, latest edition, and "no result yet" as null**
+
+`Discipline.register_teams` (`server/olympic_warriors/models/Discipline.py`, the `get_or_create` defaults) creates every result with `points=0` or `time="00:00:00"`, so a team without a result looks like one with a zero and the organiser page could never say what is missing. Change the defaults to:
+
+```python
+                defaults={
+                    # A discipline with games computes its points from them (0 before any is
+                    # played); one without keeps None until an organiser enters a value, and a
+                    # time is None until entered, so "no result yet" is a null, never a zero.
+                    "points": (
+                        0
+                        if self.result_type == ResultTypes.POINTS
+                        and self.pairing_system != self.PairingSystem.NONE
+                        else None
+                    ),
+                    "time": None,
+                }
+```
+
+Then in `server/olympic_warriors/tests/test_transfer.py` the two assertions on the crossfit time (line 149, `self.assertIn("00:00:00", …)`, and line 241, `self.assertEqual(str(crossfit.time), "00:00:00")`) become `self.assertIn(None, {r["time"] for r in doc["tables"]["TeamResult"]})` and `self.assertIsNone(crossfit.time)`. Add to `TestStaffSummary`:
+
+```python
+    def test_a_fresh_result_has_no_value(self):
+        quiz = Discipline.objects.create(name="Quiz", edition=self.edition, result_type="PTS")
+        crossfit = Crossfit.objects.create(edition=self.edition)
+        self.assertIsNone(TeamResult.objects.get(discipline=quiz, team=self.a).points)
+        self.assertIsNone(TeamResult.objects.get(discipline=crossfit, team=self.a).time)
+        self.assertEqual(TeamResult.objects.get(discipline=self.darts, team=self.a).points, 3)
+```
 
 `server/olympic_warriors/permissions.py`:
 
@@ -294,12 +322,12 @@ def getEditionSummary(request, year):
 - [ ] **Step 5: Run the module, then the whole Django suite**
 
 Run: `docker compose exec -T server python manage.py test olympic_warriors.tests.test_summary` → PASS.
-Run: `docker compose exec -T server python manage.py test` → all pass (any existing summary test that asserted the exact `disciplines` row shape must now expect `pairing_system` too: update it, do not weaken it).
+Run: `docker compose exec -T server python manage.py test` → all pass. `test_summary.py`'s `test_disciplines_of_this_edition_in_id_order` asserts the exact discipline rows: add the `"pairing_system"` value each of its disciplines carries (read its setUp; `"NO"` when none is set) to the expected rows; do not weaken the assertion. `test_transfer.py` as changed in Step 3.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add server/olympic_warriors/permissions.py server/olympic_warriors/models/Edition.py server/olympic_warriors/models/__init__.py server/olympic_warriors/serializer.py server/olympic_warriors/views.py server/olympic_warriors/tests/test_summary.py
+git add server/olympic_warriors/permissions.py server/olympic_warriors/models/Edition.py server/olympic_warriors/models/Discipline.py server/olympic_warriors/models/__init__.py server/olympic_warriors/serializer.py server/olympic_warriors/views.py server/olympic_warriors/tests/test_summary.py server/olympic_warriors/tests/test_transfer.py
 git commit -m "[FEAT] api: staff-aware summary, pairing system in discipline rows, IsOrganiser and latest_edition
 
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
@@ -368,14 +396,19 @@ class OrganiserSetup(APITestCase):
 
         self.staff = User.objects.create_user(username="staff", password="x", is_staff=True)
         self.player = User.objects.create_user(username="player", password="x")
+        # JSON bodies: with the multipart default a missing boolean reads as False, not missing.
         self.client = APIClient()
+        self.client.default_format = "json"
         self.client.force_authenticate(user=self.staff)
 
     def as_anonymous(self):
-        return APIClient()
+        client = APIClient()
+        client.default_format = "json"
+        return client
 
     def as_player(self):
         client = APIClient()
+        client.default_format = "json"
         client.force_authenticate(user=self.player)
         return client
 
@@ -458,7 +491,7 @@ class TestTeamResult(OrganiserSetup):
 
     def test_empty_clears_the_value(self):
         self.client.patch(f"/result/{self.time_result.id}/value/", {"time": "13:15"})
-        response = self.client.patch(f"/result/{self.time_result.id}/value/", {"time": None}, format="json")
+        response = self.client.patch(f"/result/{self.time_result.id}/value/", {"time": None})
         self.assertEqual(response.status_code, 200)
         self.time_result.refresh_from_db()
         self.assertIsNone(self.time_result.time)
@@ -575,7 +608,7 @@ class RevealSerializer(serializers.Serializer):
 
 - [ ] **Step 4: Views and URLs**
 
-In `server/olympic_warriors/views.py`, add to the imports: `from datetime import time as time_of_day`, `from .permissions import IsOrganiser`, `from .models import latest_edition` (extend the existing `.models` import list), and `GameScoreSerializer, ResultValueSerializer, RevealSerializer, SummaryGameSerializer, SummaryResultSerializer, SummaryDisciplineSerializer, SummaryRoundSerializer` in the `.serializer` import list. Then append, in a new `# Organiser` section at the end of the file:
+In `server/olympic_warriors/views.py`, add to the imports: `from datetime import time as time_of_day`, `parser_classes` in the existing `rest_framework.decorators` import, `from rest_framework.parsers import JSONParser`, `from .permissions import IsOrganiser`, `from .models import latest_edition` (extend the existing `.models` import list), and `GameScoreSerializer, ResultValueSerializer, RevealSerializer, SummaryGameSerializer, SummaryResultSerializer, SummaryDisciplineSerializer, SummaryRoundSerializer` in the `.serializer` import list. Then append, in a new `# Organiser` section at the end of the file:
 
 ```python
 # Organiser
@@ -612,12 +645,13 @@ def _minutes_seconds(text):
 )
 @api_view(["PATCH"])
 @permission_classes([IsOrganiser])
+@parser_classes([JSONParser])  # a form-encoded body would read a missing boolean as False
 def setGameScore(request, game_id):
     try:
-        game = Game.objects.select_related("discipline", "edition").get(id=game_id, is_active=True)
+        game = Game.objects.select_related("discipline__edition").get(id=game_id, is_active=True)
     except Game.DoesNotExist:
         return Response({"error": "Game not found"}, status=404)
-    if not _editable(game.edition):
+    if not _editable(game.discipline.edition):
         return Response(LATEST_ONLY, status=409)
 
     serializer = GameScoreSerializer(data=request.data)
@@ -644,6 +678,7 @@ def setGameScore(request, game_id):
 )
 @api_view(["PATCH"])
 @permission_classes([IsOrganiser])
+@parser_classes([JSONParser])  # a form-encoded body would read a missing boolean as False
 def setTeamResult(request, result_id):
     try:
         result = TeamResult.objects.select_related("discipline__edition").get(
@@ -685,6 +720,7 @@ def setTeamResult(request, result_id):
 )
 @api_view(["PATCH"])
 @permission_classes([IsOrganiser])
+@parser_classes([JSONParser])  # a form-encoded body would read a missing boolean as False
 def setDisciplineReveal(request, discipline_id):
     try:
         discipline = Discipline.objects.select_related("edition").get(
@@ -717,6 +753,7 @@ def setDisciplineReveal(request, discipline_id):
 )
 @api_view(["PATCH"])
 @permission_classes([IsOrganiser])
+@parser_classes([JSONParser])  # a form-encoded body would read a missing boolean as False
 def closeRound(request, round_id):
     try:
         round_ = TeamSportRound.objects.select_related("discipline__edition").get(
@@ -754,7 +791,7 @@ Run: `curl -s -o /dev/null -w "%{http_code}\n" -X PATCH http://localhost:3003/ro
 - [ ] **Step 6: Commit**
 
 ```bash
-git add server/olympic_warriors/serializer.py server/olympic_warriors/views.py server/olympic_warriors/urls.py server/olympic_warriors/tests/test_organiser.py docs/superpowers/specs/2026-09-23-organiser-tools-design.md
+git add server/olympic_warriors/serializer.py server/olympic_warriors/views.py server/olympic_warriors/urls.py server/olympic_warriors/tests/test_organiser.py
 git commit -m "[FEAT] api: organiser endpoints to score a game, set a result, reveal a discipline, close a round
 
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
@@ -789,10 +826,10 @@ describe('session constants', () => {
 		expect(TOKEN_COOKIE).toBe('token');
 	});
 
-	it('scopes the cookie to the site for a week, unreadable by scripts', () => {
+	it('scopes the cookie to the site for a week, lax, unreadable by scripts', () => {
 		expect(tokenCookieOptions()).toEqual({
 			httpOnly: true,
-			sameSite: 'strict',
+			sameSite: 'lax',
 			maxAge: 60 * 60 * 24 * 7,
 			path: '/'
 		});
@@ -974,7 +1011,7 @@ In `front/src/lib/components/Header.test.js` add:
 		const form = screen.getByRole('form', { name: 'Se déconnecter' });
 		expect(form).toHaveAttribute('action', '/logout');
 		expect(form.querySelector('input[name="redirectTo"]')).toHaveValue('/2026/ranking?tab=all');
-		expect(screen.getByRole('button', { name: 'Orga' })).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Se déconnecter' })).toHaveTextContent('Orga');
 	});
 
 	it('shows nothing of it to a visitor', () => {
@@ -1001,10 +1038,13 @@ export const ORGANISER = 'organiser';
 /** Cookie holding the bare DRF token after /login; deleted by /logout. */
 export const TOKEN_COOKIE = 'token';
 
-/** httpOnly, site-wide, one week. `secure` is left to SvelteKit (true off localhost). */
+/**
+ * httpOnly, site-wide, one week; lax so an organiser arriving from an outside link is still
+ * logged in (SvelteKit's origin check covers CSRF). `secure` is left to SvelteKit (true off localhost).
+ */
 export const tokenCookieOptions = () => ({
 	httpOnly: true,
-	sameSite: 'strict',
+	sameSite: 'lax',
 	maxAge: 60 * 60 * 24 * 7,
 	path: '/'
 });
@@ -1193,7 +1233,8 @@ export const load = async ({ fetch, cookies, params, parent }) => {
 			<!-- A plain POST like the language switch: the redirect reloads the page as a visitor. -->
 			<form method="POST" action="/logout" class="orga" aria-label={t('orga.logout')}>
 				<input type="hidden" name="redirectTo" value={$page.url.pathname + $page.url.search} />
-				<button title={t('orga.logout')}>{t('orga.pill')}</button>
+				<!-- One tap logs out; the accessible name says so, the visible text stays the short pill. -->
+				<button aria-label={t('orga.logout')}>{t('orga.pill')}</button>
 			</form>
 		{/if}
 ```
@@ -1224,7 +1265,7 @@ and in the style, after the `.lang button:focus-visible` rule:
 	}
 ```
 
-Dictionary: add to `fr.js` (after `login.failed`) `'orga.pill': 'Orga',` and `'orga.logout': 'Se déconnecter',`; to `en.js` `'orga.pill': 'Orga',` and `'orga.logout': 'Log out',`.
+Dictionary: `login.missing` is the last key of both files and has no trailing comma; add one, then append `'orga.pill': 'Orga',` and `'orga.logout': 'Se déconnecter'` to `fr.js`, `'orga.pill': 'Orga',` and `'orga.logout': 'Log out'` to `en.js`.
 
 - [ ] **Step 5: Run the suite, build, live check**
 
@@ -1253,7 +1294,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 
 - [ ] **Step 1: Dictionary keys**
 
-Add to `fr.js` after `orga.logout`:
+Add to `fr.js` after `orga.logout` (add the comma it lacks):
 
 ```js
 	'orga.hidden': 'Résultats masqués pour le public',
@@ -1262,13 +1303,14 @@ Add to `fr.js` after `orga.logout`:
 	'orga.hide': 'Masquer',
 	'orga.missingResults': { one: '{n} équipe sans résultat', other: '{n} équipes sans résultat' },
 	'orga.edit': 'Saisir le score',
-	'orga.played': 'joué',
+	'orga.played': 'Joué',
 	'orga.save': 'Enregistrer',
 	'orga.cancel': 'Annuler',
 	'orga.closeRound': 'Clore le tour',
 	'orga.roundClosed': 'Terminé',
 	'orga.timeHint': 'mm:ss',
 	'orga.error.unauthorised': 'Session expirée, reconnectez-vous',
+	'orga.error.forbidden': 'Réservé aux organisateurs',
 	'orga.error.invalid': 'Valeur refusée',
 	'orga.error.conflict': 'Impossible pour cette édition ou ce tour',
 	'orga.error.failed': "Échec de l'enregistrement"
@@ -1278,18 +1320,19 @@ and to `en.js`:
 
 ```js
 	'orga.hidden': 'Results hidden from the public',
-	'orga.public': 'Results public',
+	'orga.public': 'Results are public',
 	'orga.reveal': 'Reveal',
 	'orga.hide': 'Hide',
 	'orga.missingResults': { one: '{n} team without a result', other: '{n} teams without a result' },
 	'orga.edit': 'Enter the score',
-	'orga.played': 'played',
+	'orga.played': 'Played',
 	'orga.save': 'Save',
 	'orga.cancel': 'Cancel',
 	'orga.closeRound': 'Close the round',
 	'orga.roundClosed': 'Done',
 	'orga.timeHint': 'mm:ss',
 	'orga.error.unauthorised': 'Session expired, log in again',
+	'orga.error.forbidden': 'Organisers only',
 	'orga.error.invalid': 'Value refused',
 	'orga.error.conflict': 'Not possible for this edition or round',
 	'orga.error.failed': 'Could not save'
@@ -1366,7 +1409,7 @@ Run: `docker compose exec -T front npx vitest run src/lib/edition.test.js` → F
 
 - [ ] **Step 4: Helpers**
 
-In `disciplineSchedule` (`front/src/lib/edition.js`), the round object gains its id: `{ id: round.id, order: round.order, isOver: round.is_over, games: … }` (the page's close-round form posts it). Add `id: 20` / `id: 21` to the expected rounds in the `disciplineSchedule` tests of `edition.test.js`.
+In `disciplineSchedule` (`front/src/lib/edition.js`), the round object gains its id: `{ id: round.id, order: round.order, isOver: round.is_over, games: … }` (the page's close-round form posts it). Add `id` to every expected round object in the `disciplineSchedule` tests of `edition.test.js` (`id: 20`, `id: 21`, and `id: 23` for the empty round of `includes a round with no games as an empty entry`).
 
 Append to `front/src/lib/edition.js`:
 
@@ -1407,7 +1450,7 @@ Run: `docker compose exec -T front npx vitest run src/lib/edition.test.js` → P
 Append to `GameRow.test.js`:
 
 ```js
-	it('wraps the pairing in a button when onEdit is given, and calls it with nothing', async () => {
+	it('wraps the pairing in a button when onEdit is given and calls it on click', async () => {
 		const onEdit = vi.fn();
 		renderWith(GameRow, { ...played, onEdit });
 
@@ -1567,16 +1610,16 @@ describe('ScoreSheet', () => {
 		expect(score1).toHaveValue(0);
 	});
 
-	it('defaults the played switch on for an unplayed game and off is kept for a played one', () => {
+	it('starts the played switch on for an unplayed game', () => {
 		renderWith(ScoreSheet, { game, roundNumber: 1, open: true });
-		expect(screen.getByRole('checkbox', { name: 'played' })).toBeChecked();
+		expect(screen.getByRole('checkbox', { name: 'Played' })).toBeChecked();
 	});
 
 	it('reflects the loaded score of a played game', () => {
 		renderWith(ScoreSheet, { game: { ...game, isPlayed: true, score1: 12, score2: 9 }, roundNumber: 2, open: true });
 		expect(screen.getByLabelText('Cerfs')).toHaveValue(12);
 		expect(screen.getByLabelText('Bisons')).toHaveValue(9);
-		expect(screen.getByRole('checkbox', { name: 'played' })).toBeChecked();
+		expect(screen.getByRole('checkbox', { name: 'Played' })).toBeChecked();
 	});
 
 	it('closes on cancel, on Escape and on the backdrop', async () => {
@@ -1588,6 +1631,12 @@ describe('ScoreSheet', () => {
 		await fireEvent.keyDown(window, { key: 'Escape' });
 		await fireEvent.click(screen.getByTestId('backdrop'));
 		expect(closed).toHaveBeenCalledTimes(3);
+	});
+
+	it('focuses the first score field when it opens', async () => {
+		renderWith(ScoreSheet, { game, roundNumber: 1, open: true });
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(screen.getByLabelText('Cerfs')).toHaveFocus();
 	});
 
 	it('renders nothing when closed and shows the error line when given', () => {
@@ -1602,7 +1651,7 @@ describe('ScoreSheet', () => {
 		renderWith(ScoreSheet, { game, roundNumber: 1, open: true }, 'fr');
 		expect(screen.getByRole('dialog', { name: 'Tour 1 · arbitre : Aigles' })).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeInTheDocument();
-		expect(screen.getByRole('checkbox', { name: 'joué' })).toBeInTheDocument();
+		expect(screen.getByRole('checkbox', { name: 'Joué' })).toBeInTheDocument();
 	});
 });
 ```
@@ -1613,7 +1662,7 @@ Run: `docker compose exec -T front npx vitest run src/lib/components/ScoreSheet`
 
 ```svelte
 <script>
-	import { createEventDispatcher } from 'svelte';
+	import { createEventDispatcher, tick } from 'svelte';
 	import { enhance } from '$app/forms';
 	import { useT } from '$lib/i18n';
 
@@ -1627,6 +1676,10 @@ Run: `docker compose exec -T front npx vitest run src/lib/components/ScoreSheet`
 
 	const t = useT();
 	const dispatch = createEventDispatcher();
+
+	/** The first score field, focused when the sheet opens; the page refocuses the row on close. */
+	let firstField = null;
+	$: if (open && firstField) tick().then(() => firstField?.focus());
 
 	// Local copies: the steppers edit these, the loaded game stays as it is until the
 	// action succeeds and the page reloads its data.
@@ -1666,7 +1719,7 @@ Run: `docker compose exec -T front npx vitest run src/lib/components/ScoreSheet`
 				<label class="name" for="score1-{game.id}">{game.team1Name ?? t('team.unknown')}</label>
 				<span class="stepper">
 					<button type="button" aria-label="− {game.team1Name}" on:click={() => (score1 = clamp(score1 - 1))}>−</button>
-					<input id="score1-{game.id}" name="score1" type="number" inputmode="numeric" min="0" bind:value={score1} />
+					<input id="score1-{game.id}" name="score1" type="number" inputmode="numeric" min="0" bind:value={score1} bind:this={firstField} />
 					<button type="button" aria-label="+ {game.team1Name}" on:click={() => (score1 = clamp(score1 + 1))}>+</button>
 				</span>
 			</div>
@@ -1900,7 +1953,7 @@ describe('StaffBar', () => {
 	it('offers to hide a revealed one', () => {
 		renderWith(StaffBar, { disciplineId: 12, revealed: true, missing: null });
 
-		expect(screen.getByText('Results public')).toBeInTheDocument();
+		expect(screen.getByText('Results are public')).toBeInTheDocument();
 		const form = screen.getByRole('button', { name: 'Hide' }).closest('form');
 		expect(form.querySelector('input[name="reveal_score"]')).toHaveValue('false');
 	});
@@ -2093,6 +2146,14 @@ describe('discipline actions', () => {
 		expect(fetch.mock.calls[0][0]).toBe('http://api/round/22/close/');
 	});
 
+	it('refuses a non-numeric or negative value before calling the API', async () => {
+		let { result, fetch } = await call('score', { game: '201', score1: 'x', score2: '3' });
+		expect(result).toMatchObject({ status: 400, data: { action: 'score', id: 201, error: 'orga.error.invalid' } });
+		expect(fetch).not.toHaveBeenCalled();
+		({ result } = await call('result', { result: '106', kind: 'PTS', value: '-2' }));
+		expect(result).toMatchObject({ status: 400, data: { error: 'orga.error.invalid' } });
+	});
+
 	it('fails with the unauthorised key without a cookie', async () => {
 		const { result } = await call('close', { round: '22' }, { token: undefined });
 		expect(result).toMatchObject({ status: 401, data: { action: 'close', id: 22, error: 'orga.error.unauthorised' } });
@@ -2102,7 +2163,7 @@ describe('discipline actions', () => {
 		const cases = [
 			[400, 'orga.error.invalid'],
 			[401, 'orga.error.unauthorised'],
-			[403, 'orga.error.unauthorised'],
+			[403, 'orga.error.forbidden'],
 			[409, 'orga.error.conflict'],
 			[502, 'orga.error.failed']
 		];
@@ -2130,7 +2191,7 @@ import { TOKEN_COOKIE } from '$lib/session';
 const ERROR_KEYS = {
 	400: 'orga.error.invalid',
 	401: 'orga.error.unauthorised',
-	403: 'orga.error.unauthorised',
+	403: 'orga.error.forbidden',
 	409: 'orga.error.conflict'
 };
 
@@ -2156,9 +2217,14 @@ export const actions = {
 	score: async (event) => {
 		const form = await event.request.formData();
 		const game = id(form, 'game');
+		const score1 = Number(form.get('score1'));
+		const score2 = Number(form.get('score2'));
+		if (!Number.isInteger(score1) || !Number.isInteger(score2) || score1 < 0 || score2 < 0) {
+			return fail(400, { action: 'score', id: game, error: ERROR_KEYS[400] });
+		}
 		return patch(event, 'score', game, `/game/${game}/score/`, {
-			score1: Number(form.get('score1')),
-			score2: Number(form.get('score2')),
+			score1,
+			score2,
 			is_played: form.get('is_played') === 'on'
 		});
 	},
@@ -2167,8 +2233,16 @@ export const actions = {
 		const form = await event.request.formData();
 		const result = id(form, 'result');
 		const raw = String(form.get('value') ?? '').trim();
-		const body =
-			form.get('kind') === 'TIM' ? { time: raw === '' ? null : raw } : { points: raw === '' ? null : Number(raw) };
+		let body;
+		if (form.get('kind') === 'TIM') {
+			body = { time: raw === '' ? null : raw };
+		} else {
+			const points = raw === '' ? null : Number(raw);
+			if (points !== null && (!Number.isInteger(points) || points < 0)) {
+				return fail(400, { action: 'result', id: result, error: ERROR_KEYS[400] });
+			}
+			body = { points };
+		}
 		return patch(event, 'result', result, `/result/${result}/value/`, body);
 	},
 
@@ -2215,11 +2289,18 @@ describe('discipline page for an organiser', () => {
 		expect(screen.queryByRole('button')).toBeNull();
 	});
 
-	it('shows the staff bar with the unplayed count on a hidden discipline with games', () => {
+	it('offers to hide a revealed discipline, with no missing count', () => {
 		renderWith(Page, { data: dataFor(summaryStaff, 10, true) }, 'en', true);
-		// Relay is revealed in the fixture: the bar offers to hide, no count
-		expect(screen.getByText('Results public')).toBeInTheDocument();
+		expect(screen.getByText('Results are public')).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Hide' })).toBeInTheDocument();
+		expect(screen.queryByText(/to play/)).toBeNull();
+	});
+
+	it('says how many games are unplayed on a hidden discipline with games', () => {
+		const hidden = { ...summaryStaff, disciplines: summaryStaff.disciplines.map((d) => (d.id === 10 ? { ...d, reveal_score: false } : d)) };
+		renderWith(Page, { data: dataFor(hidden, 10, true) }, 'en', true);
+		expect(screen.getByText('Results hidden from the public')).toBeInTheDocument();
+		expect(screen.getAllByText('1 to play').length).toBeGreaterThan(0);
 	});
 
 	it('shows result lines with the stored values for a discipline without rounds', () => {
@@ -2245,6 +2326,8 @@ describe('discipline page for an organiser', () => {
 		const lines = screen.getAllByTestId('result-line');
 		expect(lines[0].querySelector('input[name="value"]')).toHaveValue('12:30');
 		expect(lines[0].querySelector('input[name="value"]')).toHaveAttribute('placeholder', 'mm:ss');
+		expect(lines[0].querySelector('input[name="value"]')).toHaveAttribute('pattern', '[0-9]{1,3}:[0-5][0-9]');
+		expect(lines[0].querySelector('input[name="value"]')).not.toHaveAttribute('inputmode');
 		expect(lines[0].querySelector('input[name="kind"]')).toHaveValue('TIM');
 	});
 
@@ -2275,8 +2358,12 @@ describe('discipline page for an organiser', () => {
 		expect(screen.getByRole('heading', { name: 'Round 1' }).parentElement).toHaveTextContent('Done');
 	});
 
-	it('shows the error line under the control the action names', () => {
-		renderWith(Page, { data: dataFor(summaryStaff, 12, true), form: { action: 'result', id: 107, error: 'orga.error.invalid' } }, 'en', true);
+	it('shows the error line under the control the action names, also when form changes later', async () => {
+		const { component } = renderWith(Page, { data: dataFor(summaryStaff, 12, true) }, 'en', true);
+		expect(screen.queryByRole('alert')).toBeNull();
+
+		// A failed action updates `form` without reloading `data`: the line must still appear.
+		await component.$set({ form: { action: 'result', id: 107, error: 'orga.error.invalid' } });
 		const lines = screen.getAllByTestId('result-line');
 		expect(lines[1]).toHaveTextContent('Value refused');
 		expect(lines[0]).not.toHaveTextContent('Value refused');
@@ -2351,29 +2438,39 @@ Run: `docker compose exec -T front npx vitest run "src/routes/\[year=year\]/disc
 	$: isSwiss = data.discipline.pairing_system === 'SW';
 	$: unplayed = (data.schedule ?? []).reduce((n, round) => n + roundCount(round).left, 0);
 	$: withoutResult = data.entries.filter((e) => e.points === null && e.time === null).length;
-	$: missing = hasRounds
-		? unplayed > 0
-			? t('discipline.toPlay', { n: unplayed })
-			: null
-		: withoutResult > 0
-			? t('orga.missingResults', { n: withoutResult })
-			: null;
-	const errorFor = (action, id) =>
+	// Worded only while hidden: once public, what is missing shows as dashes in the list.
+	$: missing = data.discipline.reveal_score
+		? null
+		: hasRounds
+			? unplayed > 0
+				? t('discipline.toPlay', { n: unplayed })
+				: null
+			: withoutResult > 0
+				? t('orga.missingResults', { n: withoutResult })
+				: null;
+	// Reactive on purpose: a failed action updates `form` without reloading `data`.
+	$: errorFor = (action, id) =>
 		form && form.action === action && form.id === id && form.error ? form.error : null;
 
-	/** The game whose sheet is open, or null. */
+	/** The game whose sheet is open, or null; the row's button gets focus back on close. */
 	let editing = null;
 	let editingRound = 0;
-	const openSheet = (game, roundOrder) => {
+	let opener = null;
+	const openSheet = (game, roundOrder, event) => {
+		opener = event?.currentTarget ?? null;
 		editing = game;
 		editingRound = roundOrder + 1;
+	};
+	const closeSheet = () => {
+		editing = null;
+		opener?.focus();
 	};
 </script>
 ```
 
 Markup changes, in order:
 
-1. After the `.rail` div, when editable:
+1. Between the `h1` and the `.rail` div (the spec puts the bar under the title, above the rail), when editable:
 
 ```svelte
 	{#if editable}
@@ -2399,13 +2496,14 @@ Markup changes, in order:
 					<MedalRank rank={entry.ranking} />
 					<label class="name" for="entry-{entry.id}">{entry.teamName ?? t('team.unknown')}</label>
 					{#if data.discipline.result_type === 'TIM'}
+						<!-- A text keyboard: the numeric keypad has no colon. The pattern is a JS string
+						     because Svelte would read `{1,3}` in a plain attribute as an expression. -->
 						<input
 							id="entry-{entry.id}"
 							name="value"
 							type="text"
-							inputmode="numeric"
 							placeholder={t('orga.timeHint')}
-							pattern="[0-9]{1,3}:[0-5][0-9]"
+							pattern={'[0-9]{1,3}:[0-5][0-9]'}
 							value={formatTime(entry.time) ?? ''}
 						/>
 					{:else}
@@ -2468,7 +2566,7 @@ Markup changes, in order:
 						score2={game.score2}
 						isPlayed={game.isPlayed}
 						refereeName={game.refereeName}
-						onEdit={editable ? () => openSheet(game, round.order) : null}
+						onEdit={editable ? (event) => openSheet(game, round.order, event) : null}
 					/>
 				{/each}
 			{/each}
@@ -2483,7 +2581,7 @@ Markup changes, in order:
 		roundNumber={editingRound}
 		open={true}
 		error={errorFor('score', editing.id)}
-		on:close={() => (editing = null)}
+		on:close={closeSheet}
 	/>
 {/if}
 ```
