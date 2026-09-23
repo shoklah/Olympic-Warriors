@@ -14,14 +14,14 @@
 
 ## Conventions for every task
 
-- Work only in the worktree `/Users/shoklah/Work/Playground/Olympic-Warriors/.claude/worktrees/first-editions-disciplines` (called `$WT` below). Never `git checkout` in the main checkout: other sessions use it.
-- Server commands run through the main compose project with the worktree mounted over `/server`:
+- Work in the main checkout `/Users/shoklah/Work/Playground/Olympic-Warriors` on branch `claude/first-editions-disciplines` (checked out from `dev`). Never switch branches.
+- The compose stack is running and mounts `./server`, so server commands run through it without a rebuild:
   ```bash
-  docker compose --project-directory /Users/shoklah/Work/Playground/Olympic-Warriors run --rm --no-deps -T -v "$WT/server:/server" server python manage.py <command>
+  docker compose exec -T server python manage.py <command>
   ```
-  This needs the `db` service running (`docker compose --project-directory /Users/shoklah/Work/Playground/Olympic-Warriors up -d db` if not).
-- Commit message style: `[ADD] ...`, ending with the line `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
-- Implementers run sequentially: parallel agents in the same worktree share the git index.
+- Front commands run in `front/` (`node_modules` is there already; `front/.env` exists).
+- Commit message style: `[ADD] ...`, ending with the line `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`.
+- Implementers run sequentially: parallel agents share the git index.
 
 ## File map
 
@@ -38,22 +38,13 @@
 
 ---
 
-### Task 0: Worktree setup
+### Task 0: Baseline
 
-- [ ] **Step 1: Give the worktree the gitignored server files**
-
-```bash
-cp /Users/shoklah/Work/Playground/Olympic-Warriors/server/dev.env $WT/server/dev.env
-mkdir -p $WT/server/logs
-cp $WT/front/.env.example $WT/front/.env
-cd $WT/front && npm ci
-```
-
-- [ ] **Step 2: Check the baseline is green**
+- [ ] **Step 1: Check the baseline is green**
 
 ```bash
-docker compose --project-directory /Users/shoklah/Work/Playground/Olympic-Warriors run --rm --no-deps -T -v "$WT/server:/server" server python manage.py test olympic_warriors.tests.test_disciplines
-cd $WT/front && npm test
+docker compose exec -T server python manage.py test olympic_warriors.tests.test_disciplines
+cd front && npm test
 ```
 Expected: both pass. If the Django run fails before this plan's changes, stop and report.
 
@@ -124,7 +115,7 @@ class TestFirstEditionsDisciplines(DisciplineTestSetup):
 - [ ] **Step 2: Run the test to check it fails**
 
 ```bash
-docker compose --project-directory /Users/shoklah/Work/Playground/Olympic-Warriors run --rm --no-deps -T -v "$WT/server:/server" server python manage.py test olympic_warriors.tests.test_disciplines
+docker compose exec -T server python manage.py test olympic_warriors.tests.test_disciplines
 ```
 Expected: an error `ImportError: cannot import name 'Volleyball' from 'olympic_warriors.models'`.
 
@@ -228,24 +219,24 @@ from .DiscThrow import DiscThrow
 - [ ] **Step 5: Generate the migration**
 
 ```bash
-docker compose --project-directory /Users/shoklah/Work/Playground/Olympic-Warriors run --rm --no-deps -T -v "$WT/server:/server" server python manage.py makemigrations olympic_warriors --name first_editions_disciplines
+docker compose exec -T server python manage.py makemigrations olympic_warriors --name first_editions_disciplines
 ```
 Expected: `migrations/0030_first_editions_disciplines.py` with ten `CreateModel` operations, each having only a `discipline_ptr` OneToOneField with `bases=('olympic_warriors.discipline',)`. Open the file and check that it contains nothing else, such as an `AlterField` on an unrelated model. If it does, stop and report.
 
 - [ ] **Step 6: Run the tests to check they pass**
 
 ```bash
-docker compose --project-directory /Users/shoklah/Work/Playground/Olympic-Warriors run --rm --no-deps -T -v "$WT/server:/server" server python manage.py test olympic_warriors.tests.test_disciplines
+docker compose exec -T server python manage.py test olympic_warriors.tests.test_disciplines
 ```
 Expected: all pass, including `TestFirstEditionsDisciplines` (2 tests, 10 subtests each).
 
 - [ ] **Step 7: Commit**
 
 ```bash
-cd $WT && git add server/olympic_warriors/models server/olympic_warriors/migrations/0030_first_editions_disciplines.py server/olympic_warriors/tests/test_disciplines.py
+git add server/olympic_warriors/models server/olympic_warriors/migrations/0030_first_editions_disciplines.py server/olympic_warriors/tests/test_disciplines.py
 git commit -m "[ADD] ten disciplines from the first editions
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ```
 
 ---
@@ -290,18 +281,18 @@ site.register(DiscThrow, DisciplineAdmin)
 - [ ] **Step 2: Check there is no pending migration and the full suite passes**
 
 ```bash
-docker compose --project-directory /Users/shoklah/Work/Playground/Olympic-Warriors run --rm --no-deps -T -v "$WT/server:/server" server python manage.py makemigrations --check --dry-run
-docker compose --project-directory /Users/shoklah/Work/Playground/Olympic-Warriors run --rm --no-deps -T -v "$WT/server:/server" server python manage.py test
+docker compose exec -T server python manage.py makemigrations --check --dry-run
+docker compose exec -T server python manage.py test
 ```
 Expected: `No changes detected`, then every test passes.
 
 - [ ] **Step 3: Commit**
 
 ```bash
-cd $WT && git add server/olympic_warriors/admin.py
+git add server/olympic_warriors/admin.py
 git commit -m "[ADD] admin: register the first editions disciplines
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ```
 
 ---
@@ -348,7 +339,7 @@ const DISCIPLINE_NAMES = [
 - [ ] **Step 2: Run it to check it fails**
 
 ```bash
-cd $WT/front && npx vitest run src/lib/icons.test.js
+cd front && npx vitest run src/lib/icons.test.js
 ```
 Expected: 20 failures, one icon and one French name per new discipline.
 
@@ -385,17 +376,17 @@ In the JSDoc above `FRENCH_NAMES`, change `(Rugby,\n * Basketball, Crossfit, Bli
 - [ ] **Step 4: Run it to check the French-name half passes**
 
 ```bash
-cd $WT/front && npx vitest run src/lib/icons.test.js
+cd front && npx vitest run src/lib/icons.test.js
 ```
 Expected: 10 failures left, all under `every discipline model has an icon`.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd $WT && git add front/src/lib/icons.test.js front/src/lib/i18n/disciplines.js
+git add front/src/lib/icons.test.js front/src/lib/i18n/disciplines.js
 git commit -m "[ADD] front: French names of the first editions disciplines
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ```
 
 ---
@@ -508,7 +499,7 @@ House style: `width="2000" height="2000" viewBox="0 0 2000 2000" fill="none"`, w
 Render each icon to PNG on a dark background and view it. Check that each shape reads as intended, that nothing is clipped at the 2000 edge, and that no two icons look alike (volleyball vs football, frisbee vs discthrow, blindfoldedobstaclecourse vs obstaclecourse):
 
 ```bash
-mkdir -p "$SCRATCH/icons" && for f in $WT/front/src/lib/img/icons/{volleyball,jumpingrope,dance,frisbee,geoguessr,football,handball,burgerquizz,blindfoldedobstaclecourse,discthrow}.svg; do sed 's|fill="none" xmlns|style="background:#111" fill="none" xmlns|' "$f" > "$SCRATCH/icons/$(basename $f)"; done
+mkdir -p "$SCRATCH/icons" && for f in front/src/lib/img/icons/{volleyball,jumpingrope,dance,frisbee,geoguessr,football,handball,burgerquizz,blindfoldedobstaclecourse,discthrow}.svg; do sed 's|fill="none" xmlns|style="background:#111" fill="none" xmlns|' "$f" > "$SCRATCH/icons/$(basename $f)"; done
 qlmanage -t -s 300 -o "$SCRATCH/icons" "$SCRATCH/icons"/*.svg
 ```
 (`$SCRATCH` is the session scratchpad directory.) Open the PNGs with the Read tool. Adjust coordinates if a shape is wrong, and keep the house style.
@@ -516,17 +507,17 @@ qlmanage -t -s 300 -o "$SCRATCH/icons" "$SCRATCH/icons"/*.svg
 - [ ] **Step 3: Run the front tests and build**
 
 ```bash
-cd $WT/front && npm test && npm run build
+cd front && npm test && npm run build
 ```
 Expected: every test passes and the build succeeds.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-cd $WT && git add front/src/lib/img/icons
+git add front/src/lib/img/icons
 git commit -m "[ADD] front: icons of the first editions disciplines
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ```
 
 ---
