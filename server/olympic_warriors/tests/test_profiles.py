@@ -17,6 +17,7 @@ from olympic_warriors.profiles import (
     leaderboard,
     paris_today,
     participations,
+    _load,
     _place,
     _record,
 )
@@ -198,6 +199,19 @@ class TestParticipations(ProfilesSetup, TestCase):
 
         with self.assertNumQueries(PROFILES_QUERIES):
             participations(TODAY)
+
+
+class TestLoad(ProfilesSetup, TestCase):
+    def test_exposes_the_data_participations_reads(self):
+        loaded = _load(TODAY)
+
+        self.assertEqual(set(loaded.editions), {self.y2024.id, self.y2025.id, self.y2026.id})
+        self.assertEqual(loaded.editions[self.y2024.id].team_count, 4)
+        self.assertEqual(loaded.finished, {self.y2024.id, self.y2025.id})
+        # Standings only for finished editions with a player, and both of those rank.
+        self.assertEqual(set(loaded.standings), {self.y2024.id, self.y2025.id})
+        self.assertEqual(loaded.ranked, {self.y2024.id, self.y2025.id})
+        self.assertEqual(loaded.chosen[(self.ana.id, self.y2025.id)].team_id, self.loups.id)
 
 
 class TestLeaderboard(ProfilesSetup, TestCase):
