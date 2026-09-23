@@ -178,7 +178,7 @@ def participations(today=None):
             finished=edition_id in finished,
         )
         if part.counts:
-            # counts implies both a team and a ranked edition (rank is only ever set below).
+            # counts implies a rank, and rank is only set above for a team in a ranked edition.
             disciplines = tuple(
                 DisciplinePlace(
                     discipline.discipline_name, edition.year, discipline.standing.ranking
@@ -257,8 +257,8 @@ def _medal_key(ranks):
 
 
 def _places_key(places):
-    """Medal-table key of a sequence of places (Participations or DisciplinePlaces, each
-    exposing `.rank`): forwards their ranks, best first, to _medal_key."""
+    """Medal-table key of a sequence of places (Participations or DisciplinePlace items,
+    each exposing `.rank`): forwards their ranks, best first, to _medal_key."""
     return _medal_key(place.rank for place in places)
 
 

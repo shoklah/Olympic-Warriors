@@ -71,7 +71,7 @@ class Standings:
 
     def disciplines_of(self, team_id):
         """A team's discipline standings, discipline id order, or () when the team is not
-        active in the edition."""
+        active in the edition or has no active result."""
         return self.team_disciplines.get(team_id, ())
 
 

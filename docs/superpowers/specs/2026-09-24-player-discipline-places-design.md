@@ -25,7 +25,9 @@ Nothing is stored.
   medal-table rule:
   - more 1st places first, then more 2nd places, and so on;
   - an extra lower place counts in the discipline's favour;
-  - identical places share a position, listed by name.
+  - identical places share a position. The server lists a tie by database name; the
+    page re-sorts each tie by the name it displays (French or English), so a French page
+    lists « Balle au prisonnier » before « Blindtest ».
 
   `position` is the discipline's shared position among the person's own disciplines
   (1, 1, 3, …).
@@ -51,12 +53,12 @@ class DisciplineStanding:
 class Standings:
     results: dict[int, ResultStanding]
     teams: dict[int, TeamStanding]
-    by_team: dict[int, tuple[DisciplineStanding, ...]] = field(default_factory=dict)
+    team_disciplines: dict[int, tuple[DisciplineStanding, ...]]
 
     def disciplines_of(self, team_id) -> tuple[DisciplineStanding, ...]
 ```
 
-`by_team` holds the active results of active disciplines of active teams: the same rows
+`team_disciplines` holds the active results of active disciplines of active teams: the same rows
 as `results`, ordered by discipline id. The query count stays at 3.
 
 ### `profiles.py`
@@ -108,7 +110,8 @@ as `results`, ordered by discipline id. The query count stays at 3.
     `--muted` after, followed by the year, small and muted.
   - The figures are `aria-hidden`. A visually hidden sentence reads them instead
     (`players.placeIn`): "1re place en 2025, 2e place en 2024".
-- **New keys:** `profile.bestDiscipline` (plural `{ one, other }`) and
+- **New keys:** `profile.bestDiscipline` (plural `{ one, other }`), `profile.moreDisciplines`
+  (plural, the spoken "+N") and
   `profile.byDiscipline`.
 - **New helper:** `bestDisciplines(disciplines, max = 3)` in `$lib/players` returns
   `{ shown, more, count }` for the entries at position 1.
