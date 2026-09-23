@@ -184,3 +184,13 @@ class TestFirstEditionsDisciplines(DisciplineTestSetup):
                 self.assertEqual(results.count(), len(self.teams))
                 self.assertFalse(results.filter(points__isnull=False).exists())
                 self.assertFalse(results.filter(time__isnull=False).exists())
+                self.assertFalse(results.filter(team=self.inactive_team).exists())
+
+    def test_schedules_no_rounds_or_games_by_default(self):
+        for model, name, _ in FIRST_EDITIONS_DISCIPLINES:
+            with self.subTest(name=name):
+                discipline = model.objects.create(edition=self.edition)
+                self.assertEqual(
+                    TeamSportRound.objects.filter(discipline=discipline).count(), 0
+                )
+                self.assertEqual(Game.objects.filter(discipline=discipline).count(), 0)
