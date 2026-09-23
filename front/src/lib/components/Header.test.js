@@ -55,14 +55,14 @@ describe('Header', () => {
 	it('shows the ORGA pill with a logout form to an organiser', () => {
 		renderWith(Header, {}, 'fr', true);
 
-		const form = screen.getByRole('form', { name: 'Se déconnecter' });
+		const button = screen.getByRole('button', { name: 'Orga · Se déconnecter' });
+		const form = button.closest('form');
 		expect(form).toHaveAttribute('action', '/logout');
 		expect(form.querySelector('input[name="redirectTo"]')).toHaveValue('/2026/ranking?tab=all');
-		expect(screen.getByRole('button', { name: 'Se déconnecter' })).toHaveTextContent('Orga');
 	});
 
 	it('shows nothing of it to a visitor', () => {
 		renderWith(Header, {}, 'en');
-		expect(screen.queryByRole('form', { name: 'Log out' })).toBeNull();
+		expect(screen.queryByRole('button', { name: /Log out/ })).toBeNull();
 	});
 });

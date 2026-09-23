@@ -43,10 +43,10 @@
 		{/if}
 		{#if organiser}
 			<!-- A plain POST like the language switch: the redirect reloads the page as a visitor. -->
-			<form method="POST" action="/logout" class="orga" aria-label={t('orga.logout')}>
+			<form method="POST" action="/logout" class="orga">
 				<input type="hidden" name="redirectTo" value={$page.url.pathname + $page.url.search} />
-				<!-- One tap logs out; the accessible name says so, the visible text stays the short pill. -->
-				<button aria-label={t('orga.logout')}>{t('orga.pill')}</button>
+				<!-- The accessible name must contain the visible text (WCAG 2.5.3). -->
+				<button aria-label="{t('orga.pill')} · {t('orga.logout')}">{t('orga.pill')}</button>
 			</form>
 		{/if}
 		<!-- A plain POST (no use:enhance): the redirect reloads the page in the new language. -->

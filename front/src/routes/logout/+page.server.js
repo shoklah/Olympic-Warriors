@@ -14,6 +14,8 @@ export const actions = {
 	default: async ({ cookies, request }) => {
 		const form = await request.formData();
 		cookies.delete(TOKEN_COOKIE, { path: '/' });
+		// Also drop the old pre-Task-3 login cookie, in case it is still lingering in a browser.
+		cookies.delete('Authorization', { path: '/' });
 		redirect(303, localPath(form.get('redirectTo')));
 	}
 };

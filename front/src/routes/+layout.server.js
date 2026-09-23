@@ -19,19 +19,24 @@ async function resolveOrganiser(fetch, cookies) {
 	}
 }
 
+/** Every active edition, newest first, with only the fields the nav and hub need. */
+async function loadEditions(fetch) {
+	return (await apiGet(fetch, api('/editions/')))
+		.map(({ id, year, host, photos_url }) => ({ id, year, host, photos_url }))
+		.sort((a, b) => b.year - a.year);
+}
+
 /**
  * Every active edition, newest first, plus the year the bare URLs default to, the
  * visitor's language from the `lang` cookie (French unless they switched) and whether
  * they are an organiser. Only the fields the nav and hub need ride along.
  */
 export const load = async ({ fetch, cookies }) => {
-	const editions = (await apiGet(fetch, api('/editions/')))
-		.map(({ id, year, host, photos_url }) => ({ id, year, host, photos_url }))
-		.sort((a, b) => b.year - a.year);
+	const [editions, organiser] = await Promise.all([loadEditions(fetch), resolveOrganiser(fetch, cookies)]);
 	return {
 		editions,
 		latestYear: editions[0]?.year ?? null,
 		locale: localeFrom(cookies.get('lang')),
-		organiser: await resolveOrganiser(fetch, cookies)
+		organiser
 	};
 };

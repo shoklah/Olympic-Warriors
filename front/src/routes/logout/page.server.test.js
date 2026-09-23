@@ -14,6 +14,7 @@ describe('logout action', () => {
 			actions.default({ cookies, request: post({ redirectTo: '/2026/disciplines/10' }) })
 		).rejects.toMatchObject({ status: 303, location: '/2026/disciplines/10' });
 		expect(cookies.delete).toHaveBeenCalledWith('token', { path: '/' });
+		expect(cookies.delete).toHaveBeenCalledWith('Authorization', { path: '/' });
 	});
 
 	it('refuses a non-local redirect', async () => {

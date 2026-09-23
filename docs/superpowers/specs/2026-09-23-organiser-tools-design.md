@@ -137,7 +137,12 @@ and stored points but null ranking; public summary unchanged;
   link is still logged in, path `/`, one week). The old
   `Authorization` cookie name and its `Bearer` prefix go; the API wants
   `Authorization: Token <key>` and `api.js` builds that header from the
-  cookie value when one is given.
+  cookie value when one is given. The login form is a plain POST with no
+  `use:enhance`: SvelteKit would otherwise follow the action's redirect
+  client-side, re-running the root layout's `load` without re-running
+  `+layout.svelte`'s init-time `setContext`, so the ORGA pill would stay
+  hidden until a manual reload; a full page load sets the organiser
+  context from the new cookie.
 - `/logout/+page.server.js`: a default action deleting the cookie and
   303-redirecting to the local `redirectTo` it was given (same guard as
   `/lang`), a `load` that 303s to `/`.
@@ -150,12 +155,13 @@ and stored points but null ranking; public summary unchanged;
   `latestYear` and `locale`, and `+layout.svelte` puts it in context under
   `ORGANISER` (exported from `$lib/session.js` with `useOrganiser()`, the
   same shape as `I18N`/`useLocale`).
-- The `[year=year]` layout fetches the summary with the token when there
-  is one, so staff get the staff-aware payload. It also returns
-  `editable: organiser && Number(params.year) === latestYear`, the one
-  flag the discipline page uses to render controls.
+- The `[year=year]` layout fetches the summary with the token for an
+  organiser only (a non-staff or dead token must not reach the API, which
+  answers 401 even on public views), so staff get the staff-aware payload.
+  It also returns `editable: organiser && Number(params.year) === latestYear`,
+  the one flag the discipline page uses to render controls.
 - `Header.svelte`: for an organiser, an `ORGA` pill in the display face,
-  accent border, left of the language switch; it is a form posting to
+  accent fill, left of the language switch; it is a form posting to
   `/logout` with the hidden `redirectTo`, `aria-label` `orga.logout`.
 
 ### The discipline page (`disciplines/[id]`)
@@ -258,7 +264,7 @@ Keys added to both files (French first):
 
 - `session.test.js`: `useOrganiser` default false.
 - Root layout load with a fake `fetch`: no cookie, staff, non-staff (cookie
-  deleted), API down (cookie kept, `organiser` false).
+  kept, `organiser` false), API down (cookie kept, `organiser` false).
 - `[year=year]` layout load: `editable` true only for staff on the latest year.
 - `api.test.js`: `apiPatch` sends the method, the JSON body and the token
   header.

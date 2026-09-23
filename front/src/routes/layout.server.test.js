@@ -51,4 +51,10 @@ describe('root layout load', () => {
 		expect(data.organiser).toBe(false);
 		expect(cookies.delete).not.toHaveBeenCalled();
 	});
+
+	it('is not an organiser for a non-JSON 200 and keeps the token', async () => {
+		const { data, cookies } = await run({ token: 'abc', user: new Response('<html>', { status: 200 }) });
+		expect(data.organiser).toBe(false);
+		expect(cookies.delete).not.toHaveBeenCalled();
+	});
 });

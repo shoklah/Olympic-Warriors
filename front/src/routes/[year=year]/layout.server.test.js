@@ -19,6 +19,9 @@ describe('year layout load', () => {
 		expect((await run({ year: '2026', organiser: true, latestYear: 2026, token: 'abc' })).data.editable).toBe(true);
 		expect((await run({ year: '2024', organiser: true, latestYear: 2026, token: 'abc' })).data.editable).toBe(false);
 		expect((await run({ year: '2026', organiser: false, latestYear: 2026 })).data.editable).toBe(false);
+		expect((await run({ year: '2026', organiser: true, latestYear: null, token: 'abc' })).data.editable).toBe(
+			false
+		);
 	});
 
 	it('fetches the summary with the token for an organiser and without it otherwise', async () => {
@@ -26,5 +29,7 @@ describe('year layout load', () => {
 		expect(staff.fetch.mock.calls[0][1].headers).toEqual({ authorization: 'Token abc' });
 		const anon = await run({ year: '2026', organiser: false, latestYear: 2026, token: 'abc' });
 		expect(anon.fetch.mock.calls[0][1].headers).toEqual({});
+		const noCookie = await run({ year: '2026', organiser: true, latestYear: 2026, token: undefined });
+		expect(noCookie.fetch.mock.calls[0][1].headers).toEqual({});
 	});
 });
