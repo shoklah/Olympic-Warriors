@@ -21,8 +21,10 @@ Nothing here builds steps 2 or 3, but the payloads leave room for them (see
   active edition. The profile is keyed by the user id.
 - **Participation.** One (user, edition) pair, from the user's active `Player` rows in that
   active edition. When a user has several such rows in one edition (it happens today:
-  user 34 has rows 81 and 249 in 2024), the row with a team wins, otherwise the lowest
-  id. No constraint or migration is added, and fixing duplicates stays an admin task.
+  user 34 has rows 81 and 249 in 2024), the lowest id among the rows with a team wins,
+  otherwise the lowest id. No constraint or migration is added: the admin refuses new
+  duplicates (see "Admin"), and sorting out the existing ones stays an admin task.
+  `User.is_active` plays no part, because it controls who can log in, not who played.
 - **Edition rank.** The rank of the participation's team in `compute_standings(edition)`.
   That is the computed rank, or `Team.final_rank` in a hand-ranked edition. It is `None`
   when:
@@ -153,6 +155,15 @@ selected for the names. The test pins it either way.
   and other admin pages use it.
 - Known cost: a `list_editable` foreign key evaluates its queryset once per row, which is
   one query per row. That is fine at 25 rows.
+- `Player.clean()` refuses two mistakes, each with a `ValidationError` on its field:
+  - `team`: a team whose `edition_id` differs from the player's;
+  - `user`: another active `Player` of the same user in the same edition, when this row
+    is active.
+
+  The admin form and the `list_editable` formset both run `full_clean`, so the error
+  shows on the row. The registration import and `import_edition` do not call `clean()`,
+  so they behave as before. While Xavier's two 2024 rows exist, neither can be saved in
+  the admin until one is deactivated. That is intended: it forces the choice between them.
 
 ## Front
 
@@ -190,7 +201,7 @@ server-only.
 - `h1` the name.
 - **Position line.** `MedalRank` for the all-time position with the label "général" /
   "all-time", linking to `/players`. It is omitted when `position` is null.
-- **Two figures.**
+- **Two figures**, side by side at the same size, neither one the headline:
   - Average rank: `average_rank`, shown as `2,5` in French and `2.5` in English.
   - Teams beaten: `average_beaten`, shown as `71 %` in French and `71%` in English.
   - When `counted` is 0, both show `—` and a line reads "Aucune édition classée pour
@@ -220,6 +231,10 @@ The player chips on `/<year>/ranking` and `/<year>/teams/<id>` become links to
   the visitor to that year's hub (`switchYearPath` behaves the same for any path outside
   the year segment).
 - The tab bar shows on both new routes, because neither is in `HUB_OR_LOGIN`.
+- `EditionHub` gets a "Joueurs" / "Players" link to `/players`, next to its existing
+  ranking link and in the same style. On a phone the hub has neither the tab bar nor the
+  header tabs, and without this link the leaderboard would be two taps away from the
+  home page.
 
 ### Helpers and i18n
 
@@ -277,6 +292,10 @@ Server (`tests/test_profiles.py`):
 - Summary: roster players carry `user`, and `SUMMARY_QUERIES` stays the same.
 - Admin: the team is editable from the Player changelist, and the dropdown labels carry
   the year.
+- `Player.clean()`:
+  - refuses a team from another edition;
+  - refuses a second active row for the same (user, edition);
+  - accepts an inactive duplicate and a row without a team.
 
 Front:
 - `players.test.js` for the formatters and `editionStatus`, including French and English
@@ -293,6 +312,7 @@ Front:
   - one French test.
 - `Header` and `TabBar` tests: the Players item, its href, and `aria-current` on
   `/players` and `/players/34`.
+- `EditionHub` test: the Players link to `/players`.
 - Ranking and team page tests: roster chips link to `/players/<user>`.
 - Fixtures: `summary.js` players gain `user`, plus new profile and leaderboard fixtures.
 
@@ -313,7 +333,8 @@ compose stack.
 ## Out of scope
 
 - Rankings per discipline, awards and badges (steps 2 and 3).
-- A unique constraint on (edition, user), and cleaning up the existing duplicates.
+- A database unique constraint on (edition, user), and cleaning up the existing duplicates
+  automatically. `Player.clean()` only stops new ones from the admin.
 - A bulk roster import for past editions.
 - Skill ratings on profiles.
 
