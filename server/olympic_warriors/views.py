@@ -210,6 +210,10 @@ def getEditions(request):
 
 @extend_schema(
     summary="Everything the public front needs for one edition, by year",
+    description=(
+        "Public and player tokens get the revealed rankings only; a staff token also "
+        "returns every hidden game's score and every result's stored points or time."
+    ),
     responses={
         "200": EditionSummarySerializer,
         "404": OpenApiResponse(description="Edition not found"),
@@ -223,7 +227,8 @@ def getEditionSummary(request, year):
         edition = Edition.objects.get(year=year, is_active=True)
     except Edition.DoesNotExist:
         return Response({"error": "Edition not found"}, status=404)
-    serializer = EditionSummarySerializer(edition)
+    # Staff see game scores and stored results before the reveal; the ranking stays hidden.
+    serializer = EditionSummarySerializer(edition, context={"staff": request.user.is_staff})
     return Response(serializer.data)
 
 

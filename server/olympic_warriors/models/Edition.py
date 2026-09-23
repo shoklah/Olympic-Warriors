@@ -137,3 +137,11 @@ class Edition(models.Model):
 
         # Call the original save method to save the object
         super().save(*args, **kwargs)
+
+
+def latest_edition():
+    """
+    The active edition with the highest year: the only one the site may edit. None when
+    there is no edition at all.
+    """
+    return Edition.objects.filter(is_active=True).order_by("-year").first()

@@ -39,7 +39,7 @@ class DisciplineTestSetup(TestCase):
 
 
 class TestGeneralCultureQuizz(DisciplineTestSetup):
-    """Minimal discipline: no scheduling, one zero-point result per active team."""
+    """Minimal discipline: no scheduling, one resultless (points=None) row per active team."""
 
     def test_sets_name_and_result_type(self):
         quizz = GeneralCultureQuizz.objects.create(edition=self.edition)
@@ -47,11 +47,11 @@ class TestGeneralCultureQuizz(DisciplineTestSetup):
         self.assertEqual(quizz.name, "General Culture Quizz")
         self.assertEqual(quizz.result_type, ResultTypes.POINTS)
 
-    def test_creates_zero_point_result_per_active_team(self):
+    def test_creates_a_pointless_result_per_active_team(self):
         quizz = GeneralCultureQuizz.objects.create(edition=self.edition)
         results = TeamResult.objects.filter(discipline=quizz)
         self.assertEqual(results.count(), len(self.teams))
-        self.assertFalse(results.exclude(points=0).exists())
+        self.assertFalse(results.exclude(points__isnull=True).exists())
         self.assertFalse(results.filter(time__isnull=False).exists())
         self.assertFalse(results.filter(team=self.inactive_team).exists())
 

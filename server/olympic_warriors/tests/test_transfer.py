@@ -146,7 +146,7 @@ class ExportEditionTests(TestCase):
         self.assertEqual(doc["edition"]["registration_form"], "registration_forms/test.csv")
         self.assertEqual(doc["tables"]["GameEvent"][0]["time"], "2024-08-01T10:00:00+00:00")
         self.assertIsNone(doc["tables"]["GameEvent"][0]["player2"])
-        self.assertIn("00:00:00", {r["time"] for r in doc["tables"]["TeamResult"]})
+        self.assertIn(None, {r["time"] for r in doc["tables"]["TeamResult"]})
 
     def test_missing_year_raises(self):
         with self.assertRaises(Edition.DoesNotExist):
@@ -238,7 +238,7 @@ class ImportEditionTests(TestCase):
         crossfit = TeamResult.objects.get(
             discipline__edition=edition, discipline__name="Crossfit", team__name="Red"
         )
-        self.assertEqual(str(crossfit.time), "00:00:00")
+        self.assertIsNone(crossfit.time)
 
     def test_existing_year_aborts_unless_replace(self):
         import_edition(self.document)

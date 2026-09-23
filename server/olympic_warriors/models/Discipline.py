@@ -178,8 +178,16 @@ class Discipline(models.Model):
                 team=team,
                 discipline=self,
                 defaults={
-                    "points": 0 if self.result_type == ResultTypes.POINTS else None,
-                    "time": "00:00:00" if self.result_type == ResultTypes.TIME else None,
+                    # A discipline with games computes its points from them (0 before any is
+                    # played); one without keeps None until an organiser enters a value, and a
+                    # time is None until entered, so "no result yet" is a null, never a zero.
+                    "points": (
+                        0
+                        if self.result_type == ResultTypes.POINTS
+                        and self.pairing_system != self.PairingSystem.NONE
+                        else None
+                    ),
+                    "time": None,
                 }
             )
 

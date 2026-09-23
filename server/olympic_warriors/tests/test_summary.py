@@ -10,9 +10,10 @@ from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.test import TestCase, override_settings
-from rest_framework.test import APITestCase
+from rest_framework.test import APIClient, APITestCase
 
 from olympic_warriors.models import (
+    Crossfit,
     Darts,
     Discipline,
     Edition,
@@ -25,6 +26,7 @@ from olympic_warriors.models import (
     TeamResult,
     TeamSportRound,
 )
+from olympic_warriors.models.Edition import latest_edition
 from olympic_warriors.serializer import EditionSummarySerializer
 
 
@@ -191,12 +193,19 @@ class TestEditionSummarySerializer(SummarySetup, TestCase):
         self.assertEqual(
             disciplines,
             [
-                {"id": self.relay.id, "name": "Relay", "result_type": "PTS", "reveal_score": True},
+                {
+                    "id": self.relay.id,
+                    "name": "Relay",
+                    "result_type": "PTS",
+                    "reveal_score": True,
+                    "pairing_system": "NO",
+                },
                 {
                     "id": self.orienteering.id,
                     "name": "Orienteering",
                     "result_type": "TIM",
                     "reveal_score": False,
+                    "pairing_system": "NO",
                 },
             ],
         )
@@ -326,8 +335,11 @@ class TestEditionSummaryEndpoint(APITestCase):
         self.edition = Edition.objects.create(
             year=2026, host="Paris", start_date="2026-09-19", end_date="2026-09-20"
         )
-        Team.objects.create(name="Aigles", edition=self.edition)
-        Relay.objects.create(edition=self.edition, reveal_score=True)
+        self.team = Team.objects.create(name="Aigles", edition=self.edition)
+        self.relay = Relay.objects.create(edition=self.edition, reveal_score=True)
+        # A discipline without games keeps its points null until an organiser enters one;
+        # give it a value here so the public shape check below has a ranking to assert on.
+        TeamResult.objects.filter(discipline=self.relay, team=self.team).update(points=0)
 
     def test_public_without_token(self):
         response = self.client.get("/edition/year/2026/summary/")
@@ -547,3 +559,103 @@ class TestSummarySchedule(ScheduleSetup, TestCase):
         data = self.summary()
         self.assertNotIn(other_relay.id, [r["discipline"] for r in data["rounds"]])
         self.assertNotIn(other_relay.id, [g["discipline"] for g in data["games"]])
+
+
+class TestStaffSummary(APITestCase):
+    """
+    Staff get the scores of every game and the stored value of every result whatever
+    reveal_score says; the ranking of a hidden discipline stays null for everyone.
+    """
+
+    def setUp(self):
+        self.edition = Edition.objects.create(
+            year=2026, host="Paris", start_date="2026-09-19", end_date="2026-09-20"
+        )
+        self.a = Team.objects.create(name="A", edition=self.edition)
+        self.b = Team.objects.create(name="B", edition=self.edition)
+        self.darts = Darts.objects.create(edition=self.edition)  # hidden, PTS, no round yet
+        self.round = TeamSportRound.objects.create(discipline=self.darts, order=0)
+        self.game = Game.objects.create(
+            discipline=self.darts, round=self.round, team1=self.a, team2=self.b,
+            referees=self.a, edition=self.edition, score1=7, score2=3, is_played=True,
+        )
+        self.staff = User.objects.create_user(username="staff", password="x", is_staff=True)
+        self.player = User.objects.create_user(username="player", password="x")
+
+    def summary(self, user=None):
+        client = APIClient()
+        if user is not None:
+            client.force_authenticate(user=user)
+        response = client.get("/edition/year/2026/summary/")
+        self.assertEqual(response.status_code, 200)
+        return response.data
+
+    def test_public_and_player_get_no_score_on_a_hidden_discipline(self):
+        for user in (None, self.player):
+            data = self.summary(user)
+            game = data["games"][0]
+            self.assertEqual((game["score1"], game["score2"]), (None, None))
+            result = next(r for r in data["results"] if r["team"] == self.a.id)
+            self.assertIsNone(result["points"])
+            self.assertIsNone(result["ranking"])
+
+    def test_staff_get_scores_and_stored_points_but_no_ranking(self):
+        data = self.summary(self.staff)
+        game = data["games"][0]
+        self.assertEqual((game["score1"], game["score2"]), (7, 3))
+        result = next(r for r in data["results"] if r["team"] == self.a.id)
+        self.assertEqual(result["points"], 3)  # league points of the played win
+        self.assertIsNone(result["ranking"])
+        self.assertIsNone(result["global_points"])
+
+    def test_staff_get_a_stored_time(self):
+        crossfit = Crossfit.objects.create(edition=self.edition)  # hidden, TIM, no round
+        TeamResult.objects.filter(discipline=crossfit, team=self.a).update(time="00:13:15")
+        data = self.summary(self.staff)
+        result = next(
+            r for r in data["results"] if r["team"] == self.a.id and r["discipline"] == crossfit.id
+        )
+        self.assertEqual(result["time"], "00:13:15")
+        self.assertIsNone(result["ranking"])
+
+    def test_revealed_discipline_is_the_same_for_everyone(self):
+        Discipline.objects.filter(id=self.darts.id).update(reveal_score=True)
+        public = self.summary()
+        staff = self.summary(self.staff)
+        self.assertEqual(public["games"], staff["games"])
+        self.assertEqual(public["results"], staff["results"])
+
+    def test_disciplines_carry_their_pairing_system(self):
+        data = self.summary()
+        self.assertEqual(data["disciplines"][0]["pairing_system"], "NO")
+
+    def test_a_fresh_result_has_no_value(self):
+        quiz = Discipline.objects.create(name="Quiz", edition=self.edition, result_type="PTS")
+        crossfit = Crossfit.objects.create(edition=self.edition)
+        self.assertIsNone(TeamResult.objects.get(discipline=quiz, team=self.a).points)
+        self.assertIsNone(TeamResult.objects.get(discipline=crossfit, team=self.a).time)
+        self.assertEqual(TeamResult.objects.get(discipline=self.darts, team=self.a).points, 3)
+
+
+class TestCurrentUser(APITestCase):
+
+    def test_current_user_says_whether_staff(self):
+        staff = User.objects.create_user(username="staff", password="x", is_staff=True)
+        self.client.force_authenticate(user=staff)
+        response = self.client.get("/user/current/")
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["is_staff"])
+        self.assertNotIn("password", response.data)
+
+
+class TestLatestEdition(TestCase):
+
+    def test_latest_is_the_highest_active_year(self):
+        Edition.objects.create(year=2026, host="P", start_date="2026-09-19", end_date="2026-09-20")
+        Edition.objects.create(
+            year=2027, host="L", start_date="2027-09-19", end_date="2027-09-20", is_active=False
+        )
+        self.assertEqual(latest_edition().year, 2026)
+
+    def test_none_without_any_edition(self):
+        self.assertIsNone(latest_edition())
