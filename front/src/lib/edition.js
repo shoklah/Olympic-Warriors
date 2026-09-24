@@ -16,6 +16,14 @@ export function findTeam(summary, teamId) {
 	return summary.teams.find((t) => t.id === teamId) ?? null;
 }
 
+/** The discipline page's « Palmarès » tab, as its `?tab=` value. */
+export const ALL_TIME_TAB = 'all-time';
+
+/** A discipline page's path, on its all-time tab when `allTime` is set. */
+export function disciplinePath(year, disciplineId, allTime = false) {
+	return `/${year}/disciplines/${disciplineId}${allTime ? `?tab=${ALL_TIME_TAB}` : ''}`;
+}
+
 /** Discipline row by id, or null. */
 export function findDiscipline(summary, disciplineId) {
 	return summary.disciplines.find((d) => d.id === disciplineId) ?? null;

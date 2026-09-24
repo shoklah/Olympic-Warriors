@@ -39,6 +39,16 @@ describe('DisciplineRail', () => {
 		expect(screen.getByRole('link', { name: 'Relay' })).not.toHaveAttribute('aria-current');
 	});
 
+	it('keeps the discipline page tab it is given', () => {
+		renderWith(DisciplineRail, { year: 2026, disciplines: summary.disciplines, currentId: 10, allTime: true });
+
+		expect(screen.getByRole('link', { name: 'Relay' })).toHaveAttribute('href', '/2026/disciplines/10?tab=all-time');
+		expect(screen.getByRole('link', { name: 'Orienteering' })).toHaveAttribute(
+			'href',
+			'/2026/disciplines/11?tab=all-time'
+		);
+	});
+
 	it('names the tiles in French under fr', () => {
 		renderWith(DisciplineRail, { year: 2026, disciplines: summary.disciplines, currentId: null }, 'fr');
 

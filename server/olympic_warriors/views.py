@@ -38,9 +38,10 @@ from .serializer import (
     SummaryRoundSerializer,
     LeaderboardRowSerializer,
     ProfileSerializer,
+    DisciplineAllTimeSerializer,
 )
 from .badges import badge_stats, profile_badges
-from .profiles import leaderboard
+from .profiles import discipline_table, leaderboard, profile_record
 from .permissions import IsOrganiser
 from .throttling import LoginRateThrottle
 from .models import (
@@ -239,9 +240,9 @@ def getProfiles(request):
 @permission_classes([AllowAny])
 def getProfile(request, user_id):
     # The same leaderboard as /profiles/, so a profile can never disagree on a position; its
-    # user ids are also the rarity stats' denominator (everyone on /players).
-    records = leaderboard()
-    record = next((r for r in records if r.user_id == user_id), None)
+    # user ids are also the rarity stats' denominator (everyone on /players). The record's
+    # discipline places also count the person's running editions, like the all-time tables.
+    records, record = profile_record(user_id)
     if record is None:
         return Response({"error": "Player not found"}, status=404)
     context = {
@@ -249,6 +250,33 @@ def getProfile(request, user_id):
         "badge_stats": badge_stats([r.user_id for r in records]),
     }
     return Response(ProfileSerializer(record, context=context).data)
+
+
+@extend_schema(
+    summary="A discipline's all-time table of people",
+    description=(
+        "Every person whose team has a revealed, scored result in the discipline (matched "
+        "by name across active editions, the running one included), ordered like the "
+        "leaderboard's medal table on those places; identical places share a position. "
+        "The same table for every edition's discipline of that name."
+    ),
+    responses={
+        "200": DisciplineAllTimeSerializer,
+        "404": OpenApiResponse(description="Discipline not found"),
+        "500": OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def getDisciplineAllTime(request, discipline_id):
+    name = (
+        Discipline.objects.filter(pk=discipline_id, is_active=True, edition__is_active=True)
+        .values_list("name", flat=True)
+        .first()
+    )
+    if name is None:
+        return Response({"error": "Discipline not found"}, status=404)
+    return Response(DisciplineAllTimeSerializer(discipline_table(name)).data)
 
 
 # Editions

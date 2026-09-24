@@ -6,6 +6,7 @@ import {
 	editionStatus,
 	formatAverage,
 	fullName,
+	listYears,
 	shownPlaces,
 	spokenPlaces
 } from './players.js';
@@ -123,5 +124,18 @@ describe('spokenPlaces', () => {
 
 	it('reads places best first, in French', () => {
 		expect(spokenPlaces(places, 'fr')).toBe('1re place en 2026, 2e place en 2023');
+	});
+});
+
+describe('listYears', () => {
+	it('joins years as a sentence list in English', () => {
+		expect(listYears([2024], 'en')).toBe('2024');
+		expect(listYears([2024, 2026], 'en')).toBe('2024 and 2026');
+		expect(listYears([2024, 2025, 2026], 'en')).toBe('2024, 2025, and 2026');
+	});
+
+	it('joins years as a sentence list in French', () => {
+		expect(listYears([2024, 2026], 'fr')).toBe('2024 et 2026');
+		expect(listYears([2024, 2025, 2026], 'fr')).toBe('2024, 2025 et 2026');
 	});
 });
