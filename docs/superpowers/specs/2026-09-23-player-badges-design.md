@@ -144,7 +144,7 @@ These need only a participation in a finished edition, not a rank.
 | `alone-at-the-top` | Seul au sommet | Alone at the top | 1st in an all-time table, with the position held alone | once | gold | A mountain peak with a flag |
 | `hall-of-fame-podium` | Podium du panthéon | Hall of fame podium | Top 3 | once | silver | A temple with three columns ✓ |
 | `hall-of-famer` | Entrée au panthéon | Hall of famer | Top 10 | once | bronze | A single column |
-| `reign` | Règne | Reign | 1st in 3 consecutive tables | streak | gold | Throne |
+| `reign` | Règne | Reign | 1st in 3 consecutive tables. A table after an edition where no participation counts (nothing ranked yet) breaks the streak, as an unranked edition breaks a place streak | streak | gold | Throne |
 | `kingslayer` | Régicide | Kingslayer | 1st in a table after not being 1st in the previous one | each | gold | A toppled crown |
 | `rocket` | Fusée | Rocket | The biggest climb between two consecutive tables (both positions known, at least one place, ties share it) | each | bronze | Rocket ✓ |
 
@@ -180,8 +180,9 @@ at the first such win. All nine earn `olympus`.
 | `dionysus` | Dionysos | Dionysus | Fair | bronze | A bunch of grapes |
 | `olympus` | Olympe | Mount Olympus | All nine gods | gold | A mountain topped by a temple |
 
-**Kinds**, for `brains-and-brawn`: the mind disciplines are the four Athena ones and
-Blindtest, and every other discipline except Fair is physical.
+**Kinds**, for `brains-and-brawn`: the mind disciplines are the Athena ones and
+Blindtest (derived from the gods map, so a new quiz under Athena is mind), and every other
+discipline except Fair is physical.
 
 Both maps live in `badges.py` and match on the discipline name. A test fails when a
 `Discipline` subclass is missing from them, as `icons.test.js` does for icons. So adding a
