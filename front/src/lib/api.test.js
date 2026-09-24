@@ -69,6 +69,15 @@ describe('apiGet', () => {
 		});
 	});
 
+	it('adds extra headers, such as the visitor address', async () => {
+		const fetch = vi.fn().mockResolvedValue(jsonResponse(200, { username: 'leamartin' }));
+		await apiGet(fetch, 'http://api/claim/MzQ/abc-123/', null, { 'x-forwarded-for': '203.0.113.7' });
+		expect(fetch).toHaveBeenCalledWith('http://api/claim/MzQ/abc-123/', {
+			method: 'GET',
+			headers: { 'x-forwarded-for': '203.0.113.7' }
+		});
+	});
+
 	it('maps a non-error-range status (304) to 502', async () => {
 		const fetch = vi.fn().mockResolvedValue(new Response(null, { status: 304 }));
 		await expect(apiGet(fetch, 'http://api/x')).rejects.toMatchObject({
@@ -108,6 +117,25 @@ describe('apiPost', () => {
 			status: 400,
 			body: { message: 'Unable to log in with provided credentials.' }
 		});
+	});
+
+	it("keeps the API's whole list of error codes, not only the first as the message", async () => {
+		const fetch = vi.fn().mockResolvedValue(
+			jsonResponse(400, { errors: ['password_too_common', 'password_entirely_numeric'] })
+		);
+		await expect(apiPost(fetch, 'http://api/claim/MzQ/abc-123/', {})).rejects.toMatchObject({
+			status: 400,
+			body: {
+				message: 'password_too_common',
+				errors: ['password_too_common', 'password_entirely_numeric']
+			}
+		});
+	});
+
+	it('carries no error codes for a body without a list of them', async () => {
+		const fetch = vi.fn().mockResolvedValue(jsonResponse(400, { errors: 'not a list', detail: 'Bad' }));
+		const failure = await apiPost(fetch, 'http://api/x', {}).catch((err) => err);
+		expect(failure.body).toEqual({ message: 'Bad' });
 	});
 });
 
