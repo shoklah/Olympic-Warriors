@@ -524,6 +524,21 @@ class ProfileBadgeSerializer(serializers.Serializer):
     partner = ProfileBadgePartnerSerializer(allow_null=True)
 
 
+class BadgeStatsSerializer(serializers.Serializer):
+    """badges.badge_stats: how many of the leaderboard's people hold each badge code
+    (holders), and for the six tiered codes, how many hold at least each tier (tiers,
+    [tier-1, tier-2, tier-3] counts). See the "Rarity" design spec."""
+
+    players = serializers.IntegerField(help_text="Size of the leaderboard the stats are computed over")
+    holders = serializers.DictField(
+        child=serializers.IntegerField(), help_text="Badge code -> holder count, codes with a holder only"
+    )
+    tiers = serializers.DictField(
+        child=serializers.ListField(child=serializers.IntegerField(), min_length=3, max_length=3),
+        help_text="Tiered badge code -> [at-least-tier-1, -2, -3] holder counts, tiered codes with a holder only",
+    )
+
+
 class ProfileSerializer(serializers.Serializer):
     """A person's profile: position, counted editions and average rank, every edition
     newest first, the person's places per discipline, ordered like a medal table, the
@@ -547,6 +562,6 @@ class ProfileSerializer(serializers.Serializer):
     def get_badges(self, obj):  # pylint: disable=unused-argument
         return ProfileBadgeSerializer(self.context.get("badges", []), many=True).data
 
-    @extend_schema_field(serializers.JSONField())
+    @extend_schema_field(BadgeStatsSerializer())
     def get_badge_stats(self, obj):  # pylint: disable=unused-argument
         return self.context.get("badge_stats")

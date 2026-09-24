@@ -12,6 +12,7 @@ from django.contrib.auth.models import User
 from django.test import SimpleTestCase, TestCase
 from rest_framework.test import APIClient
 
+from olympic_warriors import badges as badges_module
 from olympic_warriors.badges import badge_stats
 from olympic_warriors.models import Badge, Darts, Edition, Player, Relay, Team, TeamResult
 from olympic_warriors.profiles import (
@@ -586,6 +587,29 @@ class TestBadgeStats(ProfilesSetup, TestCase):
 
         with self.assertNumQueries(1):
             badge_stats([self.ana.id])
+
+    def test_a_manually_awarded_badge_counts_towards_holders(self):
+        """MVP and the other awards are entered by hand in the admin, never through
+        badges.earned(): badge_stats reads the Badge table directly, so it must count a
+        manual row exactly like a computed one."""
+        self.badge(Badge.Codes.MVP, self.y2024, is_manual=True)
+
+        stats = badge_stats([self.ana.id])
+
+        self.assertEqual(stats["holders"], {"mvp": 1})
+
+    def test_tiered_codes_matches_every_tier_table(self):
+        """TIERED_CODES is maintained by hand next to the six *_TIERS tables it names.
+        Derive the codes mechanically from every *_TIERS name in the module instead of
+        hand-listing them again here, so a seventh tiered badge with a new *_TIERS table
+        can't be added without TIERED_CODES failing this test."""
+        derived = {
+            name[: -len("_TIERS")].lower().replace("_", "-")
+            for name in vars(badges_module)
+            if name.endswith("_TIERS")
+        }
+
+        self.assertEqual(derived, set(badges_module.TIERED_CODES))
 
 
 class TestProfileEndpoints(ProfilesSetup, TestCase):

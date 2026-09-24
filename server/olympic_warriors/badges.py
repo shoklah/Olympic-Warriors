@@ -829,7 +829,7 @@ def badge_stats(user_ids):
             highest[key] = tier
     holders = Counter()
     tiers = defaultdict(lambda: [0, 0, 0])
-    for (code, user_id), tier in highest.items():  # pylint: disable=unused-variable
+    for (code, _), tier in highest.items():
         holders[code] += 1
         if code in TIERED_CODES:
             for k in (1, 2, 3):
@@ -838,5 +838,5 @@ def badge_stats(user_ids):
     return {
         "players": len(user_ids),
         "holders": dict(holders),
-        "tiers": {code: counts for code, counts in tiers.items()},
+        "tiers": dict(tiers),
     }

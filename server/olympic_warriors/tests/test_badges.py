@@ -717,10 +717,6 @@ class TestTeammates(World, TestCase):
         for user in (self.ana, *mates):
             self.seat(user, edition, teams[0])
 
-    def crowd(self, year):
-        """Ten new people."""
-        return [self.person(f"Mate{year}-{n}") for n in range(10)]
-
     def test_comrades_after_three_editions_together(self):
         self.share([2021])
         self.share([2022], same=False)
