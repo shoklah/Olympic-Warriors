@@ -61,6 +61,7 @@ urlpatterns = [
     path("discipline/<int:discipline_id>/reveal/", views.setDisciplineReveal),
     path("discipline/<int:discipline_id>/all-time/", views.getDisciplineAllTime),
     path("disciplines/", views.getDisciplines),
+    path("disciplines/all-time/", views.getHeldDisciplines),
     path("disciplines/<int:edition_id>/", views.getDisciplinesByEdition),
     # player ratings
     path("rating/<int:rating_id>/", views.getPlayerRating),
