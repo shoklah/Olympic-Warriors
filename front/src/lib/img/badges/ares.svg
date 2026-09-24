@@ -1,0 +1,13 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- Ares' crested Corinthian helmet, from the side. -->
+<g transform="translate(-150 0)">
+<path d="M470 1030C470 760 700 600 1000 600C1340 600 1560 820 1580 1100" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1580 1100C1590 1300 1620 1450 1760 1580" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1760 1580L1460 1640C1380 1520 1300 1470 1200 1470" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1200 1470C1160 1600 1060 1720 900 1780L570 1780" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M570 1780L470 1030" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M475 1130Q690 1040 890 1120Q690 1200 475 1130" stroke="white" stroke-width="90" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M600 1165L600 1780" stroke="white" stroke-width="90" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M600 640C640 330 900 190 1180 200C1500 210 1760 440 1800 880C1700 700 1500 520 1200 470C940 430 720 500 600 640Z" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+</svg>

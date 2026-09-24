@@ -1,0 +1,7 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- Ulysses' ship under a square sail. -->
+<path d="M200 1000Q250 1440 600 1440H1400Q1720 1440 1800 1100Q1830 980 1740 960" stroke="white" stroke-width="130" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M540 460H1460M1000 460V300M1000 1180V1440" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M620 460H1380V1040Q1000 1260 620 1040Z" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M200 1700Q350 1600 500 1700T800 1700T1100 1700T1400 1700T1700 1700" stroke="white" stroke-width="100" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

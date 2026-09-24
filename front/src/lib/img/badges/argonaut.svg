@@ -1,0 +1,9 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- The Argo from the side: a galley with a curled prow and a row of oars, no sail. -->
+<g transform="translate(20 -50)">
+<path d="M230 640Q250 900 420 1030Q540 1150 720 1150H1440L1730 1110L1570 1030Q1610 900 1630 760C1650 610 1540 550 1470 600C1400 650 1440 760 1520 735" stroke="white" stroke-width="130" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M350 910H1605" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M640 1150L470 1540M820 1150L650 1540M1000 1150L830 1540M1180 1150L1010 1540M1360 1150L1190 1540" stroke="white" stroke-width="90" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="1520" cy="950" r="45" fill="white"/>
+</g>
+</svg>

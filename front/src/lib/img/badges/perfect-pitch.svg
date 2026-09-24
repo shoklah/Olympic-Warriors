@@ -1,0 +1,6 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- A tuning fork ringing: two sound arcs beside its tines. -->
+<path d="M800 220V1000A200 200 0 0 0 1200 1000V220" stroke="white" stroke-width="130" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1000 1200V1780" stroke="white" stroke-width="130" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M540 330A300 300 0 0 0 540 690M1460 330A300 300 0 0 1 1460 690" stroke="white" stroke-width="100" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

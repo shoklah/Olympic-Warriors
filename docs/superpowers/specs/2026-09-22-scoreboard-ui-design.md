@@ -30,6 +30,8 @@ mockups were drawn before the test contract was checked.
 ## Decisions
 
 - **One dark theme** on every page. Tokens in `styles.css`, no `.hub` split.
+  *(Superseded on 2026-09-24 by the light mode spec: dark stays the default and
+  the hub's theme, and a light theme follows the device or the header switch.)*
 - **Type:** Bebas Neue for headings, numbers, navigation and labels that act
   as headings; Inter for everything else. **Self-hosted** woff2 files under
   `front/static/fonts/` with `@font-face` and `font-display: swap`: no

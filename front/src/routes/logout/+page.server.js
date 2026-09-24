@@ -1,9 +1,6 @@
 import { redirect } from '@sveltejs/kit';
+import { localPath } from '$lib/local-path';
 import { TOKEN_COOKIE } from '$lib/session';
-
-/** Same guard as /lang: one leading slash, no control characters. */
-const localPath = (value) =>
-	typeof value === 'string' && /^\/(?![/\\])[^\s\x00-\x1f\x7f]*$/.test(value) ? value : '/';
 
 export const load = () => {
 	redirect(303, '/');

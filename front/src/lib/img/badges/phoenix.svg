@@ -1,0 +1,8 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- A phoenix, wings raised, rising out of a flame. -->
+<circle cx="1000" cy="470" r="90" fill="white"/>
+<path d="M1000 385Q1020 290 1110 250" stroke="white" stroke-width="80" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1000 580C1100 720 1100 980 1000 1120C900 980 900 720 1000 580Z" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M935 770C760 560 520 400 250 300Q320 520 450 560Q440 690 590 730Q610 860 930 920M1065 770C1240 560 1480 400 1750 300Q1680 520 1550 560Q1560 690 1410 730Q1390 860 1070 920" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1000 1120C1070 1280 1230 1360 1180 1640C1140 1540 1090 1500 1060 1500C1070 1600 1050 1700 1000 1790C950 1700 930 1600 940 1500C910 1500 860 1540 820 1640C770 1360 930 1280 1000 1120Z" stroke="white" stroke-width="100" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

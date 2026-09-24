@@ -233,6 +233,7 @@
 	h1 img {
 		height: 40px;
 		width: 40px;
+		filter: var(--icon-filter);
 	}
 
 	.rail {

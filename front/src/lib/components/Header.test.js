@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/svelte';
+import { fireEvent, screen, within } from '@testing-library/svelte';
 import { describe, expect, it, vi } from 'vitest';
 import { renderWith } from '$lib/test-utils';
 import Header from './Header.svelte';
@@ -17,7 +17,7 @@ vi.mock('$app/stores', async () => {
 		})
 	};
 });
-vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
+vi.mock('$app/navigation', () => ({ goto: vi.fn(), afterNavigate: vi.fn() }));
 
 describe('Header', () => {
 	it('shows the language switch with the current language marked', () => {
@@ -52,10 +52,81 @@ describe('Header', () => {
 		expect(screen.getByRole('combobox', { name: 'Edition' })).toBeInTheDocument();
 	});
 
+	// The stylesheet shows one of the four: the direction away from the theme on screen, and
+	// `system` when that direction is the device's own theme.
+	it('offers each theme as a stored choice and as a way back to the device', () => {
+		renderWith(Header, {}, 'en');
+
+		const form = screen.getByRole('form', { name: 'Theme' });
+		expect(form).toHaveAttribute('action', '/theme');
+		expect(form).toHaveAttribute('method', 'POST');
+		expect(form.querySelector('input[name="redirectTo"]')).toHaveValue('/2026/ranking?tab=all');
+		const values = (name) => within(form).getAllByRole('button', { name }).map((b) => b.value);
+		expect(values('Switch to light theme')).toEqual(['light', 'system']);
+		expect(values('Switch to dark theme')).toEqual(['dark', 'system']);
+	});
+
+	it('words the theme switch in French', () => {
+		renderWith(Header, {}, 'fr');
+
+		const form = screen.getByRole('form', { name: 'Thème' });
+		expect(within(form).getAllByRole('button', { name: 'Passer au thème clair' })).toHaveLength(2);
+		expect(within(form).getAllByRole('button', { name: 'Passer au thème sombre' })).toHaveLength(2);
+	});
+
+	it('folds the account, language and theme controls behind the menu button', async () => {
+		renderWith(Header, {}, 'en');
+
+		const toggle = screen.getByRole('button', { name: 'Menu' });
+		expect(toggle).toHaveAttribute('aria-expanded', 'false');
+		const panel = document.getElementById(toggle.getAttribute('aria-controls'));
+		expect(within(panel).getByRole('link', { name: 'Log in' })).toBeInTheDocument();
+		expect(within(panel).getByRole('form', { name: 'Language' })).toBeInTheDocument();
+		expect(within(panel).getByRole('form', { name: 'Theme' })).toBeInTheDocument();
+		// The year stays in the bar.
+		expect(within(panel).queryByRole('combobox')).toBeNull();
+
+		await fireEvent.click(toggle);
+		expect(toggle).toHaveAttribute('aria-expanded', 'true');
+		await fireEvent.click(toggle);
+		expect(toggle).toHaveAttribute('aria-expanded', 'false');
+	});
+
+	it('closes the menu on Escape, back on its button, and on a click outside the header', async () => {
+		renderWith(Header, {}, 'en');
+		const toggle = screen.getByRole('button', { name: 'Menu' });
+
+		await fireEvent.click(toggle);
+		await fireEvent.keyDown(window, { key: 'Escape' });
+		expect(toggle).toHaveAttribute('aria-expanded', 'false');
+		expect(toggle).toHaveFocus();
+
+		await fireEvent.click(toggle);
+		await fireEvent.click(screen.getByRole('form', { name: 'Language' }));
+		expect(toggle).toHaveAttribute('aria-expanded', 'true');
+		await fireEvent.click(document.body);
+		expect(toggle).toHaveAttribute('aria-expanded', 'false');
+	});
+
+	it('labels the menu rows and names the theme each switch leads to, in French', () => {
+		renderWith(Header, {}, 'fr');
+
+		expect(screen.getByRole('button', { name: 'Menu' })).toBeInTheDocument();
+		expect(screen.getByRole('form', { name: 'Langue' })).toHaveTextContent(/^Langue\s*FR\s*EN$/);
+		for (const button of screen.getAllByRole('button', { name: 'Passer au thème clair' })) {
+			expect(button).toHaveTextContent('Clair');
+		}
+		for (const button of screen.getAllByRole('button', { name: 'Passer au thème sombre' })) {
+			expect(button).toHaveTextContent('Sombre');
+		}
+	});
+
 	it('shows the ORGA pill with a logout form to an organiser', () => {
 		renderWith(Header, {}, 'fr', true);
 
 		const button = screen.getByRole('button', { name: 'Orga · Se déconnecter' });
+		// The pill, then the action the phone menu spells out beside it.
+		expect(button).toHaveTextContent(/^Orga\s*Se déconnecter$/);
 		const form = button.closest('form');
 		expect(form).toHaveAttribute('action', '/logout');
 		expect(form.querySelector('input[name="redirectTo"]')).toHaveValue('/2026/ranking?tab=all');

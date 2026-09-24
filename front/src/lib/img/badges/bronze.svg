@@ -1,0 +1,6 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- A medal on a V ribbon with a 3. -->
+<path d="M720 200L900 700M1280 200L1100 700" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="1000" cy="1200" r="560" stroke="white" stroke-width="120"/>
+<path d="M850 1045Q890 965 1000 965Q1130 965 1130 1080Q1130 1190 985 1195Q1165 1200 1165 1325Q1165 1455 1000 1455Q885 1455 840 1375" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

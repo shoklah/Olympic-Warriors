@@ -1,0 +1,9 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- Janus: two faces in profile, back to back, sharing one head, a line marking the join. -->
+<path d="M1000 240C790 240 640 350 620 540Q610 640 600 720L450 980Q435 1010 470 1020L585 1035Q560 1080 590 1100Q555 1125 580 1160Q520 1210 560 1300Q640 1390 790 1400L790 1620" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1000 240C1210 240 1360 350 1380 540Q1390 640 1400 720L1550 980Q1565 1010 1530 1020L1415 1035Q1440 1080 1410 1100Q1445 1125 1420 1160Q1480 1210 1440 1300Q1360 1390 1210 1400L1210 1620" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M620 1700H1380" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1000 470V1400" stroke="white" stroke-width="70" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="680" cy="820" r="50" fill="white"/>
+<circle cx="1320" cy="820" r="50" fill="white"/>
+</svg>

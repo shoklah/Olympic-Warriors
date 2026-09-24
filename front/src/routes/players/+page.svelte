@@ -1,7 +1,6 @@
 <script>
 	import MedalRank from '$lib/components/MedalRank.svelte';
-	import { formatAverage, fullName, shownPlaces } from '$lib/players';
-	import { ordinal } from '$lib/edition';
+	import { formatAverage, fullName, shownPlaces, spokenPlaces } from '$lib/players';
 	import { useLocale, useT } from '$lib/i18n';
 
 	export let data;
@@ -13,11 +12,8 @@
 	$: waiting = data.players.filter((player) => player.position === null);
 
 	const spoken = (player) => {
-		const places = player.places
-			.map((p) => t('players.placeIn', { place: ordinal(p.rank, locale), year: p.year }))
-			.join(', ');
 		const average = t('players.averageSpoken', { value: formatAverage(player.average_rank, locale) });
-		return [places, average].join(', ');
+		return [spokenPlaces(player.places, locale), average].join(', ');
 	};
 </script>
 

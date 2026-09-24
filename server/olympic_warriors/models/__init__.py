@@ -1,6 +1,7 @@
 from .Player import Player, PlayerRating
 from .Team import Team, TeamResult
 from .Edition import Edition, latest_edition
+from .Badge import Badge, BadgeRefresh, MANUAL_CODES
 from .Discipline import Game, GameEvent, Discipline, TeamSportRound
 from .Blindtest import Blindtest, BlindtestRound, BlindtestGuess
 from .Crossfit import Crossfit

@@ -1,0 +1,7 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- A closed padlock. -->
+<path d="M600 880H1400A120 120 0 0 1 1520 1000V1600A120 120 0 0 1 1400 1720H600A120 120 0 0 1 480 1600V1000A120 120 0 0 1 600 880Z" stroke="white" stroke-width="130" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M690 880V620A310 310 0 0 1 1310 620V880" stroke="white" stroke-width="130" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="1000" cy="1220" r="100" fill="white"/>
+<path d="M1000 1240V1440" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -1,0 +1,9 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- A brain on the left, a flexed arm on the right. -->
+<path d="M310 1115A107 107 0 0 1 275 947A112 112 0 0 1 377 798A125 125 0 0 1 570 740A125 125 0 0 1 763 798A112 112 0 0 1 865 947A107 107 0 0 1 830 1115Q570 1330 310 1115Z" stroke="white" stroke-width="125" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M700 1255Q710 1350 745 1430" stroke="white" stroke-width="125" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M400 1000Q490 890 580 980M510 1120Q610 1050 700 1130" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1300 1130A215 215 0 1 1 1710 1260C1710 1410 1580 1490 1400 1490H1070C990 1490 950 1450 950 1380C960 1010 1030 590 1240 460C1340 410 1430 480 1420 570C1410 650 1320 690 1250 640" stroke="white" stroke-width="125" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1260 710C1160 830 1210 1030 1130 1190" stroke="white" stroke-width="115" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1520 1190C1400 1120 1260 1160 1170 1270" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

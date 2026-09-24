@@ -1,0 +1,9 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- A dauphin (runner-up, and a dolphin) leaping over a wave. -->
+<path d="M330 1180C420 820 700 560 1030 560C1330 560 1540 730 1640 960M330 1180C520 1000 760 900 1040 900C1260 900 1420 980 1560 1080" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1640 960L1760 860M1640 960L1700 1110M1560 1080L1640 960" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1000 560L1080 390L1180 590" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M900 920L840 1090L1020 930" stroke="white" stroke-width="100" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="560" cy="900" r="45" fill="white"/>
+<path d="M250 1540Q400 1440 550 1540T850 1540T1150 1540T1450 1540T1750 1540" stroke="white" stroke-width="100" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

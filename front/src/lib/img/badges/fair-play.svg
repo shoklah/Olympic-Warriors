@@ -1,0 +1,14 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- Two hands shaking: arms from the upper corners, one hand's fingers wrapped round the other, whose thumb lies across. -->
+<g transform="translate(440 620) rotate(35)">
+<path d="M-110 -250H110V250H-110Z" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<g transform="translate(1560 620) rotate(-35)">
+<path d="M-110 -250H110V250H-110Z" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<path d="M639 527L880 696M421 839L700 1034" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1361 527L1250 605M1579 839L1300 1034" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M700 1000V1400A100 100 0 0 0 900 1400V1470A100 100 0 0 0 1100 1470V1410A100 100 0 0 0 1300 1410V1000" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M900 1090V1400M1100 1090V1410" stroke="white" stroke-width="80" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1250 605C1100 700 960 730 800 730A95 95 0 0 0 800 920C960 920 1110 910 1300 980" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

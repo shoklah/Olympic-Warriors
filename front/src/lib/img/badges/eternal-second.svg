@@ -1,0 +1,7 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- A bicycle wheel (rim, hub, spokes) hanging from a medal's V ribbon. -->
+<path d="M720 200L900 700M1280 200L1100 700" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="1000" cy="1200" r="560" stroke="white" stroke-width="130"/>
+<path d="M1089 1214L1514 1281M1064 1264L1368 1568M1014 1289L1081 1714M959 1280L764 1663M920 1241L537 1436M911 1186L486 1119M936 1136L632 832M986 1111L919 686M1041 1120L1236 737M1080 1159L1463 964" stroke="white" stroke-width="50" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="1000" cy="1200" r="95" fill="white"/>
+</svg>

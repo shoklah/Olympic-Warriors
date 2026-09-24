@@ -1,0 +1,11 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- Two shields side by side. -->
+<g transform="rotate(-10 650 960)">
+<path d="M360 520H940V980C940 1250 800 1400 650 1500C500 1400 360 1250 360 980Z" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M650 520V1500" stroke="white" stroke-width="80" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<g transform="rotate(10 1350 960)">
+<path d="M1060 520H1640V980C1640 1250 1500 1400 1350 1500C1200 1400 1060 1250 1060 980Z" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1350 520V1500" stroke="white" stroke-width="80" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+</svg>

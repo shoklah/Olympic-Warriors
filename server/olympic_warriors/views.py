@@ -39,6 +39,7 @@ from .serializer import (
     LeaderboardRowSerializer,
     ProfileSerializer,
 )
+from .badges import badge_stats, profile_badges
 from .profiles import leaderboard
 from .permissions import IsOrganiser
 from .throttling import LoginRateThrottle
@@ -224,7 +225,10 @@ def getProfiles(request):
 
 
 @extend_schema(
-    summary="One person's editions, average rank and all-time position, by user id",
+    summary=(
+        "One person's editions, average rank, discipline places, position, badges and "
+        "badge rarity stats"
+    ),
     responses={
         "200": ProfileSerializer,
         "404": OpenApiResponse(description="Player not found"),
@@ -234,11 +238,17 @@ def getProfiles(request):
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def getProfile(request, user_id):
-    # The same leaderboard as /profiles/, so a profile can never disagree on a position.
-    record = next((r for r in leaderboard() if r.user_id == user_id), None)
+    # The same leaderboard as /profiles/, so a profile can never disagree on a position; its
+    # user ids are also the rarity stats' denominator (everyone on /players).
+    records = leaderboard()
+    record = next((r for r in records if r.user_id == user_id), None)
     if record is None:
         return Response({"error": "Player not found"}, status=404)
-    return Response(ProfileSerializer(record).data)
+    context = {
+        "badges": profile_badges(user_id),
+        "badge_stats": badge_stats([r.user_id for r in records]),
+    }
+    return Response(ProfileSerializer(record, context=context).data)
 
 
 # Editions

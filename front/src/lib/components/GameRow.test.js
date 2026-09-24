@@ -71,6 +71,22 @@ describe('GameRow', () => {
 		expect(screen.getByRole('link', { name: 'Aigles' })).toHaveAttribute('href', '/2026/teams/1');
 	});
 
+	// The accent sits too close to the body text: a link among text carries the stylesheet's
+	// quiet-link (underlined on hover and focus), and the own team a dot drawn from its `own` class.
+	it('marks the team links as links among text, and never the own team, which is no link', () => {
+		renderWith(GameRow, {
+			...played,
+			team1Id: 2,
+			team2Id: 1,
+			highlightId: 1,
+			team1Href: '/2026/teams/2',
+			team2Href: '/2026/teams/1'
+		});
+
+		expect(screen.getByRole('link', { name: 'Bisons' })).toHaveClass('quiet-link');
+		expect(screen.getByText('Aigles')).not.toHaveClass('quiet-link');
+	});
+
 	it('omits the referee line when there is no referee', () => {
 		renderWith(GameRow, { ...played, refereeName: null });
 
