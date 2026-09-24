@@ -67,11 +67,11 @@ Decisions taken while grilling (2026-09-24):
     earned. When the player has pins and none of them is still earned, the showcase is
     automatic instead.
   - **Automatic**: the person's 3 rarest earned codes. Rarer means fewer holders in
-    `badge_stats(...)["holders"]`; ties go to the higher tier held, then to catalogue
-    order.
+    `badge_stats(...)["holders"]` over the leaderboard's people, the profile's rarity
+    counts; ties go to the higher tier held, then to catalogue order.
   - Each showcase entry is drawn like a collection slot's medallion: the entry with the
-    highest tier, else the first entry. That keeps the metal, the pips and the discipline
-    icon of `specialist`.
+    highest tier, the first one among equals. That keeps the metal, the pips and the
+    discipline icon of `specialist`.
 
 ## Backend
 
@@ -185,20 +185,38 @@ rules.
 
 ### 5. Player endpoints
 
-- `GET /me/` (`IsAuthenticated`) returns `{id, first_name, last_name, username,
-  is_staff, is_person, photo: {large, small} | null, photo_locked, showcase:
-  {auto, codes}}`. `username` goes to its owner only.
-- `PUT /me/photo/` (`IsAuthenticated`, multipart `photo`) calls `store_photo`. It answers
-  403 (`{"error": "photo_locked"}`) when `photo_locked` is set, 400 `{"error": code}`
-  for a bad upload (`missing`, `too_large`, `bad_format`, `too_many_pixels`), and 404 when the user is not
-  a person. It is throttled at **10/hour per user** (a `UserRateThrottle` scope,
-  `PHOTO_THROTTLE_RATE`) so nobody can fill the volume.
-- `DELETE /me/photo/` (`IsAuthenticated`) calls `remove_photo`. It works even when the
-  profile is locked: a player can always take their own face down.
-- `PUT /me/showcase/` (`IsAuthenticated`, `{codes: [...]}`) accepts 0 to 3 distinct
+- `GET /me/` (`IsAuthenticated`) answers any logged-in user, an organiser who never played
+  included (`is_person` false): `{id, first_name, last_name, username, is_staff,
+  is_person, photo: {large, small} | null, photo_locked, showcase: {auto, codes}}`.
+  `username` goes to its owner only. `showcase` is the stored pins as the person left
+  them: `codes` in order, `auto` true when there is none. The badges shown are computed on
+  the profile, where a pin no longer earned drops out. The front calls `/me/` on every page,
+  so it computes no badge, standing or leaderboard: after the token, one query reads the
+  profile row and the person flag (`ME_QUERIES` in `test_me.py`), and a missing row is
+  never created here (decided while implementing, 2026-09-24).
+- `PUT /me/photo/` (`IsAuthenticated`, multipart `photo`) calls `store_photo`, creating the
+  row on the first upload, and answers 200 `{photo: {large, small}}`. It answers 404
+  (`{"error": "not_a_person"}`) when the user is not a person, then 403 (`{"error":
+  "photo_locked"}`) when `photo_locked` is set, and 400 `{"error": code}` for a bad upload
+  (`missing`, `too_large`, `bad_format`, `too_many_pixels`). A body whose `Content-Length`
+  exceeds 2 MB plus `MULTIPART_ALLOWANCE` (64 KiB: the multipart envelope around the file
+  takes a few hundred bytes, the rest leaves room for a long file name) is `too_large`
+  before a byte of it is read, so nobody makes the server parse megabytes only to refuse
+  them; the lock is checked before that too. It is throttled at **10/hour per user** (a
+  `UserRateThrottle` scope, `PHOTO_THROTTLE_RATE`), every PUT counting, refused or not, so
+  nobody can fill the volume.
+- `DELETE /me/photo/` (`IsAuthenticated`) calls `remove_photo` and answers 204 with no
+  body, with or without a photo, and creates no row. It works even when the profile is
+  locked, and it is never throttled: a player can always take their own face down. A user
+  who is not a person gets the 404.
+- `PUT /me/showcase/` (`IsAuthenticated`, JSON `{codes: [...]}`) accepts 0 to 3 distinct
   codes, each currently earned by the caller, and answers 400 `{"error":
-  "invalid_showcase"}` otherwise (404 for a user who is not a person). `[]` means "back
-  to automatic". The order is kept. It returns the new `{auto, badges}` showcase.
+  "invalid_showcase"}` otherwise: not a list, more than 3, a duplicate, a non-string, a code
+  outside the catalogue, a code not earned, or an unreadable body. A user who is not a
+  person gets the 404. `[]` means "back to automatic". The order is kept. It returns the
+  new `{auto, badges}` showcase. Its rarity counts are `badge_stats` over the
+  leaderboard's people, as on the profile, read through `profiles.person_ids()` (the same
+  people, one query, without computing the leaderboard).
 
 ### 6. Payload changes (public)
 
@@ -336,7 +354,10 @@ visitor.
   - `test_avatars.py`: EXIF rotation and stripping, the size and format refusals, the
     bomb guard, old files deleted on commit, the lock;
   - `test_showcase.py`: the pins filtered to earned codes, the fallback to automatic,
-    the rarity order, the 400s;
+    the rarity order, `badges_by_user`, and `person_ids` against the leaderboard;
+  - `test_me.py`: `/me/` and `ME_QUERIES`, the photo upload and its refusals (the body
+    refused unread included), the delete, the photo throttle, the showcase's 400s and
+    round trip;
   - the query-count constants.
 
 ## Rollout

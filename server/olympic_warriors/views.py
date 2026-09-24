@@ -6,7 +6,7 @@ from datetime import time as time_of_day
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Exists, OuterRef, Q
 from django.views.decorators.debug import sensitive_variables
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.contrib.auth.models import User
@@ -19,7 +19,8 @@ from rest_framework.decorators import (
     throttle_classes,
 )
 from rest_framework import serializers
-from rest_framework.parsers import JSONParser
+from rest_framework.exceptions import ParseError
+from rest_framework.parsers import JSONParser, MultiPartParser
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, inline_serializer, OpenApiResponse
 
@@ -47,12 +48,16 @@ from .serializer import (
     SummaryRoundSerializer,
     LeaderboardRowSerializer,
     ProfileSerializer,
+    MeSerializer,
+    PhotoSerializer,
+    ShowcaseSerializer,
 )
-from .badges import badge_stats, profile_badges
+from .avatars import MAX_BYTES, PhotoError, photo_urls, remove_photo, store_photo
+from .badges import badge_stats, profile_badges, showcase, valid_pins
 from .claims import check_claim, complete_claim
-from .profiles import leaderboard
+from .profiles import is_person, leaderboard, person_ids, person_players
 from .permissions import IsOrganiser
-from .throttling import ClaimRateThrottle, LoginRateThrottle
+from .throttling import ClaimRateThrottle, LoginRateThrottle, PhotoRateThrottle
 from .models import (
     Player,
     Edition,
@@ -65,6 +70,7 @@ from .models import (
     TeamResult,
     BlindtestGuess,
     BlindtestRound,
+    UserProfile,
     latest_edition,
 )
 
@@ -141,6 +147,182 @@ def claimAccount(request, uidb64, token):
     if key is None:  # used or made unclaimable since check_claim()
         return Response(INVALID_LINK, status=404)
     return Response({"token": key, "user_id": user.pk})
+
+
+# The caller's own account: open to any token (IsAuthenticated), a player's included. The
+# photo and the showcase belong to a person's profile, so they answer 404 to anyone else,
+# before reading the body or writing anything.
+
+NOT_A_PERSON = {"error": "not_a_person"}
+INVALID_SHOWCASE = {"error": "invalid_showcase"}
+
+# What a photo upload's body may carry on top of the photo itself. The multipart envelope
+# (the boundary lines, the part's headers with its file name and type) takes a few hundred
+# bytes, and 64 KiB leaves room for a long file name or a stray field. A larger body is
+# refused from its Content-Length before a byte of it is read, so nobody makes the server
+# parse and buffer megabytes only to refuse them; below it, store_photo() checks the file's
+# own size. MAX_BYTES plus this stays under FILE_UPLOAD_MAX_MEMORY_SIZE (2.5 MB), so an
+# upload is never spooled to a temporary file either.
+MULTIPART_ALLOWANCE = 64 * 1024
+
+
+def _content_length(request):
+    """The body's declared length. Django reads nothing of a body without a valid one, so
+    counting it as 0 lets nothing through unchecked."""
+    try:
+        return int(request.META.get("CONTENT_LENGTH") or 0)
+    except ValueError:
+        return 0
+
+
+@extend_schema(
+    summary="The caller's own account: names, login name, person flag, photo and stored pins",
+    responses={
+        "200": MeSerializer,
+        "401": OpenApiResponse(description="No token"),
+    },
+)
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])  # anyone logged in: it describes only the caller
+def getMe(request):
+    """
+    Any logged-in user, a person or not (an organiser who never played is `is_person`
+    false). The front calls it on every page, so it computes no badge, standing or
+    leaderboard: one query besides the token's reads the profile row and the person flag,
+    and a missing row, never created here, reads as no photo, unlocked, no pins.
+    `showcase` is the stored pins as the person left them (`auto` when there is none);
+    the badges shown are computed on the profile, where a pin no longer earned drops out.
+    """
+    user = (
+        User.objects.select_related("profile")
+        .annotate(is_person=Exists(person_players().filter(user=OuterRef("pk"))))
+        .get(pk=request.user.pk)
+    )
+    profile = getattr(user, "profile", None)  # select_related: no query for a missing row
+    pins = list(profile.showcase) if profile is not None else []
+    return Response(
+        MeSerializer(
+            {
+                "id": user.pk,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "username": user.username,
+                "is_staff": user.is_staff,
+                "is_person": user.is_person,
+                "photo": photo_urls(profile),
+                "photo_locked": profile is not None and profile.photo_locked,
+                "showcase": {"auto": not pins, "codes": pins},
+            }
+        ).data
+    )
+
+
+@extend_schema(
+    methods=["PUT"],
+    summary="Upload the caller's photo, replacing any previous one",
+    request={
+        "multipart/form-data": inline_serializer(
+            "PhotoUpload", {"photo": serializers.FileField(help_text="JPEG, PNG or WebP")}
+        )
+    },
+    responses={
+        "200": inline_serializer("PhotoStored", {"photo": PhotoSerializer()}),
+        "400": OpenApiResponse(
+            description='{"error": code}: missing, too_large, bad_format or too_many_pixels'
+        ),
+        "403": OpenApiResponse(description='{"error": "photo_locked"}: locked by an organiser'),
+        "404": OpenApiResponse(description="Not a person"),
+        "429": OpenApiResponse(description="Too many uploads (PHOTO_THROTTLE_RATE, per user)"),
+    },
+)
+@extend_schema(
+    methods=["DELETE"],
+    summary="Take the caller's photo down, locked or not",
+    responses={
+        "204": OpenApiResponse(description="No photo any more (or there was none)"),
+        "404": OpenApiResponse(description="Not a person"),
+    },
+)
+@api_view(["PUT", "DELETE"])
+@permission_classes([IsAuthenticated])  # the caller's own photo, 404 unless a person
+@throttle_classes([PhotoRateThrottle])  # the PUT only, per user
+@parser_classes([MultiPartParser])
+def myPhoto(request):
+    """
+    PUT stores the multipart `photo` through avatars.store_photo(), creating the profile
+    row on the first upload, and answers the new URLs. A locked profile is refused first,
+    then a body over MAX_BYTES + MULTIPART_ALLOWANCE from its Content-Length alone, both
+    before the body is read. DELETE takes the photo down through avatars.remove_photo()
+    even when uploads are locked: a person can always take their own face down. It creates
+    no row.
+    """
+    if not is_person(request.user):
+        return Response(NOT_A_PERSON, status=404)
+    if request.method == "DELETE":
+        profile = UserProfile.objects.filter(user=request.user).first()
+        if profile is not None:
+            remove_photo(profile)
+        return Response(status=204)
+
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    if profile.photo_locked:
+        return Response({"error": "photo_locked"}, status=403)
+    if _content_length(request) > MAX_BYTES + MULTIPART_ALLOWANCE:
+        return Response({"error": "too_large"}, status=400)
+    try:
+        store_photo(profile, request.FILES.get("photo"))
+    except PhotoError as error:  # photo_locked here: locked since the row was read
+        status = 403 if error.code == "photo_locked" else 400
+        return Response({"error": error.code}, status=status)
+    return Response({"photo": photo_urls(profile)})
+
+
+@extend_schema(
+    summary="Pin up to three of the caller's badges on their profile ([] for automatic)",
+    request=inline_serializer(
+        "ShowcasePins",
+        {
+            "codes": serializers.ListField(
+                child=serializers.CharField(), max_length=3,
+                help_text="Distinct badge codes the caller has earned, in the order shown",
+            )
+        },
+    ),
+    responses={
+        "200": ShowcaseSerializer,
+        "400": OpenApiResponse(
+            description='{"error": "invalid_showcase"}: not a list, more than 3, a duplicate, '
+            "or a code the caller has not earned"
+        ),
+        "404": OpenApiResponse(description="Not a person"),
+    },
+)
+@api_view(["PUT"])
+@permission_classes([IsAuthenticated])  # the caller's own showcase, 404 unless a person
+@parser_classes([JSONParser])
+def setMyShowcase(request):
+    """
+    Store {codes} as the caller's pins (badges.valid_pins: at most 3 distinct codes, each
+    earned now) and answer the showcase the profile now shows. An unreadable body is the
+    same 400 as a bad list. The rarity counts of the automatic showcase are over the
+    leaderboard's people, as on the profile (person_ids(), without computing the
+    leaderboard).
+    """
+    if not is_person(request.user):
+        return Response(NOT_A_PERSON, status=404)
+    try:
+        data = request.data
+    except ParseError:
+        return Response(INVALID_SHOWCASE, status=400)
+    codes = data.get("codes") if isinstance(data, dict) else None
+    entries = profile_badges(request.user.pk)
+    if not valid_pins(codes, entries):
+        return Response(INVALID_SHOWCASE, status=400)
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    profile.showcase = codes
+    profile.save(update_fields=["showcase", "updated_at"])  # never the photo fields
+    holders = badge_stats(person_ids())["holders"]
+    return Response(ShowcaseSerializer(showcase(entries, codes, holders)).data)
 
 
 # Users

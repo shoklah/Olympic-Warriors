@@ -149,6 +149,14 @@ def remove_photo(profile):
     return True
 
 
+def photo_urls(profile):
+    """{"large", "small"}: the site-relative URLs of the profile's photo (MEDIA_URL, so
+    /media/avatars/...), or None without a profile row or a photo. No query."""
+    if profile is None or not profile.photo or not profile.photo_small:
+        return None
+    return {"large": profile.photo.url, "small": profile.photo_small.url}
+
+
 def photo_names(profile):
     """The stored file names of the profile's photo, if any."""
     return [getattr(profile, field).name for field in PHOTO_FIELDS if getattr(profile, field)]

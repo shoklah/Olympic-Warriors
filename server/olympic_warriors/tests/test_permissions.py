@@ -12,7 +12,9 @@ sample value for each converter and no body. Each sample URL must resolve to its
 view, so a shadowed route cannot pass on Django's 404. A view that lets a call through may
 answer 400 or 404, never 401, 403 or a 500. No call changes anything: the database holds
 only the two users and their tokens, so no id matches a row, and neither user is a person
-(no Player row), so a view acting on the caller's own records has none to act on.
+(no Player row), so a view acting on the caller's own records has none to act on: the photo
+and showcase writes answer 404 before touching anything, and no call creates the caller's
+UserProfile row (checked after each walk).
 
 The Swagger page is called without OPTIONS: drf-spectacular renders the OPTIONS metadata
 through its HTML template, whose {% include template_name_js %} then has no name to include
@@ -31,6 +33,7 @@ from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient, APITestCase
 
 from olympic_warriors import urls
+from olympic_warriors.models import UserProfile
 
 # Open to anyone, token or not.
 PUBLIC = {
@@ -53,10 +56,15 @@ PUBLIC = {
     "profile/<int:user_id>/",
 }
 
-# Open to any token, a player's included: the game, round and result reads apply the reveal
-# rule of the summary (scores null until the discipline is revealed, except for staff), so
-# they carry nothing the public summary does not.
+# Open to any token, a player's included: the caller's own account (/me/ answers anyone
+# logged in; the photo and the showcase answer 404 to someone who is not a person), and the
+# game, round and result reads, which apply the reveal rule of the summary (scores null until
+# the discipline is revealed, except for staff), so they carry nothing the public summary
+# does not.
 PLAYER = {
+    "me/",
+    "me/photo/",
+    "me/showcase/",
     "game/<int:game_id>/",
     "games/",
     "games/discipline/<int:discipline_id>/",
@@ -207,6 +215,7 @@ class TestPermissions(APITestCase):
         for route, method, url in self.calls(lambda route: route in PLAYER):
             with self.subTest(route=route, method=method):
                 self.assert_answers(self.player, method, url)
+        self.assertFalse(UserProfile.objects.exists())
 
     def test_player_routes_refuse_an_anonymous_call(self):
         for route, method, url in self.calls(lambda route: route in PLAYER):
@@ -227,3 +236,4 @@ class TestPermissions(APITestCase):
         for route, method, url in self.calls(lambda route: True):
             with self.subTest(route=route, method=method):
                 self.assert_answers(self.staff, method, url)
+        self.assertFalse(UserProfile.objects.exists())

@@ -107,7 +107,7 @@ else:
 
 
 # Cache
-# Only the login throttle uses it. Gunicorn workers are separate processes, and the
+# Only the throttles use it. Gunicorn workers are separate processes, and the
 # local-memory default is per process, so each worker would keep its own count: files are
 # shared by every worker of the container. Losing them on a restart only resets the counts.
 
@@ -245,10 +245,12 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'olympic_warriors.permissions.IsOrganiser',
     ],
-    # No DEFAULT_THROTTLE_CLASSES: only the token view and a claim link's POST throttle, both
-    # with LoginRateThrottle, which the admin login form shares from admin.py.
+    # No DEFAULT_THROTTLE_CLASSES: only the token view and a claim link's POST throttle with
+    # LoginRateThrottle, which the admin login form shares from admin.py, and a photo upload
+    # with PhotoRateThrottle.
     'DEFAULT_THROTTLE_RATES': {
         'login': settings.LOGIN_THROTTLE_RATE,
+        'photo': settings.PHOTO_THROTTLE_RATE,
     },
     # int(): a real env var reaches the config as a string (BaseConfig.override_if_env).
     'NUM_PROXIES': int(settings.NUM_PROXIES),

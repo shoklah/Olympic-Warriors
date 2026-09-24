@@ -91,6 +91,29 @@ class Participation:
         return self.finished and self.rank is not None and self.teams >= 2
 
 
+def person_players():
+    """
+    The Player rows that make their user a person: active, of an active edition. Their users
+    are exactly the leaderboard's people (_load reaches the same rows through the active
+    editions it loads first; test_showcase checks the two agree), so a question about who
+    is a person asks this queryset rather than computing the leaderboard.
+    """
+    return Player.objects.filter(is_active=True, edition__is_active=True)
+
+
+def is_person(user):
+    """Whether `user` (a User or a user id) is a person (1 query)."""
+    return person_players().filter(user=user).exists()
+
+
+def person_ids():
+    """The user id of every person, sorted, each once (1 query): the leaderboard's people
+    without the leaderboard, for badge_stats() when only the denominator is needed."""
+    return list(
+        person_players().order_by("user_id").values_list("user_id", flat=True).distinct()
+    )
+
+
 def _valid_team(player):
     """The player's team when it is active and belongs to the player's edition."""
     team = player.team

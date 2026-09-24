@@ -67,6 +67,9 @@ class BaseConfig(BaseSettings):
     # Login attempts per client IP, /auth/token/, /admin/login/ and a claim link's POST
     # together, in DRF's "<count>/<sec|min|hour|day>".
     LOGIN_THROTTLE_RATE: str = "5/min"
+    # Photo uploads per user (PUT /me/photo/), in the same format: each one is decoded and
+    # re-encoded, and a person needs only a few.
+    PHOTO_THROTTLE_RATE: str = "10/hour"
     # Proxies in front of Django that append the client IP to X-Forwarded-For: nginx for a
     # direct API call, the front for a login through the site. DRF trusts that many entries
     # from the right; only correct if nothing reaches Django without passing one of them.

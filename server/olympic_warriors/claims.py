@@ -37,7 +37,8 @@ from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.views.decorators.debug import sensitive_variables
 from rest_framework.authtoken.models import Token
 
-from .models import Player, UserProfile
+from .models import UserProfile
+from .profiles import is_person
 
 # Why a user cannot be claimed (the admin words them).
 STAFF = "staff"
@@ -64,7 +65,7 @@ def unclaimable_reason(user):
         return STAFF
     if not user.is_active:
         return INACTIVE
-    if not Player.objects.filter(user=user, is_active=True, edition__is_active=True).exists():
+    if not is_person(user):
         return NOT_A_PERSON
     return None
 

@@ -565,3 +565,57 @@ class ProfileSerializer(serializers.Serializer):
     @extend_schema_field(BadgeStatsSerializer())
     def get_badge_stats(self, obj):  # pylint: disable=unused-argument
         return self.context.get("badge_stats")
+
+
+class PhotoSerializer(serializers.Serializer):
+    """A person's photo: the site-relative URLs of its two WebP squares
+    (avatars.photo_urls), under MEDIA_URL (/media/avatars/...)."""
+
+    large = serializers.CharField(help_text="512 px, the profile header")
+    small = serializers.CharField(help_text="128 px, everywhere else")
+
+
+class ShowcaseBadgeSerializer(serializers.Serializer):
+    """One badge of a showcase, drawn like its collection slot's medallion (see
+    badges.showcase)."""
+
+    code = serializers.CharField()
+    tier = serializers.IntegerField(help_text="0 untiered, 1 to 3 (bronze, silver, gold)")
+    discipline = serializers.CharField(
+        allow_null=True, help_text="The database Discipline.name for specialist, else null"
+    )
+
+
+class ShowcaseSerializer(serializers.Serializer):
+    """The badges a profile shows (badges.showcase): the pins still earned, in the person's
+    order, or the rarest earned badges when `auto`."""
+
+    auto = serializers.BooleanField(help_text="No pin still earned: the rarest badges")
+    badges = ShowcaseBadgeSerializer(many=True, help_text="At most 3, in the order shown")
+
+
+class MeShowcaseSerializer(serializers.Serializer):
+    """The caller's stored pins, as they left them (the showcase shown filters them)."""
+
+    auto = serializers.BooleanField(help_text="No pin stored: the automatic showcase")
+    codes = serializers.ListField(child=serializers.CharField(), help_text="In the pin order")
+
+
+class MeSerializer(serializers.Serializer):
+    """
+    The caller's own account (GET /me/): any logged-in user, a person or not. The only
+    payload carrying the username (the login name) and photo_locked, and only to their
+    owner. A user without a UserProfile row reads as no photo, unlocked, no pins.
+    """
+
+    id = serializers.IntegerField(help_text="The user id, as on /profile/<id>/")
+    first_name = serializers.CharField()
+    last_name = serializers.CharField()
+    username = serializers.CharField(help_text="The login name")
+    is_staff = serializers.BooleanField(help_text="An organiser")
+    is_person = serializers.BooleanField(
+        help_text="An active player of an active edition: has a profile, a photo and a showcase"
+    )
+    photo = PhotoSerializer(allow_null=True)
+    photo_locked = serializers.BooleanField(help_text="Uploads refused by an organiser")
+    showcase = MeShowcaseSerializer()

@@ -735,16 +735,40 @@ def refresh(today=None):
 CATALOGUE_ORDER = {code: n for n, code in enumerate(Badge.Codes.values)}
 
 
+def _shown_rows():
+    """The badge rows a profile shows: active rows of active editions, with what grouping
+    them reads (the edition's year, the partner's names)."""
+    return Badge.objects.filter(is_active=True, edition__is_active=True).select_related(
+        "edition", "partner"
+    )
+
+
 def profile_badges(user_id):
     """
     The person's active badges of active editions for GET /profile/<id>/ (1 query), grouped
     by (code, discipline, partner) in catalogue order: [{code, tier, years, discipline,
     partner}], `tier` the highest, `years` sorted, names only for the partner.
     """
+    return _grouped(_shown_rows().filter(user_id=user_id))
+
+
+def badges_by_user(user_ids):
+    """
+    profile_badges() for each of `user_ids` (a collection of ids) in 1 query, none for no
+    id: {user id: entries}, every given id included, [] for someone without a badge.
+    """
+    by_user = {user_id: [] for user_id in user_ids}
+    rows = defaultdict(list)
+    for row in _shown_rows().filter(user_id__in=list(by_user)):
+        rows[row.user_id].append(row)
+    for user_id, mine in rows.items():
+        by_user[user_id] = _grouped(mine)
+    return by_user
+
+
+def _grouped(rows):
+    """One person's badge rows as profile_badges() entries (see there)."""
     groups = {}
-    rows = Badge.objects.filter(
-        user_id=user_id, is_active=True, edition__is_active=True
-    ).select_related("edition", "partner")
     for row in rows:
         partner = row.partner
         group = groups.setdefault(
@@ -777,6 +801,64 @@ def profile_badges(user_id):
         )
 
     return sorted(({**g, "years": sorted(g["years"])} for g in groups.values()), key=order)
+
+
+SHOWCASE_SIZE = 3
+
+
+def valid_pins(codes, entries):
+    """
+    Whether `codes`, the `codes` of a PUT /me/showcase/ body (any JSON value), can be stored
+    as a person's pins: a list of at most SHOWCASE_SIZE distinct catalogue codes, each earned
+    (in the person's profile_badges() `entries`). [] is valid: back to the automatic
+    showcase.
+    """
+    if not isinstance(codes, list) or len(codes) > SHOWCASE_SIZE:
+        return False
+    if not all(isinstance(code, str) for code in codes) or len(set(codes)) != len(codes):
+        return False
+    held = {entry["code"] for entry in entries}
+    return all(code in CATALOGUE_ORDER and code in held for code in codes)
+
+
+def showcase(entries, pins, holders):
+    """
+    The badges a person's profile shows (no query), from their profile_badges() `entries`,
+    their stored `pins` (UserProfile.showcase) and the rarity counts of badge_stats() over
+    the leaderboard's people (its `holders`): {"auto": bool, "badges": [{code, tier,
+    discipline}]}, at most SHOWCASE_SIZE, in the order shown.
+
+    - Pinned: the pins still earned, in the person's order. A pin stops showing once its
+      badge is revoked or recomputed away, and none left means automatic.
+    - Automatic: the rarest earned codes, fewest holders first (a code without a count has
+      none), then the higher tier held, then catalogue order.
+    - Each code is drawn from its entry with the highest tier, the first one among equals,
+      as the front's badgeCollection picks a collection slot's medallion: the metal, the
+      pips and specialist's discipline icon match the slot's. A partner is never shown.
+    """
+    medals = {}
+    for entry in entries:
+        best = medals.get(entry["code"])
+        if best is None or entry["tier"] > best["tier"]:
+            medals[entry["code"]] = entry
+    codes = [code for code in dict.fromkeys(pins) if code in medals][:SHOWCASE_SIZE]
+    auto = not codes
+    if auto:
+        codes = sorted(
+            medals,
+            key=lambda code: (
+                holders.get(code, 0),
+                -medals[code]["tier"],
+                CATALOGUE_ORDER.get(code, len(CATALOGUE_ORDER)),
+            ),
+        )[:SHOWCASE_SIZE]
+    return {
+        "auto": auto,
+        "badges": [
+            {"code": code, "tier": medals[code]["tier"], "discipline": medals[code]["discipline"]}
+            for code in codes
+        ],
+    }
 
 
 # The five tiered codes (see VETERAN_TIERS, EVER_PRESENT_TIERS, NETWORKER_TIERS,
