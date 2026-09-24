@@ -7,7 +7,7 @@ export const FRENCH_NAMES = {
 	Relay: 'Relais',
 	Orienteering: "Course d'orientation",
 	'Hide and Seek': 'Cache-cache',
-	Fair: 'Fête foraine',
+	Fair: 'Kermesse',
 	Dodgeball: 'Balle au prisonnier',
 	'Obstacle Course': "Parcours d'obstacles",
 	'Geography Quizz': 'Quiz de géographie',

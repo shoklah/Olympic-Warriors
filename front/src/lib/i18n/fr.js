@@ -202,7 +202,7 @@ export default {
 	'badge.hades.name': 'Hadès',
 	'badge.hades.rule': 'Gagner le cache-cache',
 	'badge.dionysus.name': 'Dionysos',
-	'badge.dionysus.rule': 'Gagner la fête foraine',
+	'badge.dionysus.rule': 'Gagner la kermesse',
 	'badge.olympus.name': 'Olympe',
 	'badge.olympus.rule': 'Gagner une épreuve de chacun des neuf dieux',
 	'badge.unbeaten.name': 'Invaincu',
