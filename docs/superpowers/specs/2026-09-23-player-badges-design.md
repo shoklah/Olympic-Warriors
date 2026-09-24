@@ -1,5 +1,7 @@
 # Player badges
 
+> **Built 2026-09-23** in one go, all four phases at once; plan: docs/superpowers/plans/2026-09-23-player-badges.md.
+
 ## Goal
 
 Step 3 of the player profiles roadmap (see the player profiles design spec): badges that
@@ -79,8 +81,8 @@ i18n key. The "Repeat" column says how often a badge can be earned:
 - `tiers`: at each tier reached;
 - one badge per discipline, per god or per partner, where the row says so.
 
-The icon is a white glyph drawn inside the frame (see "Glyphs"). A ✓ marks the glyphs in
-this commit's first batch.
+The icon is a white glyph drawn inside the frame (see "Glyphs"). A ✓ marks the first batch
+of 20 glyphs, drawn with this spec to settle the style.
 
 ### Edition places
 
@@ -91,7 +93,7 @@ Every place badge needs a counted participation.
 | `champion` | Champion | Champion | Title in a counted participation | each | gold | Laurel wreath around a 1 ✓ |
 | `runner-up` | Dauphin | Runner-up | Rank 2 | each | silver | A dolphin (*dauphin*) leaping over a wave ✓ |
 | `bronze` | Bronze | Bronze | Rank 3 | each | bronze | Medal on a ribbon with a 3 |
-| `chocolate` | Médaille en chocolat | Chocolate medal | Rank 4, in an edition of at least 5 teams (so never the last place) | each | plain | A bitten medal with a 4 ✓ |
+| `chocolate` | Médaille en chocolat | Chocolate medal | Rank 4, in an edition of at least 5 teams, unless that 4th place is also the last one (ranks 1, 2, 3, 4, 4), so never the last place | each | plain | A bitten medal with a 4 ✓ |
 | `wooden-spoon` | Cuillère de bois | Wooden spoon | Last place | each | plain | Wooden spoon ✓ |
 
 ### Streaks and career
@@ -267,27 +269,31 @@ def refresh(today=None) -> RefreshReport   # store earned(), see below
 
 `profiles.participations()` is split: a `_load(today)` step returns the editions, the
 chosen player rows and the standings, and both `participations()` and `earned()` build on
-it, so the two can never disagree on who played where. `earned()` then adds:
-- the active results of the finished editions with their team and discipline name (1
-  query). If the per-discipline ranking work lands first and already exposes each result's
-  team and discipline, `earned()` reuses that instead;
-- the games of the finished editions (1);
-- the blindtest guesses of the finished editions (1).
+it, so the two can never disagree on who played where. `earned()` then adds, for the
+editions of the sequence:
+- the active results of active teams in active disciplines, with their team, discipline
+  name, result type and points (1 query). Each result's rank comes from the edition's
+  `compute_standings`, which `_load` has already computed;
+- the active, played games of active rounds of active disciplines (1);
+- the active blindtest guesses of active rounds of active blindtests that are revealed (1).
 
-That makes a fixed number of queries plus three per finished edition with players,
-pinned as `BADGES_QUERIES` in the tests like `PROFILES_QUERIES`. The all-time tables are
-replayed in memory from the participations, with no query per table.
+That makes 5 queries plus three per edition of the sequence (`_load`'s 2 plus three per
+finished edition with players, then these three), pinned as `BADGES_QUERIES` in the tests
+like `PROFILES_QUERIES`. With an empty sequence the discipline and game rules skip their
+queries, which leaves `_load`'s 2. The all-time tables are replayed in memory from the
+participations, with no query per table.
 
 **`refresh(today)`**, in one transaction:
 1. lock the `BadgeRefresh` row (`select_for_update()`, after a `get_or_create` in case a
    flushed test database lost the row the migration made);
 2. compute `earned(today)`;
 3. diff it against the stored computed rows, keyed as above:
-   - delete the rows no longer earned, active or not;
+   - delete the rows no longer earned, active or not, and any duplicate of a key but the
+     one with the lowest id;
    - `bulk_create` the new ones;
    - leave the others alone, so `created_at` and a revoked row's `is_active` survive;
-4. set `BadgeRefresh.refreshed_at` to now, and return how many rows were added and
-   removed (`RefreshReport`).
+4. set `BadgeRefresh.refreshed_at` to now, and return how many rows were added, removed
+   and kept, with `refreshed_at` (`RefreshReport`).
 
 Manual rows are never read or written. Running it twice in a row writes nothing the
 second time.
@@ -312,14 +318,16 @@ run finished, so anyone can check that the cron job is running.
   éditions) », runs `refresh()`. The selection does not matter, because streaks and tables
   span editions.
 - **After an import.** `import_edition` runs `refresh()` after a real (not `--dry-run`)
-  import.
+  import, once the import's transaction has committed.
 - **From the command line.** The `refresh_badges` management command, which the cron
-  job calls, runs `refresh()` and prints the rows added and removed and `refreshed_at`.
+  job calls, runs `refresh()` and prints the rows added, removed and kept, and
+  `refreshed_at`.
 
 ### Endpoint
 
-`GET /profile/<user_id>/` gains `badges`, in catalogue order, with the active rows of
-active editions grouped by `(code, discipline, partner)`:
+`GET /profile/<user_id>/` gains `badges`, in catalogue order (then by discipline and by
+partner name), with the active rows of active editions grouped by
+`(code, discipline, partner)`, from one more query than `/profiles/`:
 
 ```json
 "badges": [
@@ -345,11 +353,13 @@ The leaderboard (`/profiles/`) does not change in this step.
 ## Admin
 
 - **`BadgeAdmin`** lists `user`, `code`, `edition`, `tier`, `discipline`, `partner`,
-  `is_manual` and `is_active`, filters on `code`, `edition` and `is_manual`, and goes
-  through `request_only_active` like every changelist.
+  `is_manual` and `is_active`, filters on `code`, `edition`, `is_manual` and `is_active`,
+  searches on the user's first and last name, and goes through `request_only_active` like
+  every changelist.
 - **Adding** offers only the "given by hand" codes, and sets `is_manual`. The form's
   `code` choices are restricted, so this is not `save()` logic.
-- **A computed row** is read-only except for `is_active` (`get_readonly_fields`).
+- **A computed row** is read-only except for `is_active` (`get_readonly_fields`), and its
+  page leaves `note` out.
 - **The Edition changelist** gets the refresh action above.
 
 ## Front
@@ -367,14 +377,21 @@ house style:
 `specialist` reuses the discipline's icon through `iconFor`. No glyph uses the five
 Olympic rings, a protected symbol.
 
-This commit brings the first 20 glyphs, the ✓ rows above, to settle the style. The rest
-come with the phase that needs them (see "Phases").
+The first 20 glyphs, the ✓ rows above, came with this spec to settle the style. The other
+42 came with the build, so every code but `specialist` has its glyph (62 files).
 
 ### `src/lib/badges.js`
 
-The front catalogue: for each code, its glyph URL (`import.meta.glob` over
-`img/badges/*.svg`, as `icons.js` does), its metal and whether it is tiered.
-`badgeGlyph(badge)` returns the discipline icon for `specialist`.
+The front catalogue. `BADGES` maps each code, in catalogue order, to its metal, or to
+`tiers` when the tier picks it. The glyph URLs come from `import.meta.glob` over
+`img/badges/*.svg`, as `icons.js` does. The helpers:
+- `badgeGlyph(badge)`: the glyph, the discipline icon for `specialist`, and `default.svg`
+  for a code without a glyph;
+- `badgeTier(badge)`: the tier clamped to 1 to 3, so the metal, the pips and the
+  « Niveau n » line always agree;
+- `badgeMetal(badge)`: `gold`, `silver`, `bronze` or `plain`;
+- `badgeDetail(badge, t, locale)`: the parts of a tile's detail line (see "Profile page");
+- `isKnownBadge(badge)`, `isTiered(code)` and `hasGlyph(code)`.
 
 ### `Badge.svelte`
 
@@ -382,15 +399,16 @@ A medallion sized by `--badge-size`, so pages scale it the way `MedalRank` is sc
 It is purely visual (`aria-hidden`): the tile around it writes the name and the tier.
 - a circle, transparent inside, with a ring about 4% of the size wide in the metal
   colour (`--gold`, `--silver`, `--bronze`, or `--accent` for plain);
-- a hairline inner ring in the same colour at 35% opacity (the board drops it below
-  40px; the profile's 56px is the only size used for now);
+- a hairline inner ring in the same colour at 35% opacity. The board drops it below 40px;
+  the component always draws it, since the profile's 56px is the only size used for now;
 - the glyph at 60% of the size, as an `<img alt="">`;
 - for a tiered badge, three pips under the medallion: the first `tier` filled in the
   metal colour and the rest in `--line`. The tile's detail line also says « Niveau 2 » /
-  "Tier 2", so colour alone never carries the tier.
+  "Tier 2", so colour alone never carries the tier. An untiered badge keeps the pip row,
+  empty, so every medallion takes the same room and the names of a tile grid line up.
 
-There is a locked style, a dashed `--ghost` ring with the glyph at 0.35 opacity, but it
-goes unused until a catalogue page exists.
+The board also draws a locked style, a dashed `--ghost` ring with the glyph at 0.35
+opacity. The component leaves it out until a catalogue page needs it.
 
 The style board for this step, with the first batch in its frames, the metals, tiers and
 sizes, and the section on a phone profile, is a private claude.ai canvas that the
@@ -403,9 +421,10 @@ when the person has none. It is a grid of tiles (`repeat(auto-fill, minmax(9rem,
 and each tile shows:
 - the medallion, 56px;
 - the name, `badge.<code>.name`, in `.label` style;
-- a detail line in `--muted`, its parts joined by ` · `, starting with the translated
-  discipline name whenever the badge has one (`specialist`, `unbeaten`, `perfect-run`), so
-  two tiles of one code tell their disciplines apart:
+- a detail line in `--muted`, its parts joined by ` · ` (the dots in `--ghost` and hidden
+  from screen readers), starting with the translated discipline name whenever the badge
+  has one (`specialist`, `unbeaten`, `perfect-run`), so two tiles of one code tell their
+  disciplines apart:
   - a tiered badge: « Niveau 2 » / "Tier 2", then the year that tier was reached
     (`Rugby · Tier 1 · 2026`);
   - `comrades`: « avec » / "with" and the partner as a link to their profile, then the
@@ -436,11 +455,14 @@ Text shape for the tests: `Clean sweep ×2 · 2023 · 2026 Win three disciplines
 3. The game badges.
 4. The badges given by hand, with their admin.
 
-Each phase draws its own glyphs and adds its codes, dictionary keys and tests.
+Each phase draws its own glyphs and adds its codes, dictionary keys and tests. The build
+did all four phases at once.
 
 ## Testing
 
-Server (`tests/test_badges.py`), with an injected `today`:
+Server, with an injected `today`: the rules and the query count in `tests/test_badges.py`,
+`refresh()`, the command, the admin and the import hook in `tests/test_badge_refresh.py`,
+and the profile payload in `tests/test_profiles.py`:
 - one test per rule, on the smallest history that earns the badge and one that barely
   misses it;
 - a streak holds across a calendar year without an edition and breaks on a missed

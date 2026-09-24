@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-23-player-badges-design.md` is the source of truth for the rules. This plan follows it, including the decisions folded in while planning (the sequence skips editions without a roster, the tier is written in the tile).
 
+> **Executed 2026-09-23.** The code blocks below are the plan as written. Review rounds changed several details during execution: `reign` breaks on a table after an edition where no participation counts (`_tables` also yields whether its edition counts), `MINDS` is derived from `FAMILIES` (the Athena disciplines plus Blindtest) instead of a hand list, `BadgeAdmin` also filters on `is_active`, `badgeTier()` in `badges.js` clamps the tier so the metal, the pips and « Niveau n » agree, the profile computes the detail parts once and hides the ` · ` separators from screen readers, the French rules say « épreuve » and several rules were reworded, the tested text shape is `Clean sweep ×2 · 2023 · 2026 Win three disciplines or more in one edition`, and the all-rounder, brains-and-brawn, hermes, hades and clean-sweep glyphs were redrawn. The spec, CLAUDE.md and the code are the reference; this plan is the build record.
+
 ---
 
 ## Conventions for whoever executes this
