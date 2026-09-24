@@ -195,7 +195,8 @@ rules.
   profile row and the person flag (`ME_QUERIES` in `test_me.py`), and a missing row is
   never created here (decided while implementing, 2026-09-24).
 - `PUT /me/photo/` (`IsAuthenticated`, multipart `photo`) calls `store_photo`, creating the
-  row on the first upload, and answers 200 `{photo: {large, small}}`. It answers 404
+  row on the first upload it stores (a refused upload leaves no row: the creation rolls back
+  with the refusal), and answers 200 `{photo: {large, small}}`. It answers 404
   (`{"error": "not_a_person"}`) when the user is not a person, then 403 (`{"error":
   "photo_locked"}`) when `photo_locked` is set, and 400 `{"error": code}` for a bad upload
   (`missing`, `too_large`, `bad_format`, `too_many_pixels`). A body whose `Content-Length`
@@ -216,7 +217,9 @@ rules.
   person gets the 404. `[]` means "back to automatic". The order is kept. It returns the
   new `{auto, badges}` showcase. Its rarity counts are `badge_stats` over the
   leaderboard's people, as on the profile, read through `profiles.person_ids()` (the same
-  people, one query, without computing the leaderboard).
+  people, one query, without computing the leaderboard), so it runs in a fixed number of
+  queries (`SHOWCASE_PUT_QUERIES` in `test_me.py`). It writes the showcase field alone, so a
+  photo stored meanwhile survives.
 
 ### 6. Payload changes (public)
 

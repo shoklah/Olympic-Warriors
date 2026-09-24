@@ -112,7 +112,8 @@ class TestShowcase(SimpleTestCase):
 
     def test_equally_rare_codes_of_the_same_tier_go_by_catalogue_order(self):
         holders = {C.MVP: 2, C.GOAT: 2, C.ROOKIE: 2, C.CHAMPION: 2}
-        entries = [entry(C.CHAMPION), entry(C.ROOKIE), entry(C.GOAT), entry(C.MVP)]
+        # Out of catalogue order, so the order found is the key's, not the entries'.
+        entries = [entry(C.MVP), entry(C.GOAT), entry(C.ROOKIE), entry(C.CHAMPION)]
 
         self.assertEqual(
             [badge["code"] for badge in showcase(entries, [], holders)["badges"]],

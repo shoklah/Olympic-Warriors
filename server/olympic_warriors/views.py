@@ -250,11 +250,11 @@ def getMe(request):
 def myPhoto(request):
     """
     PUT stores the multipart `photo` through avatars.store_photo(), creating the profile
-    row on the first upload, and answers the new URLs. A locked profile is refused first,
-    then a body over MAX_BYTES + MULTIPART_ALLOWANCE from its Content-Length alone, both
-    before the body is read. DELETE takes the photo down through avatars.remove_photo()
-    even when uploads are locked: a person can always take their own face down. It creates
-    no row.
+    row with the first photo it stores (a refused upload leaves none), and answers the new
+    URLs. A locked profile is refused first, then a body over MAX_BYTES +
+    MULTIPART_ALLOWANCE from its Content-Length alone, both before the body is read.
+    DELETE takes the photo down through avatars.remove_photo() even when uploads are
+    locked: a person can always take their own face down. It creates no row.
     """
     if not is_person(request.user):
         return Response(NOT_A_PERSON, status=404)
@@ -264,13 +264,19 @@ def myPhoto(request):
             remove_photo(profile)
         return Response(status=204)
 
-    profile, _ = UserProfile.objects.get_or_create(user=request.user)
-    if profile.photo_locked:
+    profile = UserProfile.objects.filter(user=request.user).first()
+    if profile is not None and profile.photo_locked:
         return Response({"error": "photo_locked"}, status=403)
     if _content_length(request) > MAX_BYTES + MULTIPART_ALLOWANCE:
         return Response({"error": "too_large"}, status=400)
+    upload = request.FILES.get("photo")
     try:
-        store_photo(profile, request.FILES.get("photo"))
+        # store_photo() needs a saved row, and refuses a bad upload only once it has one:
+        # a row created here rolls back with the refusal, so only a stored photo leaves one.
+        with transaction.atomic():
+            if profile is None:  # get_or_create: a claim or a showcase may have made it since
+                profile, _ = UserProfile.objects.get_or_create(user=request.user)
+            store_photo(profile, upload)
     except PhotoError as error:  # photo_locked here: locked since the row was read
         status = 403 if error.code == "photo_locked" else 400
         return Response({"error": error.code}, status=status)

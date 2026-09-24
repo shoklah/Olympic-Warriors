@@ -41,6 +41,10 @@ C = Badge.Codes
 # The token (with its user), then the user's profile row and person flag in one query: no
 # badge, standings or leaderboard work, since the front calls /me/ on every page.
 ME_QUERIES = 2
+# The token, the person check, the caller's badges, the profile row read then its showcase
+# written, then the rarity counts (the people, then their badges). The first save instead
+# creates the row: a savepoint around its insert, then the showcase written as before.
+SHOWCASE_PUT_QUERIES = 7
 
 LIMIT = PhotoRateThrottle().num_requests
 NOT_A_PERSON = {"error": "not_a_person"}
@@ -205,8 +209,18 @@ def photo_upload(data=None, name="photo.jpg"):
     return SimpleUploadedFile(name, encode(picture(), "JPEG") if data is None else data)
 
 
+@PRIVATE_CACHE
 class TestMyPhoto(MeSetup, MediaRootTestCase):
+    """Every upload counts against the photo throttle: a private local-memory cache, so the
+    runs of this module never share the configured file cache's counts (the user ids repeat
+    from run to run, and an hour's budget is only ten)."""
+
     client_class = APIClient
+
+    def setUp(self):
+        super().setUp()
+        cache.clear()
+        self.addCleanup(cache.clear)
 
     def put(self, **fields):
         return self.client.put("/me/photo/", fields, format="multipart")
@@ -252,6 +266,40 @@ class TestMyPhoto(MeSetup, MediaRootTestCase):
             with self.subTest(fields=list(fields)):
                 response = self.put(**fields)
                 self.assertEqual((response.status_code, response.data), (400, {"error": "missing"}))
+
+    def test_a_refused_upload_creates_no_row(self):
+        self.login(self.lea)
+        over = self.body_of(MAX_BYTES + MULTIPART_ALLOWANCE)
+        for name, send, code in (
+            ("missing", lambda: self.put(), "missing"),
+            ("a file too large", lambda: self.put(photo=photo_upload(b"\xff" * (MAX_BYTES + 1))),
+             "too_large"),
+            ("a body too large", lambda: self.put_body(over), "too_large"),
+            ("bad format", lambda: self.put(photo=photo_upload(b"hello", "photo.txt")),
+             "bad_format"),
+            ("too many pixels",
+             lambda: self.put(photo=photo_upload(png_claiming(5000, 5000), "photo.png")),
+             "too_many_pixels"),
+        ):
+            with self.subTest(upload=name):
+                response = send()
+                self.assertEqual((response.status_code, response.data), (400, {"error": code}))
+                self.assertFalse(UserProfile.objects.exists())
+        self.assertEqual(self.avatar_files(), [])
+
+    def test_a_refused_upload_leaves_an_existing_row_as_it_was(self):
+        base = f"avatars/{self.lea.id}-0123456789ab"
+        UserProfile.objects.create(
+            user=self.lea, photo=f"{base}.webp", photo_small=f"{base}-sm.webp",
+            showcase=[C.GOAT],
+        )
+        self.login(self.lea)
+
+        response = self.put(photo=photo_upload(b"hello", "photo.txt"))
+
+        self.assertEqual(response.status_code, 400)
+        profile = UserProfile.objects.get(user=self.lea)
+        self.assertEqual((profile.photo.name, profile.showcase), (f"{base}.webp", [C.GOAT]))
 
     def test_a_format_other_than_jpeg_png_or_webp(self):
         self.login(self.lea)
@@ -500,6 +548,41 @@ class TestMyShowcase(MeSetup, APITestCase):
         self.assertEqual(Badge.objects.filter(code=C.GOAT).count(), 3)
 
         self.assertEqual(self.put([]).data, self.AUTOMATIC)
+
+    def test_a_fixed_number_of_queries(self):
+        UserProfile.objects.create(user=self.lea)
+        with self.assertNumQueries(SHOWCASE_PUT_QUERIES):
+            self.assertEqual(self.put([C.GOAT]).status_code, 200)
+
+        UserProfile.objects.all().delete()
+        with self.assertNumQueries(SHOWCASE_PUT_QUERIES + 3):  # the first save creates the row
+            self.assertEqual(self.put([C.ROOKIE]).status_code, 200)
+
+    def test_saving_writes_the_pins_only(self):
+        """A photo stored while the pins were being checked (through another copy of the
+        row) survives the save: it writes the showcase alone."""
+        UserProfile.objects.create(user=self.lea)
+        base = f"avatars/{self.lea.id}-0123456789ab"
+        get_or_create = UserProfile.objects.get_or_create
+
+        def read_then_upload_meanwhile(*args, **kwargs):
+            found = get_or_create(*args, **kwargs)
+            other = UserProfile.objects.get(user=self.lea)
+            other.photo, other.photo_small = f"{base}.webp", f"{base}-sm.webp"
+            other.save()
+            return found
+
+        with mock.patch.object(
+            UserProfile.objects, "get_or_create", side_effect=read_then_upload_meanwhile
+        ):
+            response = self.put([C.GOAT])
+
+        self.assertEqual(response.status_code, 200)
+        profile = UserProfile.objects.get(user=self.lea)
+        self.assertEqual(profile.showcase, [C.GOAT])
+        self.assertEqual(
+            (profile.photo.name, profile.photo_small.name), (f"{base}.webp", f"{base}-sm.webp")
+        )
 
     def test_saving_computes_no_leaderboard(self):
         with mock.patch("olympic_warriors.profiles._load", side_effect=AssertionError):
