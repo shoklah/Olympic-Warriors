@@ -1347,6 +1347,24 @@ class TestDisciplines(World, TestCase):
         self.assertEqual(years_of(ana, C.UNCROWNED), [])
         self.assertEqual(years_of(bob, C.UNCROWNED), [])
 
+    def test_a_lone_scored_result_is_no_win_for_uncrowned(self):
+        # Wins: A 1 (plus a lone Dance score), B 1, C 1, D 1. Totals: A 15, B 18, C 16, D 13.
+        ana, bob, cat, dan = (self.person(n) for n in ("Ana", "Bob", "Cat", "Dan"))
+        self.four(
+            2021,
+            [ana, bob, cat, dan],
+            [
+                (Relay, [40, 30, 20, 10]),
+                (Darts, [10, 40, 30, 20]),
+                (Petanque, [10, 30, 40, 20]),
+                (Frisbee, [10, 30, 20, 40]),
+                (Dance, [10]),
+            ],
+        )
+
+        self.assertEqual(years_of(ana, C.BRONZE), [2021])
+        self.assertEqual(years_of(ana, C.UNCROWNED), [])
+
     def test_one_win_is_not_uncrowned(self):
         # One win each; totals A 10, B 11, C 9: B is champion, A 2nd.
         ana = self.person("Ana")

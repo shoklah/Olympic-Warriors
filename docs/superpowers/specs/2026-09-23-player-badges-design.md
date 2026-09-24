@@ -50,8 +50,8 @@ Decisions taken while brainstorming (2026-09-23):
 - **Earned at.** Each rule is evaluated over the history up to each edition of the
   sequence in turn. A one-time badge is earned at the first edition where its rule holds.
   A repeatable badge is earned at every edition that completes a new occurrence. Playing
-  more editions never takes a badge away. Only a correction of past data can, since the
-  refresh rebuilds from the current data.
+  more editions never takes a badge away. Only a correction of past data or of the rules
+  can, since the refresh rebuilds from the current data.
 - **Title**: rank 1. **Podium**: rank 1 to 3.
 - **Last place**: every active team of the edition has a rank and none has a worse one,
   in an edition of at least 4 teams, and that worst rank is 4th or below. So a last place
