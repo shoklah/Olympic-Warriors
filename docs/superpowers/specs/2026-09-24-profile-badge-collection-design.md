@@ -113,7 +113,11 @@ It renders:
 - for each family:
   - a heading (`h3`, `.label`) with the family name and `earned/total` in the same heading,
     e.g. `Palmarès 4/5`;
-  - a grid of slots, `repeat(auto-fill, minmax(5.5rem, 1fr))`, 4 per row on a 375px phone.
+  - a grid of slots, `repeat(auto-fill, minmax(4.75rem, 1fr))`: 4 per row on a 375px
+    phone, 3 at 320px.
+
+  The collection opens with a visually hidden `h2` « Badges », so the headings go
+  h1 → h2 → h3. The family fraction is `aria-hidden`, next to a spoken « 3 sur 5 ».
 
 Each slot is a `<button type="button">`:
 - the medallion at 48px, with a "×N" chip in the medallion's corner when `count > 1`;
@@ -150,11 +154,12 @@ Content:
 
 - **Tabs.** Under the position line, a `nav` labelled « Sections du profil » / "Profile
   sections":
-  - two links, « Profil » / "Profile" (`?`, no parameter) and « Badges · 28/63 »
-    (`?tab=badges`);
+  - two links, « Profil » / "Profile" (`?`, no parameter) and « Badges » (`?tab=badges`);
+    the tab label carries no count (Hugo, 2026-09-24): the count card and the collection
+    show it;
   - the current one has `aria-current="page"`;
-  - they're plain links with `data-sveltekit-noscroll`, so they work without JavaScript
-    and can be shared, and the page's load doesn't re-run;
+  - they're plain links with `data-sveltekit-noscroll` and `data-sveltekit-keepfocus`, so
+    they work without JavaScript and can be shared, and the page's load doesn't re-run;
   - the page reads the tab from `$page.url.searchParams`, and any other value means
     Profil.
 - **Profil tab** holds what the page shows today, except the badges list:
@@ -182,9 +187,10 @@ Content:
 
 - `profile.tabs`: « Sections du profil » / "Profile sections".
 - `profile.tab.profile`: « Profil » / "Profile".
-- `profile.tab.badges`: « Badges · {earned}/{total} » / "Badges · {earned}/{total}".
+- `profile.tab.badges`: « Badges » / "Badges".
 - `profile.seeCollection`: « voir la collection » / "see the collection".
-- `badge.progress`: « {earned} badges sur {total} » / "{earned} badges out of {total}".
+- `badge.progress`: a plural over `{n}` (earned), « {n} badge sur {total} » / « {n} badges sur
+  {total} » (0 is singular in French), "{n} badge out of {total}" / "{n} badges out of {total}".
 - `badge.family.<key>` for the nine families.
 - `badge.earned` « badge obtenu » / "badge earned", and `badge.locked` « badge à
   débloquer » / "badge locked".
