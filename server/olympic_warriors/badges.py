@@ -18,7 +18,7 @@ from itertools import combinations
 from django.db import transaction
 from django.utils import timezone
 
-from .models import Badge, BadgeRefresh, BlindtestGuess, Game, TeamResult
+from .models import Badge, BadgeRefresh, BlindtestGuess, Game
 from .models.ResultTypes import ResultTypes
 from .profiles import _load, _participations, _place, _record, _sort_key, paris_today
 
@@ -417,24 +417,25 @@ class DisciplineResult:
 
 
 def _discipline_results(h):
-    """{sequence index: [DisciplineResult]}: the active results of the sequence (1 query)."""
-    index = {edition.id: i for i, edition in enumerate(h.sequence)}
-    rows = TeamResult.objects.filter(
-        discipline__edition_id__in=index,
-        discipline__is_active=True,
-        team__is_active=True,
-        is_active=True,
-    ).values_list(
-        "id", "team_id", "discipline_id", "discipline__name", "discipline__edition_id",
-        "discipline__result_type", "points",
-    )
-    results = defaultdict(list)
-    for pk, team_id, discipline_id, name, edition_id, result_type, points in rows:
-        i = index[edition_id]
-        ranking = h.standings[i].result(pk).ranking
-        results[i].append(
-            DisciplineResult(team_id, discipline_id, name, result_type, points, ranking)
-        )
+    """
+    {sequence index: [DisciplineResult]}: the active results of the sequence's active teams
+    and disciplines, read from each edition's Standings (disciplines_of), which
+    compute_standings already loaded: no query of its own.
+    """
+    results = {}
+    for i, standing in enumerate(h.standings):
+        results[i] = [
+            DisciplineResult(
+                team_id,
+                discipline.discipline_id,
+                discipline.discipline_name,
+                discipline.result_type,
+                discipline.points,
+                discipline.standing.ranking,
+            )
+            for team_id, disciplines in standing.team_disciplines.items()
+            for discipline in disciplines
+        ]
     return results
 
 

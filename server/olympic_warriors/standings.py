@@ -45,11 +45,15 @@ class TeamStanding:
 @dataclass(frozen=True)
 class DisciplineStanding:
     """A team's standing in one discipline of the edition: the discipline's identity
-    alongside the ResultStanding of the team's result there."""
+    alongside the ResultStanding of the team's result there, plus the discipline's result
+    type and the result's stored points (None for a time or an unscored result), which
+    the badges' photo finish reads."""
 
     discipline_id: int
     discipline_name: str
     standing: ResultStanding
+    result_type: str
+    points: int | None
 
 
 @dataclass(frozen=True)
@@ -123,7 +127,11 @@ def compute_standings(edition):
     for result in sorted(results, key=lambda r: (r.discipline_id, r.id)):
         team_disciplines[result.team_id].append(
             DisciplineStanding(
-                result.discipline_id, result.discipline.name, result_standings[result.id]
+                result.discipline_id,
+                result.discipline.name,
+                result_standings[result.id],
+                result.discipline.result_type,
+                result.points,
             )
         )
     team_disciplines = {

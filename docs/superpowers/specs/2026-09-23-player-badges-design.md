@@ -273,16 +273,19 @@ def refresh(today=None) -> RefreshReport   # store earned(), see below
 chosen player rows and the standings, and both `participations()` and `earned()` build on
 it, so the two can never disagree on who played where. `earned()` then adds, for the
 editions of the sequence:
-- the active results of active teams in active disciplines, with their team, discipline
-  name, result type and points (1 query). Each result's rank comes from the edition's
-  `compute_standings`, which `_load` has already computed;
-- the active, played games of active rounds of active disciplines (1);
+- the active, played games of active rounds of active disciplines (1 query);
 - the active blindtest guesses of active rounds of active blindtests that are revealed (1).
 
-That makes 5 queries plus three per edition of the sequence (`_load`'s 2 plus three per
-finished edition with players, then these three), pinned as `BADGES_QUERIES` in the tests
-like `PROFILES_QUERIES`. With an empty sequence the discipline and game rules skip their
-queries, which leaves `_load`'s 2. The all-time tables are replayed in memory from the
+The discipline rules need no query of their own: they read each edition's
+`Standings.disciplines_of` (the per-discipline ranking the profiles' « Par épreuve »
+section uses), whose `DisciplineStanding` carries the discipline name, the rank, and the
+result type and stored points the photo finish compares. `compute_standings`, which
+`_load` has already run, loads those results with their discipline.
+
+That makes 4 queries plus three per edition of the sequence (`_load`'s 2 plus three per
+finished edition with players, then these two), pinned as `BADGES_QUERIES` in the tests
+like `PROFILES_QUERIES`. With an empty sequence the game rules skip their queries, which
+leaves `_load`'s 2. The all-time tables are replayed in memory from the
 participations, with no query per table.
 
 **`refresh(today)`**, in one transaction:

@@ -1789,8 +1789,9 @@ class TestGames(World, TestCase):
         self.assertEqual(games_of(self.ana, C.PERFECT_PITCH), [])
 
 
-# profiles._load (2 + 3 per sequence edition), then results, games and blindtest guesses.
-BADGES_QUERIES = lambda editions: 5 + 3 * editions  # noqa: E731
+# profiles._load (2 + 3 per sequence edition), then games and blindtest guesses; the
+# discipline rules read the results compute_standings already loaded (disciplines_of).
+BADGES_QUERIES = lambda editions: 4 + 3 * editions  # noqa: E731
 
 
 class TestQueries(World, TestCase):

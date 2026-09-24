@@ -48,6 +48,8 @@ class DisciplineStanding:
     discipline_id: int
     discipline_name: str
     standing: ResultStanding
+    result_type: str        # added with the badges: the photo finish compares points
+    points: int | None      # the result's stored points (None for a time or no score)
 
 @dataclass(frozen=True)
 class Standings:
