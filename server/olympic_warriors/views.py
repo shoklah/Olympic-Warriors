@@ -138,8 +138,8 @@ def claimAccount(request, uidb64, token):
     """
     A claim link (claims.py): GET says who it is for, POST {password} sets the password and
     answers the user's new token, the old one deleted. The link is checked before the
-    password, so a dead link is a 404 whatever the password; then a missing or blank
-    password is `password_missing`, and the validators give their own codes.
+    body, so a dead link is a 404 whatever the body; then a missing or blank password, or
+    a body that is not JSON, is `password_missing`, and the validators give their own codes.
     """
     user = check_claim(uidb64, token)
     if user is None:
@@ -147,7 +147,11 @@ def claimAccount(request, uidb64, token):
     if request.method == "GET":
         return Response({"first_name": user.first_name, "username": user.username})
 
-    password = request.data.get("password") if isinstance(request.data, dict) else None
+    try:
+        data = request.data
+    except ParseError:  # the password could not be read: the same shape as every refusal
+        return Response({"errors": ["password_missing"]}, status=400)
+    password = data.get("password") if isinstance(data, dict) else None
     if not isinstance(password, str) or not password.strip():
         return Response({"errors": ["password_missing"]}, status=400)
     try:

@@ -549,10 +549,14 @@ class TestPhotosAndShowcases(EndpointSetup, TestCase):
             f"/profile/{self.ana.id}/",
             f"/profile/{self.chloe.id}/",
             "/edition/year/2025/summary/",  # Ana's and Chloé's roster
+            f"/discipline/{self.relay2025.id}/all-time/",  # Ana's, Chloé's and Bob's places
         ):
             with self.subTest(url=url):
                 response = self.client.get(url)
                 self.assertEqual(response.status_code, 200)
+                # Every payload walked lists people (Ana at least), so the walk is not over
+                # an empty table.
+                self.assertIn(b"Ana", response.content)
                 self.assertEqual(keys_in(response.json()) & PRIVATE_KEYS, set())
                 self.assertNotIn(b"login-", response.content)
                 self.assertNotIn(b"mail.example", response.content)
