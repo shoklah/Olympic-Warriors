@@ -322,8 +322,8 @@ class DisciplinesSetup(ProfilesSetup):
     """
     On top of ProfilesSetup's revealed 2025 Relay (Loups 1, Ours 2, Pumas 3): a revealed
     2024 Relay (Bisons 1, Aigles 2, Cerfs 3, Daims 4), a revealed 2024 Darts (Aigles 1,
-    Bisons 2, Cerfs 3, Daims 4), a hidden 2025 Darts, and a revealed 2026 Darts in the
-    running edition.
+    Bisons 2, Cerfs 3, Daims 4), a hidden 2025 Darts (Loups 1, Ours 2), and a revealed 2026
+    Darts in the running edition (Renards 1, Sangliers 2).
     """
 
     def setUp(self):
@@ -335,9 +335,11 @@ class DisciplinesSetup(ProfilesSetup):
         for team, points in [(self.aigles, 9), (self.bisons, 4), (self.cerfs, 2), (self.daims, 1)]:
             TeamResult.objects.filter(discipline=self.darts2024, team=team).update(points=points)
         self.hidden_darts = Darts.objects.create(edition=self.y2025, reveal_score=False)
-        TeamResult.objects.filter(discipline=self.hidden_darts, team=self.loups).update(points=9)
+        for team, points in [(self.loups, 9), (self.ours, 3)]:
+            TeamResult.objects.filter(discipline=self.hidden_darts, team=team).update(points=points)
         self.running_darts = Darts.objects.create(edition=self.y2026, reveal_score=True)
-        TeamResult.objects.filter(discipline=self.running_darts, team=self.renards).update(points=9)
+        for team, points in [(self.renards, 9), (self.sangliers, 4)]:
+            TeamResult.objects.filter(discipline=self.running_darts, team=team).update(points=points)
 
 
 class TestDisciplinePlaces(DisciplinesSetup, TestCase):
@@ -376,9 +378,27 @@ class TestDisciplinePlaces(DisciplinesSetup, TestCase):
             self.disciplines("Dan"), [("Darts", 1, [(2024, 3)]), ("Relay", 1, [(2024, 3)])]
         )
 
-    def test_no_revealed_result_of_a_team_means_no_disciplines(self):
-        self.assertEqual(self.disciplines("Eve"), [])  # Sangliers have no 2026 Darts score yet
+    def test_a_running_edition_gives_its_revealed_places(self):
+        # Eve (Sangliers) plays the running 2026 only: 2nd in its revealed Darts.
+        self.assertEqual(self.disciplines("Eve"), [("Darts", 1, [(2026, 2)])])
+
+    def test_no_team_means_no_disciplines(self):
         self.assertEqual(self.disciplines("Fay"), [])  # no team in 2024
+
+    def test_an_uncontested_discipline_gives_no_place(self):
+        # Sangliers not scored yet: Renards' lone score beats nobody. A revealed 2026 Relay
+        # with both teams at 0 (as before any game) ties everyone for 1st on nothing.
+        TeamResult.objects.filter(discipline=self.running_darts, team=self.sangliers).update(
+            points=None
+        )
+        relay = Relay.objects.create(edition=self.y2026, reveal_score=True)
+        TeamResult.objects.filter(discipline=relay).update(points=0)
+
+        self.assertEqual(self.disciplines("Eve"), [])
+        self.assertEqual(
+            self.disciplines("Ana"),
+            [("Relay", 1, [(2025, 1), (2024, 2)]), ("Darts", 2, [(2024, 1)])],
+        )
 
     def test_a_participation_that_does_not_count_still_gives_its_places(self):
         # Without a final_rank, Aigles have no rank in hand-ranked 2024: Ana's 2024 no
@@ -520,6 +540,11 @@ class TestRecordAndPlace(SimpleTestCase):
         self.assertEqual([record.last_name for record in placed], ["Durand", "Ébert", "Faure"])
 
 
+def place(name, year, rank):
+    """A DisciplinePlace for the grouping tests, whose discipline row id plays no part."""
+    return DisciplinePlace(name, year, rank, discipline_id=1)
+
+
 class TestDisciplinePlacesGrouping(SimpleTestCase):
     """`_discipline_places` groups and positions a person's places, no database needed."""
 
@@ -528,7 +553,7 @@ class TestDisciplinePlacesGrouping(SimpleTestCase):
         """A counted Participation (finished, ranked, teams >= 2) carrying these
         (name, year, rank) discipline places."""
         disciplines = tuple(
-            DisciplinePlace(name, year, rank) for name, year, rank in discipline_ranks
+            place(name, year, rank) for name, year, rank in discipline_ranks
         )
         return Participation(2024, None, None, 1, 10, True, disciplines=disciplines)
 
@@ -545,10 +570,10 @@ class TestDisciplinePlacesGrouping(SimpleTestCase):
         self.assertEqual(
             _discipline_places([part]),
             (
-                DisciplinePlaces("Fencing", (DisciplinePlace("Fencing", 2024, 1),), 1),
-                DisciplinePlaces("Archery", (DisciplinePlace("Archery", 2024, 2),), 2),
-                DisciplinePlaces("Chess", (DisciplinePlace("Chess", 2024, 2),), 2),
-                DisciplinePlaces("Darts", (DisciplinePlace("Darts", 2024, 4),), 4),
+                DisciplinePlaces("Fencing", (place("Fencing", 2024, 1),), 1),
+                DisciplinePlaces("Archery", (place("Archery", 2024, 2),), 2),
+                DisciplinePlaces("Chess", (place("Chess", 2024, 2),), 2),
+                DisciplinePlaces("Darts", (place("Darts", 2024, 4),), 4),
             ),
         )
 
@@ -563,7 +588,7 @@ class TestDisciplinePlacesGrouping(SimpleTestCase):
             (
                 DisciplinePlaces(
                     "Relay",
-                    (DisciplinePlace("Relay", 2024, 1), DisciplinePlace("Relay", 2023, 1)),
+                    (place("Relay", 2024, 1), place("Relay", 2023, 1)),
                     1,
                 ),
             ),
@@ -971,28 +996,45 @@ class TestDisciplineTable(DisciplinesSetup, TestCase):
         )
 
     def test_the_running_edition_counts_once_revealed_and_a_hidden_result_never(self):
-        # The running 2026 Darts is revealed: Renards (Ana) scored and rank 1st, Sangliers
-        # (Eve) have no score yet, so no place. The hidden 2025 Darts gives Chloé nothing,
-        # and Fay had no team in 2024.
+        # The running 2026 Darts is revealed: Renards (Ana) 1st, Sangliers (Eve) 2nd. Eve
+        # and Bob tie on a single 2nd place, listed by name. The hidden 2025 Darts gives
+        # Chloé nothing, and Fay had no team in 2024.
         table = discipline_table("Darts")
 
         self.assertEqual(table.years, (2024, 2026))
         self.assertEqual(
             self.rows(table),
-            [("Ana", 1, [(2026, 1), (2024, 1)]), ("Bob", 2, [(2024, 2)]), ("Dan", 3, [(2024, 3)])],
+            [
+                ("Ana", 1, [(2026, 1), (2024, 1)]),
+                ("Eve", 2, [(2026, 2)]),
+                ("Bob", 2, [(2024, 2)]),
+                ("Dan", 4, [(2024, 3)]),
+            ],
         )
+
+    def test_an_uncontested_discipline_gives_no_place(self):
+        # A lone scored result beats nobody, nor does a tie of every team on 0.
+        TeamResult.objects.filter(discipline=self.running_darts, team=self.sangliers).update(
+            points=None
+        )
+        relay = Relay.objects.create(edition=self.y2026, reveal_score=True)
+        TeamResult.objects.filter(discipline=relay).update(points=0)
+
+        self.assertEqual(discipline_table("Darts").years, (2024,))
+        self.assertEqual(discipline_table("Relay").years, (2024, 2025))
 
     def test_revealing_a_result_adds_it_and_hiding_it_takes_it_back(self):
         Darts.objects.filter(pk=self.hidden_darts.pk).update(reveal_score=True)
         Darts.objects.filter(pk=self.running_darts.pk).update(reveal_score=False)
 
-        # Ana (Aigles, then Loups) now has two 1st places, Chloé (Loups) one.
+        # Ana (Aigles, then Loups) now has two 1st places, Chloé (Loups) one, and Bob
+        # (Bisons, then Ours) two 2nd places.
         self.assertEqual(
             self.rows(discipline_table("Darts")),
             [
                 ("Ana", 1, [(2025, 1), (2024, 1)]),
                 ("Chloé", 2, [(2025, 1)]),
-                ("Bob", 3, [(2024, 2)]),
+                ("Bob", 3, [(2025, 2), (2024, 2)]),
                 ("Dan", 4, [(2024, 3)]),
             ],
         )

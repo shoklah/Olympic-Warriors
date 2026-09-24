@@ -1,4 +1,5 @@
 <script>
+	import { disciplinePath } from '$lib/edition';
 	import { iconFor } from '$lib/icons';
 	import { disciplineName, useLocale, useT } from '$lib/i18n';
 
@@ -6,8 +7,8 @@
 	export let disciplines;
 	/** Id of the discipline whose page is showing, or null on the ranking page. */
 	export let currentId = null;
-	/** The discipline page's tab to keep when moving to another discipline, or null. */
-	export let tab = null;
+	/** Keep the discipline page's all-time tab when moving to another discipline. */
+	export let allTime = false;
 
 	const locale = useLocale();
 	const t = useT();
@@ -19,7 +20,7 @@
 			class="tile"
 			class:unrevealed={!discipline.reveal_score}
 			class:current={discipline.id === currentId}
-			href="/{year}/disciplines/{discipline.id}{tab ? `?tab=${tab}` : ''}"
+			href={disciplinePath(year, discipline.id, allTime)}
 			aria-current={discipline.id === currentId ? 'page' : undefined}
 			aria-label={disciplineName(locale, discipline.name)}
 		>

@@ -1,24 +1,7 @@
 import { fail } from '@sveltejs/kit';
-import { apiGet, apiPatch } from '$lib/api';
-import { findDiscipline } from '$lib/edition';
+import { apiPatch } from '$lib/api';
 import { api } from '$lib/server/urls';
 import { TOKEN_COOKIE } from '$lib/session';
-
-const ALL_TIME = 'all-time';
-
-/**
- * The tab to show (`?tab=all-time`, else the edition) and, on the all-time tab only, the
- * discipline's all-time table: the edition tab, the busiest page on event day, never pays
- * for it. The id must be one of the year's disciplines before it reaches the API; any
- * other id is left to +page.js, which answers the 404.
- */
-export const load = async ({ fetch, params, parent, url }) => {
-	if (url.searchParams.get('tab') !== ALL_TIME) return { tab: 'edition', allTime: null };
-	const { summary } = await parent();
-	const discipline = findDiscipline(summary, Number(params.id));
-	if (!discipline) return { tab: ALL_TIME, allTime: null };
-	return { tab: ALL_TIME, allTime: await apiGet(fetch, api(`/discipline/${discipline.id}/all-time/`)) };
-};
 
 /** The dictionary key the page shows for an API status; anything else is a plain failure. */
 const ERROR_KEYS = {

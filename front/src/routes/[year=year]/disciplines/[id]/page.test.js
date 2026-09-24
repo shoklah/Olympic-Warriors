@@ -2,6 +2,7 @@ import { fireEvent, screen, within } from '@testing-library/svelte';
 import { describe, expect, it, vi } from 'vitest';
 import { renderWith } from '$lib/test-utils';
 import Page from './+page.svelte';
+import { load } from './+page.js';
 import { disciplineEntries, disciplineResults, disciplineSchedule, findDiscipline } from '$lib/edition';
 import { summary, summaryAllRevealed, summaryStaff } from '$lib/fixtures/summary.js';
 import { allTime, allTimeEmpty } from '$lib/fixtures/players.js';
@@ -339,5 +340,48 @@ describe('discipline page for an organiser', () => {
 		// show the same stale error again.
 		await fireEvent.click(row);
 		expect(screen.queryByRole('alert')).toBeNull();
+	});
+});
+
+describe('discipline load', () => {
+	const json = (status, body) =>
+		new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+	const run = (search, id = '10', response = json(200, allTime)) => {
+		const fetch = vi.fn(async () => response);
+		const url = new URL(`http://localhost/2026/disciplines/${id}${search}`);
+		return load({ fetch, params: { year: '2026', id }, parent: async () => ({ summary }), url }).then(
+			(data) => ({ data, fetch })
+		);
+	};
+
+	it('renders the edition tab from the summary alone', async () => {
+		for (const search of ['', '?tab=edition', '?tab=badges']) {
+			const { data, fetch } = await run(search);
+			expect(data).toMatchObject({ tab: 'edition', allTime: null, discipline: { id: 10 } });
+			expect(fetch).not.toHaveBeenCalled();
+		}
+	});
+
+	it("fetches the all-time table from the page's JSON endpoint on its tab", async () => {
+		const { data, fetch } = await run('?tab=all-time');
+		expect(fetch.mock.calls[0][0]).toBe('/2026/disciplines/10/all-time.json');
+		expect(data).toMatchObject({ tab: 'all-time', allTime, discipline: { id: 10 } });
+	});
+
+	it('answers 404 for an id outside the year without fetching', async () => {
+		for (const id of ['999', 'abc']) {
+			const fetch = vi.fn();
+			const url = new URL(`http://localhost/2026/disciplines/${id}?tab=all-time`);
+			await expect(
+				load({ fetch, params: { year: '2026', id }, parent: async () => ({ summary }), url })
+			).rejects.toMatchObject({ status: 404 });
+			expect(fetch).not.toHaveBeenCalled();
+		}
+	});
+
+	it("passes the endpoint's errors through", async () => {
+		await expect(run('?tab=all-time', '10', json(502, { message: 'API unreachable' }))).rejects.toMatchObject({
+			status: 502
+		});
 	});
 });

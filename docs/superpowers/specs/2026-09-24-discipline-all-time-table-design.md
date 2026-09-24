@@ -58,7 +58,13 @@ Settled with Hugo on 2026-09-24:
   take the person's one participation there (chosen as for the profiles:
   `_one_row_per_edition`) and its valid team (`_valid_team`). The team's results in that
   discipline with `standing.ranking > 0` (revealed, scored, in an active discipline) are
-  the person's places, best first (lower rank, then newer year).
+  the person's places, best first (lower rank, then newer year), provided the discipline
+  is contested in that edition.
+- **Contested discipline.** Its ranked results do not all share one rank (`_contested`).
+  A lone scored result, or every team tied on 0 (a revealed points discipline with a
+  pairing system before any game is played), beats nobody and gives no place, like the
+  team ranking's rule that missing data never counts as a win (`_is_ranked`). This was added
+  after the code review: counting running editions made that case likely.
 - **Table of a discipline.** Every person with at least one place in it, sorted by
   `_places_key(places)` and then by accent-insensitive name (`_by_name`), with shared
   positions from `_positioned` (1, 1, 3, …).
@@ -147,15 +153,23 @@ newest place there. `GET /profiles/` is unchanged.
     page, unchanged;
   - « Palmarès » / "All time" (`discipline.tab.allTime`, `?tab=all-time`).
   Any other `tab` value is the edition tab.
-- **Loading.** `+page.server.js` gains a `load` (next to its actions) returning
-  `{ tab, allTime }`. It calls `/discipline/<id>/all-time/` only when `tab` is
-  `all-time` and the id is one of the year summary's disciplines (from `parent()`);
-  otherwise `allTime` is `null`, and `+page.js` answers the 404 as today. `+page.js`
-  spreads the server `data` into its return value, since SvelteKit hands the universal
-  load the server data but does not merge them.
-- **Rail.** `DisciplineRail` gains a `tab` prop (default `null`). On the all-time tab
-  its tiles link to `?tab=all-time`, so one can flip through the disciplines' tables.
+- **Loading.** The universal `+page.js` resolves the discipline in the summary (404
+  otherwise, as today). On `?tab=all-time` only, it fetches the table from the page's own
+  JSON endpoint, `[id]/all-time.json/+server.js`, which checks the id is canonical and
+  calls `/discipline/<id>/all-time/` (`API_URL` is server-only). It returns
+  `{ tab, allTime, … }`. The page has no server `load`. The first version had one, and the
+  review showed two costs: every client-side visit to a discipline page paid a round trip
+  just to learn the tab, and its `await parent()` re-ran the layout loads, summary
+  included, on each switch of the tab. `apiGet` reads `content-type`, which a universal
+  load may only do during SSR once `hooks.server.js` serialises that header
+  (`filterSerializedResponseHeaders`).
+- **Tab and path.** `ALL_TIME_TAB` and `disciplinePath(year, id, allTime)` in `edition.js`
+  spell the tab value and the path for the page, the rail and the profile link.
+- **Rail.** `DisciplineRail` gains an `allTime` prop (default `false`). On the all-time
+  tab its tiles link to `?tab=all-time`, so one can flip through the disciplines' tables.
   The ranking page passes nothing, so its rail is unchanged.
+- **Places.** `PlaceList` draws a list of places (coloured rank and year, `aria-hidden`
+  behind `spokenPlaces`) for the table rows and the profile's « Par épreuve » rows.
 - **All-time tab.** A new `AllTimeTable` component (`src/lib/components/`) renders:
   - a visually hidden `h2` « Palmarès » / "All time";
   - a subtitle naming the years with `Intl.ListFormat` (conjunction), so a gap shows
@@ -216,8 +230,12 @@ Server (`test_profiles.py`, or a new `test_discipline_table.py`):
 
 Front:
 
-- `page.server.test.js` (discipline): the load fetches only with `?tab=all-time`, and
-  not for an id outside the summary.
+- `page.test.js` (discipline load): nothing is fetched on the edition tab; the JSON
+  endpoint is fetched on `?tab=all-time`; an id outside the year is a 404 without a fetch.
+- `all-time.json/server.test.js`: the endpoint serves the API's table and answers 404 to
+  a non-canonical id without calling the API.
+- `hooks.server.test.js`: `content-type`, and no other header, is serialised.
+- `PlaceList.test.js`, `edition.test.js` (`disciplinePath`).
 - `page.test.js` (discipline):
   - two tabs, with `aria-current` on the shown one; the edition tab unchanged;
   - `StaffBar` only on the edition tab;
@@ -226,7 +244,7 @@ Front:
   - the subtitle's years, and the empty state;
   - one French test (« Palmarès », « Édition 2026 », « Éditions 2024 et 2025 »).
 - `AllTimeTable.test.js`: medal positions, shared positions, places `aria-hidden`.
-- `DisciplineRail.test.js`: tiles keep `?tab=all-time` when given the tab.
+- `DisciplineRail.test.js`: tiles keep `?tab=all-time` with `allTime`.
 - Profile `page.test.js`: each « Par épreuve » row links to its `latest` page's
   all-time tab.
 - Fixtures: an all-time payload in `src/lib/fixtures/players.js`, and `latest` on the

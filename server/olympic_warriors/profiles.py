@@ -21,7 +21,9 @@ The rules (see the player profiles design spec under docs/superpowers/specs/):
   are listed by name; people with nothing counted follow by name, without a position.
   The average rank plays no part in the order.
 - a participation with a team also carries its team's discipline places: every revealed,
-  scored result (rank > 0, by discipline name), whether or not the participation counts;
+  scored result (rank > 0, by discipline name) of a contested discipline (its ranked
+  results do not all share one rank: a lone scored result, or everyone tied on nothing
+  before a game is played, beats nobody), whether or not the participation counts;
   participations() fills them for finished editions, and profile_record() adds the
   person's running ones. A person's discipline places aggregate those by name across
   editions, sorted best first, and are ordered and positioned by the same medal-table
@@ -61,7 +63,7 @@ class DisciplinePlace:
     name: str
     year: int
     rank: int
-    discipline_id: int | None = None
+    discipline_id: int
 
 
 @dataclass(frozen=True)
@@ -188,10 +190,27 @@ def _load(today):
     return Loaded(editions, chosen, finished, standings, ranked)
 
 
+def _contested(standing):
+    """
+    Ids of the edition's disciplines whose ranked results do not all share one rank.
+    A lone scored result, or every team tied on nothing (a revealed points discipline
+    before any game, where every result starts at 0), beats nobody: missing data must
+    never count as a win, as for the team ranking (_is_ranked).
+    """
+    ranks = defaultdict(set)
+    for disciplines in standing.team_disciplines.values():
+        for discipline in disciplines:
+            if discipline.standing.ranking > 0:
+                ranks[discipline.discipline_id].add(discipline.standing.ranking)
+    return frozenset(pk for pk, found in ranks.items() if len(found) > 1)
+
+
 def _revealed_places(standing, team_id, year):
-    """A team's revealed, scored results in an edition's standings (rank > 0), as
-    DisciplinePlace items in discipline id order: the places a discipline credits to every
-    member of the team, on the profiles and in the all-time tables alike."""
+    """A team's revealed, scored results in the contested disciplines of an edition's
+    standings (see _contested), as DisciplinePlace items in discipline id order: the
+    places a discipline credits to every member of the team, on the profiles and in the
+    all-time tables alike."""
+    contested = _contested(standing)
     return tuple(
         DisciplinePlace(
             discipline.discipline_name,
@@ -200,7 +219,7 @@ def _revealed_places(standing, team_id, year):
             discipline.discipline_id,
         )
         for discipline in standing.disciplines_of(team_id)
-        if discipline.standing.ranking > 0
+        if discipline.standing.ranking > 0 and discipline.discipline_id in contested
     )
 
 
@@ -434,7 +453,8 @@ class DisciplineTable:
 def discipline_table(name):
     """
     The all-time table of the discipline called `name`: every revealed, scored result of
-    it in an active edition, finished or still running, credited to its team's roster
+    it in an active edition, finished or still running, where the discipline is contested
+    (see _contested), credited to its team's roster
     (each person's one participation per edition, chosen as for the profiles), ordered
     like the leaderboard's medal table on those places, identical places sharing a
     position and listed by name. It does not wait for the edition to end, nor ask the

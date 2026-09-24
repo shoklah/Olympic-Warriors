@@ -1,6 +1,7 @@
 <script>
 	import MedalRank from '$lib/components/MedalRank.svelte';
-	import { fullName, listYears, spokenPlaces } from '$lib/players';
+	import PlaceList from '$lib/components/PlaceList.svelte';
+	import { fullName, listYears } from '$lib/players';
 	import { useLocale, useT } from '$lib/i18n';
 
 	/** The discipline's all-time table, as /discipline/<id>/all-time/ returns it:
@@ -33,20 +34,7 @@
 				>
 					<MedalRank rank={player.position} />
 					<span class="name">{fullName(player)}</span>
-					<span class="places" aria-hidden="true">
-						{#each player.places as place}
-							<span class="place"
-								><span
-									class="num place-rank"
-									class:gold={place.rank === 1}
-									class:silver={place.rank === 2}
-									class:bronze={place.rank === 3}>{place.rank}</span
-								>
-								<span class="place-year">{place.year}</span></span
-							>{' '}
-						{/each}
-					</span>
-					<span class="visually-hidden">{spokenPlaces(player.places, locale)}</span>
+					<PlaceList places={player.places} />
 				</a>
 			</li>
 		{/each}
@@ -116,41 +104,4 @@
 		overflow-wrap: anywhere;
 	}
 
-	.places {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: baseline;
-		justify-content: flex-end;
-		gap: 4px 10px;
-	}
-
-	.place {
-		display: inline-flex;
-		align-items: baseline;
-		gap: 4px;
-	}
-
-	.place-rank {
-		font-size: 1.15rem;
-		line-height: 1.1;
-		letter-spacing: 0.04em;
-		color: var(--muted);
-	}
-
-	.place-rank.gold {
-		color: var(--gold);
-	}
-
-	.place-rank.silver {
-		color: var(--silver);
-	}
-
-	.place-rank.bronze {
-		color: var(--bronze);
-	}
-
-	.place-year {
-		font-size: 0.75rem;
-		color: var(--muted);
-	}
 </style>

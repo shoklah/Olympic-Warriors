@@ -40,7 +40,7 @@ describe('DisciplineRail', () => {
 	});
 
 	it('keeps the discipline page tab it is given', () => {
-		renderWith(DisciplineRail, { year: 2026, disciplines: summary.disciplines, currentId: 10, tab: 'all-time' });
+		renderWith(DisciplineRail, { year: 2026, disciplines: summary.disciplines, currentId: 10, allTime: true });
 
 		expect(screen.getByRole('link', { name: 'Relay' })).toHaveAttribute('href', '/2026/disciplines/10?tab=all-time');
 		expect(screen.getByRole('link', { name: 'Orienteering' })).toHaveAttribute(

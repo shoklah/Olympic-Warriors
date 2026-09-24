@@ -1,6 +1,6 @@
 <script>
 	import { enhance } from '$app/forms';
-	import { entryTime, formatDifference, formatTime, roundCount } from '$lib/edition';
+	import { ALL_TIME_TAB, disciplinePath, entryTime, formatDifference, formatTime, roundCount } from '$lib/edition';
 	import { iconFor } from '$lib/icons';
 	import { disciplineName, useLocale, useT } from '$lib/i18n';
 	import AllTimeTable from '$lib/components/AllTimeTable.svelte';
@@ -20,8 +20,8 @@
 
 	$: year = data.summary.edition.year;
 	$: name = disciplineName(locale, data.discipline.name);
-	// The server load reads ?tab=; the all-time table is only fetched on its own tab.
-	$: allTime = data.tab === 'all-time';
+	// The load reads ?tab=; the all-time table is only fetched on its own tab.
+	$: allTime = data.tab === ALL_TIME_TAB;
 	$: rounds = (data.schedule ?? []).filter((round) => round.games.length > 0);
 	// The difference is summed from game scores, so a discipline without rounds
 	// has nothing but zeroes to show.
@@ -89,21 +89,21 @@
 			{year}
 			disciplines={data.summary.disciplines}
 			currentId={data.discipline.id}
-			tab={allTime ? 'all-time' : null}
+			{allTime}
 		/>
 	</div>
 
 	<nav class="tabs" aria-label={t('discipline.tabs')}>
 		<a
 			class="tab"
-			href="/{year}/disciplines/{data.discipline.id}"
+			href={disciplinePath(year, data.discipline.id)}
 			data-sveltekit-noscroll
 			data-sveltekit-keepfocus
 			aria-current={allTime ? undefined : 'page'}>{t('discipline.tab.edition', { year })}</a
 		>
 		<a
 			class="tab"
-			href="/{year}/disciplines/{data.discipline.id}?tab=all-time"
+			href={disciplinePath(year, data.discipline.id, true)}
 			data-sveltekit-noscroll
 			data-sveltekit-keepfocus
 			aria-current={allTime ? 'page' : undefined}>{t('discipline.tab.allTime')}</a
