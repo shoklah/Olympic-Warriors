@@ -93,3 +93,25 @@ describe('white SVG icons', () => {
 		expect(count(source, /filter: var\(--icon-filter/g)).toBeGreaterThanOrEqual(images);
 	});
 });
+
+/** The declarations of the one rule whose selector list is exactly `selector`. */
+const rule = (selector) => {
+	const at = css.indexOf(`${selector} {`);
+	expect(at, `no rule for ${selector}`).toBeGreaterThan(-1);
+	return css.slice(css.indexOf('{', at) + 1, css.indexOf('}', at));
+};
+
+// Hugo, 2026-09-24: no underline at rest on links among text; the underline shows on hover
+// and keyboard focus only. A known WCAG 1.4.1 gap on touch screens, documented in the
+// accent cues spec.
+describe('links among text (.quiet-link)', () => {
+	it('carry no underline at rest', () => {
+		expect(rule('.quiet-link')).toMatch(/text-decoration:\s*none;/);
+	});
+
+	it('show an accent underline on hover and keyboard focus', () => {
+		const shown = rule('.quiet-link:hover,\n.quiet-link:focus-visible');
+		expect(shown).toMatch(/text-decoration:\s*underline;/);
+		expect(shown).toMatch(/text-decoration-color:\s*var\(--accent\);/);
+	});
+});
