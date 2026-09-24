@@ -228,12 +228,12 @@
 	/* On the avatar's lower right, ringed in the page colour so it reads over any photo. */
 	.camera {
 		position: absolute;
-		right: -4px;
-		bottom: -4px;
+		right: -6px;
+		bottom: -6px;
 		display: grid;
 		place-items: center;
-		width: 40px;
-		height: 40px;
+		width: 44px;
+		height: 44px;
 		padding: 0;
 		border: 3px solid var(--bg);
 		border-radius: 50%;

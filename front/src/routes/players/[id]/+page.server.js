@@ -67,14 +67,9 @@ async function onOwnPhoto({ fetch, params }, action, token, send) {
 	return { ok: true, action };
 }
 
-/** The form's `photo` file, or null for no file, an empty one or a text field. */
-async function photoFrom(request) {
-	let file = null;
-	try {
-		file = (await request.formData()).get('photo');
-	} catch {
-		// Not a form body at all: nothing was sent.
-	}
+/** The form's `photo` file, or null for no form, no file, an empty one or a text field. */
+function photoIn(form) {
+	const file = form?.get('photo') ?? null;
 	return file === null || typeof file === 'string' || file.size === 0 ? null : file;
 }
 
@@ -87,7 +82,15 @@ export const actions = {
 	photo: async (event) => {
 		const token = event.cookies.get(TOKEN_COOKIE);
 		if (!token) return fail(403, { action: 'photo', error: FORBIDDEN });
-		const file = await photoFrom(event.request);
+		let form = null;
+		try {
+			form = await event.request.formData();
+		} catch (err) {
+			// adapter-node stops reading a body past BODY_SIZE_LIMIT with a 413 error.
+			if (err?.status === 413) return fail(413, { action: 'photo', error: 'photo.error.too_large' });
+			// Anything else is not a form body at all: nothing was sent.
+		}
+		const file = photoIn(form);
 		if (!file) return fail(400, { action: 'photo', error: 'photo.error.missing' });
 		return onOwnPhoto(event, 'photo', token, () => {
 			const body = new FormData();

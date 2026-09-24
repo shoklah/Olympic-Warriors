@@ -2,8 +2,8 @@
  * The maths of the photo editor's square crop, with no canvas and no DOM, so it is unit-tested.
  *
  * The crop is `{ zoom, cx, cy }`: the zoom (1 is the cover scale, where the image's shorter
- * side just fills the square) and the point of the source image, in source pixels, at the
- * square's centre. Kept in source pixels rather than screen pixels, it is independent of
+ * side just fills the square, see `visibleSide`) and the point of the source image, in
+ * source pixels, at the square's centre. Kept in source pixels rather than screen pixels, it is independent of
  * how big the preview is drawn, so the same crop feeds the preview and the 512px export.
  * The shown square never leaves the image: the photo is stored square and shown as the
  * circle inscribed in it, so covering the square covers the circle with no empty corner.
@@ -21,14 +21,27 @@ export const OUTPUT_QUALITY = 0.9;
  * as is all agree. Not a theme colour: it ends up in the stored photo.
  */
 export const EXPORT_BACKGROUND = 'rgb(128, 128, 128)';
+/**
+ * The most a source ever needs on its shorter side: at the highest zoom the shown square is
+ * that side over MAX_ZOOM, drawn 1:1 into the output. A bigger photo is shrunk to it once,
+ * when decoded, rather than kept whole (48 MP is some 190 MB) and redrawn at each move.
+ */
+export const MAX_SOURCE_SIDE = OUTPUT_SIZE * MAX_ZOOM;
 
 const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
 
 /** The zoom within [MIN_ZOOM, MAX_ZOOM]; anything that is not a number is the minimum. */
 export const clampZoom = (zoom) => (Number.isFinite(zoom) ? clamp(zoom, MIN_ZOOM, MAX_ZOOM) : MIN_ZOOM);
 
-/** The scale at which a `width` × `height` image just covers a square of side `size`. */
-export const coverScale = (width, height, size) => size / Math.min(width, height);
+/**
+ * The size to decode a `width` × `height` image at: shrunk so its shorter side is
+ * MAX_SOURCE_SIDE, keeping its shape, or as it is when already smaller. The crop is then kept
+ * in the pixels of that decoded size.
+ */
+export function decodeSize(width, height) {
+	const scale = Math.min(1, MAX_SOURCE_SIDE / Math.min(width, height));
+	return { width: Math.round(width * scale), height: Math.round(height * scale) };
+}
 
 /** The side, in source pixels, of the square shown at `zoom`: the shorter side at zoom 1. */
 export const visibleSide = (width, height, zoom) => Math.min(width, height) / clampZoom(zoom);

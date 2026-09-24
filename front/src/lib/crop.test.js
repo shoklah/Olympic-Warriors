@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
 	EXPORT_BACKGROUND,
+	MAX_SOURCE_SIDE,
 	MAX_ZOOM,
 	MIN_ZOOM,
 	OUTPUT_SIZE,
 	clampCrop,
 	clampZoom,
-	coverScale,
+	decodeSize,
 	initialCrop,
 	panBy,
 	sourceRect,
@@ -23,11 +24,26 @@ describe('crop constants', () => {
 	});
 });
 
-describe('coverScale', () => {
-	it('fits the shorter side to the square, landscape or portrait', () => {
-		expect(coverScale(800, 600, 300)).toBe(0.5);
-		expect(coverScale(600, 800, 300)).toBe(0.5);
-		expect(coverScale(256, 256, 512)).toBe(2);
+describe('decodeSize', () => {
+	it('never needs more than the 512px output at the highest zoom on the shorter side', () => {
+		expect(MAX_SOURCE_SIDE).toBe(OUTPUT_SIZE * MAX_ZOOM);
+	});
+
+	it('shrinks a big image to that shorter side, keeping its shape', () => {
+		expect(decodeSize(8000, 6000)).toEqual({ width: 2731, height: 2048 });
+		expect(decodeSize(6000, 8000)).toEqual({ width: 2048, height: 2731 });
+		expect(decodeSize(4096, 4096)).toEqual({ width: 2048, height: 2048 });
+	});
+
+	it('leaves an image already small enough as it is', () => {
+		expect(decodeSize(2048, 3000)).toEqual({ width: 2048, height: 3000 });
+		expect(decodeSize(800, 600)).toEqual({ width: 800, height: 600 });
+	});
+
+	it('keeps the crop maths in the shrunk pixels consistent: full zoom is 1:1 into the output', () => {
+		const { width, height } = decodeSize(8000, 6000);
+		expect(visibleSide(width, height, MAX_ZOOM)).toBe(OUTPUT_SIZE);
+		expect(sourceRect(width, height, initialCrop(width, height))).toEqual({ sx: 341.5, sy: 0, sw: 2048, sh: 2048 });
 	});
 });
 

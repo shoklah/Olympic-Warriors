@@ -10,6 +10,7 @@
 		OUTPUT_QUALITY,
 		OUTPUT_SIZE,
 		OUTPUT_TYPE,
+		decodeSize,
 		initialCrop,
 		panBy,
 		sourceRect,
@@ -53,6 +54,8 @@
 
 	let sheetEl = null;
 	let canvasEl = null;
+	/** The locked notice, focused when a refused save turns the dialog locked. */
+	let noticeEl = null;
 	/** The decoded image (an ImageBitmap, or an <img> from the fallback), and its size. */
 	let source = null;
 	let width = 0;
@@ -65,6 +68,11 @@
 	let busy = null;
 	/** The pointer dragging the image: its id and last position. */
 	let drag = null;
+	/**
+	 * Bumped by every pick, by reset() and on destroy: a decode that finishes after any of
+	 * them is stale, and its bitmap is closed instead of shown.
+	 */
+	let pick = 0;
 
 	const percent = new Intl.NumberFormat(locale === 'en' ? 'en' : 'fr', { style: 'percent' });
 
@@ -84,6 +92,7 @@
 
 	/** Forget the chosen file: a reopened dialog starts from the current photo. */
 	function reset() {
+		pick += 1;
 		source?.close?.();
 		source = null;
 		crop = null;
@@ -149,6 +158,7 @@
 	$: if (open) lockScroll();
 	else unlockScroll();
 	onDestroy(() => {
+		pick += 1;
 		unlockScroll();
 		source?.close?.();
 	});
@@ -171,18 +181,56 @@
 	}
 
 	/**
+	 * The bitmap at decodeSize, resampled by the engine, the full-size one closed. An engine
+	 * that cannot resize keeps it whole: slower to redraw, the same photo in the end.
+	 */
+	async function shrinkBitmap(bitmap) {
+		const size = decodeSize(bitmap.width, bitmap.height);
+		if (size.width === bitmap.width && size.height === bitmap.height) return bitmap;
+		let smaller;
+		try {
+			smaller = await createImageBitmap(bitmap, {
+				resizeWidth: size.width,
+				resizeHeight: size.height,
+				resizeQuality: 'high'
+			});
+		} catch {
+			return bitmap;
+		}
+		bitmap.close?.();
+		return smaller;
+	}
+
+	/** The fallback's <img> drawn once at decodeSize into a canvas, which drawImage takes alike. */
+	function shrinkImage(img) {
+		const size = decodeSize(img.naturalWidth, img.naturalHeight);
+		if (size.width === img.naturalWidth && size.height === img.naturalHeight) return img;
+		const canvas = document.createElement('canvas');
+		canvas.width = size.width;
+		canvas.height = size.height;
+		const ctx = canvas.getContext('2d');
+		if (!ctx) return img;
+		ctx.imageSmoothingQuality = 'high';
+		ctx.drawImage(img, 0, 0, size.width, size.height);
+		return canvas;
+	}
+
+	/**
 	 * The chosen file as something to draw, turned upright from its EXIF orientation, so a
-	 * phone photo is not drawn on its side (an <img> applies the orientation by default).
+	 * phone photo is not drawn on its side (an <img> applies the orientation by default),
+	 * and shrunk to what the crop can ever use (MAX_SOURCE_SIDE in $lib/crop).
 	 */
 	async function decode(file) {
 		if (typeof createImageBitmap === 'function') {
+			let bitmap = null;
 			try {
-				return await createImageBitmap(file, { imageOrientation: 'from-image' });
+				bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
 			} catch {
 				// An older engine refuses the option, or the format: the <img> gets a try.
 			}
+			if (bitmap) return shrinkBitmap(bitmap);
 		}
-		return decodeWithImage(file);
+		return shrinkImage(await decodeWithImage(file));
 	}
 
 	async function choose(event) {
@@ -191,6 +239,9 @@
 		// Emptied, so choosing the same file again still fires `change`.
 		input.value = '';
 		if (!file) return;
+		// The last pick wins, whichever decode finishes first.
+		pick += 1;
+		const mine = pick;
 		error = null;
 		if (file.type && !ACCEPT.includes(file.type)) {
 			error = 'photo.error.bad_format';
@@ -200,7 +251,11 @@
 		try {
 			decoded = await decode(file);
 		} catch {
-			error = 'photo.error.unreadable';
+			if (mine === pick) error = 'photo.error.unreadable';
+			return;
+		}
+		if (mine !== pick) {
+			decoded.close?.();
 			return;
 		}
 		source?.close?.();
@@ -229,7 +284,8 @@
 
 	/** One pointer drags at a time; the same pointer pressing again takes over its stale drag. */
 	function pointerDown(event) {
-		if (!crop || (drag && drag.id !== event.pointerId)) return;
+		// Frozen while saving: the photo on its way is the one shown.
+		if (!crop || busy || (drag && drag.id !== event.pointerId)) return;
 		drag = { id: event.pointerId, x: event.clientX, y: event.clientY };
 		try {
 			event.currentTarget.setPointerCapture?.(event.pointerId);
@@ -239,7 +295,7 @@
 	}
 
 	function pointerMove(event) {
-		if (!drag || event.pointerId !== drag.id) return;
+		if (!drag || busy || event.pointerId !== drag.id) return;
 		crop = panBy(width, height, crop, event.clientX - drag.x, event.clientY - drag.y, previewSize());
 		drag = { ...drag, x: event.clientX, y: event.clientY };
 	}
@@ -250,7 +306,7 @@
 
 	/** The arrows move the image like a drag, + and - zoom; the page does not scroll meanwhile. */
 	function cropKey(event) {
-		if (!crop) return;
+		if (!crop || busy) return;
 		const move = MOVES.get(event.key);
 		if (move) {
 			const step = event.shiftKey ? KEY_STEP * 5 : KEY_STEP;
@@ -284,6 +340,15 @@
 	const failureKey = (data) =>
 		typeof data?.error === 'string' && data.error.startsWith('photo.error.') ? data.error : FAILED;
 
+	/** Re-run the loads; a load failing shows its own error page, nothing to do here. */
+	async function refresh() {
+		try {
+			await invalidateAll();
+		} catch {
+			// See above.
+		}
+	}
+
 	/**
 	 * Post `body` to the page's `action` the way use:enhance does (SvelteKit answers an
 	 * ActionResult to `x-sveltekit-action`), since the file is a Blob made here, not a form
@@ -293,11 +358,13 @@
 	async function send(action, body) {
 		busy = action;
 		error = null;
+		let lockedMeanwhile = false;
 		try {
 			const response = await fetch(`?/${action}`, {
 				method: 'POST',
 				body,
-				headers: { 'x-sveltekit-action': 'true' },
+				headers: { accept: 'application/json', 'x-sveltekit-action': 'true' },
+				cache: 'no-store',
 				...(typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
 					? { signal: AbortSignal.timeout(TIMEOUT_MS) }
 					: {})
@@ -309,11 +376,7 @@
 				// Not an ActionResult: a proxy's refusal, such as a 413 for too big a body.
 			}
 			if (result?.type === 'success') {
-				try {
-					await invalidateAll();
-				} catch {
-					// The photo is saved; a load failing now shows its own error page.
-				}
+				await refresh();
 				busy = null;
 				close();
 				return;
@@ -324,11 +387,25 @@
 					: response.status === 413
 						? 'photo.error.too_large'
 						: FAILED;
-		} catch {
+			// An organiser locked uploads since the page loaded: reloading brings `locked`
+			// down, and the dialog turns to the lock notice (which then stands for the error).
+			if (error === 'photo.error.photo_locked') {
+				await refresh();
+				lockedMeanwhile = true;
+			}
+		} catch (err) {
 			error = FAILED;
+			// A timeout leaves the outcome unknown: the photo may have been saved all the same.
+			if (err?.name === 'TimeoutError') await refresh();
 		}
 		busy = null;
+		// Save is gone from the locked dialog: focus the notice, which reads the news out.
+		if (lockedMeanwhile && locked) {
+			await tick();
+			(noticeEl ?? sheetEl)?.focus();
+		}
 	}
+	$: if (locked && error === 'photo.error.photo_locked') error = null;
 
 	async function save() {
 		if (!source || busy) return;
@@ -364,14 +441,13 @@
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby="photo-editor-title"
-		aria-busy={busy ? 'true' : undefined}
 		tabindex="-1"
 		bind:this={sheetEl}
 	>
 		<h2 id="photo-editor-title">{t('photo.title')}</h2>
 
 		{#if locked}
-			<p class="notice">{t('photo.locked')}</p>
+			<p class="notice" tabindex="-1" bind:this={noticeEl}>{t('photo.locked')}</p>
 		{:else}
 			<div class="stage">
 				{#if source}
@@ -437,7 +513,14 @@
 					<label for="photo-file">{t('photo.choose')}</label>
 				{/if}
 				{#if photo}
-					<button type="button" class="remove" disabled={busy !== null} on:click={remove}>{t('photo.remove')}</button>
+					<!-- aria-disabled rather than disabled on the two buttons that start a request: a
+					     disabled button drops focus to <body> while the request runs. -->
+					<button
+						type="button"
+						class="remove"
+						aria-disabled={busy !== null ? 'true' : undefined}
+						on:click={remove}>{t('photo.remove')}</button
+					>
 				{/if}
 			</div>
 		{/if}
@@ -456,7 +539,12 @@
 				>{t(locked ? 'photo.close' : 'photo.cancel')}</button
 			>
 			{#if !locked}
-				<button type="button" disabled={!source || busy !== null} on:click={save}>{t('photo.save')}</button>
+				<button
+					type="button"
+					disabled={!source}
+					aria-disabled={busy !== null ? 'true' : undefined}
+					on:click={save}>{t('photo.save')}</button
+				>
 			{/if}
 		</div>
 	</div>
@@ -489,7 +577,7 @@
 	}
 
 	h2 {
-		margin: 0 0 0.8rem;
+		margin: 0 0 0.6rem;
 	}
 
 	.notice {
@@ -497,16 +585,24 @@
 		color: var(--text);
 	}
 
+	/* Focused only to be read out, after a refused save: not a control. */
+	.notice:focus {
+		outline: none;
+	}
+
 	.stage {
 		display: flex;
 		justify-content: center;
-		margin-bottom: 0.8rem;
+		margin-bottom: 0.6rem;
 	}
 
 	/* No touch-action: a finger drags the photo instead of scrolling the sheet. */
+	/* Capped by the height too, so Save stays in view without scrolling on a short phone
+	   (375 × 667, the photo's delete button wrapping under the file button). */
 	.crop {
 		position: relative;
-		width: min(280px, 100%);
+		width: min(280px, 100%, 36vh);
+		width: min(280px, 100%, 36dvh);
 		aspect-ratio: 1;
 		overflow: hidden;
 		border-radius: var(--radius);
@@ -538,7 +634,7 @@
 	}
 
 	.hint {
-		margin: 0 0 0.6rem;
+		margin: 0 0 0.4rem;
 		font-size: 0.85rem;
 		line-height: 1.4;
 		color: var(--muted);
@@ -549,13 +645,13 @@
 		align-items: center;
 		justify-content: center;
 		gap: 0.8rem;
-		margin-bottom: 0.8rem;
+		margin-bottom: 0.4rem;
 		color: var(--text);
 	}
 
 	.zoom input {
 		width: min(200px, 60%);
-		min-height: 44px;
+		min-height: 36px;
 		accent-color: var(--accent);
 	}
 
@@ -564,7 +660,7 @@
 		flex-wrap: wrap;
 		justify-content: center;
 		gap: 0.6rem;
-		margin-bottom: 0.8rem;
+		margin-bottom: 0.6rem;
 	}
 
 	/* The label is the button: the file input itself stays focusable but unseen. */
@@ -598,8 +694,9 @@
 	}
 
 	.file:disabled + label,
-	.choose button:disabled,
-	.actions button:disabled {
+	.choose button[aria-disabled='true'],
+	.actions button:disabled,
+	.actions button[aria-disabled='true'] {
 		opacity: 0.35;
 		cursor: default;
 	}
@@ -630,7 +727,7 @@
 		display: flex;
 		justify-content: flex-end;
 		gap: 0.6rem;
-		margin-top: 0.8rem;
+		margin-top: 0.6rem;
 	}
 
 	/* Save is the one filled button. */

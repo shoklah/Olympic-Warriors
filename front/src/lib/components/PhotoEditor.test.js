@@ -29,8 +29,12 @@ beforeEach(() => {
 			calls: [],
 			fillStyle: '',
 			imageSmoothingQuality: 'low',
+			sources: [],
 			fillRect: (...args) => ctx.calls.push(['fillRect', ctx.fillStyle, ...args]),
-			drawImage: (...args) => ctx.calls.push(['drawImage', ...args.slice(1)])
+			drawImage: (source, ...args) => {
+				ctx.sources.push(source);
+				ctx.calls.push(['drawImage', ...args]);
+			}
 		};
 		contexts.push(ctx);
 		return ctx;
@@ -66,14 +70,31 @@ const pointer = (target, type, { pointerId = 1, clientX = 0, clientY = 0 } = {})
 	return fireEvent(target, event);
 };
 
+/** The preview canvas, inside the crop widget. */
+const previewCanvas = () => screen.getByRole('application').querySelector('canvas');
+
 /** The last source rectangle drawn on the preview canvas: [sx, sy, sw, sh]. */
 const lastPreviewRect = () => {
+	const canvas = previewCanvas();
 	const draws = contexts
-		.filter((c) => c.canvas.width !== 512)
+		.filter((c) => c.canvas === canvas)
 		.flatMap((c) => c.calls)
 		.filter(([name]) => name === 'drawImage');
 	return draws[draws.length - 1].slice(1, 5);
 };
+
+/** A promise and its resolver, to settle decodes in any order. */
+const deferred = () => {
+	let resolve;
+	const promise = new Promise((done) => (resolve = done));
+	return { promise, resolve };
+};
+
+/** Let every pending promise callback run. */
+const settle = () => new Promise((done) => setTimeout(done));
+
+const pickFile = (file = jpegFile()) =>
+	fireEvent.change(screen.getByLabelText('Choose a photo'), { target: { files: [file] } });
 
 describe('PhotoEditor', () => {
 	it('opens as a dialog with the file input, the public line, no crop yet and Save disabled', () => {
@@ -154,6 +175,111 @@ describe('PhotoEditor', () => {
 		expect(createObjectURL).toHaveBeenCalledWith(expect.any(File));
 		expect(revokeObjectURL).toHaveBeenCalledWith('blob:photo');
 		expect(lastPreviewRect()).toEqual([0, 300, 300, 300]);
+		delete URL.createObjectURL;
+		delete URL.revokeObjectURL;
+	});
+
+	it('keeps the last pick when two decodes finish out of order, closing the stale bitmap', async () => {
+		const first = deferred();
+		const second = deferred();
+		createImageBitmap.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+		renderWith(PhotoEditor, { open: true, photo, name: xavier });
+
+		await pickFile();
+		await pickFile();
+		const fresh = { width: 400, height: 300, close: vi.fn() };
+		second.resolve(fresh);
+		await waitFor(() => screen.getByRole('application'));
+		expect(lastPreviewRect()).toEqual([50, 0, 300, 300]);
+
+		const stale = { width: 800, height: 600, close: vi.fn() };
+		first.resolve(stale);
+		await settle();
+		expect(stale.close).toHaveBeenCalled();
+		expect(fresh.close).not.toHaveBeenCalled();
+		expect(lastPreviewRect()).toEqual([50, 0, 300, 300]);
+	});
+
+	it('drops a decode that finishes after the dialog closed and reopened', async () => {
+		const late = deferred();
+		createImageBitmap.mockReturnValueOnce(late.promise);
+		const { component } = renderWith(PhotoEditor, { open: true, photo, name: xavier });
+
+		await pickFile();
+		await component.$set({ open: false });
+		await component.$set({ open: true });
+		const bitmap = { width: 800, height: 600, close: vi.fn() };
+		late.resolve(bitmap);
+		await settle();
+		expect(bitmap.close).toHaveBeenCalled();
+		expect(screen.queryByRole('application')).toBeNull();
+	});
+
+	it('closes a bitmap decoded after the editor is gone', async () => {
+		const late = deferred();
+		createImageBitmap.mockReturnValueOnce(late.promise);
+		const { unmount } = renderWith(PhotoEditor, { open: true, photo, name: xavier });
+
+		await pickFile();
+		unmount();
+		const bitmap = { width: 800, height: 600, close: vi.fn() };
+		late.resolve(bitmap);
+		await settle();
+		expect(bitmap.close).toHaveBeenCalled();
+	});
+
+	it('shrinks a big photo to 2048px on its shorter side, closing the full-size bitmap', async () => {
+		const full = { width: 8000, height: 6000, close: vi.fn() };
+		const small = { width: 2731, height: 2048, close: vi.fn() };
+		createImageBitmap.mockResolvedValueOnce(full).mockResolvedValueOnce(small);
+		renderWith(PhotoEditor, { open: true, photo, name: xavier });
+
+		await choose();
+		expect(createImageBitmap).toHaveBeenNthCalledWith(2, full, {
+			resizeWidth: 2731,
+			resizeHeight: 2048,
+			resizeQuality: 'high'
+		});
+		expect(full.close).toHaveBeenCalled();
+		expect(small.close).not.toHaveBeenCalled();
+		expect(lastPreviewRect()).toEqual([341.5, 0, 2048, 2048]);
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+		await waitFor(() => expect(encoded).toHaveLength(1));
+		const exported = contexts.find((c) => c.canvas === encoded[0].canvas);
+		expect(exported.sources).toEqual([small]);
+		expect(exported.calls[1]).toEqual(['drawImage', 341.5, 0, 2048, 2048, 0, 0, 512, 512]);
+	});
+
+	it('keeps the full size when the engine cannot resize a bitmap', async () => {
+		const full = { width: 8000, height: 6000, close: vi.fn() };
+		createImageBitmap.mockResolvedValueOnce(full).mockRejectedValueOnce(new TypeError('no resize'));
+		renderWith(PhotoEditor, { open: true, photo, name: xavier });
+
+		await choose();
+		expect(full.close).not.toHaveBeenCalled();
+		expect(lastPreviewRect()).toEqual([1000, 0, 6000, 6000]);
+	});
+
+	it('shrinks a big photo from the <img> fallback through a canvas', async () => {
+		createImageBitmap.mockRejectedValue(new TypeError('unsupported option'));
+		vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => 'blob:big', revokeObjectURL: () => {} }));
+		class BigImage {
+			naturalWidth = 6000;
+			naturalHeight = 9000;
+			set src(_url) {
+				setTimeout(() => this.onload());
+			}
+		}
+		vi.stubGlobal('Image', BigImage);
+		renderWith(PhotoEditor, { open: true, photo, name: xavier });
+
+		await choose();
+		const shrink = contexts.find((c) => c.canvas.width === 2048 && c.canvas.height === 3072);
+		expect(shrink.sources[0]).toBeInstanceOf(BigImage);
+		expect(shrink.calls).toEqual([['drawImage', 0, 0, 2048, 3072]]);
+		expect(lastPreviewRect()).toEqual([0, 512, 2048, 2048]);
+		expect(contexts.find((c) => c.canvas === previewCanvas()).sources.at(-1)).toBe(shrink.canvas);
 		delete URL.createObjectURL;
 		delete URL.revokeObjectURL;
 	});
@@ -275,7 +401,8 @@ describe('PhotoEditor', () => {
 		const [url, options] = fetch.mock.calls[0];
 		expect(url).toBe('?/photo');
 		expect(options.method).toBe('POST');
-		expect(options.headers).toEqual({ 'x-sveltekit-action': 'true' });
+		expect(options.headers).toEqual({ accept: 'application/json', 'x-sveltekit-action': 'true' });
+		expect(options.cache).toBe('no-store');
 		expect(options.body).toBeInstanceOf(FormData);
 		const sent = options.body.get('photo');
 		expect(typeof sent).not.toBe('string');
@@ -285,24 +412,63 @@ describe('PhotoEditor', () => {
 		expect(navigation.invalidateAll).toHaveBeenCalledTimes(1);
 	});
 
-	it('disables the buttons and says so while saving', async () => {
+	it('turns the buttons off and says so while saving, focus staying on Save', async () => {
 		let answer;
 		fetch.mockImplementation(() => new Promise((resolve) => (answer = resolve)));
 		renderWith(PhotoEditor, { open: true, photo, name: xavier });
 		await choose();
 
-		await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+		const save = screen.getByRole('button', { name: 'Save' });
+		save.focus();
+		await fireEvent.click(save);
 		await waitFor(() => expect(fetch).toHaveBeenCalled());
 		expect(screen.getByRole('status')).toHaveTextContent('Saving…');
-		expect(screen.getByRole('dialog')).toHaveAttribute('aria-busy', 'true');
-		for (const name of ['Save', 'Cancel', 'Delete my photo']) {
-			expect(screen.getByRole('button', { name })).toBeDisabled();
-		}
+		expect(screen.getByRole('dialog')).not.toHaveAttribute('aria-busy');
+		// aria-disabled, not disabled: a disabled button would drop focus to <body>.
+		expect(save).toHaveAttribute('aria-disabled', 'true');
+		expect(save).toHaveFocus();
+		expect(screen.getByRole('button', { name: 'Delete my photo' })).toHaveAttribute('aria-disabled', 'true');
+		expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled();
 		expect(screen.getByLabelText('Choose a photo')).toBeDisabled();
+		await fireEvent.click(save);
+		await fireEvent.click(screen.getByRole('button', { name: 'Delete my photo' }));
+		expect(fetch).toHaveBeenCalledTimes(1);
 
 		answer(actionResult({ type: 'failure', status: 500, data: { action: 'photo', error: 'photo.error.failed' } }));
-		await waitFor(() => expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled());
+		await waitFor(() => expect(save).not.toHaveAttribute('aria-disabled'));
+		expect(save).toHaveFocus();
 		expect(screen.getByRole('status')).toHaveTextContent('');
+	});
+
+	it('keeps focus on Delete while deleting', async () => {
+		fetch.mockImplementation(() => new Promise(() => {}));
+		renderWith(PhotoEditor, { open: true, photo, name: xavier });
+		// Let the dialog's own opening focus land first.
+		await tick();
+		await tick();
+
+		const remove = screen.getByRole('button', { name: 'Delete my photo' });
+		remove.focus();
+		await fireEvent.click(remove);
+		await waitFor(() => expect(fetch).toHaveBeenCalled());
+		expect(screen.getByRole('status')).toHaveTextContent('Deleting…');
+		expect(remove).toHaveAttribute('aria-disabled', 'true');
+		expect(remove).toHaveFocus();
+	});
+
+	it('freezes the crop while saving: no key, no drag moves it', async () => {
+		fetch.mockImplementation(() => new Promise(() => {}));
+		renderWith(PhotoEditor, { open: true, photo, name: xavier });
+		const crop = await choose();
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+		await waitFor(() => expect(fetch).toHaveBeenCalled());
+		const before = lastPreviewRect();
+		await fireEvent.keyDown(crop, { key: 'ArrowRight' });
+		await fireEvent.keyDown(crop, { key: '+' });
+		await pointer(crop, 'pointerdown', { clientX: 100, clientY: 100 });
+		await pointer(crop, 'pointermove', { clientX: 160, clientY: 100 });
+		expect(lastPreviewRect()).toEqual(before);
 	});
 
 	it("shows the action's refusal in an alert and stays open, without reloading", async () => {
@@ -339,6 +505,38 @@ describe('PhotoEditor', () => {
 
 		await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 		await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('The change failed: try again later'));
+		expect(navigation.invalidateAll).not.toHaveBeenCalled();
+	});
+
+	it('reloads after a timeout, since the save may have gone through, and says it failed', async () => {
+		fetch.mockRejectedValue(new DOMException('signal timed out', 'TimeoutError'));
+		renderWith(PhotoEditor, { open: true, photo, name: xavier });
+		await choose();
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+		await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('The change failed: try again later'));
+		expect(navigation.invalidateAll).toHaveBeenCalledTimes(1);
+		expect(fetch.mock.calls[0][1].signal).toBeDefined();
+		expect(screen.getByRole('dialog')).toBeInTheDocument();
+	});
+
+	it('switches to the locked view when an organiser locked uploads meanwhile, saying it once', async () => {
+		fetch.mockResolvedValue(
+			actionResult({ type: 'failure', status: 403, data: { action: 'photo', error: 'photo.error.photo_locked' } })
+		);
+		const { component } = renderWith(PhotoEditor, { open: true, photo, name: xavier });
+		// The reload brings the layout's `me.photo_locked` down to the prop.
+		navigation.invalidateAll.mockImplementationOnce(() => component.$set({ locked: true }));
+		await choose();
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+		await waitFor(() => expect(navigation.invalidateAll).toHaveBeenCalledTimes(1));
+		const notice = await waitFor(() => screen.getByText('Photo uploads have been turned off by an organiser'));
+		await waitFor(() => expect(notice).toHaveFocus());
+		expect(screen.getAllByText('Photo uploads have been turned off by an organiser')).toHaveLength(1);
+		expect(screen.queryByRole('alert')).toBeNull();
+		expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
+		expect(screen.getByRole('button', { name: 'Delete my photo' })).not.toHaveAttribute('aria-disabled');
 	});
 
 	it('deletes the photo through ?/removePhoto, then reloads and closes, locked or not', async () => {

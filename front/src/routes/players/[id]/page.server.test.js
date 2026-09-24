@@ -132,6 +132,33 @@ describe('photo action', () => {
 		}
 	});
 
+	it("answers adapter-node's body size limit, a 413 while reading the form, as too large", async () => {
+		// What adapter-node's request stream does past BODY_SIZE_LIMIT: it errors with a 413.
+		const limit = Object.assign(new Error('Payload Too Large'), { status: 413 });
+		const request = new Request('http://localhost/players/34?/photo', {
+			method: 'POST',
+			body: new ReadableStream({ start: (controller) => controller.error(limit) }),
+			duplex: 'half',
+			headers: { 'content-type': 'multipart/form-data; boundary=abc' }
+		});
+		const fetch = vi.fn();
+		const result = await actions.photo({ params: { id: '34' }, request, fetch, cookies: { get: () => 'abc' } });
+		expect(result).toMatchObject({ status: 413, data: { action: 'photo', error: 'photo.error.too_large' } });
+		expect(fetch).not.toHaveBeenCalled();
+	});
+
+	it('reads any other unreadable body as no file', async () => {
+		const request = new Request('http://localhost/players/34?/photo', {
+			method: 'POST',
+			body: 'hello',
+			headers: { 'content-type': 'text/plain' }
+		});
+		const fetch = vi.fn();
+		const result = await actions.photo({ params: { id: '34' }, request, fetch, cookies: { get: () => 'abc' } });
+		expect(result).toMatchObject({ status: 400, data: { error: 'photo.error.missing' } });
+		expect(fetch).not.toHaveBeenCalled();
+	});
+
 	it('refuses a text field named photo before calling the API', async () => {
 		const body = new FormData();
 		body.append('photo', 'not a file');
