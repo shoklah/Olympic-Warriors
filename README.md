@@ -127,9 +127,9 @@ The part READMEs have the rest:
 
 - **`server`** runs the Django suite on Python 3.11 against a Postgres 16 service container, after `makemigrations --check --dry-run`, which fails when a model change has no migration. Its settings come from job variables, not from an env file.
 - **`front`** runs `npm ci`, `npm test` and `npm run build` on Node 22.
-- **`test`** is advisory. It runs pylint with `continue-on-error`, then builds the images and starts the containers. Nothing checks that the containers stay up.
+- **`test`** runs pylint with `continue-on-error`, so lint findings never fail it, then builds the images and starts the containers. An image that does not build or a stack that does not start fails it, but nothing checks that the containers stay up.
 
-A failure in `server` or `front` fails the workflow. Neither is a required status check, so look at them before merging.
+Any failing job fails the workflow. None is a required status check, so look at them before merging.
 
 ## Deployment
 
