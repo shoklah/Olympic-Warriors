@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 // Vitest runs from the front root; import.meta.url is a Vite URL here, not file://.
@@ -66,5 +66,30 @@ describe('themes', () => {
 		it('--bg reads at 4.5:1 on an accent fill (buttons, the ORGA pill)', () => {
 			expect(contrast(theme['--bg'], theme['--accent'])).toBeGreaterThanOrEqual(4.5);
 		});
+	});
+});
+
+describe('white SVG icons', () => {
+	// The hub stays dark, so its icon columns need no filter.
+	const EXEMPT = ['lib/components/EditionHub.svelte'];
+	const count = (source, pattern) => source.match(pattern)?.length ?? 0;
+	const files = readdirSync('src', { recursive: true })
+		// Forward slashes on every platform, so the exemption matches on Windows too.
+		.map((path) => path.replaceAll('\\', '/'))
+		.filter((path) => path.endsWith('.svelte') && !EXEMPT.includes(path))
+		.map((path) => [path, readFileSync(`src/${path}`, 'utf8')])
+		.filter(([, source]) => /iconFor\(|badgeGlyph\(/.test(source));
+
+	it('are found', () => {
+		expect(files.length).toBeGreaterThan(0);
+	});
+
+	// Discipline icons and badge glyphs are white: on a light surface they must be inverted.
+	// One filter rule per icon image at least, so a second image in a file cannot ride on
+	// the first one's rule; two images sharing one selector need the rule written twice.
+	it.each(files)('%s filters each of them through the theme', (_path, source) => {
+		const images = count(source, /<img\b[^>]*\b(iconFor|badgeGlyph)\(/g);
+		expect(images).toBeGreaterThan(0);
+		expect(count(source, /filter: var\(--icon-filter/g)).toBeGreaterThanOrEqual(images);
 	});
 });

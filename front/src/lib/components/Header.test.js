@@ -52,23 +52,26 @@ describe('Header', () => {
 		expect(screen.getByRole('combobox', { name: 'Edition' })).toBeInTheDocument();
 	});
 
-	it('offers both themes through one form; the stylesheet shows one of the two', () => {
+	// The stylesheet shows one of the four: the direction away from the theme on screen, and
+	// `system` when that direction is the device's own theme.
+	it('offers each theme as a stored choice and as a way back to the device', () => {
 		renderWith(Header, {}, 'en');
 
 		const form = screen.getByRole('form', { name: 'Theme' });
 		expect(form).toHaveAttribute('action', '/theme');
 		expect(form).toHaveAttribute('method', 'POST');
 		expect(form.querySelector('input[name="redirectTo"]')).toHaveValue('/2026/ranking?tab=all');
-		expect(within(form).getByRole('button', { name: 'Switch to light theme' })).toHaveValue('light');
-		expect(within(form).getByRole('button', { name: 'Switch to dark theme' })).toHaveValue('dark');
+		const values = (name) => within(form).getAllByRole('button', { name }).map((b) => b.value);
+		expect(values('Switch to light theme')).toEqual(['light', 'system']);
+		expect(values('Switch to dark theme')).toEqual(['dark', 'system']);
 	});
 
 	it('words the theme switch in French', () => {
 		renderWith(Header, {}, 'fr');
 
 		const form = screen.getByRole('form', { name: 'Thème' });
-		expect(within(form).getByRole('button', { name: 'Passer au thème clair' })).toHaveValue('light');
-		expect(within(form).getByRole('button', { name: 'Passer au thème sombre' })).toHaveValue('dark');
+		expect(within(form).getAllByRole('button', { name: 'Passer au thème clair' })).toHaveLength(2);
+		expect(within(form).getAllByRole('button', { name: 'Passer au thème sombre' })).toHaveLength(2);
 	});
 
 	it('folds the account, language and theme controls behind the menu button', async () => {
@@ -110,8 +113,12 @@ describe('Header', () => {
 
 		expect(screen.getByRole('button', { name: 'Menu' })).toBeInTheDocument();
 		expect(screen.getByRole('form', { name: 'Langue' })).toHaveTextContent(/^Langue\s*FR\s*EN$/);
-		expect(screen.getByRole('button', { name: 'Passer au thème clair' })).toHaveTextContent('Clair');
-		expect(screen.getByRole('button', { name: 'Passer au thème sombre' })).toHaveTextContent('Sombre');
+		for (const button of screen.getAllByRole('button', { name: 'Passer au thème clair' })) {
+			expect(button).toHaveTextContent('Clair');
+		}
+		for (const button of screen.getAllByRole('button', { name: 'Passer au thème sombre' })) {
+			expect(button).toHaveTextContent('Sombre');
+		}
 	});
 
 	it('shows the ORGA pill with a logout form to an organiser', () => {

@@ -30,8 +30,8 @@ visitor must be able to pick light even when their phone is set to dark.
   (`<html lang="%lang%" data-theme="%theme%">`) with `themeFrom(cookie)`.
   `Vary: Cookie` is already set.
 - `/theme` action: `light` or `dark` is stored (path `/`, one year, lax, not
-  httpOnly, like `lang`); anything else deletes the cookie, handing the theme back
-  to the device (no control offers it today). Then `redirect(303, localPath(...))`.
+  httpOnly, like `lang`); `system` or anything else deletes the cookie, handing
+  the theme back to the device. Then `redirect(303, localPath(...))`.
   `localPath` moves to `$lib/local-path.js`, shared with `/lang` and `/logout`.
 - `styles.css`:
   - `:root` keeps the dark tokens and adds `color-scheme: dark`,
@@ -50,8 +50,9 @@ visitor must be able to pick light even when their phone is set to dark.
   theme with no script. `Header` hides its whole theme form there with
   `:global(:root:has([data-always-dark])) .theme`, so the phone menu drops the
   row, label included.
-- The discipline icons are white SVGs in `<img>`: every icon on a page surface
-  (rail tile, disciplines card, discipline title, team result tile) sets
+- The discipline icons and badge glyphs are white SVGs in `<img>`: every one on
+  a page surface (rail tile, disciplines card, discipline title, team result
+  tile, profile disciplines, badge medallion) sets
   `filter: var(--icon-filter)`; the current rail tile, on the accent fill, sets
   `filter: var(--icon-filter-on-accent)`. The hub's icons sit on the dark hub.
 - The year `<select>` options use `CanvasText` on `Canvas`, the popup's system
@@ -91,14 +92,27 @@ unchecked.
 ## Header switch
 
 A `<form method="POST" action="/theme" aria-label="Thème">` after `FR | EN`
-with a `redirectTo` field and two round 44 px buttons: `value="light"` (sun,
-« Passer au thème clair » / "Switch to light theme") and `value="dark"` (moon,
-« Passer au thème sombre » / "Switch to dark theme"). Under `system` only the
-browser knows which theme is on screen, so both are rendered and each takes its
-`display` from `--switch-to-light` / `--switch-to-dark`: exactly one shows, the
-one leading away from the current theme, and the hidden one leaves the
-accessibility tree. Quiet like the login pill: `--line-strong` border, `--muted`
-icon, accent on hover and focus.
+with a `redirectTo` field and round 44 px buttons: sun (« Passer au thème
+clair » / "Switch to light theme") and moon (« Passer au thème sombre » /
+"Switch to dark theme"), each twice (`SWITCHES` in `Header.svelte`): once
+storing the choice (`value="light"` / `"dark"`), once posting `system`.
+
+Only the browser knows which theme is on screen and which one the device
+prefers, so all four are rendered and CSS shows exactly one, the hidden ones
+leaving the accessibility tree:
+
+- the direction takes its `display` from `--switch-to-light` /
+  `--switch-to-dark`, so it leads away from the theme on screen;
+- the device's own theme is dark unless it prefers light, and the switch
+  leading there is the one posting `system` (a media query per preference
+  hides the other copy). Toggling twice therefore returns to the device, and
+  the cookie only ever records a departure from it, such as light outdoors on
+  a dark phone.
+
+A browser without `:has()` never leaves dark, so the form is hidden there
+(`@supports not selector(:has(a))`). Quiet like the login pill:
+`--line-strong` border, `--muted` icon, accent on hover and focus, the same
+`round` class as the phone menu button.
 
 Below 600 px the switch sits in the header's menu panel with the account slot
 and the language (see the phone header menu spec), where it reads as a pill
@@ -108,11 +122,14 @@ accessible name keeps the full action, which contains that word.
 ## Tests
 
 - `styles.test.js`: the two light blocks are equal; light redefines exactly the
-  dark tokens minus the layout ones; the contrast floors above.
+  dark tokens minus the layout ones; the contrast floors above; every `.svelte`
+  file rendering a discipline icon or a badge glyph (the hub aside) has at least
+  one `filter: var(--icon-filter…)` rule per such image.
 - `hooks.server.test.js`: `data-theme` from the cookie, `system` by default, and
   the placeholder present in `app.html`.
 - `theme/page.server.test.js`: stores light and dark, deletes anything else,
   refuses a non-local redirect, a GET goes to the hub.
 - `theme.test.js`: `themeFrom`.
-- `Header.test.js`: the form, its action and both buttons, in English and French.
+- `Header.test.js`: the form, its action, and each direction offered storing a
+  choice and posting `system`, in English and French.
 - `EditionHub.test.js`: the hub carries `data-always-dark`.

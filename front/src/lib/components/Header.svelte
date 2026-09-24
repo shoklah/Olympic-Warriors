@@ -29,6 +29,19 @@
 
 	const switchYear = (event) => goto(switchYearPath($page.url.pathname, event.target.value));
 
+	// Where the header's forms (logout, language, theme) come back to.
+	$: here = $page.url.pathname + $page.url.search;
+
+	// Each direction twice, the stylesheet showing one of the four: the direction leads away
+	// from the theme on screen, and a switch leading to the device's own theme posts `system`,
+	// forgetting the choice instead of storing it, so the cookie only records a departure.
+	const SWITCHES = [
+		{ to: 'light', value: 'light' },
+		{ to: 'light', value: 'system' },
+		{ to: 'dark', value: 'dark' },
+		{ to: 'dark', value: 'system' }
+	];
+
 	// Below 600px the account, language and theme controls fold behind a menu button.
 	let open = false;
 	let header;
@@ -68,7 +81,7 @@
 		{/if}
 		<button
 			bind:this={toggle}
-			class="menu-toggle"
+			class="round menu-toggle"
 			type="button"
 			aria-label={t('header.menu')}
 			aria-expanded={open}
@@ -89,7 +102,7 @@
 			{#if organiser}
 				<!-- A plain POST like the language switch: the redirect reloads the page as a visitor. -->
 				<form method="POST" action="/logout" class="orga">
-					<input type="hidden" name="redirectTo" value={$page.url.pathname + $page.url.search} />
+					<input type="hidden" name="redirectTo" value={here} />
 					<!-- The accessible name must contain the visible text (WCAG 2.5.3). -->
 					<button aria-label="{t('orga.pill')} · {t('orga.logout')}">
 						<span class="pill">{t('orga.pill')}</span>
@@ -102,7 +115,7 @@
 			{/if}
 			<!-- A plain POST (no use:enhance): the redirect reloads the page in the new language. -->
 			<form method="POST" action="/lang" class="lang" aria-label={t('header.language')}>
-				<input type="hidden" name="redirectTo" value={$page.url.pathname + $page.url.search} />
+				<input type="hidden" name="redirectTo" value={here} />
 				<!-- The menu's row label; the form already carries the name. -->
 				<span class="menu-label" aria-hidden="true">{t('header.language')}</span>
 				<span class="pill">
@@ -111,26 +124,34 @@
 				</span>
 			</form>
 			<!-- A plain POST like the language switch. Only the browser knows which theme is on
-			     screen while the device setting decides, so both buttons are rendered and
-			     styles.css shows the one leading away from it. -->
+			     screen and which one the device prefers, so every switch is rendered and the
+			     stylesheet shows the right one (see SWITCHES). -->
 			<form method="POST" action="/theme" class="theme" aria-label={t('header.theme')}>
-				<input type="hidden" name="redirectTo" value={$page.url.pathname + $page.url.search} />
+				<input type="hidden" name="redirectTo" value={here} />
 				<span class="menu-label" aria-hidden="true">{t('header.theme')}</span>
-				<button class="to-light" name="theme" value="light" aria-label={t('header.toLight')}>
-					<svg viewBox="0 0 24 24" aria-hidden="true">
-						<circle cx="12" cy="12" r="4" />
-						<path
-							d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"
-						/>
-					</svg>
-					<span class="menu-text">{t('header.light')}</span>
-				</button>
-				<button class="to-dark" name="theme" value="dark" aria-label={t('header.toDark')}>
-					<svg viewBox="0 0 24 24" aria-hidden="true">
-						<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-					</svg>
-					<span class="menu-text">{t('header.dark')}</span>
-				</button>
+				{#each SWITCHES as { to, value }}
+					<button
+						class="round"
+						class:to-light={to === 'light'}
+						class:to-dark={to === 'dark'}
+						class:device={value === 'system'}
+						name="theme"
+						{value}
+						aria-label={t(to === 'light' ? 'header.toLight' : 'header.toDark')}
+					>
+						<svg viewBox="0 0 24 24" aria-hidden="true">
+							{#if to === 'light'}
+								<circle cx="12" cy="12" r="4" />
+								<path
+									d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"
+								/>
+							{:else}
+								<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+							{/if}
+						</svg>
+						<span class="menu-text">{t(to === 'light' ? 'header.light' : 'header.dark')}</span>
+					</button>
+				{/each}
 			</form>
 		</div>
 	</div>
@@ -310,19 +331,13 @@
 		outline-offset: 2px;
 	}
 
-	.theme {
-		margin: 0;
-	}
-
-	/* The hub stays dark whatever the choice, so it offers no switch. */
-	:global(:root:has([data-always-dark])) .theme {
-		display: none;
-	}
-
-	/* Round and quiet like the login pill; `display` comes from the theme tokens. */
-	.theme button {
+	/* The header's round icon buttons, menu and theme: quiet like the login pill. Neither
+	   sets `display` here: the menu button has its own, the theme switches take theirs
+	   from the theme tokens. */
+	.round {
 		align-items: center;
 		justify-content: center;
+		flex: none;
 		gap: 0.5em;
 		width: 44px;
 		height: 44px;
@@ -334,6 +349,36 @@
 		cursor: pointer;
 	}
 
+	.round:hover,
+	.menu-toggle[aria-expanded='true'] {
+		color: var(--accent);
+		border-color: var(--accent);
+	}
+
+	.round:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
+	}
+
+	.round svg {
+		width: 20px;
+		height: 20px;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+
+	.theme {
+		margin: 0;
+	}
+
+	/* The hub stays dark whatever the choice, so it offers no switch. */
+	:global(:root:has([data-always-dark])) .theme {
+		display: none;
+	}
+
 	.theme .to-light {
 		display: var(--switch-to-light);
 	}
@@ -342,50 +387,20 @@
 		display: var(--switch-to-dark);
 	}
 
-	.theme button:hover {
-		color: var(--accent);
-		border-color: var(--accent);
+	/* The device's own theme is dark unless it prefers light. The switch leading there is
+	   the one posting `system`; the other direction stores a choice. */
+	@media not all and (prefers-color-scheme: light) {
+		.theme .to-light.device,
+		.theme .to-dark:not(.device) {
+			display: none;
+		}
 	}
 
-	.theme button:focus-visible {
-		outline: 2px solid var(--accent);
-		outline-offset: 2px;
-	}
-
-	.menu-toggle {
-		align-items: center;
-		justify-content: center;
-		flex: none;
-		width: 44px;
-		height: 44px;
-		padding: 0;
-		background: transparent;
-		color: var(--muted);
-		border: 1px solid var(--line-strong);
-		border-radius: 50%;
-		cursor: pointer;
-	}
-
-	.menu-toggle:hover,
-	.menu-toggle[aria-expanded='true'] {
-		color: var(--accent);
-		border-color: var(--accent);
-	}
-
-	.menu-toggle:focus-visible {
-		outline: 2px solid var(--accent);
-		outline-offset: 2px;
-	}
-
-	.menu-toggle svg,
-	.theme svg {
-		width: 20px;
-		height: 20px;
-		fill: none;
-		stroke: currentColor;
-		stroke-width: 2;
-		stroke-linecap: round;
-		stroke-linejoin: round;
+	@media (prefers-color-scheme: light) {
+		.theme .to-light:not(.device),
+		.theme .to-dark.device {
+			display: none;
+		}
 	}
 
 	nav {
@@ -540,6 +555,14 @@
 			font-family: var(--font-display);
 			font-size: 1.1rem;
 			letter-spacing: 0.08em;
+		}
+	}
+
+	/* Without :has() styles.css never leaves the dark theme: a switch would do nothing. Last in
+	   the sheet so it also beats the menu's row rule. */
+	@supports not selector(:has(a)) {
+		.theme {
+			display: none;
 		}
 	}
 </style>

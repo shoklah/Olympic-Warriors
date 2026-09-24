@@ -234,6 +234,7 @@
 		width: 20px;
 		height: 20px;
 		flex-shrink: 0;
+		filter: var(--icon-filter);
 	}
 
 	.more {
@@ -379,6 +380,7 @@
 	.discipline img {
 		width: 20px;
 		height: 20px;
+		filter: var(--icon-filter);
 	}
 
 	.discipline .name {
