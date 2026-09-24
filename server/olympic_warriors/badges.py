@@ -726,3 +726,50 @@ def refresh(today=None):
         added=len(new), removed=len(gone), kept=len(wanted) - len(new),
         refreshed_at=state.refreshed_at,
     )
+
+
+CATALOGUE_ORDER = {code: n for n, code in enumerate(Badge.Codes.values)}
+
+
+def profile_badges(user_id):
+    """
+    The person's active badges of active editions for GET /profile/<id>/ (1 query), grouped
+    by (code, discipline, partner) in catalogue order: [{code, tier, years, discipline,
+    partner}], `tier` the highest, `years` sorted, names only for the partner.
+    """
+    groups = {}
+    rows = Badge.objects.filter(
+        user_id=user_id, is_active=True, edition__is_active=True
+    ).select_related("edition", "partner")
+    for row in rows:
+        partner = row.partner
+        group = groups.setdefault(
+            (row.code, row.discipline, row.partner_id),
+            {
+                "code": row.code,
+                "tier": 0,
+                "years": set(),
+                "discipline": row.discipline or None,
+                "partner": None
+                if partner is None
+                else {
+                    "id": partner.id,
+                    "first_name": partner.first_name,
+                    "last_name": partner.last_name,
+                },
+            },
+        )
+        group["tier"] = max(group["tier"], row.tier)
+        group["years"].add(row.edition.year)
+
+    def order(badge):
+        partner = badge["partner"] or {"last_name": "", "first_name": "", "id": 0}
+        return (
+            CATALOGUE_ORDER.get(badge["code"], len(CATALOGUE_ORDER)),
+            _sort_key(badge["discipline"] or ""),
+            _sort_key(partner["last_name"]),
+            _sort_key(partner["first_name"]),
+            partner["id"],
+        )
+
+    return sorted(({**g, "years": sorted(g["years"])} for g in groups.values()), key=order)
