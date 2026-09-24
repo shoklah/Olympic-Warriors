@@ -49,7 +49,7 @@ describe('BadgeSheet', () => {
 			copy.querySelectorAll('[aria-hidden="true"]').forEach((node) => node.remove());
 			return copy.textContent.replace(/\s+/g, ' ').trim();
 		};
-		expect(spoken(status)).toBe('Badge earned badge earned 2 times');
+		expect(spoken(status)).toBe('Badge earned 2 times');
 	});
 
 	it('hides the detail separators from assistive tech, keeping the words apart', () => {
@@ -234,7 +234,7 @@ describe('BadgeSheet', () => {
 			expect(screen.getByRole('dialog', { name: 'MVP' })).toHaveTextContent('Less than 1% of players (1 of 1000)');
 		});
 
-		it("shows the badge line and a second line at the viewer's tier for an earned tiered badge", () => {
+		it("shows the badge line and a second line at the profile owner's tier for an earned tiered badge", () => {
 			const badges = [{ code: 'veteran', tier: 2, years: [2024, 2026], discipline: null, partner: null }];
 			const badgeStats = { players: 47, holders: { veteran: 20 }, tiers: { veteran: [20, 3, 1] } };
 			renderWith(BadgeSheet, { slot: slotFor('veteran', badges), open: true, badgeStats });
@@ -250,6 +250,19 @@ describe('BadgeSheet', () => {
 
 			const dialog = screen.getByRole('dialog', { name: 'Networker' });
 			expect(dialog).toHaveTextContent('21% of players have it (10 of 47)');
+			expect(dialog).not.toHaveTextContent('or above');
+		});
+
+		it('hides the tier line rather than say "0 of" when badge_stats has no holder at that tier', () => {
+			// slot.medal.tier reads 2 from the earned entry below, but the stats say 0 people
+			// (including the profile owner) hold at least tier 2 — a stale/inconsistent
+			// badge_stats snapshot the sheet must not turn into "Less than 1% ... (0 of 47)".
+			const badges = [{ code: 'veteran', tier: 2, years: [2024, 2026], discipline: null, partner: null }];
+			const badgeStats = { players: 47, holders: { veteran: 20 }, tiers: { veteran: [20, 0, 0] } };
+			renderWith(BadgeSheet, { slot: slotFor('veteran', badges), open: true, badgeStats });
+
+			const dialog = screen.getByRole('dialog', { name: 'Veteran' });
+			expect(dialog).toHaveTextContent('43% of players have it (20 of 47)');
 			expect(dialog).not.toHaveTextContent('or above');
 		});
 

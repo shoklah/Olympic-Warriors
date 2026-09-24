@@ -160,20 +160,66 @@ describe('BadgeCollection', () => {
 		expect(screen.getByRole('button', { name: /^Champion/ })).toHaveAccessibleDescription('Gagner une édition');
 	});
 
-	it('hides a shown tooltip on Escape without moving focus, and shows it again once the pointer leaves', async () => {
+	it('hides a shown tooltip on Escape even when it is only hovered, without moving focus, and shows it again once the pointer leaves', async () => {
 		renderCollection(badges);
+		document.body.focus(); // nothing focused: only hover can be showing the tooltip
 		const champion = screen.getByRole('button', { name: /^Champion/ });
 
 		await fireEvent.mouseEnter(champion);
-		expect(champion).not.toHaveClass('tooltip-dismissed');
+		expect(champion).toHaveClass('tooltip-shown');
 
-		await fireEvent.keyDown(champion, { key: 'Escape' });
-		expect(champion).toHaveClass('tooltip-dismissed');
+		// The keydown listener lives on window, not on the (unfocused) slot button: a
+		// hover-only tooltip has no element with focus to dispatch on.
+		await fireEvent.keyDown(window, { key: 'Escape' });
+		expect(champion).not.toHaveClass('tooltip-shown');
 		expect(champion).not.toHaveFocus();
+		expect(document.body).toHaveFocus();
 
 		await fireEvent.mouseLeave(champion);
 		await fireEvent.mouseEnter(champion);
-		expect(champion).not.toHaveClass('tooltip-dismissed');
+		expect(champion).toHaveClass('tooltip-shown');
+	});
+
+	it('keeps a tooltip dismissed while either hover or focus remains, only resetting once both are gone', async () => {
+		renderCollection(badges);
+		const champion = screen.getByRole('button', { name: /^Champion/ });
+
+		champion.focus();
+		await fireEvent.mouseEnter(champion);
+		await fireEvent.keyDown(window, { key: 'Escape' });
+		expect(champion).not.toHaveClass('tooltip-shown');
+
+		// The pointer leaves, but focus is still on the slot: still dismissed, not reshown.
+		await fireEvent.mouseLeave(champion);
+		expect(champion).not.toHaveClass('tooltip-shown');
+
+		// Focus leaves too: only now does the dismissal clear.
+		await fireEvent.blur(champion);
+		await fireEvent.mouseEnter(champion);
+		expect(champion).toHaveClass('tooltip-shown');
+	});
+
+	it("shows only the hovered slot's tooltip, even while another slot keeps keyboard focus", async () => {
+		renderCollection(badges);
+		const champion = screen.getByRole('button', { name: /^Champion/ });
+		const veteran = screen.getByRole('button', { name: /^Veteran/ });
+
+		await fireEvent.focus(champion);
+		expect(champion).toHaveClass('tooltip-shown');
+
+		await fireEvent.mouseEnter(veteran);
+		expect(veteran).toHaveClass('tooltip-shown');
+		expect(champion).not.toHaveClass('tooltip-shown');
+	});
+
+	it("treats focus returned from the closed sheet as dismissed, so its tooltip doesn't pop back up", async () => {
+		renderCollection(badges);
+		const trigger = screen.getByRole('button', { name: /^Veteran/ });
+		await fireEvent.click(trigger);
+		await fireEvent.keyDown(window, { key: 'Escape' }); // closes the sheet, returns focus
+
+		expect(trigger).toHaveFocus();
+		expect(trigger).not.toHaveClass('tooltip-shown');
 	});
 
 	it("threads badge_stats through to the sheet's rarity line", async () => {
@@ -193,8 +239,13 @@ describe('BadgeCollection', () => {
 		expect(screen.getByRole('dialog', { name: 'Champion' })).not.toHaveTextContent('of players');
 	});
 
-	it('aligns the tooltip to the near edge for a slot close to the viewport edge, centred otherwise', async () => {
+	it('aligns the tooltip to the near edge for a slot close to the viewport edge, centred otherwise, off document.documentElement.clientWidth (excludes a classic scrollbar, unlike window.innerWidth)', async () => {
 		renderCollection(badges);
+		// jsdom gives clientWidth 0 by default (no real layout): stand in for a 1024px
+		// content width, as document.documentElement.clientWidth would report with a
+		// classic scrollbar eating into a 1024px window.innerWidth.
+		Object.defineProperty(document.documentElement, 'clientWidth', { value: 1024, configurable: true });
+
 		const champion = screen.getByRole('button', { name: /^Champion/ });
 		vi.spyOn(champion, 'getBoundingClientRect').mockReturnValue({ left: 5, width: 70, right: 75 });
 		await fireEvent.mouseEnter(champion);
@@ -202,21 +253,13 @@ describe('BadgeCollection', () => {
 		expect(champion).not.toHaveClass('align-right');
 
 		const woodenSpoon = screen.getByRole('button', { name: /^Wooden spoon/ });
-		vi.spyOn(woodenSpoon, 'getBoundingClientRect').mockReturnValue({
-			left: window.innerWidth - 75,
-			width: 70,
-			right: window.innerWidth - 5
-		});
+		vi.spyOn(woodenSpoon, 'getBoundingClientRect').mockReturnValue({ left: 954, width: 70, right: 1024 });
 		await fireEvent.mouseEnter(woodenSpoon);
 		expect(woodenSpoon).toHaveClass('align-right');
 		expect(woodenSpoon).not.toHaveClass('align-left');
 
 		const veteran = screen.getByRole('button', { name: /^Veteran/ });
-		vi.spyOn(veteran, 'getBoundingClientRect').mockReturnValue({
-			left: window.innerWidth / 2,
-			width: 70,
-			right: window.innerWidth / 2 + 70
-		});
+		vi.spyOn(veteran, 'getBoundingClientRect').mockReturnValue({ left: 477, width: 70, right: 547 });
 		await fireEvent.mouseEnter(veteran);
 		expect(veteran).not.toHaveClass('align-left');
 		expect(veteran).not.toHaveClass('align-right');

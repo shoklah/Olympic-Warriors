@@ -91,7 +91,7 @@
 
 	/** The badge's overall share of players, or null without badge_stats. */
 	$: rarity = slot ? badgeRarity(badgeStats, slot.code) : null;
-	/** A second share at the viewer's own tier, only for an earned tiered badge. */
+	/** A second share at the profile owner's own tier, only for an earned tiered badge. */
 	$: tierRarity = slot && tiered && slot.earned ? badgeRarity(badgeStats, slot.code, badgeTier(slot.medal)) : null;
 </script>
 
@@ -108,7 +108,7 @@
 			{t(slot.earned ? 'badge.statusEarned' : 'badge.statusLocked')}
 			{#if slot.earned && slot.count > 1}
 				<span aria-hidden="true"> · {t('badge.times', { n: slot.count })}</span>
-				<span class="visually-hidden">{t('badge.earnedTimes', { n: slot.count })}</span>
+				<span class="visually-hidden"> {t('badge.timesSpoken', { n: slot.count })}</span>
 			{/if}
 		</p>
 		<p class="rule">{t(`badge.${slot.code}.rule`)}</p>
@@ -123,7 +123,7 @@
 					{t('badge.rarity', { percent: rarity.percent, holders: rarity.holders, players: rarity.players })}
 				{/if}
 			</p>
-			{#if tierRarity}
+			{#if tierRarity && tierRarity.holders > 0}
 				<p class="rarity">
 					{#if tierRarity.percent === 0}
 						{t('badge.rarityTierUnder1', {

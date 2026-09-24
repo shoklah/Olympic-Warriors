@@ -27,8 +27,12 @@
 	}
 
 	function closeSheet() {
+		const code = openCode;
 		openCode = null;
 		openButton?.focus();
+		// Returning focus to the slot (below) must not pop its tooltip straight back up:
+		// treat it as already dismissed, the same way Escape does.
+		if (code) dismissedCode = code;
 		openButton = null;
 	}
 
@@ -45,45 +49,81 @@
 
 	// --- Hover/focus tooltip (desktop only: gated by @media (hover: hover) and (pointer:
 	// fine) in CSS). The rule itself reaches every device through aria-describedby, on a
-	// visually hidden span that's always in the DOM, regardless of pointer type.
+	// visually hidden span that's always in the DOM, regardless of pointer type. Display is
+	// driven entirely from the state below, not from raw :hover/:focus-visible on .tooltip:
+	// those are independent per element, so two slots (one hovered, another still focused)
+	// could otherwise both show at once.
 
-	/** Roughly half the tooltip's 16rem max width, to keep it inside the viewport. */
-	const TOOLTIP_HALF_WIDTH = 130;
+	/** Half the tooltip's 16rem max width, in px, scaled to the root font size (a larger
+	    user text size still needs to fit): "measure it" isn't possible while it's
+	    display: none, so this is the width its max-width would give it instead. */
+	function tooltipHalfWidth() {
+		if (typeof document === 'undefined') return 128;
+		const root = parseFloat(getComputedStyle(document.documentElement).fontSize);
+		return (Number.isFinite(root) ? root : 16) * 8;
+	}
 
 	/** 'left' | 'right' | 'center': edge slots align a side instead of centring, so the
-	    tooltip never overflows the viewport. */
+	    tooltip never overflows the viewport. clientWidth, not window.innerWidth, which
+	    counts a classic scrollbar as usable width when it isn't. */
 	function edgeAlign(rect) {
-		if (typeof window === 'undefined') return 'center';
+		if (typeof document === 'undefined') return 'center';
+		const half = tooltipHalfWidth();
 		const mid = rect.left + rect.width / 2;
-		if (mid - TOOLTIP_HALF_WIDTH < 0) return 'left';
-		if (mid + TOOLTIP_HALF_WIDTH > window.innerWidth) return 'right';
+		const viewport = document.documentElement.clientWidth;
+		if (mid - half < 0) return 'left';
+		if (mid + half > viewport) return 'right';
 		return 'center';
 	}
 
-	/** The slot currently hovered or keyboard-focused, or null. */
-	let tooltipCode = null;
-	let tooltipAlign = 'center';
-	/** Escape hid the tooltip; cleared once the pointer leaves or focus moves, so it shows
-	    again next time (WCAG 1.4.13: dismissible without losing the hover/focus target). */
-	let tooltipDismissed = false;
+	/** Whichever slot the pointer is over, and whichever has keyboard focus, tracked
+	    separately so only one tooltip ever shows: a hover always wins over a focus left
+	    behind on another slot. */
+	let hoveredCode = null;
+	let focusedCode = null;
+	let hoverAlign = 'center';
+	let focusAlign = 'center';
+	/** Escape hid this slot's tooltip (or the sheet closing returned focus to it, which
+	    must not pop the tooltip back up either). Cleared once neither hover nor focus is
+	    on it any more, so it shows again next time (WCAG 1.4.13: dismissible without
+	    losing the hover/focus target). */
+	let dismissedCode = null;
 
-	function showTooltip(slot, event) {
-		tooltipCode = slot.code;
-		tooltipDismissed = false;
-		tooltipAlign = edgeAlign(event.currentTarget.getBoundingClientRect());
+	$: tooltipCode = hoveredCode ?? focusedCode;
+	$: tooltipAlign = hoveredCode !== null ? hoverAlign : focusAlign;
+	$: tooltipShown = tooltipCode !== null && tooltipCode !== dismissedCode;
+	$: if (dismissedCode !== null && dismissedCode !== hoveredCode && dismissedCode !== focusedCode) {
+		dismissedCode = null;
 	}
 
-	function hideTooltip(slot) {
-		if (tooltipCode === slot.code) {
-			tooltipCode = null;
-			tooltipDismissed = false;
-		}
+	function onHoverEnter(slot, event) {
+		hoveredCode = slot.code;
+		hoverAlign = edgeAlign(event.currentTarget.getBoundingClientRect());
 	}
 
-	function onSlotKey(event, slot) {
-		if (event.key === 'Escape' && tooltipCode === slot.code) tooltipDismissed = true;
+	function onHoverLeave(slot) {
+		if (hoveredCode === slot.code) hoveredCode = null;
+	}
+
+	function onFocusIn(slot, event) {
+		focusedCode = slot.code;
+		focusAlign = edgeAlign(event.currentTarget.getBoundingClientRect());
+	}
+
+	function onFocusOut(slot) {
+		if (focusedCode === slot.code) focusedCode = null;
+	}
+
+	/** Escape dismisses whichever tooltip is showing, wherever focus is (a hover-only
+	    tooltip has no button to catch a keydown on): the sheet handles its own Escape
+	    when it's open, so this steps aside then. */
+	function onWindowKey(event) {
+		if (event.key !== 'Escape' || openCode !== null) return;
+		if (tooltipCode !== null) dismissedCode = tooltipCode;
 	}
 </script>
+
+<svelte:window on:keydown={onWindowKey} />
 
 <h2 class="visually-hidden">{t('profile.badges')}</h2>
 
@@ -109,15 +149,14 @@
 				<button
 					type="button"
 					class="slot"
-					class:tooltip-dismissed={tooltipDismissed && tooltipCode === slot.code}
+					class:tooltip-shown={tooltipShown && tooltipCode === slot.code}
 					class:align-left={tooltipCode === slot.code && tooltipAlign === 'left'}
 					class:align-right={tooltipCode === slot.code && tooltipAlign === 'right'}
 					on:click={(event) => openSheet(slot, event)}
-					on:mouseenter={(event) => showTooltip(slot, event)}
-					on:mouseleave={() => hideTooltip(slot)}
-					on:focus={(event) => showTooltip(slot, event)}
-					on:blur={() => hideTooltip(slot)}
-					on:keydown={(event) => onSlotKey(event, slot)}
+					on:mouseenter={(event) => onHoverEnter(slot, event)}
+					on:mouseleave={() => onHoverLeave(slot)}
+					on:focus={(event) => onFocusIn(slot, event)}
+					on:blur={() => onFocusOut(slot)}
 					aria-label={slotLabel(slot)}
 					aria-describedby="rule-{slot.code}"
 				>
@@ -269,18 +308,13 @@
 		transform: none;
 	}
 
-	/* Only a real pointer gets the hover tooltip: a touch tap opens the sheet directly. */
+	/* Only a real pointer gets the hover tooltip: a touch tap opens the sheet directly.
+	   Display is driven by the JS-tracked .tooltip-shown class, not raw :hover/
+	   :focus-visible, so only one slot's tooltip is ever shown at a time. */
 	@media (hover: hover) and (pointer: fine) {
-		.slot:hover .tooltip,
-		.slot:focus-visible .tooltip {
+		.slot.tooltip-shown .tooltip {
 			display: block;
 		}
-	}
-
-	/* Escape hid it: this must win over the :hover/:focus-visible rule above regardless of
-	   which fires last, hence the equal-specificity + later-source-order pairing. */
-	.slot.tooltip-dismissed .tooltip {
-		display: none;
 	}
 
 	.medallion {
@@ -308,7 +342,11 @@
 		font-size: 0.78rem;
 		line-height: 1.25;
 		text-align: center;
-		overflow-wrap: anywhere;
+		/* break-word + hyphens, not overflow-wrap: anywhere, which was splitting words
+		   mid-letter ("Rassembleu/r"); html lang is set, so hyphenation picks the right
+		   dictionary. */
+		overflow-wrap: break-word;
+		hyphens: auto;
 		color: var(--ink);
 	}
 

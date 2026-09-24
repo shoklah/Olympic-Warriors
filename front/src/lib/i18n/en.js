@@ -43,6 +43,7 @@ export default {
 	'badge.progress': { one: '{n} badge out of {total}', other: '{n} badges out of {total}' },
 	'badge.familyProgress': '{earned} of {total}',
 	'badge.earnedTimes': { one: 'badge earned {n} time', other: 'badge earned {n} times' },
+	'badge.timesSpoken': { one: '{n} time', other: '{n} times' },
 	'badge.family.podiums': 'Podiums',
 	'badge.family.streaks': 'Streaks',
 	'badge.family.loyalty': 'Loyalty',
