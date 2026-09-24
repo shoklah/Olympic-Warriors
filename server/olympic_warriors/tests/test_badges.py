@@ -1184,6 +1184,47 @@ class TestDisciplines(World, TestCase):
 
         self.assertEqual(years_of(ana, C.CLEAN_SWEEP), [])
 
+    def test_a_lone_scored_result_wins_nothing(self):
+        # Only Ana's team has a score in each discipline, the other one none yet: a lone
+        # result beats nobody, as on the profiles.
+        ana = self.person("Ana")
+        for year in (2021, 2022):
+            edition, _ = self.computed(year, ana)
+            for model in (Relay, Darts, Petanque):
+                self.results(model, edition, [10])
+
+        self.assertEqual(specialist_of(ana), [])
+        self.assertEqual(years_of(ana, C.CLEAN_SWEEP), [])
+        self.assertEqual(disciplines_of(ana), [])
+
+    def test_every_team_tied_on_nothing_wins_nothing(self):
+        # Both teams on 0, as in a revealed discipline with a pairing system before any game
+        # is played: everyone ties for 1st on nothing.
+        ana = self.person("Ana")
+        for year in (2021, 2022):
+            edition, _ = self.computed(year, ana)
+            for model in (Relay, Darts, Petanque):
+                self.results(model, edition, [0, 0])
+
+        self.assertEqual(specialist_of(ana), [])
+        self.assertEqual(years_of(ana, C.CLEAN_SWEEP), [])
+        self.assertEqual(disciplines_of(ana), [])
+
+    def test_only_contested_disciplines_are_won(self):
+        # Beside three disciplines won 10 to 0, a lone Frisbee score and a Dance tied on 0.
+        ana = self.person("Ana")
+        for year in (2021, 2022):
+            edition = self.win(ana, year, Relay, Darts, Petanque)
+            self.results(Frisbee, edition, [10])
+            self.results(Dance, edition, [0, 0])
+
+        self.assertEqual(
+            specialist_of(ana),
+            [(2022, 1, "Darts"), (2022, 1, "Petanque"), (2022, 1, "Relay")],
+        )
+        self.assertEqual(years_of(ana, C.CLEAN_SWEEP), [2021, 2022])
+        self.assertEqual(tiers_of(ana, C.ALL_ROUNDER), [(2021, 1)])
+
     def podiums(self, user, *extra, reveal=True):
         """A computed 4-team edition of 2021 where `user`'s team is 1st, 2nd, 3rd and 2nd in
         four disciplines, plus one discipline per model of `extra` where it is 4th."""
@@ -1224,6 +1265,24 @@ class TestDisciplines(World, TestCase):
         self.podiums(ana, Dance, reveal=False)
 
         self.assertEqual(years_of(ana, C.METRONOME), [2021])
+
+    def test_an_uncontested_discipline_is_not_ranked(self):
+        # Another team's lone Dance score and a Football tied on 0 rank nobody.
+        ana = self.person("Ana")
+        edition = self.podiums(ana)
+        self.results(Dance, edition, [None, 40])
+        self.results(Football, edition, [0, 0, 0, 0])
+
+        self.assertEqual(years_of(ana, C.METRONOME), [2021])
+
+    def test_a_tie_on_nothing_is_no_fourth_ranked_discipline(self):
+        ana = self.person("Ana")
+        edition, _ = self.computed(2021, ana, size=4)
+        for model in (Relay, Darts, Petanque):
+            self.results(model, edition, [40, 30, 20, 10])
+        self.results(Football, edition, [0, 0, 0, 0])
+
+        self.assertEqual(years_of(ana, C.METRONOME), [])
 
     def test_uncrowned_with_the_most_wins_without_the_title(self):
         # Wins: A 2, B 1, C 1, D 1. Totals: A 15, B 22, C 19, D 14: B is champion.
@@ -1287,6 +1346,24 @@ class TestDisciplines(World, TestCase):
         self.assertEqual(years_of(ana, C.BRONZE), [2021])
         self.assertEqual(years_of(ana, C.UNCROWNED), [])
         self.assertEqual(years_of(bob, C.UNCROWNED), [])
+
+    def test_a_lone_scored_result_is_no_win_for_uncrowned(self):
+        # Wins: A 1 (plus a lone Dance score), B 1, C 1, D 1. Totals: A 15, B 18, C 16, D 13.
+        ana, bob, cat, dan = (self.person(n) for n in ("Ana", "Bob", "Cat", "Dan"))
+        self.four(
+            2021,
+            [ana, bob, cat, dan],
+            [
+                (Relay, [40, 30, 20, 10]),
+                (Darts, [10, 40, 30, 20]),
+                (Petanque, [10, 30, 40, 20]),
+                (Frisbee, [10, 30, 20, 40]),
+                (Dance, [10]),
+            ],
+        )
+
+        self.assertEqual(years_of(ana, C.BRONZE), [2021])
+        self.assertEqual(years_of(ana, C.UNCROWNED), [])
 
     def test_one_win_is_not_uncrowned(self):
         # One win each; totals A 10, B 11, C 9: B is champion, A 2nd.
