@@ -3,6 +3,11 @@
 > **Built 2026-09-23** in one go, all four phases at once; plan: docs/superpowers/plans/2026-09-23-player-badges.md.
 >
 > **Revised 2026-09-24:** the cron job runs monthly, on the 1st at 02:00 host time (the production host runs in Europe/Paris), not nightly (Hugo: editions are yearly), and logs to `$HOME/logs`, since the crontab's user cannot write `/var/log`. Run the admin action once an edition is over rather than wait for the 1st.
+>
+> **Revised 2026-09-24:** a discipline win or podium needs a contested discipline, the rule the
+> profiles and the all-time discipline tables apply (`profiles._contested`): a lone scored
+> result, or every team tied on 0 before any game, beats nobody. The game rules keep reading
+> played games as they did (see Games).
 
 ## Goal
 
@@ -56,8 +61,17 @@ Decisions taken while brainstorming (2026-09-23):
 - **Teammate**: another person whose participation in the same edition has the same
   valid team.
 - **Discipline win, discipline podium**: a `ResultStanding.ranking` of 1, or of 1 to 3, in
-  `compute_standings(edition)`, so only for revealed, scored results. A discipline is
-  matched across editions by its `name`, as the rest of the app does.
+  `compute_standings(edition)`, so only for revealed, scored results, in a contested
+  discipline. A discipline is matched across editions by its `name`, as the rest of the
+  app does.
+- **Contested discipline**: its ranked results do not all share one rank
+  (`profiles._contested`, the rule of the profiles' « Par épreuve » and the all-time
+  discipline tables). `compute_standings` ranks a revealed discipline among its scored
+  results only, so a lone scored result (one team entered, the others still null) ranks
+  1st, and a revealed points discipline with a pairing system ties every team 1st on 0
+  before any game is played. Neither beats anybody, and missing data never counts as a
+  win, so the discipline rules read such a discipline's results as unranked: no win, no
+  podium, and not one of the ranked disciplines the `metronome` needs a podium in.
 - **Game**: an active, played game of an active round of an active discipline, the filter
   `compute_standings` uses. A game gives a badge only when its discipline is revealed, so
   a badge never leaks a hidden score. (Refereeing used to count for the golden whistle,
@@ -204,6 +218,18 @@ discipline means picking its god and its kind.
 | `steamroller` | Rouleau compresseur | Steamroller | The biggest winning margin among a discipline's games of the edition (ties share it) | each, per discipline | silver | Road roller |
 | `perfect-pitch` | Oreille absolue | Perfect pitch | Artist and song both right on every round of the edition's blindtest, which must be revealed: every active round that has at least one active guess (`Blindtest.save()` creates a guess per team for every round) | once per edition | gold | Tuning fork |
 
+**No contested rule for games** (decided 2026-09-24). The two uncontested cases come from
+stored results, not from games: a lone scored result is typed in by hand (a game always
+scores both its teams), and the tie on 0 is a discipline none of whose games is played yet.
+The game rules read played games only, and an unplayed game counts for nothing, so neither
+case gives them anything. A played game has two teams, so its win beats a real opponent
+and its loss is a real one: `unbeaten` and `perfect-run` need 3 of them, `steamroller` and
+`shutout` a game won (a draw never counts). A discipline with played games can still be
+uncontested (a round robin of draws, or three teams beating each other in a circle by the
+same margin), and its `unbeaten` or `steamroller` stand: they describe games (no loss, the
+biggest margin) and claim no place in the discipline. `perfect-pitch` reads blindtest
+guesses, a team's own answers, and needs nothing either.
+
 ### Given by hand
 
 Organisers add these in the admin (see "Admin"), with an edition.
@@ -281,7 +307,9 @@ The discipline rules need no query of their own: they read each edition's
 `Standings.disciplines_of` (the per-discipline ranking the profiles' « Par épreuve »
 section uses), whose `DisciplineStanding` carries the discipline name, the rank, and the
 result type and stored points the photo finish compares. `compute_standings`, which
-`_load` has already run, loads those results with their discipline.
+`_load` has already run, loads those results with their discipline. `_discipline_results`
+gives the results of an uncontested discipline rank 0 through `profiles._contested`, which
+reads the same loaded standings, so the contested rule adds no query.
 
 That makes 4 queries plus three per edition of the sequence (`_load`'s 2 plus three per
 finished edition with players, then these two), pinned as `BADGES_QUERIES` in the tests
@@ -502,6 +530,9 @@ and the profile payload in `tests/test_profiles.py`:
 - playing more never removes a badge: `eternal-second` stays after a later title;
 - a hidden discipline gives no discipline or game badge, and a hand-ranked edition gives
   places but no photo finish on totals;
+- a lone scored result and a tie of every team on 0 give no discipline badge, a contested
+  discipline beside them still does, and neither counts as a ranked discipline for
+  `metronome`;
 - the hall of fame starts at the second edition with counted places. `kingslayer` and
   `rocket` start one table later;
 - `refresh()`:
