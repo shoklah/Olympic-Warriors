@@ -29,7 +29,7 @@ describe('BadgeCollection', () => {
 
 	it('shows the overall progress and the per-family counts', () => {
 		renderCollection(badges);
-		expect(screen.getByText('4 badges out of 61')).toBeInTheDocument();
+		expect(screen.getByText('4 badges out of 62')).toBeInTheDocument();
 		expect(screen.getByRole('heading', { name: 'Podiums 1 of 5' })).toHaveTextContent('1/5');
 		expect(screen.getByRole('heading', { name: 'Loyalty 1 of 5' })).toHaveTextContent('1/5');
 		expect(screen.getByRole('heading', { name: 'Teammates 1 of 2' })).toHaveTextContent('1/2');
@@ -37,18 +37,18 @@ describe('BadgeCollection', () => {
 
 	it('pluralises the overall progress line: 0, 1 and 2+', () => {
 		renderCollection([]);
-		expect(screen.getByText('0 badges out of 61')).toBeInTheDocument();
+		expect(screen.getByText('0 badges out of 62')).toBeInTheDocument();
 
 		renderCollection([{ code: 'champion', tier: 0, years: [2026], discipline: null, partner: null }]);
-		expect(screen.getByText('1 badge out of 61')).toBeInTheDocument();
+		expect(screen.getByText('1 badge out of 62')).toBeInTheDocument();
 
 		renderCollection(badges);
-		expect(screen.getByText('4 badges out of 61')).toBeInTheDocument();
+		expect(screen.getByText('4 badges out of 62')).toBeInTheDocument();
 	});
 
 	it('renders every catalogue code as a slot button', () => {
 		renderCollection(badges);
-		expect(screen.getAllByRole('button')).toHaveLength(61);
+		expect(screen.getAllByRole('button')).toHaveLength(62);
 	});
 
 	it('names an earned-once slot without a count, and a locked slot without one either', () => {
@@ -133,7 +133,7 @@ describe('BadgeCollection', () => {
 	it('speaks French', async () => {
 		renderCollection(badges, 'fr');
 		expect(screen.getByRole('heading', { level: 2, name: 'Badges' })).toBeInTheDocument();
-		expect(screen.getByText('4 badges sur 61')).toBeInTheDocument();
+		expect(screen.getByText('4 badges sur 62')).toBeInTheDocument();
 		expect(screen.getByRole('heading', { name: 'Palmarès 1 sur 5' })).toHaveTextContent('1/5');
 		expect(screen.getByRole('button', { name: 'Cuillère de bois, badge à débloquer' })).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Champion, badge obtenu 2 fois' })).toBeInTheDocument();
@@ -144,7 +144,7 @@ describe('BadgeCollection', () => {
 
 	it('speaks French for the 0-badge singular', () => {
 		renderCollection([], 'fr');
-		expect(screen.getByText('0 badge sur 61')).toBeInTheDocument();
+		expect(screen.getByText('0 badge sur 62')).toBeInTheDocument();
 	});
 
 	it('gives every slot the rule as its accessible description, for every device', () => {

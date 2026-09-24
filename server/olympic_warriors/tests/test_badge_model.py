@@ -13,8 +13,8 @@ from olympic_warriors.models import MANUAL_CODES, Badge, BadgeRefresh, Edition
 class TestCatalogue(TestCase):
     def test_codes_are_the_spec_catalogue_in_order(self):
         codes = Badge.Codes.values
-        self.assertEqual(len(codes), 61)
-        self.assertEqual(len(set(codes)), 61)
+        self.assertEqual(len(codes), 62)
+        self.assertEqual(len(set(codes)), 62)
         self.assertEqual(codes[:5], ["champion", "runner-up", "bronze", "chocolate", "wooden-spoon"])
         self.assertEqual(codes[-6:], ["mvp", "fair-play", "hype", "costume", "wounded", "torchbearer"])
 

@@ -25,7 +25,7 @@ const BADGE_CODES = [
 	'rookie', 'veteran', 'argonaut', 'ever-present', 'homecoming',
 	'comrades', 'networker',
 	'goat', 'alone-at-the-top', 'hall-of-fame-podium', 'hall-of-famer', 'reign', 'kingslayer', 'rocket',
-	'specialist', 'all-rounder', 'decathlete', 'brains-and-brawn', 'clean-sweep', 'metronome',
+	'specialist', 'master', 'all-rounder', 'decathlete', 'brains-and-brawn', 'clean-sweep', 'metronome',
 	'uncrowned', 'photo-finish',
 	'athena', 'apollo', 'artemis', 'hermes', 'heracles', 'theseus', 'ares', 'hades', 'dionysus', 'olympus',
 	'unbeaten', 'perfect-run', 'shutout', 'steamroller', 'perfect-pitch',
@@ -133,6 +133,13 @@ describe('badgeDetail', () => {
 		expect(badgeDetail(unbeaten, tFr, 'fr')).toEqual(['Balle au prisonnier', '2025', '2026']);
 	});
 
+	it('says since when a master has held the discipline, in French under fr', () => {
+		const master = { code: 'master', tier: 0, years: [2022], discipline: 'Relay', partner: null };
+		expect(badgeDetail(master, tEn, 'en')).toEqual(['Relay', 'since 2022']);
+		expect(badgeDetail(master, tFr, 'fr')).toEqual(['Relais', 'depuis 2022']);
+		expect(badgeDetail({ ...master, years: [] }, tEn, 'en')).toEqual(['Relay']);
+	});
+
 	it('leaves the partner of comrades to the page, keeping the year', () => {
 		const comrades = { code: 'comrades', tier: 0, years: [2026], discipline: null, partner: { id: 12 } };
 		expect(badgeDetail(comrades, tEn, 'en')).toEqual(['2026']);
@@ -158,7 +165,7 @@ describe('FAMILIES', () => {
 		expect(FAMILIES.map((f) => f.key)).toEqual([
 			'podiums', 'streaks', 'loyalty', 'teammates', 'hall-of-fame', 'disciplines', 'olympus', 'games', 'awards'
 		]);
-		expect(FAMILIES.map((f) => f.codes.length)).toEqual([5, 13, 5, 2, 7, 8, 10, 5, 6]);
+		expect(FAMILIES.map((f) => f.codes.length)).toEqual([5, 13, 5, 2, 7, 9, 10, 5, 6]);
 	});
 });
 
@@ -185,11 +192,11 @@ describe('badgeCollection', () => {
 
 	it('counts earned slots overall and per family, ignoring unknown codes', () => {
 		const c = badgeCollection([entry('champion', { years: [2021, 2024] }), entry('rookie'), entry('future-badge')]);
-		expect(c.total).toBe(61);
+		expect(c.total).toBe(62);
 		expect(c.earned).toBe(2);
 		const podiums = c.families.find((f) => f.key === 'podiums');
 		expect([podiums.earned, podiums.total]).toEqual([1, 5]);
-		expect(c.families.reduce((n, f) => n + f.slots.length, 0)).toBe(61);
+		expect(c.families.reduce((n, f) => n + f.slots.length, 0)).toBe(62);
 	});
 
 	it('counts repeats, disciplines and partners, but a tier once', () => {

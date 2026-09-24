@@ -75,6 +75,9 @@ Decisions taken while brainstorming (2026-09-23):
 
 > **2026-09-24:** `golden-whistle` (Sifflet d'or) and `globetrotter` (Globe-trotteur) were
 > removed from the catalogue (migration `0034` deletes their stored rows). 61 codes remain.
+>
+> **2026-09-24:** `master` (Maître) was added after `specialist` (migration `0035`), so 62
+> codes. It is the one badge that can be lost: see the master badge design spec.
 
 The codes are kebab-case. They serve as the database value, the glyph file stem and the
 i18n key. The "Repeat" column says how often a badge can be earned:
@@ -160,6 +163,7 @@ of fame reads.
 | Code | FR | EN | Rule | Repeat | Metal | Icon |
 |---|---|---|---|---|---|---|
 | `specialist` | Spécialiste | Specialist | Won the same discipline in 2 / 3 / 4 editions | tiers, one per discipline | tiers | That discipline's own icon, so there is no new glyph |
+| `master` | Maître | Master | Won every edition of a discipline, at least 2; lost at the next edition of it not won (added 2026-09-24, see the master badge spec) | one per discipline, held until lost | gold | A knotted martial arts belt |
 | `all-rounder` | Touche-à-tout | All-rounder | Won 3 / 5 / 8 different disciplines | tiers | tiers | A multi-tool |
 | `decathlete` | Décathlonien | Decathlete | Podium in 10 different disciplines | once | gold | A ten-pointed star |
 | `brains-and-brawn` | Tête et jambes | Brains and brawn | In one edition, won a mind discipline and a physical one | each | silver | A brain and a flexed arm |

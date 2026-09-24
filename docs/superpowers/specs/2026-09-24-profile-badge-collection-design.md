@@ -25,7 +25,8 @@ Decisions taken while brainstorming (2026-09-24):
 
 This is front-end only. `/profile/<id>/` already carries the earned badges, and
 `src/lib/badges.js` already knows every code (61 since golden whistle and globetrotter
-were removed on 2026-09-24; 63 before).
+were removed on 2026-09-24; 63 before; 62 once `master` was added, the same day, in the
+`disciplines` family, which has 9 codes since).
 
 ## Definitions
 

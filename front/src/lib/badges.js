@@ -41,6 +41,7 @@ export const BADGES = {
 	kingslayer: 'gold',
 	rocket: 'bronze',
 	specialist: 'tiers',
+	master: 'gold',
 	'all-rounder': 'tiers',
 	decathlete: 'gold',
 	'brains-and-brawn': 'silver',
@@ -108,10 +109,11 @@ export function badgeGlyph(badge) {
 
 /**
  * The text parts of a badge sheet's entry line, which BadgeSheet (its only caller) joins
- * with ' · '. The discipline comes first whenever the badge has one (specialist, unbeaten,
- * perfect-run, steamroller), so two entries of one code tell their disciplines apart. Then
- * a tiered badge gives ['Tier 2', year reached]; comrades gives [year], the sheet writing
- * the partner link before it; any other badge gives its years, in order. No year gives no
+ * with ' · '. The discipline comes first whenever the badge has one (specialist, master,
+ * unbeaten, perfect-run, steamroller), so two entries of one code tell their disciplines
+ * apart. Then a tiered badge gives ['Tier 2', year reached]; comrades gives [year], the
+ * sheet writing the partner link before it; master, a title held until lost, gives
+ * ['since 2022']; any other badge gives its years, in order. No year gives no
  * part (the sheet then leaves the line, or its separator, out). The repeat count itself is
  * not here: BadgeSheet's status line says it once, from the slot's own count.
  */
@@ -124,6 +126,10 @@ export function badgeDetail(badge, t, locale) {
 		return parts;
 	}
 	if (badge.code === 'comrades') return [...parts, ...years.slice(-1)];
+	if (badge.code === 'master') {
+		if (years.length) parts.push(t('badge.since', { year: years[0] }));
+		return parts;
+	}
 	return [...parts, ...years];
 }
 
@@ -150,8 +156,8 @@ export const FAMILIES = [
 	{
 		key: 'disciplines',
 		codes: [
-			'specialist', 'all-rounder', 'decathlete', 'brains-and-brawn', 'clean-sweep', 'metronome',
-			'uncrowned', 'photo-finish'
+			'specialist', 'master', 'all-rounder', 'decathlete', 'brains-and-brawn', 'clean-sweep',
+			'metronome', 'uncrowned', 'photo-finish'
 		]
 	},
 	{

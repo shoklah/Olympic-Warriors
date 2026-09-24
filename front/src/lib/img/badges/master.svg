@@ -1,0 +1,8 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- A martial arts master's belt: the band around the waist, its knot and the two ends. -->
+<path d="M180 410Q500 530 800 530V790Q500 790 180 670Z" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1820 410Q1500 530 1200 530V790Q1500 790 1820 670Z" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M880 870L560 1510L800 1600L980 870" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1120 870L1440 1510L1200 1600L1020 870" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M800 430H1200V870H800Z" fill="white" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

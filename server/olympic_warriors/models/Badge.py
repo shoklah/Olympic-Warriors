@@ -53,6 +53,7 @@ class Badge(models.Model):
         ROCKET = "rocket", "Fusée"
         # Disciplines
         SPECIALIST = "specialist", "Spécialiste"
+        MASTER = "master", "Maître"
         ALL_ROUNDER = "all-rounder", "Touche-à-tout"
         DECATHLETE = "decathlete", "Décathlonien"
         BRAINS_AND_BRAWN = "brains-and-brawn", "Tête et jambes"
@@ -91,7 +92,7 @@ class Badge(models.Model):
     edition = models.ForeignKey("Edition", on_delete=models.CASCADE)
     # 0 for an untiered badge, 1 to 3 (bronze, silver, gold) for a tiered one.
     tier = models.PositiveSmallIntegerField(default=0)
-    # The discipline name, for specialist, unbeaten, perfect-run and steamroller.
+    # The discipline name, for specialist, master, unbeaten, perfect-run and steamroller.
     discipline = models.CharField(max_length=100, blank=True, default="")
     # The other person, for comrades.
     partner = models.ForeignKey(
