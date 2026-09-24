@@ -9,17 +9,20 @@ import json
 import os
 import tempfile
 from collections import Counter
+from datetime import datetime, timezone as dt_timezone
 from io import StringIO
 from unittest import mock
 
-from django.contrib.auth.models import User
+from django.contrib.admin import site
+from django.contrib.auth.models import Permission, User
 from django.core.management import call_command
+from django.core.management.base import CommandError
+from django.db import connection
 from django.test import TestCase, override_settings
-from django.utils import timezone
 
 from olympic_warriors.badges import RefreshReport, earned, refresh
 from olympic_warriors.models import MANUAL_CODES, Badge, BadgeRefresh, Team
-from olympic_warriors.tests.test_badges import PLACE_CODES, TODAY, World
+from olympic_warriors.tests.test_badges import BADGES_QUERIES, PLACE_CODES, TODAY, World
 
 C = Badge.Codes
 
@@ -91,6 +94,17 @@ class TestRefresh(World, TestCase):
 
         self.assertEqual((report.added, report.removed, report.kept), (0, 0, len(before)))
         self.assertEqual(rows(), before)
+
+    def test_a_second_run_runs_a_fixed_number_of_queries(self):
+        refresh(TODAY)
+
+        # earned() on one edition, the lock (get_or_create, then select_for_update), the
+        # stored rows and the stamp, plus the SAVEPOINT and RELEASE of a transaction nested
+        # in the test's own (outside a test, the transaction's BEGIN and COMMIT go unlogged).
+        with self.assertNumQueries(BADGES_QUERIES(1) + REFRESH_OWN_QUERIES):
+            report = refresh(TODAY)
+
+        self.assertEqual((report.added, report.removed), (0, 0))
 
     def test_a_correction_deletes_what_is_no_longer_earned(self):
         refresh(TODAY)
@@ -231,9 +245,16 @@ class TestRefresh(World, TestCase):
         self.assertEqual(stored(), wanted())
 
 
+# What refresh() adds to earned() on a run that writes no badge row.
+REFRESH_OWN_QUERIES = 6
+
+# 22:05 UTC in summer is 00:05 the next day in Paris.
+REFRESHED_AT = datetime(2031, 6, 30, 22, 5, tzinfo=dt_timezone.utc)
+
+
 def a_report():
     """What a patched refresh returns."""
-    return RefreshReport(added=3, removed=1, kept=2, refreshed_at=timezone.now())
+    return RefreshReport(added=3, removed=1, kept=2, refreshed_at=REFRESHED_AT)
 
 
 @override_settings(STATICFILES_STORAGE="django.contrib.staticfiles.storage.StaticFilesStorage")
@@ -241,6 +262,7 @@ class TestBadgeAdmin(World, TestCase):
     """The Badge admin and the Edition changelist action, as a superuser."""
 
     BADGES = "/admin/olympic_warriors/badge/"
+    EDITIONS = "/admin/olympic_warriors/edition/"
 
     def setUp(self):
         self.client.force_login(User.objects.create_superuser("admin", "a@b.c", "pw"))
@@ -250,7 +272,7 @@ class TestBadgeAdmin(World, TestCase):
     def test_the_edition_action_refreshes_every_badge(self):
         with mock.patch("olympic_warriors.admin.refresh", return_value=a_report()) as patched:
             response = self.client.post(
-                "/admin/olympic_warriors/edition/",
+                self.EDITIONS,
                 {"action": "refresh_badges", "_selected_action": [self.e2024.id], "index": 0},
                 follow=True,
             )
@@ -259,7 +281,44 @@ class TestBadgeAdmin(World, TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             [str(message) for message in response.context["messages"]],
-            ["Badges recalculés : 3 ajoutés, 1 retirés, 2 inchangés."],
+            [
+                "Badges recalculés à 00:05 (heure de Paris) : "
+                "ajout(s) 3, retrait(s) 1, inchangé(s) 2."
+            ],
+        )
+
+    def test_a_view_only_user_does_not_get_the_edition_action(self):
+        viewer = User.objects.create_user("viewer", password="pw", is_staff=True)
+        viewer.user_permissions.add(
+            Permission.objects.get(
+                content_type__app_label="olympic_warriors", codename="view_edition"
+            )
+        )
+        self.client.force_login(viewer)
+
+        with mock.patch("olympic_warriors.admin.refresh", return_value=a_report()) as patched:
+            page = self.client.get(self.EDITIONS)
+            self.client.post(
+                self.EDITIONS,
+                {"action": "refresh_badges", "_selected_action": [self.e2024.id], "index": 0},
+            )
+
+        self.assertEqual(page.status_code, 200)
+        form = page.context["action_form"]
+        choices = [] if form is None else [name for name, _ in form.fields["action"].choices]
+        self.assertNotIn("refresh_badges", choices)
+        patched.assert_not_called()
+
+    def test_the_changelist_shows_the_last_refresh(self):
+        BadgeRefresh.objects.update_or_create(pk=1, defaults={"refreshed_at": None})
+        never = self.client.get(self.BADGES)
+        BadgeRefresh.objects.filter(pk=1).update(refreshed_at=REFRESHED_AT)
+
+        refreshed = self.client.get(self.BADGES)
+
+        self.assertContains(never, "Dernier calcul des badges : jamais")
+        self.assertContains(
+            refreshed, "Dernier calcul des badges : 01/07/2031 à 00:05 (heure de Paris)"
         )
 
     def test_the_changelist_lists_active_rows_unless_asked(self):
@@ -346,6 +405,77 @@ class TestBadgeAdmin(World, TestCase):
             (Badge.Codes.COMRADES, bob, False, False),
         )
 
+    def test_a_computed_row_cannot_be_deleted(self):
+        # The next refresh would bring it back: a computed row is revoked, never deleted.
+        badge = Badge.objects.create(user=self.ana, code=Badge.Codes.CHAMPION, edition=self.e2024)
+        delete = f"{self.BADGES}{badge.id}/delete/"
+
+        page = self.client.get(f"{self.BADGES}{badge.id}/change/")
+        response = self.client.post(delete, {"post": "yes"})
+
+        self.assertEqual(page.status_code, 200)
+        self.assertNotContains(page, delete)
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(Badge.objects.filter(pk=badge.pk).exists())
+
+    def test_a_manual_row_can_be_deleted(self):
+        badge = Badge.objects.create(
+            user=self.ana, code=Badge.Codes.MVP, edition=self.e2024, is_manual=True
+        )
+        delete = f"{self.BADGES}{badge.id}/delete/"
+
+        page = self.client.get(f"{self.BADGES}{badge.id}/change/")
+        response = self.client.post(delete, {"post": "yes"})
+
+        self.assertContains(page, delete)
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(Badge.objects.filter(pk=badge.pk).exists())
+
+    def test_deleting_a_selection_deletes_only_its_manual_rows(self):
+        manual = Badge.objects.create(
+            user=self.ana, code=Badge.Codes.MVP, edition=self.e2024, is_manual=True
+        )
+        computed = Badge.objects.create(
+            user=self.ana, code=Badge.Codes.CHAMPION, edition=self.e2024
+        )
+        selection = {"action": "delete_selected", "_selected_action": [manual.id, computed.id]}
+
+        confirmation = self.client.post(self.BADGES, {**selection, "index": 0})
+        response = self.client.post(self.BADGES, {**selection, "post": "yes"})
+
+        self.assertEqual(confirmation.status_code, 200)
+        self.assertEqual(list(confirmation.context["queryset"]), [manual])
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(list(Badge.objects.all()), [computed])
+
+    def test_deleting_an_edition_or_a_user_still_takes_their_computed_badges(self):
+        # Their delete pages ask the Badge admin about every badge the cascade takes: the
+        # refusal is for the Badge admin's own pages only.
+        bob = self.person("Bob")
+        e2025, _ = self.edition(2025, spectator=False)
+        Badge.objects.create(user=self.ana, code=Badge.Codes.CHAMPION, edition=self.e2024)
+        Badge.objects.create(user=bob, code=Badge.Codes.CHAMPION, edition=e2025)
+
+        edition = self.client.post(f"{self.EDITIONS}{self.e2024.id}/delete/", {"post": "yes"})
+        user = self.client.post(f"/admin/auth/user/{bob.id}/delete/", {"post": "yes"})
+
+        self.assertEqual((edition.status_code, user.status_code), (302, 302))
+        self.assertFalse(Badge.objects.exists())
+
+    def test_delete_queryset_skips_the_computed_rows(self):
+        manual = Badge.objects.create(
+            user=self.ana, code=Badge.Codes.MVP, edition=self.e2024, is_manual=True
+        )
+        computed = Badge.objects.create(
+            user=self.ana, code=Badge.Codes.CHAMPION, edition=self.e2024
+        )
+
+        badge_admin = site._registry[Badge]  # pylint: disable=protected-access
+
+        badge_admin.delete_queryset(None, Badge.objects.filter(pk__in=[manual.pk, computed.pk]))
+
+        self.assertEqual(list(Badge.objects.all()), [computed])
+
     def test_a_manual_row_stays_editable(self):
         badge = Badge.objects.create(
             user=self.ana, code=Badge.Codes.MVP, edition=self.e2024, is_manual=True
@@ -362,7 +492,8 @@ class TestBadgeAdmin(World, TestCase):
 
 
 class TestImportRefresh(TestCase):
-    """import_edition refreshes the badges after a real import, never after a dry run."""
+    """import_edition refreshes the badges after a real import, once its transaction has
+    committed, never after a dry run; a failed refresh leaves the import committed."""
 
     COMMAND = "olympic_warriors.management.commands.import_edition"
     REPORT = {
@@ -375,30 +506,55 @@ class TestImportRefresh(TestCase):
         "missing_files": [],
     }
 
-    def run_import(self, *args):
-        """Run the command on a document holding {}, the import and the refresh patched."""
+    def setUp(self):
         folder = tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with
         self.addCleanup(folder.cleanup)
-        path = os.path.join(folder.name, "edition.json")
-        with open(path, "w", encoding="utf-8") as dst:
+        self.path = os.path.join(folder.name, "edition.json")
+        with open(self.path, "w", encoding="utf-8") as dst:
             json.dump({}, dst)
-        out = StringIO()
-        with mock.patch(f"{self.COMMAND}.import_edition", return_value=self.REPORT), mock.patch(
-            f"{self.COMMAND}.refresh", return_value=a_report()
-        ) as patched:
-            call_command("import_edition", path, *args, stdout=out)
-        return patched, out.getvalue()
+        self.out, self.err = StringIO(), StringIO()
 
-    def test_a_real_import_refreshes_the_badges(self):
-        patched, out = self.run_import()
+    def run_import(self, *args, refresh_mock=None):
+        """Run the command on a document holding {}, the import patched and badges.refresh
+        replaced by `refresh_mock` (by default one returning a_report()), which it returns."""
+        refresh_mock = refresh_mock or mock.Mock(return_value=a_report())
+        with mock.patch(f"{self.COMMAND}.import_edition", return_value=self.REPORT), mock.patch(
+            f"{self.COMMAND}.refresh", refresh_mock
+        ):
+            call_command("import_edition", self.path, *args, stdout=self.out, stderr=self.err)
+        return refresh_mock
+
+    def test_a_real_import_refreshes_the_badges_after_its_transaction(self):
+        baseline = len(connection.atomic_blocks)  # the test's own transactions
+        depths = []
+
+        def record():
+            depths.append(len(connection.atomic_blocks))
+            return a_report()
+
+        patched = self.run_import(refresh_mock=mock.Mock(side_effect=record))
 
         patched.assert_called_once_with()
+        self.assertEqual(depths, [baseline])  # outside the import's transaction.atomic()
+        out = self.out.getvalue()
         self.assertIn("Imported edition 2024.", out)
         self.assertTrue(out.endswith("Badges: 3 added, 1 removed, 2 kept.\n"))
 
+    def test_a_failed_refresh_keeps_the_import_and_says_so(self):
+        with self.assertRaisesMessage(CommandError, "boom"):
+            self.run_import(refresh_mock=mock.Mock(side_effect=RuntimeError("boom")))
+
+        self.assertIn("Imported edition 2024.", self.out.getvalue())
+        self.assertNotIn("Badges:", self.out.getvalue())
+        self.assertEqual(
+            self.err.getvalue(),
+            "Import committed; badges not refreshed: run manage.py refresh_badges.\n",
+        )
+
     def test_a_dry_run_does_not(self):
-        patched, out = self.run_import("--dry-run")
+        patched = self.run_import("--dry-run")
 
         patched.assert_not_called()
+        out = self.out.getvalue()
         self.assertIn("Dry run: rolled back, nothing persisted.", out)
         self.assertNotIn("Badges:", out)

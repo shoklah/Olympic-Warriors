@@ -4,16 +4,19 @@ Admin dashboard configuration for the Olympic Warriors app.
 
 import math
 
-from django.contrib.admin import site, ModelAdmin, TabularInline
+from django.contrib.admin import action, site, ModelAdmin, TabularInline
+from django.contrib.admin.actions import delete_selected as stock_delete_selected
 from django.contrib.admin.forms import AdminAuthenticationForm
 from django.core.exceptions import ValidationError
 from django.forms import ModelChoiceField, ModelForm
 from django.http import HttpRequest
 from .badges import refresh
+from .profiles import PARIS
 from .throttling import LoginRateThrottle
 from .models import (
     MANUAL_CODES,
     Badge,
+    BadgeRefresh,
     Player,
     PlayerRating,
     Team,
@@ -249,18 +252,21 @@ class TeamAdmin(ModelAdmin):
         return super().changelist_view(request, extra_context)
 
 
+def paris(moment):
+    """An aware datetime on the Paris clock (the server runs in UTC)."""
+    return moment.astimezone(PARIS)
+
+
+@action(description="Recalculer les badges (toutes les éditions)", permissions=["change"])
 def refresh_badges(modeladmin, request, queryset):  # pylint: disable=unused-argument
     """Rebuild every computed badge: streaks and tables span editions, so the selection
     does not matter."""
     report = refresh()
     modeladmin.message_user(
         request,
-        f"Badges recalculés : {report.added} ajoutés, {report.removed} retirés, "
-        f"{report.kept} inchangés.",
+        f"Badges recalculés à {paris(report.refreshed_at):%H:%M} (heure de Paris) : "
+        f"ajout(s) {report.added}, retrait(s) {report.removed}, inchangé(s) {report.kept}.",
     )
-
-
-refresh_badges.short_description = "Recalculer les badges (toutes les éditions)"
 
 
 class EditionAdmin(ModelAdmin):
@@ -525,7 +531,8 @@ class BadgeAdminForm(ModelForm):
 class BadgeAdmin(ModelAdmin):
     """
     Badges: computed ones (badges.refresh()) are read-only but is_active, which revokes
-    them; the ones given by hand are editable, and adding one gives it by hand.
+    them, and cannot be deleted, since the next refresh would recreate them; the ones given
+    by hand are editable and deletable, and adding one gives it by hand.
     """
 
     form = BadgeAdminForm
@@ -535,6 +542,9 @@ class BadgeAdmin(ModelAdmin):
     list_filter = ["code", "edition", "is_manual", "is_active"]
     search_fields = ["user__first_name", "user__last_name"]
     list_select_related = ["user", "edition", "partner"]
+    # The site-wide delete_selected, overridden by name: the confirmation page posts the
+    # action back as "delete_selected".
+    actions = ["delete_selected"]
 
     COMPUTED_FIELDS = ("user", "code", "edition", "tier", "discipline", "partner", "is_active")
     MANUAL_FIELDS = ("user", "code", "edition", "note", "is_active")
@@ -554,11 +564,50 @@ class BadgeAdmin(ModelAdmin):
             obj.is_manual = True
         super().save_model(request, obj, form, change)
 
+    def has_delete_permission(self, request, obj=None):
+        allowed = super().has_delete_permission(request, obj)
+        if not self._own_page(request):
+            # A user's or an edition's delete page asks about every badge the cascade
+            # takes: those go with their user or edition, nothing recreates them.
+            return allowed
+        return allowed and (obj is None or obj.is_manual)
+
+    def _own_page(self, request):
+        """Whether the request is for one of this admin's pages (or for no page at all)."""
+        match = getattr(request, "resolver_match", None)
+        prefix = f"{self.opts.app_label}_{self.opts.model_name}_"
+        return match is None or (match.url_name or "").startswith(prefix)
+
+    def delete_queryset(self, request, queryset):
+        super().delete_queryset(request, queryset.filter(is_manual=True))
+
+    @action(permissions=["delete"], description=stock_delete_selected.short_description)
+    def delete_selected(self, request, queryset):
+        """
+        The stock action on the selection's manual rows only. Given a computed row, the
+        stock one would refuse the whole selection (it checks has_delete_permission row by
+        row); this way the confirmation page, the log and the count hold only what goes.
+        """
+        return stock_delete_selected(self, request, queryset.filter(is_manual=True))
+
     def changelist_view(self, request, extra_context=None):
         """
-        Filter the request to only show active items.
+        Filter the request to only show active items, and show when the badges were last
+        refreshed (templates/admin/olympic_warriors/badge/change_list.html).
         """
         request = request_only_active(request)
+        refreshed_at = (
+            BadgeRefresh.objects.filter(pk=1).values_list("refreshed_at", flat=True).first()
+        )
+        last = (
+            "jamais"
+            if refreshed_at is None
+            else f"{paris(refreshed_at):%d/%m/%Y à %H:%M} (heure de Paris)"
+        )
+        extra_context = {
+            **(extra_context or {}),
+            "badges_refreshed": f"Dernier calcul des badges : {last}",
+        }
         return super().changelist_view(request, extra_context)
 
 

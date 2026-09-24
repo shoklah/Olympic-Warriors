@@ -49,7 +49,14 @@ class Command(BaseCommand):
             raise CommandError(str(exc)) from exc
         else:
             self.stdout.write(self.style.SUCCESS(f"Imported edition {report['year']}."))
-            badges = refresh()
+            try:
+                badges = refresh()
+            except Exception as exc:
+                # The import's transaction has committed: only the badges are missing.
+                self.stderr.write(
+                    "Import committed; badges not refreshed: run manage.py refresh_badges."
+                )
+                raise CommandError(f"Badge refresh failed: {exc}") from exc
             self.stdout.write(
                 f"Badges: {badges.added} added, {badges.removed} removed, {badges.kept} kept."
             )

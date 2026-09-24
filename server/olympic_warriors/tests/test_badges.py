@@ -1823,3 +1823,13 @@ class TestQueries(World, TestCase):
             found = earned(TODAY)
 
         self.assertIn(C.PERFECT_PITCH, {badge.code for badge in found})
+
+    def test_an_empty_sequence_costs_only_the_load(self):
+        # An unfinished edition with a roster is not in the sequence yet: _load's 2 queries,
+        # and no results, games or guesses to read.
+        self.edition(2030, finished=False)
+
+        with self.assertNumQueries(2):
+            found = earned(TODAY)
+
+        self.assertEqual(found, set())

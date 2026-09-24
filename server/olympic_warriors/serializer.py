@@ -513,8 +513,7 @@ class ProfileBadgeSerializer(serializers.Serializer):
 
 class ProfileSerializer(serializers.Serializer):
     """A person's profile: position, counted editions and average rank, plus every edition,
-    newest first, and the badges (context["badges"], from badges.profile_badges) in
-    catalogue order."""
+    newest first, and the badges in catalogue order."""
 
     id = serializers.IntegerField(source="user_id", help_text="The user id, not a Player id")
     first_name = serializers.CharField()
@@ -523,6 +522,7 @@ class ProfileSerializer(serializers.Serializer):
     counted = serializers.IntegerField()
     average_rank = serializers.FloatField(allow_null=True)
     editions = ProfileEditionSerializer(source="participations", many=True)
+    # The view passes them as context["badges"] (from badges.profile_badges).
     badges = serializers.SerializerMethodField()
 
     @extend_schema_field(ProfileBadgeSerializer(many=True))
