@@ -6,7 +6,7 @@ from datetime import time as time_of_day
 
 from django.db import transaction
 from django.db.models import Q
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.contrib.auth.models import User
 from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.decorators import api_view, permission_classes, parser_classes
@@ -456,7 +456,9 @@ def getPlayerRatingsByPlayer(request, player_id):
 # Games
 
 # The game, round and result views show the rows and apply the reveal rule of the edition
-# summary: scores stay null until the discipline is revealed, except for staff.
+# summary: scores stay null until the discipline is revealed, except for staff. That is why
+# they, unlike the rest of the token-only API (staff-only by default), stay open to any
+# token, a player's included (IsAuthenticated): they carry nothing the public summary does not.
 
 
 def _reveal_context(request):
@@ -492,6 +494,7 @@ def _results():
     },
 )
 @api_view(["GET"])
+@permission_classes([IsAuthenticated])  # reveal rule: nothing beyond the public summary
 def getGame(request, game_id):
     try:
         game = _games().get(id=game_id)
@@ -511,6 +514,7 @@ def getGame(request, game_id):
     },
 )
 @api_view(["GET"])
+@permission_classes([IsAuthenticated])  # reveal rule: nothing beyond the public summary
 def getGames(request):
     games = _games()
     serializer = GameSerializer(games, many=True, context=_reveal_context(request))
@@ -526,6 +530,7 @@ def getGames(request):
     },
 )
 @api_view(["GET"])
+@permission_classes([IsAuthenticated])  # reveal rule: nothing beyond the public summary
 def getGamesByTeam(request, team_id):
     games = _games().filter(Q(team1=team_id) | Q(team2=team_id) | Q(referees=team_id))
     serializer = GameSerializer(games, many=True, context=_reveal_context(request))
@@ -541,6 +546,7 @@ def getGamesByTeam(request, team_id):
     },
 )
 @api_view(["GET"])
+@permission_classes([IsAuthenticated])  # reveal rule: nothing beyond the public summary
 def getGamesByDiscipline(request, discipline_id):
     games = _games().filter(discipline=discipline_id)
     serializer = GameSerializer(games, many=True, context=_reveal_context(request))
@@ -556,6 +562,7 @@ def getGamesByDiscipline(request, discipline_id):
     },
 )
 @api_view(["GET"])
+@permission_classes([IsAuthenticated])  # reveal rule: nothing beyond the public summary
 def getPlayedGamesByTeam(request, team_id):
     games = _games().filter(Q(team1=team_id) | Q(team2=team_id))
     serializer = GameSerializer(games, many=True, context=_reveal_context(request))
@@ -571,6 +578,7 @@ def getPlayedGamesByTeam(request, team_id):
     },
 )
 @api_view(["GET"])
+@permission_classes([IsAuthenticated])  # reveal rule: nothing beyond the public summary
 def getRefereedGamesByTeam(request, team_id):
     games = _games().filter(referees=team_id)
     serializer = GameSerializer(games, many=True, context=_reveal_context(request))
@@ -586,6 +594,7 @@ def getRefereedGamesByTeam(request, team_id):
     },
 )
 @api_view(["GET"])
+@permission_classes([IsAuthenticated])  # reveal rule: nothing beyond the public summary
 def getGamesByEdition(request, edition_id):
     games = _games().filter(discipline__edition=edition_id)
     serializer = GameSerializer(games, many=True, context=_reveal_context(request))
@@ -601,6 +610,7 @@ def getGamesByEdition(request, edition_id):
     },
 )
 @api_view(["GET"])
+@permission_classes([IsAuthenticated])  # reveal rule: nothing beyond the public summary
 def getGamesByDisciplineAndTeam(request, discipline_id, team_id):
     games = _games().filter(
         Q(team1=team_id) | Q(team2=team_id) | Q(referees=team_id), discipline=discipline_id
@@ -618,6 +628,7 @@ def getGamesByDisciplineAndTeam(request, discipline_id, team_id):
     },
 )
 @api_view(["GET"])
+@permission_classes([IsAuthenticated])  # reveal rule: nothing beyond the public summary
 def getPlayedGamesByDisciplineAndTeam(request, team_id, discipline_id):
     games = _games().filter(Q(team1=team_id) | Q(team2=team_id), discipline=discipline_id)
     serializer = GameSerializer(games, many=True, context=_reveal_context(request))
@@ -633,6 +644,7 @@ def getPlayedGamesByDisciplineAndTeam(request, team_id, discipline_id):
     },
 )
 @api_view(["GET"])
+@permission_classes([IsAuthenticated])  # reveal rule: nothing beyond the public summary
 def getRefereedGamesByDisciplineAndTeam(request, team_id, discipline_id):
     games = _games().filter(referees=team_id, discipline=discipline_id)
     serializer = GameSerializer(games, many=True, context=_reveal_context(request))
@@ -648,6 +660,7 @@ def getRefereedGamesByDisciplineAndTeam(request, team_id, discipline_id):
     },
 )
 @api_view(["GET"])
+@permission_classes([IsAuthenticated])  # reveal rule: nothing beyond the public summary
 def getGamesByRound(request, round_id):
     games = _games().filter(round=round_id)
     serializer = GameSerializer(games, many=True, context=_reveal_context(request))
@@ -794,6 +807,7 @@ def deleteGameEvent(request, event_id):
     },
 )
 @api_view(["GET"])
+@permission_classes([IsAuthenticated])  # reveal rule: nothing beyond the public summary
 def getRound(request, round_id):
     try:
         round = _rounds().get(id=round_id)
@@ -812,6 +826,7 @@ def getRound(request, round_id):
     },
 )
 @api_view(["GET"])
+@permission_classes([IsAuthenticated])  # reveal rule: nothing beyond the public summary
 def getRounds(request):
     rounds = _rounds()
     serializer = TeamSportRoundSerializer(rounds, many=True, context=_reveal_context(request))
@@ -827,6 +842,7 @@ def getRounds(request):
     },
 )
 @api_view(["GET"])
+@permission_classes([IsAuthenticated])  # reveal rule: nothing beyond the public summary
 def getRoundsByDiscipline(request, discipline_id):
     rounds = _rounds().filter(discipline=discipline_id)
     serializer = TeamSportRoundSerializer(rounds, many=True, context=_reveal_context(request))
@@ -846,6 +862,7 @@ def getRoundsByDiscipline(request, discipline_id):
     },
 )
 @api_view(["GET"])
+@permission_classes([IsAuthenticated])  # reveal rule: nothing beyond the public summary
 def getTeamResult(request, team_result_id):
     try:
         team_result = _results().get(id=team_result_id)
@@ -864,6 +881,7 @@ def getTeamResult(request, team_result_id):
     },
 )
 @api_view(["GET"])
+@permission_classes([IsAuthenticated])  # reveal rule: nothing beyond the public summary
 def getTeamResults(request):
     team_results = _results()
     serializer = TeamResultSerializer(team_results, many=True, context=_reveal_context(request))
@@ -879,6 +897,7 @@ def getTeamResults(request):
     },
 )
 @api_view(["GET"])
+@permission_classes([IsAuthenticated])  # reveal rule: nothing beyond the public summary
 def getTeamResultsByTeam(request, team_id):
     team_results = _results().filter(team=team_id)
     serializer = TeamResultSerializer(team_results, many=True, context=_reveal_context(request))
@@ -894,6 +913,7 @@ def getTeamResultsByTeam(request, team_id):
     },
 )
 @api_view(["GET"])
+@permission_classes([IsAuthenticated])  # reveal rule: nothing beyond the public summary
 def getTeamResultsByEdition(request, edition_id):
     team_results = _results().filter(discipline__edition=edition_id)
     serializer = TeamResultSerializer(team_results, many=True, context=_reveal_context(request))
@@ -909,6 +929,7 @@ def getTeamResultsByEdition(request, edition_id):
     },
 )
 @api_view(["GET"])
+@permission_classes([IsAuthenticated])  # reveal rule: nothing beyond the public summary
 def getTeamResultsByDiscipline(request, discipline_id):
     team_results = _results().filter(discipline=discipline_id)
     serializer = TeamResultSerializer(team_results, many=True, context=_reveal_context(request))

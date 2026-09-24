@@ -685,12 +685,13 @@ class TestCurrentUser(APITestCase):
         self.assertTrue(response.data["is_staff"])
         self.assertNotIn("password", response.data)
 
-    def test_current_user_says_when_not_staff(self):
+    def test_current_user_refuses_a_player(self):
+        # Staff-only through the default permission: a player never needs it.
         player = User.objects.create_user(username="player", password="x")
         self.client.force_authenticate(user=player)
         response = self.client.get("/user/current/")
-        self.assertEqual(response.status_code, 200)
-        self.assertFalse(response.data["is_staff"])
+        self.assertEqual(response.status_code, 403)
+        self.assertNotIn("is_staff", response.data)
 
 
 class TestLatestEdition(TestCase):

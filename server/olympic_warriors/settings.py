@@ -230,8 +230,11 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.TokenAuthentication',
     ],
+    # Staff-only by default: a view opens to visitors (AllowAny) or to any token
+    # (IsAuthenticated) only through its own @permission_classes, which test_permissions.py
+    # checks route by route against its PUBLIC and PLAYER lists.
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
+        'olympic_warriors.permissions.IsOrganiser',
     ],
     # No DEFAULT_THROTTLE_CLASSES: only the token view throttles (LoginRateThrottle, which the
     # admin login form shares from admin.py).

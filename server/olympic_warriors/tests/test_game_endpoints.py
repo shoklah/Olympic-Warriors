@@ -1,6 +1,6 @@
 """
-Game lists by team role and by round: a token is required (global IsAuthenticated),
-and each answers with the matching active games.
+Game lists by team role and by round: a token is required, a player's is enough
+(IsAuthenticated), and each answers with the matching active games.
 """
 
 from django.contrib.auth.models import User

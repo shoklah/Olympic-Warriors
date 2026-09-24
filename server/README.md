@@ -201,7 +201,7 @@ The API has about 70 function views in `views.py`, wired in one hand-written lis
 
 `POST /auth/token/` with `{"username": ..., "password": ...}` returns `{"token": ...}`. Send the token on later requests as `Authorization: Token <token>`. Every user gets a token automatically when they are created. Run `create_tokens_for_users` to backfill tokens for users created before that.
 
-Every endpoint requires a token unless it is listed as public below.
+Every endpoint is for staff users only unless it is listed as public below: it returns 401 without a token and 403 for a non-staff user. The one exception is the game, round and result reads (`/game/<id>/`, `/games/...`, `/round/<id>/`, `/rounds/...`, `/result/<id>/`, `/results/...`), which any token may call, a player's included: they apply the summary's reveal rule, so they carry nothing the public summary does not.
 
 ### Public endpoints
 
@@ -248,7 +248,9 @@ The client IP is the last `X-Forwarded-For` entry, as set by nginx, or by the fr
 
 ### Writing a view
 
-Put per-view policy decorators such as `@permission_classes` **below** `@api_view`. Placed above it, the pinned DRF 3.15 silently ignores them, and the view falls back to `IsAuthenticated`. For an organiser endpoint, that would let any logged-in player write. DRF 3.16+ raises a `TypeError` at import instead. `test_public_endpoints` and `test_organiser` catch the first case.
+Put per-view policy decorators such as `@permission_classes` **below** `@api_view`. Placed above it, the pinned DRF 3.15 silently ignores them, and the view falls back to the staff-only default (`IsOrganiser`), locking out the visitors or players it was meant for. DRF 3.16+ raises a `TypeError` at import instead. `test_permissions` catches the first case.
+
+A new view is staff-only until it is opened on purpose: `@permission_classes([AllowAny])` for a public one, `@permission_classes([IsAuthenticated])` for one any logged-in player may call, and its route added to the `PUBLIC` or `PLAYER` list of `test_permissions.py`.
 
 ## Admin
 
@@ -308,7 +310,7 @@ docker compose exec server python manage.py test
 docker compose exec server python manage.py test olympic_warriors.tests.test_summary
 ```
 
-The tests live in `olympic_warriors/tests/`, one file per area: `test_summary`, `test_organiser`, `test_standings`, `test_scheduling`, `test_registration`, `test_transfer`, `test_blindtest`, `test_auth_token`, `test_admin_login`, and so on. `test_summary.py`, `test_organiser.py` and `test_reveal.py` pin their query counts (`SUMMARY_QUERIES`, `RESULT_PATCH_QUERIES`, `GAME_LIST_QUERIES`, `RESULT_LIST_QUERIES`), so a view that queries once per row fails the suite. `test_routes.py` walks every route of `urls.py`: a function view without `@api_view`, or whose parameters are not the route's converter names, fails it, since either one is a 500 on every call.
+The tests live in `olympic_warriors/tests/`, one file per area: `test_summary`, `test_organiser`, `test_standings`, `test_scheduling`, `test_registration`, `test_transfer`, `test_blindtest`, `test_auth_token`, `test_admin_login`, and so on. `test_summary.py`, `test_organiser.py` and `test_reveal.py` pin their query counts (`SUMMARY_QUERIES`, `RESULT_PATCH_QUERIES`, `GAME_LIST_QUERIES`, `RESULT_LIST_QUERIES`), so a view that queries once per row fails the suite. `test_routes.py` walks every route of `urls.py`: a function view without `@api_view`, or whose parameters are not the route's converter names, fails it, since either one is a 500 on every call. `test_permissions.py` walks them too: every route must answer without a token (its `PUBLIC` list), answer a player's token but refuse no token with 401 (its `PLAYER` list), or refuse a player's token with 403.
 
 CI does not run these tests (the steps are commented out in `.github/workflows/test.yml`), so run them before you merge.
 
