@@ -175,6 +175,27 @@ class TestUserProfileAdmin(MediaRootTestCase):
         self.assertEqual(self.ana.user_id, User.objects.get(username="ana").id)
         self.assertEqual(self.ana.photo.name, photo)
 
+    def test_deleting_a_person_through_the_user_admin_deletes_their_files(self):
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                f"/admin/auth/user/{self.ana.user_id}/delete/", {"post": "yes"}
+            )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(User.objects.filter(username="ana").exists())
+        self.assertEqual(len(self.avatar_files()), 2)  # Cléo's
+        self.assertFalse(self.exists(self.ana.photo.name))
+        self.assertFalse(self.exists(self.ana.photo_small.name))
+
+    def test_deleting_a_profile_from_its_page_deletes_its_files(self):
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(f"{PROFILES}{self.cleo.pk}/delete/", {"post": "yes"})
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(UserProfile.objects.filter(pk=self.cleo.pk).exists())
+        self.assertEqual(len(self.avatar_files()), 2)  # Ana's
+        self.assertFalse(self.exists(self.cleo.photo.name))
+
     def test_profiles_are_not_added_by_hand(self):
         response = self.client.get(f"{PROFILES}add/")
 

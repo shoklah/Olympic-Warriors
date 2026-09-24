@@ -8,6 +8,7 @@ from django.contrib.admin import action, display, site, ModelAdmin, SimpleListFi
 from django.contrib.admin.actions import delete_selected as stock_delete_selected
 from django.contrib.admin.forms import AdminAuthenticationForm
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.forms import ModelChoiceField, ModelForm
 from django.http import HttpRequest
 from django.utils.html import format_html
@@ -664,10 +665,14 @@ def remove_and_lock(modeladmin, request, queryset):
     profiles = list(queryset)
     removed = 0
     for profile in profiles:
-        # Locked first, so no upload can land between the removal and the lock.
-        profile.photo_locked = True
-        profile.save(update_fields=["photo_locked", "updated_at"])
-        removed += remove_photo(profile)
+        # Locked first, in the same transaction as the removal: the UPDATE holds the row
+        # until both are done, so an upload waiting on it finds the lock once it gets the
+        # row (store_photo re-reads it under select_for_update), and an upload that had
+        # the row first is the photo this removes.
+        with transaction.atomic():
+            profile.photo_locked = True
+            profile.save(update_fields=["photo_locked", "updated_at"])
+            removed += remove_photo(profile)
     modeladmin.message_user(
         request,
         f"Photo(s) retirée(s) : {removed} ; profil(s) verrouillé(s) : {len(profiles)}.",
@@ -732,8 +737,10 @@ class UserProfileAdmin(ModelAdmin):
         return False
 
     def get_actions(self, request):
-        """Only the moderation actions: the stock bulk delete would drop the rows (pins and
-        claim date with them) and leave the files behind, next to « Retirer la photo »."""
+        """Only the moderation actions: next to « Retirer la photo », the stock bulk delete
+        would drop the whole rows, pins and claim date with them, which taking a photo down
+        never means. A profile can still be deleted from its own page (its files go with
+        it, signals.py)."""
         actions = super().get_actions(request)
         actions.pop("delete_selected", None)
         return actions
