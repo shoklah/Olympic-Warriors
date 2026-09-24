@@ -52,6 +52,8 @@ export default {
 	'profile.tab.profile': 'Profil',
 	'profile.tab.badges': 'Badges',
 	'profile.seeCollection': 'voir la collection',
+	'showcase.label': 'Vitrine',
+	'showcase.spoken': 'vitrine : {badges}',
 	'badge.progress': { one: '{n} badge sur {total}', other: '{n} badges sur {total}' },
 	'badge.familyProgress': '{earned} sur {total}',
 	'badge.earnedTimes': { one: 'badge obtenu {n} fois', other: 'badge obtenu {n} fois' },

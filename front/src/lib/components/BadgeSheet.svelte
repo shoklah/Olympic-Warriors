@@ -1,5 +1,6 @@
 <script>
 	import { createEventDispatcher, onDestroy, tick } from 'svelte';
+	import Avatar from './Avatar.svelte';
 	import Badge from './Badge.svelte';
 	import { badgeDetail, badgeRarity, badgeTier, isTiered, nextThreshold } from '$lib/badges';
 	import { fullName } from '$lib/players';
@@ -153,6 +154,10 @@
 							<span class="detail" data-testid="badge-sheet-detail">
 								{#if entry.partner}
 									{t('badge.with')}
+									<!-- Beside the link, not in it: the link keeps its underline on the name alone. -->
+									<span class="partner-avatar"
+										><Avatar photo={entry.partner.photo ?? null} name={entry.partner} size={24} /></span
+									>
 									<a class="quiet-link" href="/players/{entry.partner.id}">{fullName(entry.partner)}</a>
 								{/if}
 								{#each parts as part, i}{#if i > 0 || entry.partner}{' '}<span class="sep" aria-hidden="true"
@@ -266,6 +271,12 @@
 		outline: 2px solid var(--accent);
 		outline-offset: 2px;
 		border-radius: 2px;
+	}
+
+	/* Centred on the line of text rather than sitting on its baseline. */
+	.partner-avatar {
+		display: inline-flex;
+		vertical-align: middle;
 	}
 
 	.sep {

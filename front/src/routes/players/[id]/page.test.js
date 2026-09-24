@@ -22,6 +22,17 @@ const setSearch = (search = '') => {
 	pageState.url = new URL(`http://localhost/players/34${search}`);
 };
 
+/** Whether `b` comes after `a` in document order. */
+const follows = (a, b) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+/** A slot button of the collection, in its family's section: the showcase above the tabs
+    has buttons of the same names. */
+const collectionSlot = (family, name) =>
+	within(screen.getByRole('heading', { level: 3, name: new RegExp(`^${family}`) }).closest('section')).getByRole(
+		'button',
+		{ name }
+	);
+
 describe('player profile page', () => {
 	beforeEach(() => {
 		setSearch();
@@ -46,6 +57,73 @@ describe('player profile page', () => {
 		expect(screen.queryByText('Équipes battues')).toBeNull();
 		expect(screen.getByText('4 editions · 2 counted')).toBeInTheDocument();
 		expect(screen.queryByText('No ranked edition yet')).toBeNull();
+	});
+
+	it('shows the header avatar from the large photo, before the name', () => {
+		renderWith(Page, { data: { profile } });
+
+		const img = screen.getByTestId('portrait').querySelector('img');
+		expect(img).toHaveAttribute('src', '/media/avatars/34-9b8a7c6d5e4f.webp');
+		expect(img).toHaveAttribute('alt', '');
+		// Above the fold: never lazy.
+		expect(img).not.toHaveAttribute('loading');
+		expect(follows(img, screen.getByRole('heading', { level: 1 }))).toBe(true);
+	});
+
+	it('shows the initials in the header without a photo, and without the photo key (an older API)', () => {
+		const { unmount } = renderWith(Page, { data: { profile: profileUnranked } });
+		expect(screen.getByTestId('portrait')).toHaveTextContent(/^AP$/);
+		expect(screen.getByTestId('portrait').querySelector('img')).toBeNull();
+		unmount();
+
+		const { photo, showcase, ...older } = profile;
+		renderWith(Page, { data: { profile: older } });
+		expect(screen.getByTestId('portrait')).toHaveTextContent(/^XB$/);
+		expect(screen.queryByRole('list', { name: 'Showcase' })).toBeNull();
+	});
+
+	it('shows the showcase under the name and above the tabs, its buttons named like the collection slots', () => {
+		renderWith(Page, { data: { profile } });
+
+		const list = screen.getByRole('list', { name: 'Showcase' });
+		expect(within(list).getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual([
+			'Clean sweep, badge earned 2 times',
+			'Specialist, badge earned',
+			'Comrades in arms, badge earned'
+		]);
+		expect(follows(screen.getByRole('heading', { level: 1 }), list)).toBe(true);
+		expect(follows(list, screen.getByRole('navigation', { name: 'Profile sections' }))).toBe(true);
+	});
+
+	it("opens a showcase badge's sheet, the partner's avatar before the partner link", async () => {
+		renderWith(Page, { data: { profile } });
+
+		const button = screen.getByRole('button', { name: 'Comrades in arms, badge earned' });
+		await fireEvent.click(button);
+		const dialog = screen.getByRole('dialog', { name: 'Comrades in arms' });
+		expect(dialog).toHaveTextContent('17% of players have it (8 of 47)');
+		const link = within(dialog).getByRole('link', { name: 'Léa Martin' });
+		const avatar = dialog.querySelector('img[src^="/media/"]');
+		expect(avatar).toHaveAttribute('src', '/media/avatars/12-4f1c2a9b7e3d-sm.webp');
+		expect(follows(avatar, link)).toBe(true);
+
+		await fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }));
+		expect(button).toHaveFocus();
+	});
+
+	it('keeps the showcase on the Badges tab', () => {
+		setSearch('?tab=badges');
+		renderWith(Page, { data: { profile } });
+
+		expect(screen.getByRole('list', { name: 'Showcase' })).toBeInTheDocument();
+		expect(screen.getAllByRole('button', { name: 'Comrades in arms, badge earned' })).toHaveLength(2);
+	});
+
+	it('shows no showcase line for a person without a badge', () => {
+		renderWith(Page, { data: { profile: profileUnranked } });
+
+		expect(screen.queryByRole('list', { name: 'Showcase' })).toBeNull();
+		expect(screen.queryAllByRole('button')).toHaveLength(0);
 	});
 
 	it('lists every edition newest first: running, ranked, without a team', () => {
@@ -106,7 +184,7 @@ describe('player profile page', () => {
 		setSearch('?tab=badges');
 		renderWith(Page, { data: { profile } });
 
-		await fireEvent.click(screen.getByRole('button', { name: /^Comrades in arms/ }));
+		await fireEvent.click(collectionSlot('Teammates', /^Comrades in arms/));
 		expect(screen.getByRole('dialog', { name: 'Comrades in arms' })).toHaveTextContent(
 			'17% of players have it (8 of 47)'
 		);
@@ -117,7 +195,7 @@ describe('player profile page', () => {
 		const { badge_stats, ...older } = profile;
 		renderWith(Page, { data: { profile: older } });
 
-		await fireEvent.click(screen.getByRole('button', { name: /^Comrades in arms/ }));
+		await fireEvent.click(collectionSlot('Teammates', /^Comrades in arms/));
 		expect(screen.getByRole('dialog', { name: 'Comrades in arms' })).not.toHaveTextContent('of players');
 	});
 
@@ -168,6 +246,17 @@ describe('player profile page', () => {
 		expect(rows[0]).toHaveTextContent(/2030\s*Les Aigles\s*En cours/);
 		expect(rows[1]).toHaveTextContent(/2026\s*MxM\s*2\s*\/ 6/);
 		expect(rows[2]).toHaveTextContent(/2024\s*Pas d'équipe/);
+	});
+
+	it('speaks French for the showcase', () => {
+		renderWith(Page, { data: { profile } }, 'fr');
+
+		const list = screen.getByRole('list', { name: 'Vitrine' });
+		expect(within(list).getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual([
+			'Razzia, badge obtenu 2 fois',
+			'Spécialiste, badge obtenu',
+			"Compagnons d'armes, badge obtenu"
+		]);
 	});
 
 	it('says nothing is ranked yet, in French too', () => {

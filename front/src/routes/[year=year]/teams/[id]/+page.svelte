@@ -3,6 +3,7 @@
 	import { iconFor } from '$lib/icons';
 	import { disciplineName, useLocale, useT } from '$lib/i18n';
 	import { fullName } from '$lib/players';
+	import Avatar from '$lib/components/Avatar.svelte';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import MedalRank from '$lib/components/MedalRank.svelte';
 	import GameRow from '$lib/components/GameRow.svelte';
@@ -37,7 +38,9 @@
 
 	<div class="roster">
 		{#each data.team.players as player}
-			<a class="chip" href="/players/{player.user}">{fullName(player)}</a>
+			<a class="chip" href="/players/{player.user}"
+				><Avatar photo={player.photo ?? null} name={player} size={24} /><span class="player">{fullName(player)}</span></a
+			>
 		{/each}
 	</div>
 
@@ -128,8 +131,12 @@
 		gap: 8px;
 	}
 
+	/* The avatar tucked into the pill's rounded end, like the header's account pill. */
 	.chip {
-		padding: 6px 12px;
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		padding: 3px 12px 3px 3px;
 		border-radius: var(--radius-pill);
 		background: var(--bg-raised);
 		border: 1px solid var(--line-strong);
@@ -139,6 +146,10 @@
 		color: var(--text);
 		text-decoration: none;
 		transition: border-color 0.2s ease;
+	}
+
+	.player {
+		min-width: 0;
 	}
 
 	.chip:hover {

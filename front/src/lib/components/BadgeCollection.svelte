@@ -1,6 +1,7 @@
 <script>
 	import Badge from './Badge.svelte';
 	import BadgeSheet from './BadgeSheet.svelte';
+	import { slotLabel } from '$lib/badges';
 	import { useT } from '$lib/i18n';
 
 	/** badgeCollection(profile.badges ?? []); the page computes it once and passes it down. */
@@ -34,17 +35,6 @@
 		// treat it as already dismissed, the same way Escape does.
 		if (code) dismissedCode = code;
 		openButton = null;
-	}
-
-	/**
-	 * The button's accessible name: "<name>, <earned|locked>" or, above ×1,
-	 * "<name>, badge earned N times" (a plural key, so a screen reader never hears "×2").
-	 */
-	function slotLabel(slot) {
-		const name = t(`badge.${slot.code}.name`);
-		if (!slot.earned) return `${name}, ${t('badge.locked')}`;
-		if (slot.count > 1) return `${name}, ${t('badge.earnedTimes', { n: slot.count })}`;
-		return `${name}, ${t('badge.earned')}`;
 	}
 
 	// --- Hover/focus tooltip (desktop only: gated by @media (hover: hover) and (pointer:
@@ -157,7 +147,7 @@
 					on:mouseleave={() => onHoverLeave(slot)}
 					on:focus={(event) => onFocusIn(slot, event)}
 					on:blur={() => onFocusOut(slot)}
-					aria-label={slotLabel(slot)}
+					aria-label={slotLabel(slot, t)}
 					aria-describedby="rule-{slot.code}"
 				>
 					<span class="medallion">

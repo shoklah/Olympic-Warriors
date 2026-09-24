@@ -128,6 +128,18 @@ export function badgeDetail(badge, t, locale) {
 }
 
 /**
+ * A slot button's accessible name: "<name>, <earned|locked>" or, above ×1, "<name>, badge
+ * earned N times" (a plural key, so a screen reader never hears "×2"). Shared by the
+ * collection's slots and the showcase's medallions, which open the same sheet.
+ */
+export function slotLabel(slot, t) {
+	const name = t(`badge.${slot.code}.name`);
+	if (!slot.earned) return `${name}, ${t('badge.locked')}`;
+	if (slot.count > 1) return `${name}, ${t('badge.earnedTimes', { n: slot.count })}`;
+	return `${name}, ${t('badge.earned')}`;
+}
+
+/**
  * The catalogue split into nine families, in catalogue order, one entry per BADGES code:
  * badges.test.js checks every code appears exactly once, in catalogue order inside its
  * family. Mirrors the "Families" table of the badge collection design spec.

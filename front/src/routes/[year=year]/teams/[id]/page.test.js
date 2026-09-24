@@ -101,6 +101,22 @@ describe('team page', () => {
 		expect(screen.getByRole('link', { name: 'Ana Lopez' })).toHaveAttribute('href', '/players/11');
 		expect(screen.getByRole('link', { name: 'Bob Martin' })).toHaveAttribute('href', '/players/12');
 	});
+
+	it("draws each roster player's avatar inside the link, before the name: the small photo or the initials", () => {
+		renderWith(Page, { data: dataFor(1) });
+
+		const ana = screen.getByRole('link', { name: 'Ana Lopez' });
+		const photo = ana.querySelector('img');
+		expect(photo).toHaveAttribute('src', '/media/avatars/11-7c3e9a1f5b2d-sm.webp');
+		expect(photo).toHaveAttribute('alt', '');
+		expect(photo.closest('[aria-hidden="true"]')).not.toBeNull();
+		expect(ana).toHaveTextContent(/^\s*Ana Lopez\s*$/);
+
+		const bob = screen.getByRole('link', { name: 'Bob Martin' });
+		expect(bob.querySelector('img')).toBeNull();
+		expect(bob).toHaveTextContent(/^\s*BM\s*Bob Martin\s*$/);
+		expect(within(bob).getByText('BM')).toHaveAttribute('aria-hidden', 'true');
+	});
 });
 
 describe('team page load', () => {

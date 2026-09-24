@@ -17,16 +17,18 @@ describe('players leaderboard page', () => {
 		const rows = screen.getAllByTestId('player-row');
 		expect(rows).toHaveLength(4);
 		expect(rows[0]).toHaveTextContent(
-			/1\s*Léa Martin\s*1\s*2\s*1st place in 2024, 2nd place in 2026, average rank 1\.5\s*1\.5\s*avg rank/
+			/1\s*Léa Martin\s*1\s*2\s*1st place in 2024, 2nd place in 2026, average rank 1\.5, showcase: Champion, Veteran, Networker\s*1\.5\s*avg rank/
 		);
+		// Without a photo the avatar shows the initials: text, but aria-hidden, so the link's
+		// name below leaves them out.
 		expect(rows[1]).toHaveTextContent(
-			/2\s*Hugo Maurinier\s*1\s*1st place in 2025, average rank 1\.0\s*1\.0\s*avg rank/
+			/2\s*HM\s*Hugo Maurinier\s*1\s*1st place in 2025, average rank 1\.0\s*1\.0\s*avg rank/
 		);
 		expect(rows[2]).toHaveTextContent(
-			/2\s*Inès Moreau\s*1\s*1st place in 2025, average rank 1\.0\s*1\.0\s*avg rank/
+			/2\s*IM\s*Inès Moreau\s*1\s*1st place in 2025, average rank 1\.0, showcase: Specialist\s*1\.0\s*avg rank/
 		);
 		expect(rows[3]).toHaveTextContent(
-			/4\s*Xavier Baby\s*2\s*3\s*4\s*2nd place in 2026, 3rd place in 2023, 4th place in 2021, average rank 3\.0\s*3\.0\s*avg rank/
+			/4\s*Xavier Baby\s*2\s*3\s*4\s*2nd place in 2026, 3rd place in 2023, 4th place in 2021, average rank 3\.0, showcase: Clean sweep, Specialist, Comrades in arms\s*3\.0\s*avg rank/
 		);
 		expect(rows[0]).toHaveAttribute('href', '/players/12');
 		expect(within(rows[0]).getByTestId('places')).toHaveAttribute('aria-hidden', 'true');
@@ -35,9 +37,41 @@ describe('players leaderboard page', () => {
 		rows.forEach((row) => expect(within(row).getByTestId('average')).toBeInTheDocument());
 		expect(
 			screen.getByRole('link', {
-				name: /^1\s*Léa Martin\s*1st place in 2024, 2nd place in 2026, average rank 1\.5$/
+				name: /^1\s*Léa Martin\s*1st place in 2024, 2nd place in 2026, average rank 1\.5, showcase: Champion, Veteran, Networker$/
 			})
 		).toBeInTheDocument();
+		expect(
+			screen.getByRole('link', { name: /^2\s*Hugo Maurinier\s*1st place in 2025, average rank 1\.0$/ })
+		).toBeInTheDocument();
+	});
+
+	it("draws each player's avatar before the name: the small photo, lazily, or the initials", () => {
+		renderWith(Page, { data });
+
+		const [lea, hugo] = screen.getAllByTestId('player-row');
+		const photo = lea.querySelector('img[src^="/media/"]');
+		expect(photo).toHaveAttribute('src', '/media/avatars/12-4f1c2a9b7e3d-sm.webp');
+		expect(photo).toHaveAttribute('alt', '');
+		expect(photo).toHaveAttribute('loading', 'lazy');
+		expect(photo.closest('[aria-hidden="true"]')).not.toBeNull();
+		expect(hugo.querySelector('img[src^="/media/"]')).toBeNull();
+		expect(within(hugo).getByText('HM')).toHaveAttribute('aria-hidden', 'true');
+		// Before the name, in document order.
+		const follows = (a, b) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+		expect(follows(photo, within(lea).getByText('Léa Martin'))).toBe(true);
+		expect(follows(within(hugo).getByText('HM'), within(hugo).getByText('Hugo Maurinier'))).toBe(true);
+	});
+
+	it('shows the showcase as hidden medallions, and no showcase line for a player without a badge', () => {
+		renderWith(Page, { data });
+
+		const [lea, hugo, ines] = screen.getAllByTestId('player-row');
+		const showcase = within(lea).getByTestId('showcase');
+		expect(showcase).toHaveAttribute('aria-hidden', 'true');
+		expect(showcase.querySelectorAll('[data-metal]')).toHaveLength(3);
+		expect(within(ines).getByTestId('showcase').querySelectorAll('[data-metal]')).toHaveLength(1);
+		expect(within(hugo).queryByTestId('showcase')).toBeNull();
+		expect(hugo).not.toHaveTextContent('showcase');
 	});
 
 	it('colours each place like a medal', () => {
@@ -82,9 +116,16 @@ describe('players leaderboard page', () => {
 		expect(screen.getByRole('heading', { name: 'Not ranked yet' })).toBeInTheDocument();
 		const rows = screen.getAllByTestId('unranked-row');
 		expect(rows).toHaveLength(2);
-		expect(rows[0]).toHaveTextContent(/Ana Petit\s*1 edition/);
-		expect(rows[1]).toHaveTextContent(/Jules Roux\s*2 editions/);
+		expect(rows[0]).toHaveTextContent(/^\s*AP\s*Ana Petit\s*1 edition\s*$/);
+		expect(rows[1]).toHaveTextContent(/^\s*Jules Roux\s*2 editions, showcase: Rookie\s*$/);
 		expect(rows[1]).toHaveAttribute('href', '/players/41');
+		expect(screen.getByRole('link', { name: /^Ana Petit\s*1 edition$/ })).toBe(rows[0]);
+		// jsdom's name computation pads every child element with spaces, hence `\s*,`: the
+		// comma opens the hidden showcase sentence, right after the visible edition count.
+		expect(screen.getByRole('link', { name: /^Jules Roux\s*2 editions\s*, showcase: Rookie$/ })).toBe(rows[1]);
+		expect(rows[1].querySelector('img[src^="/media/"]')).toHaveAttribute('src', '/media/avatars/41-0a1b2c3d4e5f-sm.webp');
+		expect(within(rows[1]).getByTestId('showcase')).toHaveAttribute('aria-hidden', 'true');
+		expect(within(rows[0]).queryByTestId('showcase')).toBeNull();
 		rows.forEach((row) => expect(within(row).queryByTestId('average')).toBeNull());
 	});
 
@@ -109,12 +150,15 @@ describe('players leaderboard page', () => {
 		expect(screen.getByText('Le panthéon des Warriors')).toBeInTheDocument();
 		const rows = screen.getAllByTestId('player-row');
 		expect(rows[0]).toHaveTextContent(
-			/1\s*Léa Martin\s*1\s*2\s*1re place en 2024, 2e place en 2026, classement moyen 1,5\s*1,5\s*classement moyen/
+			/1\s*Léa Martin\s*1\s*2\s*1re place en 2024, 2e place en 2026, classement moyen 1,5, vitrine : Champion, Vétéran, Rassembleur\s*1,5\s*classement moyen/
 		);
 		expect(
 			screen.getByRole('link', {
-				name: /^1\s*Léa Martin\s*1re place en 2024, 2e place en 2026, classement moyen 1,5$/
+				name: /^1\s*Léa Martin\s*1re place en 2024, 2e place en 2026, classement moyen 1,5, vitrine : Champion, Vétéran, Rassembleur$/
 			})
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole('link', { name: /^Jules Roux\s*2 éditions\s*, vitrine : Bizut$/ })
 		).toBeInTheDocument();
 		expect(within(rows[0]).getByText('moy.')).toHaveClass('short');
 		expect(screen.getByRole('heading', { name: 'Pas encore classés' })).toBeInTheDocument();

@@ -1,6 +1,7 @@
 /**
  * One edition as the summary endpoint returns it: a revealed points discipline (Relay),
  * a hidden timed one (Orienteering), three teams. Bisons lead, Aigles second, Cerfs last.
+ * Roster players carry `photo`, the small URL or null: Ana has one, Bob and Chloé don't.
  */
 export const summary = {
 	edition: {
@@ -22,8 +23,8 @@ export const summary = {
 			ranking: 2,
 			total_points: 3,
 			players: [
-				{ id: 1, user: 11, first_name: 'Ana', last_name: 'Lopez' },
-				{ id: 2, user: 12, first_name: 'Bob', last_name: 'Martin' }
+				{ id: 1, user: 11, first_name: 'Ana', last_name: 'Lopez', photo: '/media/avatars/11-7c3e9a1f5b2d-sm.webp' },
+				{ id: 2, user: 12, first_name: 'Bob', last_name: 'Martin', photo: null }
 			]
 		},
 		{
@@ -31,7 +32,7 @@ export const summary = {
 			name: 'Bisons',
 			ranking: 1,
 			total_points: 5,
-			players: [{ id: 3, user: 13, first_name: 'Chloé', last_name: 'Nguyen' }]
+			players: [{ id: 3, user: 13, first_name: 'Chloé', last_name: 'Nguyen', photo: null }]
 		},
 		{ id: 3, name: 'Cerfs', ranking: 3, total_points: 2, players: [] }
 	],

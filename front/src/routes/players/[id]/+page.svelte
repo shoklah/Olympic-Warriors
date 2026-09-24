@@ -1,8 +1,10 @@
 <script>
 	import { page } from '$app/stores';
+	import Avatar from '$lib/components/Avatar.svelte';
 	import BadgeCollection from '$lib/components/BadgeCollection.svelte';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import MedalRank from '$lib/components/MedalRank.svelte';
+	import Showcase from '$lib/components/Showcase.svelte';
 	import { badgeCollection } from '$lib/badges';
 	import { iconFor } from '$lib/icons';
 	import { bestDisciplines, byDisplayedName, editionStatus, formatAverage, fullName, spokenPlaces } from '$lib/players';
@@ -26,17 +28,33 @@
 
 <div class="page">
 	<Breadcrumb items={[{ label: t('players.title'), href: '/players' }, { label: name }]} />
-	<h1>{name}</h1>
+	<!-- The avatar beside the name, the all-time position and the showcase, on every tab.
+	     `photo` and `showcase` are optional: an older API sends neither. -->
+	<div class="identity">
+		<span class="portrait" data-testid="portrait">
+			<Avatar photo={profile.photo?.large ?? null} name={profile} />
+		</span>
+		<div class="who">
+			<h1>{name}</h1>
 
-	{#if profile.position !== null}
-		<!-- A plain number: a French ordinal would have to guess the player's gender. -->
-		<a class="position" href="/players" data-testid="position">
-			<MedalRank rank={profile.position} />
-			<span class="label">{t('profile.allTime')}</span>
-			<!-- The accessible name must contain the visible text (WCAG 2.5.3). -->
-			<span class="visually-hidden"> · {t('profile.positionHint')}</span>
-		</a>
-	{/if}
+			{#if profile.position !== null}
+				<!-- A plain number: a French ordinal would have to guess the player's gender. -->
+				<a class="position" href="/players" data-testid="position">
+					<MedalRank rank={profile.position} />
+					<span class="label">{t('profile.allTime')}</span>
+					<!-- The accessible name must contain the visible text (WCAG 2.5.3). -->
+					<span class="visually-hidden"> · {t('profile.positionHint')}</span>
+				</a>
+			{/if}
+
+			<Showcase
+				mode="interactive"
+				badges={profile.showcase?.badges ?? []}
+				{collection}
+				badgeStats={profile.badge_stats ?? null}
+			/>
+		</div>
+	</div>
 
 	<nav class="tabs" aria-label={t('profile.tabs')}>
 		<a
@@ -154,8 +172,39 @@
 </div>
 
 <style>
+	/* The avatar is 96px on phones and 128px from 600px (`--avatar-size`, read by Avatar),
+	   centred on the name, the position and the showcase stacked beside it. */
+	.identity {
+		display: flex;
+		align-items: center;
+		gap: 16px;
+		--avatar-size: 96px;
+		margin: 0.2rem 0 1.2rem;
+	}
+
+	.portrait {
+		display: flex;
+		flex: none;
+	}
+
+	.who {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 0.5rem;
+		min-width: 0;
+	}
+
+	@media (min-width: 600px) {
+		.identity {
+			gap: 24px;
+			--avatar-size: 128px;
+		}
+	}
+
 	h1 {
-		margin: 0 0 0.6rem;
+		margin: 0;
+		line-height: 1;
 		overflow-wrap: anywhere;
 	}
 
@@ -168,7 +217,6 @@
 		align-items: baseline;
 		gap: 8px;
 		--medal-size: 1.6rem;
-		margin-bottom: 0.9rem;
 		color: var(--text);
 		text-decoration: none;
 	}

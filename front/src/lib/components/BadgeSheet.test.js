@@ -76,10 +76,27 @@ describe('BadgeSheet', () => {
 		renderWith(BadgeSheet, { slot: slotFor('comrades', badges), open: true });
 
 		const detail = screen.getByTestId('badge-sheet-detail');
-		expect(detail).toHaveTextContent(/^with Léa Martin$/);
+		// LM: the partner's avatar without a photo, aria-hidden (the link is named Léa Martin).
+		expect(detail).toHaveTextContent(/^with\s*LM\s*Léa Martin$/);
 		expect(within(detail).getByRole('link', { name: 'Léa Martin' })).toHaveAttribute('href', '/players/12');
 		// Links sitting among text carry quiet-link (underlined on hover and focus, #92).
 		expect(within(detail).getByRole('link', { name: 'Léa Martin' })).toHaveClass('quiet-link');
+	});
+
+	it("draws the partner's small photo before the partner link", () => {
+		const lea = { id: 12, first_name: 'Léa', last_name: 'Martin', photo: '/media/avatars/12-4f1c2a9b7e3d-sm.webp' };
+		const badges = [{ code: 'comrades', tier: 0, years: [2026], discipline: null, partner: lea }];
+		renderWith(BadgeSheet, { slot: slotFor('comrades', badges), open: true });
+
+		const detail = screen.getByTestId('badge-sheet-detail');
+		const photo = detail.querySelector('img');
+		expect(photo).toHaveAttribute('src', '/media/avatars/12-4f1c2a9b7e3d-sm.webp');
+		expect(photo).toHaveAttribute('alt', '');
+		expect(photo.closest('[aria-hidden="true"]')).not.toBeNull();
+		const link = within(detail).getByRole('link', { name: 'Léa Martin' });
+		expect(photo.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+		expect(link.contains(photo)).toBe(false);
+		expect(detail.textContent.replace(/\s+/g, ' ').trim()).toBe('with Léa Martin · 2026');
 	});
 
 	it('renders no detail line for an entry with nothing to show', () => {

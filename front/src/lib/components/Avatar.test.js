@@ -40,4 +40,10 @@ describe('Avatar', () => {
 	it('leaves --avatar-size to the page without a size, so a media query can set it', () => {
 		expect(avatarOf({ name: lea }).style.getPropertyValue('--avatar-size')).toBe('');
 	});
+
+	it('loads the photo lazily only when asked, for long lists below the fold', () => {
+		const photo = '/media/avatars/7-abc-sm.webp';
+		expect(avatarOf({ photo, name: lea, lazy: true }).querySelector('img')).toHaveAttribute('loading', 'lazy');
+		expect(avatarOf({ photo, name: lea }).querySelector('img')).not.toHaveAttribute('loading');
+	});
 });

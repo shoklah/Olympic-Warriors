@@ -14,6 +14,11 @@
 	 * the page (24px by default), so a media query around the avatar can change it.
 	 */
 	export let size = null;
+	/**
+	 * Load the photo lazily: for long lists (the leaderboard), never above the fold (the
+	 * profile header, the account pill), where it would only arrive later.
+	 */
+	export let lazy = false;
 
 	$: diameter = typeof size === 'number' ? `${size}px` : size;
 </script>
@@ -22,7 +27,7 @@
      decorative (alt="") and the initials are not read out a second time. -->
 <span class="avatar" class:initials={!photo} style:--avatar-size={diameter} aria-hidden="true">
 	{#if photo}
-		<img src={photo} alt="" />
+		<img src={photo} alt="" loading={lazy ? 'lazy' : undefined} />
 	{:else}
 		{initials(name?.first_name, name?.last_name)}
 	{/if}
