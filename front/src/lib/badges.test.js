@@ -22,13 +22,13 @@ const BADGE_CODES = [
 	'champion', 'runner-up', 'bronze', 'chocolate', 'wooden-spoon',
 	'back-to-back', 'threepeat', 'dynasty', 'phoenix', 'legend', 'podium-regular', 'full-set',
 	'eternal-second', 'janus', 'comeback', 'on-the-rise', 'icarus', 'lucky-charm',
-	'rookie', 'veteran', 'argonaut', 'ever-present', 'homecoming', 'globetrotter',
+	'rookie', 'veteran', 'argonaut', 'ever-present', 'homecoming',
 	'comrades', 'networker',
 	'goat', 'alone-at-the-top', 'hall-of-fame-podium', 'hall-of-famer', 'reign', 'kingslayer', 'rocket',
 	'specialist', 'all-rounder', 'decathlete', 'brains-and-brawn', 'clean-sweep', 'metronome',
 	'uncrowned', 'photo-finish',
 	'athena', 'apollo', 'artemis', 'hermes', 'heracles', 'theseus', 'ares', 'hades', 'dionysus', 'olympus',
-	'unbeaten', 'perfect-run', 'shutout', 'steamroller', 'golden-whistle', 'perfect-pitch',
+	'unbeaten', 'perfect-run', 'shutout', 'steamroller', 'perfect-pitch',
 	'mvp', 'fair-play', 'hype', 'costume', 'wounded', 'torchbearer'
 ];
 
@@ -158,15 +158,15 @@ describe('FAMILIES', () => {
 		expect(FAMILIES.map((f) => f.key)).toEqual([
 			'podiums', 'streaks', 'loyalty', 'teammates', 'hall-of-fame', 'disciplines', 'olympus', 'games', 'awards'
 		]);
-		expect(FAMILIES.map((f) => f.codes.length)).toEqual([5, 13, 6, 2, 7, 8, 10, 6, 6]);
+		expect(FAMILIES.map((f) => f.codes.length)).toEqual([5, 13, 5, 2, 7, 8, 10, 5, 6]);
 	});
 });
 
 describe('TIER_THRESHOLDS and nextThreshold', () => {
-	it('lists the six tiered codes with the server thresholds', () => {
+	it('lists the five tiered codes with the server thresholds', () => {
 		expect(TIER_THRESHOLDS).toEqual({
 			veteran: [3, 5, 10], 'ever-present': [4, 6, 8], networker: [5, 10, 20],
-			specialist: [2, 3, 4], 'all-rounder': [3, 5, 8], 'golden-whistle': [5, 10, 20]
+			specialist: [2, 3, 4], 'all-rounder': [3, 5, 8]
 		});
 		expect(Object.keys(TIER_THRESHOLDS).sort()).toEqual(Object.keys(BADGES).filter(isTiered).sort());
 	});
@@ -185,11 +185,11 @@ describe('badgeCollection', () => {
 
 	it('counts earned slots overall and per family, ignoring unknown codes', () => {
 		const c = badgeCollection([entry('champion', { years: [2021, 2024] }), entry('rookie'), entry('future-badge')]);
-		expect(c.total).toBe(63);
+		expect(c.total).toBe(61);
 		expect(c.earned).toBe(2);
 		const podiums = c.families.find((f) => f.key === 'podiums');
 		expect([podiums.earned, podiums.total]).toEqual([1, 5]);
-		expect(c.families.reduce((n, f) => n + f.slots.length, 0)).toBe(63);
+		expect(c.families.reduce((n, f) => n + f.slots.length, 0)).toBe(61);
 	});
 
 	it('counts repeats, disciplines and partners, but a tier once', () => {

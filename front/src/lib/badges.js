@@ -31,7 +31,6 @@ export const BADGES = {
 	argonaut: 'gold',
 	'ever-present': 'tiers',
 	homecoming: 'plain',
-	globetrotter: 'bronze',
 	comrades: 'silver',
 	networker: 'tiers',
 	goat: 'gold',
@@ -63,7 +62,6 @@ export const BADGES = {
 	'perfect-run': 'gold',
 	shutout: 'bronze',
 	steamroller: 'silver',
-	'golden-whistle': 'tiers',
 	'perfect-pitch': 'gold',
 	mvp: 'gold',
 	'fair-play': 'silver',
@@ -143,7 +141,7 @@ export const FAMILIES = [
 			'eternal-second', 'janus', 'comeback', 'on-the-rise', 'icarus', 'lucky-charm'
 		]
 	},
-	{ key: 'loyalty', codes: ['rookie', 'veteran', 'argonaut', 'ever-present', 'homecoming', 'globetrotter'] },
+	{ key: 'loyalty', codes: ['rookie', 'veteran', 'argonaut', 'ever-present', 'homecoming'] },
 	{ key: 'teammates', codes: ['comrades', 'networker'] },
 	{
 		key: 'hall-of-fame',
@@ -160,12 +158,12 @@ export const FAMILIES = [
 		key: 'olympus',
 		codes: ['athena', 'apollo', 'artemis', 'hermes', 'heracles', 'theseus', 'ares', 'hades', 'dionysus', 'olympus']
 	},
-	{ key: 'games', codes: ['unbeaten', 'perfect-run', 'shutout', 'steamroller', 'golden-whistle', 'perfect-pitch'] },
+	{ key: 'games', codes: ['unbeaten', 'perfect-run', 'shutout', 'steamroller', 'perfect-pitch'] },
 	{ key: 'awards', codes: ['mvp', 'fair-play', 'hype', 'costume', 'wounded', 'torchbearer'] }
 ];
 
 /**
- * The tier thresholds of the six tiered codes, mirroring `badges.py`. Tuning a threshold
+ * The tier thresholds of the five tiered codes, mirroring `badges.py`. Tuning a threshold
  * means changing `badges.py`, both dictionaries' `badge.<code>.rule` and this table
  * together (see the design spec, "Tier thresholds").
  */
@@ -174,8 +172,7 @@ export const TIER_THRESHOLDS = {
 	'ever-present': [4, 6, 8],
 	networker: [5, 10, 20],
 	specialist: [2, 3, 4],
-	'all-rounder': [3, 5, 8],
-	'golden-whistle': [5, 10, 20]
+	'all-rounder': [3, 5, 8]
 };
 
 /**

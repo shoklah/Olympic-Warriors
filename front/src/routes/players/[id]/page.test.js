@@ -89,7 +89,7 @@ describe('player profile page', () => {
 
 		expect(screen.getByRole('link', { name: 'Badges' })).toHaveAttribute('aria-current', 'page');
 		expect(screen.getByRole('link', { name: 'Profile' })).not.toHaveAttribute('aria-current');
-		expect(screen.getByText('4 badges out of 63')).toBeInTheDocument();
+		expect(screen.getByText('4 badges out of 61')).toBeInTheDocument();
 		expect(screen.getByRole('heading', { level: 3, name: /Podiums/ })).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: /^Champion,/ })).toBeInTheDocument();
 		expect(screen.queryByRole('heading', { level: 2, name: 'Editions' })).toBeNull();
@@ -119,13 +119,13 @@ describe('player profile page', () => {
 
 		const card = screen.getByTestId('badge-count');
 		expect(card).toHaveAttribute('href', '?tab=badges');
-		expect(screen.getByRole('link', { name: 'Badges 4 / 63 see the collection' })).toBe(card);
+		expect(screen.getByRole('link', { name: 'Badges 4 / 61 see the collection' })).toBe(card);
 	});
 
-	it('shows 0/63 in the badge-count card for a profile with no badge', () => {
+	it('shows 0/61 in the badge-count card for a profile with no badge', () => {
 		renderWith(Page, { data: { profile: profileUnranked } });
 
-		expect(screen.getByTestId('badge-count')).toHaveTextContent(/Badges\s*0\s*\/\s*63/);
+		expect(screen.getByTestId('badge-count')).toHaveTextContent(/Badges\s*0\s*\/\s*61/);
 	});
 
 	it('does not crash for a payload without the badges key, like an older API', () => {
@@ -134,7 +134,7 @@ describe('player profile page', () => {
 		renderWith(Page, { data: { profile: older } });
 
 		expect(screen.getByRole('heading', { level: 1, name: 'Ana Petit' })).toBeInTheDocument();
-		expect(screen.getByTestId('badge-count')).toHaveTextContent(/Badges\s*0\s*\/\s*63/);
+		expect(screen.getByTestId('badge-count')).toHaveTextContent(/Badges\s*0\s*\/\s*61/);
 	});
 
 	it('dashes the figures and says so when nothing is counted yet', () => {
@@ -175,7 +175,7 @@ describe('player profile page', () => {
 		const nav = screen.getByRole('navigation', { name: 'Sections du profil' });
 		expect(within(nav).getByRole('link', { name: 'Profil' })).toBeInTheDocument();
 		expect(within(nav).getByRole('link', { name: 'Badges' })).toHaveAttribute('href', '?tab=badges');
-		expect(screen.getByRole('link', { name: 'Badges 4 / 63 voir la collection' })).toBe(
+		expect(screen.getByRole('link', { name: 'Badges 4 / 61 voir la collection' })).toBe(
 			screen.getByTestId('badge-count')
 		);
 	});

@@ -560,7 +560,6 @@ LOYALTY_CODES = (
     C.ARGONAUT,
     C.EVER_PRESENT,
     C.HOMECOMING,
-    C.GLOBETROTTER,
 )
 
 
@@ -570,12 +569,6 @@ def tiers_of(user, code, today=TODAY):
 
 
 class TestLoyalty(World, TestCase):
-    def tour(self, user, hosts):
-        """Seat `user` on a team in consecutive editions from 2021, held at `hosts`."""
-        for year, host in zip(range(2021, 2021 + len(hosts)), hosts):
-            edition, teams = self.edition(year, host=host)
-            self.seat(user, edition, teams[0])
-
     def test_rookie_at_the_first_finished_edition_played(self):
         ana = self.person("Ana")
         self.play(ana, [None, 2, 3])
@@ -667,30 +660,6 @@ class TestLoyalty(World, TestCase):
         self.play(ana, [None, None, None, 3])
 
         self.assertEqual(years_of(ana, C.HOMECOMING), [])
-
-    def test_hosts_match_whatever_the_case_and_spaces(self):
-        ana = self.person("Ana")
-        self.tour(ana, ["Paris", " paris ", "Nantes"])
-
-        self.assertEqual(years_of(ana, C.GLOBETROTTER), [])
-
-    def test_globetrotter_at_the_third_host(self):
-        ana = self.person("Ana")
-        self.tour(ana, ["Paris", " paris ", "Nantes", "Lyon"])
-
-        self.assertEqual(years_of(ana, C.GLOBETROTTER), [2024])
-
-    def test_a_fourth_host_earns_nothing_more(self):
-        ana = self.person("Ana")
-        self.tour(ana, ["Paris", " paris ", "Nantes", "Lyon", "Marseille"])
-
-        self.assertEqual(years_of(ana, C.GLOBETROTTER), [2024])
-
-    def test_hosts_match_whatever_the_accents(self):
-        ana = self.person("Ana")
-        self.tour(ana, ["Orléans", "Orleans", "Paris"])
-
-        self.assertEqual(years_of(ana, C.GLOBETROTTER), [])
 
 
 def comrades_of(user, today=TODAY):
@@ -1461,7 +1430,6 @@ GAME_CODES = (
     C.PERFECT_RUN,
     C.SHUTOUT,
     C.STEAMROLLER,
-    C.GOLDEN_WHISTLE,
     C.PERFECT_PITCH,
 )
 
@@ -1572,22 +1540,9 @@ class TestGames(World, TestCase):
             [(C.PERFECT_RUN, 2021, 0, "Rugby", None), (C.UNBEATEN, 2021, 0, "Football", None)],
         )
 
-    def test_a_hidden_discipline_gives_only_the_golden_whistle(self):
-        # Ana's team wins three games to nil and referees five more, all hidden.
-        edition, (a, b, c, d) = self.four()
-        rugby = self.sport(edition, reveal=False)
-        self.game(rugby, a, 12, b, 0, c)
-        self.game(rugby, a, 12, c, 0, d)
-        self.game(rugby, a, 12, d, 0, b)
-        for team1, team2 in ((b, c), (b, d), (c, d), (b, c), (b, d)):
-            self.game(rugby, team1, 3, team2, 1, a)
-
-        self.assertEqual(games_of(self.ana), [(C.GOLDEN_WHISTLE, 2021, 1, "", None)])
-
     def test_unplayed_games_and_inactive_rounds_games_and_disciplines_count_for_nothing(self):
-        # Two wins count for Ana's team and four refereed games for Bob's: any one excluded
-        # Rugby game would make a third win (a perfect run, a shutout) and a fifth whistle,
-        # and the win of the deactivated Football a shutout and a fifth whistle.
+        # Two wins count for Ana's team: any one excluded Rugby game would make a third win
+        # (a perfect run, a shutout), and so would the win of the deactivated Football.
         edition, (a, b, c, d) = self.four()
         rugby = self.sport(edition)
         self.game(rugby, a, 12, c, 3, b)
@@ -1605,7 +1560,6 @@ class TestGames(World, TestCase):
         Discipline.objects.filter(pk=football.discipline_id).update(is_active=False)
 
         self.assertEqual(games_of(self.ana, C.UNBEATEN, C.PERFECT_RUN, C.SHUTOUT), [])
-        self.assertEqual(games_of(self.bob, C.GOLDEN_WHISTLE), [])
 
     def test_shutout_once_per_edition(self):
         for year in (2021, 2022):
@@ -1703,61 +1657,6 @@ class TestGames(World, TestCase):
                 (C.STEAMROLLER, 2021, 0, "Rugby", None),
             ],
         )
-
-    def whistle(self, year, count, reveal=True):
-        """A new edition of `year` where Ana's team referees `count` games of Bob's and
-        Cat's."""
-        edition, (a, b, c, _) = self.four(year)
-        rugby = self.sport(edition, reveal=reveal)
-        for _ in range(count):
-            self.game(rugby, b, 2, c, 1, a)
-
-    def test_golden_whistle_at_the_edition_reaching_five_games(self):
-        self.whistle(2021, 3)
-        self.whistle(2022, 2)
-
-        self.assertEqual(tiers_of(self.ana, C.GOLDEN_WHISTLE), [(2022, 1)])
-
-    def test_four_refereed_games_are_not_enough(self):
-        self.whistle(2021, 2)
-        self.whistle(2022, 2)
-
-        self.assertEqual(tiers_of(self.ana, C.GOLDEN_WHISTLE), [])
-
-    def test_golden_whistle_tiers_at_ten_and_twenty(self):
-        for year, count in ((2021, 5), (2022, 5), (2023, 9), (2024, 1)):
-            self.whistle(year, count)
-
-        self.assertEqual(tiers_of(self.ana, C.GOLDEN_WHISTLE), [(2021, 1), (2022, 2), (2024, 3)])
-
-    def test_golden_whistle_crossing_two_tiers_in_one_edition(self):
-        self.whistle(2021, 10)
-
-        self.assertEqual(tiers_of(self.ana, C.GOLDEN_WHISTLE), [(2021, 1), (2021, 2)])
-
-    def test_a_playing_team_in_the_referee_slot_referees_nothing(self):
-        # The schedulers leave a playing team as a placeholder referee (Swiss rounds put
-        # team1 there). Four real refereed games, then Ana's team in the slot of a game it
-        # plays as team1 and of one it plays as team2: either would make a fifth whistle.
-        edition, (a, b, c, _) = self.four()
-        rugby = self.sport(edition)
-        for _ in range(4):
-            self.game(rugby, b, 2, c, 1, a)
-        self.game(rugby, a, 2, b, 1, a)
-        self.game(rugby, c, 2, a, 1, a)
-
-        self.assertEqual(tiers_of(self.ana, C.GOLDEN_WHISTLE), [])
-
-    def test_refereeing_in_a_hidden_discipline_counts(self):
-        # Three games refereed in a revealed Rugby and two in a hidden Football.
-        edition, (a, b, c, _) = self.four()
-        rugby = self.sport(edition)
-        football = self.sport(edition, Football, reveal=False)
-        for round_, count in ((rugby, 3), (football, 2)):
-            for _ in range(count):
-                self.game(round_, b, 2, c, 1, a)
-
-        self.assertEqual(tiers_of(self.ana, C.GOLDEN_WHISTLE), [(2021, 1)])
 
     def blindtest(self, reveal=True):
         """

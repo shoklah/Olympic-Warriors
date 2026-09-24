@@ -89,14 +89,6 @@ export default {
 		one: 'Premier niveau : {n} épreuve gagnée',
 		other: 'Premier niveau : {n} épreuves gagnées'
 	},
-	'badge.next.golden-whistle': {
-		one: 'Prochain niveau : {n} match arbitré',
-		other: 'Prochain niveau : {n} matchs arbitrés'
-	},
-	'badge.first.golden-whistle': {
-		one: 'Premier niveau : {n} match arbitré',
-		other: 'Premier niveau : {n} matchs arbitrés'
-	},
 	'badge.topTier': 'Niveau maximum',
 	'badge.close': 'Fermer',
 	'badge.level': 'Niveau {tier}',
@@ -153,8 +145,6 @@ export default {
 	'badge.ever-present.rule': "Jouer 4, 6 puis 8 éditions d'affilée",
 	'badge.homecoming.name': 'Ulysse',
 	'badge.homecoming.rule': "Revenir après au moins deux éditions d'absence",
-	'badge.globetrotter.name': 'Globe-trotteur',
-	'badge.globetrotter.rule': 'Jouer dans trois villes différentes',
 	'badge.comrades.name': "Compagnons d'armes",
 	'badge.comrades.rule': "Partager l'équipe de la même personne trois fois",
 	'badge.networker.name': 'Rassembleur',
@@ -217,8 +207,6 @@ export default {
 	'badge.shutout.rule': 'Gagner un match sans encaisser de point',
 	'badge.steamroller.name': 'Rouleau compresseur',
 	'badge.steamroller.rule': "Gagner avec le plus large écart d'une épreuve",
-	'badge.golden-whistle.name': "Sifflet d'or",
-	'badge.golden-whistle.rule': 'Arbitrer 5, 10 puis 20 matchs',
 	'badge.perfect-pitch.name': 'Oreille absolue',
 	'badge.perfect-pitch.rule': 'Trouver artiste et titre à chaque manche du blindtest',
 	'badge.mvp.name': 'MVP',

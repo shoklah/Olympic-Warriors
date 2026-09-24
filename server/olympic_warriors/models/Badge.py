@@ -40,7 +40,6 @@ class Badge(models.Model):
         ARGONAUT = "argonaut", "Argonaute"
         EVER_PRESENT = "ever-present", "Pénélope"
         HOMECOMING = "homecoming", "Ulysse"
-        GLOBETROTTER = "globetrotter", "Globe-trotteur"
         # Teammates
         COMRADES = "comrades", "Compagnons d'armes"
         NETWORKER = "networker", "Rassembleur"
@@ -77,7 +76,6 @@ class Badge(models.Model):
         PERFECT_RUN = "perfect-run", "Sans faute"
         SHUTOUT = "shutout", "Cadenas"
         STEAMROLLER = "steamroller", "Rouleau compresseur"
-        GOLDEN_WHISTLE = "golden-whistle", "Sifflet d'or"
         PERFECT_PITCH = "perfect-pitch", "Oreille absolue"
         # Given by hand
         MVP = "mvp", "MVP"
