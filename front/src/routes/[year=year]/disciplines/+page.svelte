@@ -103,6 +103,7 @@
 	.icon img {
 		height: 76%;
 		width: 76%;
+		filter: var(--icon-filter);
 	}
 
 	/* Only the tile dims: the name and the subtitle stay readable. */

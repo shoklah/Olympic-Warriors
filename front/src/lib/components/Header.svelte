@@ -60,6 +60,25 @@
 			<button name="lang" value="fr" aria-current={locale === 'fr' ? 'true' : undefined}>FR</button>
 			<button name="lang" value="en" aria-current={locale === 'en' ? 'true' : undefined}>EN</button>
 		</form>
+		<!-- A plain POST like the language switch. Only the browser knows which theme is on
+		     screen while the device setting decides, so both buttons are rendered and
+		     styles.css shows the one leading away from it (none on the always-dark hub). -->
+		<form method="POST" action="/theme" class="theme" aria-label={t('header.theme')}>
+			<input type="hidden" name="redirectTo" value={$page.url.pathname + $page.url.search} />
+			<button class="to-light" name="theme" value="light" aria-label={t('header.toLight')}>
+				<svg viewBox="0 0 24 24" aria-hidden="true">
+					<circle cx="12" cy="12" r="4" />
+					<path
+						d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"
+					/>
+				</svg>
+			</button>
+			<button class="to-dark" name="theme" value="dark" aria-label={t('header.toDark')}>
+				<svg viewBox="0 0 24 24" aria-hidden="true">
+					<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+				</svg>
+			</button>
+		</form>
 	</div>
 
 	<nav aria-label={t('nav.sections')}>
@@ -127,8 +146,10 @@
 		cursor: pointer;
 	}
 
+	/* The option list is the browser's own popup: its system colours follow the theme's color-scheme. */
 	select option {
-		color: black;
+		color: CanvasText;
+		background-color: Canvas;
 	}
 
 	.lang {
@@ -219,6 +240,52 @@
 		outline-offset: 2px;
 	}
 
+	.theme {
+		margin: 0;
+	}
+
+	/* Round and quiet like the login pill; `display` comes from the theme tokens. */
+	.theme button {
+		align-items: center;
+		justify-content: center;
+		width: 44px;
+		height: 44px;
+		padding: 0;
+		background: transparent;
+		color: var(--muted);
+		border: 1px solid var(--line-strong);
+		border-radius: 50%;
+		cursor: pointer;
+	}
+
+	.theme .to-light {
+		display: var(--switch-to-light);
+	}
+
+	.theme .to-dark {
+		display: var(--switch-to-dark);
+	}
+
+	.theme button:hover {
+		color: var(--accent);
+		border-color: var(--accent);
+	}
+
+	.theme button:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
+	}
+
+	.theme svg {
+		width: 20px;
+		height: 20px;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+
 	nav {
 		display: flex;
 		justify-content: center;
@@ -270,7 +337,7 @@
 		}
 	}
 
-	/* Four controls in the top bar on a phone: tighter gaps and padding so nothing overflows. */
+	/* Five controls in the top bar on a phone: tighter gaps and padding so nothing overflows. */
 	@media (max-width: 599.98px) {
 		header {
 			padding: 10px 12px;
@@ -297,6 +364,35 @@
 
 		.lang button {
 			padding: 0 0.7em;
+		}
+	}
+
+	/* Five controls on the narrowest phones: tighter still, every touch target kept at 44px. */
+	@media (max-width: 399.98px) {
+		header {
+			padding-inline: 8px;
+		}
+
+		.logo {
+			gap: 0.35rem;
+		}
+
+		select,
+		.lang button,
+		.orga button,
+		.login {
+			letter-spacing: 0.02em;
+		}
+
+		select,
+		.login,
+		.orga button {
+			padding-left: 0.45em;
+			padding-right: 0.45em;
+		}
+
+		.lang button {
+			padding: 0 0.5em;
 		}
 	}
 </style>

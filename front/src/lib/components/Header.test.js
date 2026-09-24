@@ -52,6 +52,25 @@ describe('Header', () => {
 		expect(screen.getByRole('combobox', { name: 'Edition' })).toBeInTheDocument();
 	});
 
+	it('offers both themes through one form; the stylesheet shows one of the two', () => {
+		renderWith(Header, {}, 'en');
+
+		const form = screen.getByRole('form', { name: 'Theme' });
+		expect(form).toHaveAttribute('action', '/theme');
+		expect(form).toHaveAttribute('method', 'POST');
+		expect(form.querySelector('input[name="redirectTo"]')).toHaveValue('/2026/ranking?tab=all');
+		expect(within(form).getByRole('button', { name: 'Switch to light theme' })).toHaveValue('light');
+		expect(within(form).getByRole('button', { name: 'Switch to dark theme' })).toHaveValue('dark');
+	});
+
+	it('words the theme switch in French', () => {
+		renderWith(Header, {}, 'fr');
+
+		const form = screen.getByRole('form', { name: 'Thème' });
+		expect(within(form).getByRole('button', { name: 'Passer au thème clair' })).toHaveValue('light');
+		expect(within(form).getByRole('button', { name: 'Passer au thème sombre' })).toHaveValue('dark');
+	});
+
 	it('shows the ORGA pill with a logout form to an organiser', () => {
 		renderWith(Header, {}, 'fr', true);
 
