@@ -17,6 +17,8 @@ import {
 	roundCount,
 	startInstant,
 	switchYearPath,
+	ALL_TIME_TAB,
+	disciplinePath,
 	teamGames,
 	teamResults
 } from './edition.js';
@@ -447,5 +449,13 @@ describe('disciplineEntries', () => {
 
 	it('is empty for an unknown discipline', () => {
 		expect(disciplineEntries(summaryStaff, 99)).toEqual([]);
+	});
+});
+
+describe('disciplinePath', () => {
+	it('points to the edition tab by default and to the all-time tab on request', () => {
+		expect(disciplinePath(2026, 10)).toBe('/2026/disciplines/10');
+		expect(disciplinePath(2025, 3, true)).toBe(`/2025/disciplines/3?tab=${ALL_TIME_TAB}`);
+		expect(ALL_TIME_TAB).toBe('all-time');
 	});
 });

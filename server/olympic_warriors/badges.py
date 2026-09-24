@@ -1,7 +1,7 @@
 """
 Badges people earn from their editions (see the player badges design spec under
 docs/superpowers/specs/). earned() computes every computed badge from the current data;
-refresh() stores the difference in the Badge table. The nightly cron job, the Edition admin
+refresh() stores the difference in the Badge table. The monthly cron job, the Edition admin
 action and import_edition call refresh(); a page view only reads the table.
 
 The rules read the sequence: the finished active editions with at least one active player,
@@ -22,7 +22,7 @@ from django.utils import timezone
 
 from .models import Badge, BadgeRefresh, BlindtestGuess, Game
 from .models.ResultTypes import ResultTypes
-from .profiles import _load, _participations, _place, _record, _sort_key, paris_today
+from .profiles import _contested, _load, _participations, _place, _record, _sort_key, paris_today
 
 C = Badge.Codes
 
@@ -403,7 +403,7 @@ ALL_ROUNDER_TIERS = ((3, 1), (5, 2), (8, 3))
 @dataclass(frozen=True)
 class DisciplineResult:
     """A team's result in one discipline of a sequence edition, with its standing's rank
-    (0 when hidden or unscored)."""
+    (0 when hidden, unscored, or in an uncontested discipline: see _discipline_results)."""
 
     team_id: int
     discipline_id: int
@@ -417,10 +417,14 @@ def _discipline_results(h):
     """
     {sequence index: [DisciplineResult]}: the active results of the sequence's active teams
     and disciplines, read from each edition's Standings (disciplines_of), which
-    compute_standings already loaded: no query of its own.
+    compute_standings already loaded: no query of its own. A discipline whose ranked results
+    all share one rank (profiles._contested: a lone scored result, or every team tied on 0
+    before any game) beats nobody, so its results rank 0 here as they give no place on the
+    profiles: no win, no podium, and no ranked discipline for the metronome.
     """
     results = {}
     for i, standing in enumerate(h.standings):
+        contested = _contested(standing)
         results[i] = [
             DisciplineResult(
                 team_id,
@@ -428,7 +432,7 @@ def _discipline_results(h):
                 discipline.discipline_name,
                 discipline.result_type,
                 discipline.points,
-                discipline.standing.ranking,
+                discipline.standing.ranking if discipline.discipline_id in contested else 0,
             )
             for team_id, disciplines in standing.team_disciplines.items()
             for discipline in disciplines
@@ -475,8 +479,9 @@ def _masters(h, results):
     least MASTER_EDITIONS of them, earned at the one that completed it. Unlike every other
     badge it is judged on the whole sequence, not up to each edition: the next edition of the
     discipline that the person does not win, played or missed, takes it away (the refresh
-    deletes the row). A hidden or unscored discipline ranks nothing, so it neither extends
-    nor breaks the run, and an unfinished edition is not in the sequence yet.
+    deletes the row). A hidden, unscored or uncontested discipline ranks nothing here
+    (_discipline_results), so it neither extends nor breaks the run, and an unfinished
+    edition is not in the sequence yet.
     """
     held = _held(results)
     for name in sorted(held):
@@ -515,7 +520,10 @@ def _disciplines_of(h, results, user_id, seats):
         for threshold, tier in ALL_ROUNDER_TIERS:
             if before < threshold <= len(won):
                 yield Earned(user_id, C.ALL_ROUNDER, edition_id, tier=tier)
-        podiums.update(r.name for r in mine if 1 <= r.ranking <= 3)
+        # A discipline podium needs an edition of at least 4 teams: in a smaller one every
+        # result is on the podium, the last place included.
+        podium = [r for r in mine if 1 <= r.ranking <= 3] if edition.team_count >= 4 else []
+        podiums.update(r.name for r in podium)
         if not decathlete and len(podiums) >= 10:
             decathlete = True
             yield Earned(user_id, C.DECATHLETE, edition_id)
@@ -526,7 +534,7 @@ def _disciplines_of(h, results, user_id, seats):
         if len(wins) >= 3:
             yield Earned(user_id, C.CLEAN_SWEEP, edition_id)
         ranked = {r.discipline_id for r in rows if r.ranking}
-        on_podium = {r.discipline_id for r in mine if 1 <= r.ranking <= 3}
+        on_podium = {r.discipline_id for r in podium}
         if len(ranked) >= 4 and ranked <= on_podium:
             yield Earned(user_id, C.METRONOME, edition_id)
         if _uncrowned(rows, seat, wins):

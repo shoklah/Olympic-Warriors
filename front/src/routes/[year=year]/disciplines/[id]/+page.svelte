@@ -1,8 +1,9 @@
 <script>
 	import { enhance } from '$app/forms';
-	import { entryTime, formatDifference, formatTime, roundCount } from '$lib/edition';
+	import { ALL_TIME_TAB, disciplinePath, entryTime, formatDifference, formatTime, roundCount } from '$lib/edition';
 	import { iconFor } from '$lib/icons';
 	import { disciplineName, useLocale, useT } from '$lib/i18n';
+	import AllTimeTable from '$lib/components/AllTimeTable.svelte';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import DisciplineRail from '$lib/components/DisciplineRail.svelte';
 	import MedalRank from '$lib/components/MedalRank.svelte';
@@ -19,6 +20,8 @@
 
 	$: year = data.summary.edition.year;
 	$: name = disciplineName(locale, data.discipline.name);
+	// The load reads ?tab=; the all-time table is only fetched on its own tab.
+	$: allTime = data.tab === ALL_TIME_TAB;
 	$: rounds = (data.schedule ?? []).filter((round) => round.games.length > 0);
 	// The difference is summed from game scores, so a discipline without rounds
 	// has nothing but zeroes to show.
@@ -81,134 +84,160 @@
 		{name}
 	</h1>
 
-	{#if editable}
-		<StaffBar
-			disciplineId={data.discipline.id}
-			revealed={data.discipline.reveal_score}
-			{missing}
-			error={errorFor('reveal', data.discipline.id)}
-		/>
-	{/if}
-
 	<div class="rail">
-		<DisciplineRail {year} disciplines={data.summary.disciplines} currentId={data.discipline.id} />
+		<DisciplineRail
+			{year}
+			disciplines={data.summary.disciplines}
+			currentId={data.discipline.id}
+			{allTime}
+		/>
 	</div>
 
-	{#if editable && !hasRounds}
-		<!-- The organiser's entry form replaces the list: one line per team, one form each. -->
-		<div id="entries">
-			{#each data.entries as entry (entry.id)}
-				<form method="POST" action="?/result" class="result-line" data-testid="result-line" use:enhance={keepValues}>
-					<input type="hidden" name="result" value={entry.id} />
-					<input type="hidden" name="kind" value={data.discipline.result_type} />
-					<span class="rank"><MedalRank rank={entry.ranking} /></span>
-					<label class="name" id="entry-label-{entry.id}" for="entry-{entry.id}">{entry.teamName ?? t('team.unknown')}</label>
-					{#if data.discipline.result_type === 'TIM'}
-						<!-- A text keyboard: the numeric keypad has no colon. The pattern is a JS string
-						     because Svelte would read `{1,3}` in a plain attribute as an expression. -->
-						<input
-							id="entry-{entry.id}"
-							name="value"
-							type="text"
-							placeholder={t('orga.timeHint')}
-							pattern={'[0-9]{1,3}:[0-5][0-9]'}
-							value={entryTime(entry.time) ?? ''}
-						/>
-					{:else}
-						<input
-							id="entry-{entry.id}"
-							name="value"
-							type="number"
-							inputmode="numeric"
-							min="0"
-							value={entry.points ?? ''}
-						/>
-					{/if}
-					<button aria-describedby="entry-label-{entry.id}">{t('orga.save')}</button>
-					{#if errorFor('result', entry.id)}
-						<p class="error" role="alert">{t(errorFor('result', entry.id))}</p>
-					{/if}
-				</form>
-			{/each}
-		</div>
-	{:else if data.results === null}
-		<p class="not-revealed">{t('discipline.notRevealed')}</p>
-	{:else}
-		<div id="results">
-			{#each data.results as result}
-				{@const difference =
-					hasRounds && result.result_type === 'PTS' && result.points_difference !== null
-						? formatDifference(result.points_difference)
-						: null}
-				<a
-					class="result-row"
-					class:no-diff={difference === null}
-					class:gold={result.ranking === 1}
-					class:silver={result.ranking === 2}
-					class:bronze={result.ranking === 3}
-					data-testid="result-row"
-					href="/{year}/teams/{result.team}"
-				>
-					<MedalRank rank={result.ranking} />
-					<span class="name">{result.teamName ?? t('team.unknown')}</span>
-					{#if difference !== null}
-						<span class="diff">{difference}</span>
-					{/if}
-					<span class="num value">
-						{#if result.ranking === null}
-							—
-						{:else if result.result_type === 'TIM'}
-							{formatTime(result.time)}
-						{:else}
-							{result.points} {t('team.pts')}
-						{/if}
-					</span>
-				</a>
-			{/each}
-		</div>
-	{/if}
+	<nav class="tabs" aria-label={t('discipline.tabs')}>
+		<a
+			class="tab"
+			href={disciplinePath(year, data.discipline.id)}
+			data-sveltekit-noscroll
+			data-sveltekit-keepfocus
+			aria-current={allTime ? undefined : 'page'}>{t('discipline.tab.edition', { year })}</a
+		>
+		<a
+			class="tab"
+			href={disciplinePath(year, data.discipline.id, true)}
+			data-sveltekit-noscroll
+			data-sveltekit-keepfocus
+			aria-current={allTime ? 'page' : undefined}>{t('discipline.tab.allTime')}</a
+		>
+	</nav>
 
-	{#if rounds.length > 0}
-		<section class="schedule">
-			<h2>{t('discipline.schedule')}</h2>
-			{#each rounds as round}
-				{@const count = roundCount(round)}
-				{@const closable = editable && isSwiss && !round.isOver && count.left === 0}
-				<div class="round-header">
-					<h3>{t('discipline.round', { n: round.order + 1 })}</h3>
-					{#if editable && round.isOver}
-						<span class="label done">{t('orga.roundClosed')}</span>
-					{:else if closable}
-						<form method="POST" action="?/close" use:enhance>
-							<input type="hidden" name="round" value={round.id} />
-							<button class="close">{t('orga.closeRound')}</button>
-						</form>
-					{:else}
-						<span class="label" class:todo={count.left > 0}>
-							{count.left > 0
-								? t('discipline.toPlay', { n: count.left })
-								: t('discipline.games', { n: count.total })}
-						</span>
-					{/if}
-				</div>
-				{#if errorFor('close', round.id)}
-					<p class="error" role="alert">{t(errorFor('close', round.id))}</p>
-				{/if}
-				{#each round.games as game}
-					<GameRow
-						team1Name={game.team1Name}
-						team2Name={game.team2Name}
-						team1Href="/{year}/teams/{game.team1Id}"
-						team2Href="/{year}/teams/{game.team2Id}"
-						score1={game.score1}
-						score2={game.score2}
-						isPlayed={game.isPlayed}
-						refereeName={game.refereeName}
-						onEdit={editable ? (event) => openSheet(game, round.order, event) : null}
-					/>
+	{#if allTime}
+		<AllTimeTable table={data.allTime} />
+	{:else}
+		{#if editable}
+			<StaffBar
+				disciplineId={data.discipline.id}
+				revealed={data.discipline.reveal_score}
+				{missing}
+				error={errorFor('reveal', data.discipline.id)}
+			/>
+		{/if}
+
+		{#if editable && !hasRounds}
+			<!-- The organiser's entry form replaces the list: one line per team, one form each. -->
+			<div id="entries">
+				{#each data.entries as entry (entry.id)}
+					<form method="POST" action="?/result" class="result-line" data-testid="result-line" use:enhance={keepValues}>
+						<input type="hidden" name="result" value={entry.id} />
+						<input type="hidden" name="kind" value={data.discipline.result_type} />
+						<span class="rank"><MedalRank rank={entry.ranking} /></span>
+						<label class="name" id="entry-label-{entry.id}" for="entry-{entry.id}">{entry.teamName ?? t('team.unknown')}</label>
+						{#if data.discipline.result_type === 'TIM'}
+							<!-- A text keyboard: the numeric keypad has no colon. The pattern is a JS string
+							     because Svelte would read `{1,3}` in a plain attribute as an expression. -->
+							<input
+								id="entry-{entry.id}"
+								name="value"
+								type="text"
+								placeholder={t('orga.timeHint')}
+								pattern={'[0-9]{1,3}:[0-5][0-9]'}
+								value={entryTime(entry.time) ?? ''}
+							/>
+						{:else}
+							<input
+								id="entry-{entry.id}"
+								name="value"
+								type="number"
+								inputmode="numeric"
+								min="0"
+								value={entry.points ?? ''}
+							/>
+						{/if}
+						<button aria-describedby="entry-label-{entry.id}">{t('orga.save')}</button>
+						{#if errorFor('result', entry.id)}
+							<p class="error" role="alert">{t(errorFor('result', entry.id))}</p>
+						{/if}
+					</form>
 				{/each}
-			{/each}
-		</section>
+			</div>
+		{:else if data.results === null}
+			<p class="not-revealed">{t('discipline.notRevealed')}</p>
+		{:else}
+			<div id="results">
+				{#each data.results as result}
+					{@const difference =
+						hasRounds && result.result_type === 'PTS' && result.points_difference !== null
+							? formatDifference(result.points_difference)
+							: null}
+					<a
+						class="result-row"
+						class:no-diff={difference === null}
+						class:gold={result.ranking === 1}
+						class:silver={result.ranking === 2}
+						class:bronze={result.ranking === 3}
+						data-testid="result-row"
+						href="/{year}/teams/{result.team}"
+					>
+						<MedalRank rank={result.ranking} />
+						<span class="name">{result.teamName ?? t('team.unknown')}</span>
+						{#if difference !== null}
+							<span class="diff">{difference}</span>
+						{/if}
+						<span class="num value">
+							{#if result.ranking === null}
+								—
+							{:else if result.result_type === 'TIM'}
+								{formatTime(result.time)}
+							{:else}
+								{result.points} {t('team.pts')}
+							{/if}
+						</span>
+					</a>
+				{/each}
+			</div>
+		{/if}
+
+		{#if rounds.length > 0}
+			<section class="schedule">
+				<h2>{t('discipline.schedule')}</h2>
+				{#each rounds as round}
+					{@const count = roundCount(round)}
+					{@const closable = editable && isSwiss && !round.isOver && count.left === 0}
+					<div class="round-header">
+						<h3>{t('discipline.round', { n: round.order + 1 })}</h3>
+						{#if editable && round.isOver}
+							<span class="label done">{t('orga.roundClosed')}</span>
+						{:else if closable}
+							<form method="POST" action="?/close" use:enhance>
+								<input type="hidden" name="round" value={round.id} />
+								<button class="close">{t('orga.closeRound')}</button>
+							</form>
+						{:else}
+							<span class="label" class:todo={count.left > 0}>
+								{count.left > 0
+									? t('discipline.toPlay', { n: count.left })
+									: t('discipline.games', { n: count.total })}
+							</span>
+						{/if}
+					</div>
+					{#if errorFor('close', round.id)}
+						<p class="error" role="alert">{t(errorFor('close', round.id))}</p>
+					{/if}
+					{#each round.games as game}
+						<GameRow
+							team1Name={game.team1Name}
+							team2Name={game.team2Name}
+							team1Href="/{year}/teams/{game.team1Id}"
+							team2Href="/{year}/teams/{game.team2Id}"
+							score1={game.score1}
+							score2={game.score2}
+							isPlayed={game.isPlayed}
+							refereeName={game.refereeName}
+							onEdit={editable ? (event) => openSheet(game, round.order, event) : null}
+						/>
+					{/each}
+				{/each}
+			</section>
+		{/if}
 	{/if}
 </div>
 
@@ -238,6 +267,39 @@
 
 	.rail {
 		margin-bottom: 14px;
+	}
+
+	.tabs {
+		display: flex;
+		gap: 1.4rem;
+		margin: 0 0 1rem;
+		border-bottom: 1px solid var(--line);
+	}
+
+	.tab {
+		padding: 0.3em 0.1em 0.6em;
+		border-bottom: 2px solid transparent;
+		color: var(--muted);
+		font-family: var(--font-display);
+		font-size: 1.1rem;
+		text-transform: uppercase;
+		letter-spacing: 0.1em;
+		text-decoration: none;
+	}
+
+	.tab:hover {
+		color: var(--accent);
+	}
+
+	.tab[aria-current='page'] {
+		color: var(--accent);
+		border-bottom-color: var(--accent);
+	}
+
+	.tab:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
+		border-radius: 2px;
 	}
 
 	.not-revealed {

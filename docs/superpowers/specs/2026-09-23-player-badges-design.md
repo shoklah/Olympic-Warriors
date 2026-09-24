@@ -1,6 +1,13 @@
 # Player badges
 
 > **Built 2026-09-23** in one go, all four phases at once; plan: docs/superpowers/plans/2026-09-23-player-badges.md.
+>
+> **Revised 2026-09-24:** the cron job runs monthly, on the 1st at 02:00 host time (the production host runs in Europe/Paris), not nightly (Hugo: editions are yearly), and logs to `$HOME/logs`, since the crontab's user cannot write `/var/log`. Run the admin action once an edition is over rather than wait for the 1st.
+>
+> **Revised 2026-09-24:** a discipline win or podium needs a contested discipline, the rule the
+> profiles and the all-time discipline tables apply (`profiles._contested`): a lone scored
+> result, or every team tied on 0 before any game, beats nobody. The game rules keep reading
+> played games as they did (see Games).
 
 ## Goal
 
@@ -22,7 +29,7 @@ Decisions taken while brainstorming (2026-09-23):
    similar cost on every access.
 5. **The global ranking badges** read the all-time table of `/players`, not an edition's
    team ranking, which the place badges already cover.
-6. **A nightly cron job refreshes the badges**, not a page view: reading a profile never
+6. **A monthly cron job refreshes the badges**, not a page view: reading a profile never
    writes. The thresholds of the tiered badges will be tuned later.
 
 ## Definitions
@@ -43,8 +50,8 @@ Decisions taken while brainstorming (2026-09-23):
 - **Earned at.** Each rule is evaluated over the history up to each edition of the
   sequence in turn. A one-time badge is earned at the first edition where its rule holds.
   A repeatable badge is earned at every edition that completes a new occurrence. Playing
-  more editions never takes a badge away. Only a correction of past data can, since the
-  refresh rebuilds from the current data.
+  more editions never takes a badge away. Only a correction of past data or of the rules
+  can, since the refresh rebuilds from the current data.
 - **Title**: rank 1. **Podium**: rank 1 to 3.
 - **Last place**: every active team of the edition has a rank and none has a worse one,
   in an edition of at least 4 teams, and that worst rank is 4th or below. So a last place
@@ -54,8 +61,19 @@ Decisions taken while brainstorming (2026-09-23):
 - **Teammate**: another person whose participation in the same edition has the same
   valid team.
 - **Discipline win, discipline podium**: a `ResultStanding.ranking` of 1, or of 1 to 3, in
-  `compute_standings(edition)`, so only for revealed, scored results. A discipline is
-  matched across editions by its `name`, as the rest of the app does.
+  `compute_standings(edition)`, so only for revealed, scored results, in a contested
+  discipline. A discipline podium also needs an edition of at least 4 teams, as the last
+  place does: in an edition of 2 or 3 teams every result is on the podium, the last one
+  included (added on 2026-09-24). A discipline is matched across editions by its `name`,
+  as the rest of the app does.
+- **Contested discipline**: its ranked results do not all share one rank
+  (`profiles._contested`, the rule of the profiles' « Par épreuve » and the all-time
+  discipline tables). `compute_standings` ranks a revealed discipline among its scored
+  results only, so a lone scored result (one team entered, the others still null) ranks
+  1st, and a revealed points discipline with a pairing system ties every team 1st on 0
+  before any game is played. Neither beats anybody, and missing data never counts as a
+  win, so the discipline rules read such a discipline's results as unranked: no win, no
+  podium, and not one of the ranked disciplines the `metronome` needs a podium in.
 - **Game**: an active, played game of an active round of an active discipline, the filter
   `compute_standings` uses. A game gives a badge only when its discipline is revealed, so
   a badge never leaks a hidden score. (Refereeing used to count for the golden whistle,
@@ -165,10 +183,10 @@ of fame reads.
 | `specialist` | Spécialiste | Specialist | Won the same discipline in 2 / 3 / 4 editions | tiers, one per discipline | tiers | That discipline's own icon, so there is no new glyph |
 | `master` | Maître | Master | Won every edition of a discipline, at least 2; lost at the next edition of it not won (added 2026-09-24, see the master badge spec) | one per discipline, held until lost | gold | A knotted martial arts belt |
 | `all-rounder` | Touche-à-tout | All-rounder | Won 3 / 5 / 8 different disciplines | tiers | tiers | A multi-tool |
-| `decathlete` | Décathlonien | Decathlete | Podium in 10 different disciplines | once | gold | A ten-pointed star |
+| `decathlete` | Décathlonien | Decathlete | Podium in 10 different disciplines, each in an edition of at least 4 teams | once | gold | A ten-pointed star |
 | `brains-and-brawn` | Tête et jambes | Brains and brawn | In one edition, won a mind discipline and a physical one | each | silver | A brain and a flexed arm |
 | `clean-sweep` | Razzia | Clean sweep | Won at least 3 disciplines in one edition | each | gold | A broom ✓ |
-| `metronome` | Métronome | Metronome | Podium in every ranked discipline of an edition, with at least 4 of them | each | gold | A metronome |
+| `metronome` | Métronome | Metronome | Podium in every ranked discipline of an edition of at least 4 teams, with at least 4 of them | each | gold | A metronome |
 | `uncrowned` | Sans couronne | Uncrowned | The most discipline wins of the edition (at least 2, no team with more) without the title: the person's participation counts and is not 1st | each | plain | A cracked crown |
 | `photo-finish` | Photo-finish | Photo finish | Won a points discipline on the points-difference tie-breaker (same points as a rank-2 result), or won a computed edition alone by 1 total point | once per edition | silver | Stopwatch ✓ |
 
@@ -205,6 +223,18 @@ discipline means picking its god and its kind.
 | `shutout` | Cadenas | Shutout | Won a game without conceding a point | once per edition | bronze | Padlock |
 | `steamroller` | Rouleau compresseur | Steamroller | The biggest winning margin among a discipline's games of the edition (ties share it) | each, per discipline | silver | Road roller |
 | `perfect-pitch` | Oreille absolue | Perfect pitch | Artist and song both right on every round of the edition's blindtest, which must be revealed: every active round that has at least one active guess (`Blindtest.save()` creates a guess per team for every round) | once per edition | gold | Tuning fork |
+
+**No contested rule for games** (decided 2026-09-24). The two uncontested cases come from
+stored results, not from games: a lone scored result is typed in by hand (a game always
+scores both its teams), and the tie on 0 is a discipline none of whose games is played yet.
+The game rules read played games only, and an unplayed game counts for nothing, so neither
+case gives them anything. A played game has two teams, so its win beats a real opponent
+and its loss is a real one: `unbeaten` and `perfect-run` need 3 of them, `steamroller` and
+`shutout` a game won (a draw never counts). A discipline with played games can still be
+uncontested (a round robin of draws, or three teams beating each other in a circle by the
+same margin), and its `unbeaten` or `steamroller` stand: they describe games (no loss, the
+biggest margin) and claim no place in the discipline. `perfect-pitch` reads blindtest
+guesses, a team's own answers, and needs nothing either.
 
 ### Given by hand
 
@@ -283,7 +313,9 @@ The discipline rules need no query of their own: they read each edition's
 `Standings.disciplines_of` (the per-discipline ranking the profiles' « Par épreuve »
 section uses), whose `DisciplineStanding` carries the discipline name, the rank, and the
 result type and stored points the photo finish compares. `compute_standings`, which
-`_load` has already run, loads those results with their discipline.
+`_load` has already run, loads those results with their discipline. `_discipline_results`
+gives the results of an uncontested discipline rank 0 through `profiles._contested`, which
+reads the same loaded standings, so the contested rule adds no query.
 
 That makes 4 queries plus three per edition of the sequence (`_load`'s 2 plus three per
 finished edition with players, then these two), pinned as `BADGES_QUERIES` in the tests
@@ -322,15 +354,16 @@ it.
 
 ### When the badges refresh
 
-- **Every night, by cron.** A crontab entry on the production host runs the command
-  below at 02:00 UTC, which is 03:00 or 04:00 in Paris. That is always after midnight
+- **Every month, by cron.** A crontab entry on the production host runs the command
+  below on the 1st at 02:00 host time. The production host's clock runs in Europe/Paris,
+  and on a UTC clock 02:00 is 03:00 or 04:00 in Paris: either way it is after midnight
   Paris time, so an edition whose `end_date` was the day before counts as finished:
   ```
-  # host clock in UTC
-  0 2 * * * cd <repo> && docker compose -f <compose file> exec -T server python manage.py refresh_badges >> /var/log/olympic-warriors-badges.log 2>&1
+  # host clock: Europe/Paris on the production host
+  0 2 1 * * cd <repo> && docker compose -f <compose file> exec -T server python manage.py refresh_badges >> $HOME/logs/olympic-warriors-badges.log 2>&1
   ```
   `-T` because cron has no terminal. The refresh rebuilds everything, so a correction to
-  a past edition also shows after the next night. The profile view only reads.
+  a past edition also shows after the next run. The profile view only reads.
 - **On demand.** An Edition changelist action, « Recalculer les badges (toutes les
   éditions) », runs `refresh()`. The selection does not matter, because streaks and tables
   span editions. It needs the change permission on Edition, so a view-only staff user does
@@ -503,6 +536,11 @@ and the profile payload in `tests/test_profiles.py`:
 - playing more never removes a badge: `eternal-second` stays after a later title;
 - a hidden discipline gives no discipline or game badge, and a hand-ranked edition gives
   places but no photo finish on totals;
+- a lone scored result and a tie of every team on 0 give no discipline badge, a contested
+  discipline beside them still does, and neither counts as a ranked discipline for
+  `metronome`;
+- an edition of 2 or 3 teams gives no discipline podium: no `metronome`, even for a team
+  last everywhere or first everywhere, and nothing toward `decathlete`;
 - the hall of fame starts at the second edition with counted places. `kingslayer` and
   `rocket` start one table later;
 - `refresh()`:
@@ -538,7 +576,7 @@ Front:
 - Badges are only as complete as the rosters, as with the profiles: early editions
   without `Player` rows give nobody anything.
 - Two people with the same full name share a user, and so share their badges.
-- A correction to a finished edition shows after the next nightly run, or at once
+- A correction to a finished edition shows after the next monthly run, or at once
   through the admin action.
 - The cron entry lives on the host, outside the repository. Without it, a finished
   edition's badges wait for the admin action or an `import_edition`.

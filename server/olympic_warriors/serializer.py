@@ -477,6 +477,14 @@ class PlaceSerializer(serializers.Serializer):
     rank = serializers.IntegerField()
 
 
+class LatestPlaceSerializer(serializers.Serializer):
+    """The newest of a person's places in a discipline: its edition's year and the
+    Discipline row of that edition, whose page holds the discipline's all-time table."""
+
+    year = serializers.IntegerField()
+    discipline = serializers.IntegerField(source="discipline_id")
+
+
 class DisciplinePlacesSerializer(serializers.Serializer):
     """A person's places in one discipline across editions, best first (see
     profiles.DisciplinePlaces), with the discipline's shared position among the
@@ -486,6 +494,48 @@ class DisciplinePlacesSerializer(serializers.Serializer):
     name = serializers.CharField()
     position = serializers.IntegerField()
     places = PlaceSerializer(many=True)
+    latest = LatestPlaceSerializer()
+
+
+class DisciplineAllTimeRowSerializer(serializers.Serializer):
+    """
+    A person in a discipline's all-time table (a profiles.DisciplineRow): their places
+    there, best first, and their shared position.
+    Public: names only, never the username (the login name) nor the email.
+    """
+
+    id = serializers.IntegerField(source="user_id", help_text="The user id, not a Player id")
+    first_name = serializers.CharField()
+    last_name = serializers.CharField()
+    position = serializers.IntegerField()
+    places = PlaceSerializer(many=True, help_text="Best rank first")
+
+
+class DisciplineAllTimeSerializer(serializers.Serializer):
+    """A discipline's all-time table (a profiles.DisciplineTable). `name` is the database
+    Discipline.name, untranslated."""
+
+    name = serializers.CharField()
+    years = serializers.ListField(
+        child=serializers.IntegerField(), help_text="The years that give a place, oldest first"
+    )
+    players = DisciplineAllTimeRowSerializer(source="rows", many=True)
+
+
+class HeldEditionSerializer(serializers.Serializer):
+    """An edition that held a discipline: its year and the Discipline row of that edition,
+    whose page holds the discipline's all-time table."""
+
+    year = serializers.IntegerField()
+    discipline = serializers.IntegerField(source="discipline_id")
+
+
+class HeldDisciplineSerializer(serializers.Serializer):
+    """A discipline held by at least one active edition (a profiles.HeldDiscipline). `name`
+    is the database Discipline.name, untranslated."""
+
+    name = serializers.CharField()
+    editions = HeldEditionSerializer(many=True, help_text="Oldest first")
 
 
 class LeaderboardRowSerializer(serializers.Serializer):

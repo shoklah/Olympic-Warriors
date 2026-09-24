@@ -4,6 +4,8 @@ import { THEME_COOKIE, themeFrom } from '$lib/theme';
 /**
  * `<html lang>` follows the `lang` cookie, which the root layout reads for the pages too;
  * `<html data-theme>` follows the `theme` cookie (`system` without one), which styles.css reads.
+ * A universal load's fetch during SSR may only read the response headers serialised into
+ * the page: `apiGet` reads `content-type` (the discipline page's all-time table).
  */
 export const handle = async ({ event, resolve }) => {
 	const locale = localeFrom(event.cookies.get('lang'));
@@ -11,6 +13,7 @@ export const handle = async ({ event, resolve }) => {
 	// The same URL renders differently per cookie: keep shared caches from cross-serving languages.
 	event.setHeaders({ vary: 'Cookie' });
 	return resolve(event, {
-		transformPageChunk: ({ html }) => html.replace('%lang%', locale).replace('%theme%', theme)
+		transformPageChunk: ({ html }) => html.replace('%lang%', locale).replace('%theme%', theme),
+		filterSerializedResponseHeaders: (name) => name === 'content-type'
 	});
 };

@@ -1,8 +1,9 @@
 <script>
-	import { iconFor } from '$lib/icons';
 	import { disciplineSubtitle } from '$lib/edition';
+	import { allTimePath, byShownName, yearSpan } from '$lib/all-time';
 	import { disciplineName, useLocale, useT } from '$lib/i18n';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
+	import DisciplineCard from '$lib/components/DisciplineCard.svelte';
 
 	export let data;
 
@@ -11,6 +12,9 @@
 
 	$: year = data.summary.edition.year;
 	$: disciplines = data.summary.disciplines;
+	// Every discipline ever held, whatever this edition holds: each leads to its all-time table,
+	// the « Palmarès » tab of its page in this year when this edition held it (allTimePath).
+	$: held = byShownName(data.held ?? [], locale);
 
 	/** "2 rounds · 3 games", or "points" / "time" / nothing for a discipline without rounds. */
 	const subtitle = (sub) => {
@@ -21,6 +25,12 @@
 		if (sub.resultType === 'TIM') return t('discipline.time');
 		return '';
 	};
+
+	/** "3 editions · 2021–2026". */
+	const heldSubtitle = (editions) => {
+		const years = editions.map((e) => e.year);
+		return `${t('disciplines.editions', { n: years.length })} · ${yearSpan(years)}`;
+	};
 </script>
 
 <div class="page">
@@ -29,25 +39,37 @@
 
 	<div class="grid">
 		{#each disciplines as discipline}
-			{@const name = disciplineName(locale, discipline.name)}
-			<!-- The whole card is the link, so its accessible name is pinned to the discipline name.
-			     An unrevealed discipline stays reachable: its page still shows the pairings. -->
-			<a
-				class="card"
-				class:unrevealed={!discipline.reveal_score}
+			<!-- An unrevealed discipline stays reachable: its page still shows the pairings. -->
+			<DisciplineCard
 				href="/{year}/disciplines/{discipline.id}"
-				aria-label={name}
-			>
-				<span class="icon">
-					<img src={iconFor(discipline.name)} alt="" />
-				</span>
-				<span class="text">
-					<span class="name">{name}</span>
-					<span class="label subtitle">{subtitle(disciplineSubtitle(data.summary, discipline))}</span>
-				</span>
-			</a>
+				discipline={discipline.name}
+				name={disciplineName(locale, discipline.name)}
+				subtitle={subtitle(disciplineSubtitle(data.summary, discipline))}
+				unrevealed={!discipline.reveal_score}
+			/>
 		{/each}
 	</div>
+
+	{#if held.length > 0}
+		<section aria-labelledby="all-time">
+			<h2 id="all-time">{t('disciplines.allTime')}</h2>
+			<p class="intro">{t('disciplines.allTimeIntro')}</p>
+			<div class="grid">
+				{#each held as discipline}
+					{@const name = disciplineName(locale, discipline.name)}
+					<!-- Named apart from the edition's card of the same discipline above. -->
+					<DisciplineCard
+						href={allTimePath(discipline, year)}
+						discipline={discipline.name}
+						{name}
+						subtitle={heldSubtitle(discipline.editions)}
+						label={t('disciplines.allTimeOf', { name })}
+						data-testid="all-time-card"
+					/>
+				{/each}
+			</div>
+		</section>
+	{/if}
 </div>
 
 <style>
@@ -55,79 +77,20 @@
 		margin: 0 0 0.8rem;
 	}
 
+	h2 {
+		margin: 0 0 0.2rem;
+	}
+
+	.intro {
+		margin: 0 0 0.8rem;
+		color: var(--muted);
+	}
+
 	.grid {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
 		gap: 8px;
 		margin-bottom: 2rem;
-	}
-
-	.card {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-		padding: 12px;
-		background: var(--bg-raised);
-		border: 1px solid var(--line);
-		border-radius: var(--radius);
-		color: var(--text);
-		text-decoration: none;
-		transition:
-			transform 0.2s ease,
-			background 0.2s ease;
-	}
-
-	.card:hover {
-		background: var(--line);
-		transform: translateY(-2px);
-		text-decoration: none;
-	}
-
-	.card:focus-visible {
-		outline: 2px solid var(--accent);
-		outline-offset: -2px;
-	}
-
-	.icon {
-		flex: none;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		height: 44px;
-		width: 44px;
-		border-radius: var(--radius);
-		background: var(--bg-sunken);
-		border: 1px solid var(--line);
-	}
-
-	.icon img {
-		height: 76%;
-		width: 76%;
-		filter: var(--icon-filter);
-	}
-
-	/* Only the tile dims: the name and the subtitle stay readable. */
-	.unrevealed .icon {
-		opacity: 0.35;
-	}
-
-	.text {
-		min-width: 0;
-	}
-
-	.name {
-		display: block;
-		font-family: var(--font-display);
-		font-size: 1.4rem;
-		letter-spacing: 0.06em;
-		line-height: 1;
-		color: var(--ink);
-		overflow-wrap: anywhere;
-	}
-
-	.subtitle {
-		display: block;
-		margin-top: 4px;
 	}
 
 	@media (max-width: 580px) {
