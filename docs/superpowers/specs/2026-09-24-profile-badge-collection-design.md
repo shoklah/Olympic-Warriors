@@ -30,7 +30,7 @@ This is front-end only. `/profile/<id>/` already carries the earned badges, and
 
 - **Slot.** One per catalogue code (63 of them), in catalogue order inside its family.
 - **Entries of a slot.** The profile's `badges` entries with that code. There can be
-  several: one per discipline (`specialist`, `unbeaten`, `perfect-run`) or one per partner
+  several: one per discipline (`specialist`, `unbeaten`, `perfect-run`, `steamroller`) or one per partner
   (`comrades`). Codes the front doesn't know are ignored, as today.
 - **Earned.** A slot is earned when it has at least one entry. A tiered badge is earned
   from tier 1.
@@ -105,7 +105,8 @@ Gains a `locked` prop, false by default. When set:
 
 ### `BadgeCollection.svelte`
 
-Props: `badges` (the profile's list).
+Props: `collection`, the page's `badgeCollection(profile.badges ?? [])`, computed once and
+shared with the count card.
 
 It renders:
 - the overall line « 28 badges sur 63 » / "28 badges out of 63", a progress bar
@@ -123,7 +124,7 @@ Each slot is a `<button type="button">`:
 - the medallion at 48px, with a "×N" chip in the medallion's corner when `count > 1`;
 - the name, `badge.<code>.name`, small, with ellipsis on two lines at most;
 - an accessible name made of the name and a status:
-  - « Champion, badge obtenu, ×2 » / "Champion, badge earned, ×2";
+  - « Champion, badge obtenu 2 fois » / "Champion, badge earned 2 times" (a plural key);
   - « Cuillère de bois, badge à débloquer » / "Wooden spoon, badge locked".
 
   The phrasing uses « badge » so that French agreement never depends on the badge's gender.
@@ -135,7 +136,9 @@ Tapping a slot opens `BadgeSheet` for it. Closing the sheet returns focus to tha
 
 The same shell as the organiser `ScoreSheet`: a backdrop, `role="dialog"`,
 `aria-modal="true"`, `aria-labelledby` pointing at its title, Escape and the backdrop
-close it, and it takes focus when it opens. It is a bottom sheet below 1000px and a
+close it, and it takes focus when it opens. Tab and Shift+Tab cycle inside it, and the
+page behind it doesn't scroll while it is open (jsdom has no `showModal`, so the trap is
+hand-written rather than a native `<dialog>`). It is a bottom sheet below 1000px and a
 centred dialog above. Props: `slot` and `open`; it dispatches `close`.
 
 Content:
@@ -144,7 +147,8 @@ Content:
 - the rule, `badge.<code>.rule`;
 - **earned:** one line per entry:
   - the discipline and partner (a link to their profile) when there is one;
-  - the tier and years, as `badgeDetail` gives them today;
+  - the tier and years, as `badgeDetail` gives them, without its `×N` part: the status
+    line already says it;
   - for a tiered entry, then: « Prochain niveau : 5 éditions » / "Next tier: 5 editions",
     or « Niveau maximum » / "Top tier" at tier 3;
 - **locked tiered:** « Premier niveau : 3 éditions » / "First tier: 3 editions";
