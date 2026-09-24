@@ -999,6 +999,7 @@ GOD_CODES = (
 )
 DISCIPLINE_CODES = (
     C.SPECIALIST,
+    C.MASTER,
     C.ALL_ROUNDER,
     C.DECATHLETE,
     C.BRAINS_AND_BRAWN,
@@ -1024,10 +1025,19 @@ def specialist_of(user, today=TODAY):
     )
 
 
-class TestDisciplines(World, TestCase):
+def master_of(user, today=TODAY):
+    """The (year, discipline) of the user's master badges, sorted."""
+    return sorted(
+        (year, discipline)
+        for c, year, _, discipline, _ in badges_of(user, today)
+        if c == C.MASTER
+    )
+
+
+class DisciplineWorld(World):
     """
-    Computed editions (teams without final_rank): a discipline's first save creates a result
-    per active team, and a person seated on a team gets that team's results.
+    Builds computed editions (teams without final_rank): a discipline's first save creates a
+    result per active team, and a person seated on a team gets that team's results.
     """
 
     def results(self, discipline_model, edition, values, reveal=True):
@@ -1071,6 +1081,8 @@ class TestDisciplines(World, TestCase):
             self.results(model, edition, values)
         return edition
 
+
+class TestDisciplines(DisciplineWorld, TestCase):
     def test_every_discipline_has_a_god_and_a_kind(self):
         edition, _ = self.edition(2021, ranked=False)
         models = Discipline.__subclasses__()
@@ -1102,6 +1114,100 @@ class TestDisciplines(World, TestCase):
         self.win(ana, 2021, Relay, Relay)
 
         self.assertEqual(specialist_of(ana), [])
+
+    def test_master_for_winning_every_edition_of_a_discipline(self):
+        ana = self.person("Ana")
+        for year in (2021, 2022, 2023):
+            self.win(ana, year, Relay)
+
+        self.assertEqual(master_of(ana), [(2022, "Relay")])
+
+    def test_one_edition_of_a_discipline_is_no_master(self):
+        ana = self.person("Ana")
+        self.win(ana, 2021, Relay)
+        self.win(ana, 2022, Darts)
+
+        self.assertEqual(master_of(ana), [])
+
+    def test_master_is_lost_at_the_next_edition_not_won(self):
+        ana = self.person("Ana")
+        self.win(ana, 2021, Relay)
+        self.win(ana, 2022, Relay)
+        e2023, _ = self.computed(2023, ana)
+        self.results(Relay, e2023, [0, 10])
+
+        self.assertEqual(master_of(ana, today=date(2023, 1, 1)), [(2022, "Relay")])
+        self.assertEqual(master_of(ana), [])
+
+    def test_missing_an_edition_of_the_discipline_loses_master(self):
+        ana, bob = self.person("Ana"), self.person("Bob")
+        self.win(ana, 2021, Relay)
+        self.win(ana, 2022, Relay)
+        self.win(bob, 2023, Relay)
+
+        self.assertEqual(master_of(ana), [])
+
+    def test_master_needs_the_editions_before_the_first_played(self):
+        ana, bob = self.person("Ana"), self.person("Bob")
+        self.win(bob, 2021, Relay)
+        self.win(ana, 2022, Relay)
+        self.win(ana, 2023, Relay)
+
+        self.assertEqual(master_of(ana), [])
+        self.assertEqual(master_of(bob), [])
+
+    def test_editions_without_the_discipline_do_not_count(self):
+        ana, bob = self.person("Ana"), self.person("Bob")
+        self.win(ana, 2021, Relay)
+        self.win(bob, 2022, Darts)  # Ana missed it, but it held no relay
+        self.win(ana, 2023, Relay)
+
+        self.assertEqual(master_of(ana), [(2023, "Relay")])
+
+    def test_a_hidden_edition_of_the_discipline_neither_breaks_nor_extends_master(self):
+        ana = self.person("Ana")
+        self.win(ana, 2021, Relay)
+        e2022, _ = self.computed(2022, ana)
+        self.results(Relay, e2022, [0, 10], reveal=False)
+        self.win(ana, 2023, Relay)
+
+        self.assertEqual(master_of(ana), [(2023, "Relay")])
+
+    def test_a_shared_first_place_is_a_win(self):
+        ana, bob = self.person("Ana"), self.person("Bob")
+        e2021, teams = self.computed(2021, ana, size=3)
+        self.seat(bob, e2021, teams[1])
+        self.results(Relay, e2021, [10, 10, 0])  # contested: a third team beaten
+        self.win(ana, 2022, Relay)
+
+        self.assertEqual(master_of(ana), [(2022, "Relay")])
+        self.assertEqual(master_of(bob), [])
+
+    def test_an_uncontested_edition_of_the_discipline_neither_breaks_nor_extends_master(self):
+        ana = self.person("Ana")
+        self.win(ana, 2021, Relay)
+        e2022, _ = self.computed(2022, ana)
+        self.results(Relay, e2022, [0, 0])  # every team tied: Ana's shared 1st beats nobody
+        e2023, _ = self.computed(2023, ana)
+        self.results(Relay, e2023, [None, 10])  # a lone scored result: the other team's
+        self.win(ana, 2024, Relay)
+
+        self.assertEqual(master_of(ana), [(2024, "Relay")])
+
+    def test_two_disciplines_of_one_name_in_an_edition_are_two_events(self):
+        ana = self.person("Ana")
+        self.win(ana, 2021, Relay)
+        e2022 = self.win(ana, 2022, Relay)
+        self.results(Relay, e2022, [0, 10])
+
+        self.assertEqual(master_of(ana), [])
+
+    def test_master_of_each_discipline(self):
+        ana = self.person("Ana")
+        self.win(ana, 2021, Relay, Darts)
+        self.win(ana, 2022, Relay, Darts)
+
+        self.assertEqual(master_of(ana), [(2022, "Darts"), (2022, "Relay")])
 
     def test_all_rounder_at_the_third_discipline_won(self):
         ana = self.person("Ana")

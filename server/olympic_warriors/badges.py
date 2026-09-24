@@ -7,7 +7,9 @@ action and import_edition call refresh(); a page view only reads the table.
 The rules read the sequence: the finished active editions with at least one active player,
 by year, so a year without an edition and an edition without a roster never break a
 streak. Each rule is evaluated over the history up to each edition in turn, and a badge is
-earned at the edition that completes it: playing more never takes a badge away.
+earned at the edition that completes it: playing more never takes a badge away. The one
+exception is master, a title held rather than earned: the next edition of its discipline
+that the person does not win takes it away.
 """
 
 from collections import Counter, defaultdict
@@ -440,13 +442,59 @@ def _discipline_results(h):
 
 
 def _disciplines(h):
-    """specialist, all-rounder, decathlete, brains-and-brawn, clean-sweep, metronome,
+    """specialist, master, all-rounder, decathlete, brains-and-brawn, clean-sweep, metronome,
     uncrowned, photo-finish, the gods and olympus."""
     if not h.sequence:
         return
     results = _discipline_results(h)
     for user_id, seats in h.seats.items():
         yield from _disciplines_of(h, results, user_id, seats)
+    yield from _masters(h, results)
+
+
+MASTER_EDITIONS = 2
+
+
+def _held(results):
+    """
+    {discipline name: {sequence index: team ids}}: for each edition of the sequence that
+    ranked a discipline of that name, the teams 1st in every ranked discipline of that name
+    there (two disciplines of one name in an edition are two events to win, not one).
+    """
+    held = defaultdict(dict)
+    for i, rows in results.items():
+        events = defaultdict(dict)  # name -> {discipline id: teams ranked 1st}
+        for r in rows:
+            if r.ranking:
+                firsts = events[r.name].setdefault(r.discipline_id, set())
+                if r.ranking == 1:
+                    firsts.add(r.team_id)
+        for name, by_discipline in events.items():
+            held[name][i] = set.intersection(*by_discipline.values())
+    return held
+
+
+def _masters(h, results):
+    """
+    master: won every edition of the sequence that ranked a discipline (matched by name), at
+    least MASTER_EDITIONS of them, earned at the one that completed it. Unlike every other
+    badge it is judged on the whole sequence, not up to each edition: the next edition of the
+    discipline that the person does not win, played or missed, takes it away (the refresh
+    deletes the row). A hidden, unscored or uncontested discipline ranks nothing here
+    (_discipline_results), so it neither extends nor breaks the run, and an unfinished
+    edition is not in the sequence yet.
+    """
+    held = _held(results)
+    for name in sorted(held):
+        editions = held[name]
+        if len(editions) < MASTER_EDITIONS:
+            continue
+        completed = h.sequence[sorted(editions)[MASTER_EDITIONS - 1]].id
+        for user_id, seats in h.seats.items():
+            if all(
+                i in seats and seats[i].team_id in winners for i, winners in editions.items()
+            ):
+                yield Earned(user_id, C.MASTER, completed, discipline=name)
 
 
 def _disciplines_of(h, results, user_id, seats):

@@ -44,6 +44,7 @@ export const BADGES = {
 	kingslayer: 'gold',
 	rocket: 'bronze',
 	specialist: 'tiers',
+	master: 'gold',
 	'all-rounder': 'tiers',
 	decathlete: 'gold',
 	'brains-and-brawn': 'silver',
