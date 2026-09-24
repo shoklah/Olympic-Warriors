@@ -14,7 +14,8 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from itertools import combinations
 
-from .models import Badge
+from .models import Badge, TeamResult
+from .models.ResultTypes import ResultTypes
 from .profiles import _load, _participations, _place, _record, _sort_key, paris_today
 
 C = Badge.Codes
@@ -351,7 +352,173 @@ def _hall_of_fame(h):
         previous = positions
 
 
-RULES = (_places, _streaks, _career, _loyalty, _teammates, _hall_of_fame)
+MIND, PHYSICAL = "mind", "physical"
+
+# The god of each discipline, by database name. Adding a discipline means picking its god
+# here and its kind in KINDS: test_badges fails otherwise.
+FAMILIES = {
+    "General Culture Quizz": C.ATHENA,
+    "Geography Quizz": C.ATHENA,
+    "Geoguessr": C.ATHENA,
+    "Burger Quizz": C.ATHENA,
+    "Blindtest": C.APOLLO,
+    "Dance": C.APOLLO,
+    "Darts": C.ARTEMIS,
+    "Petanque": C.ARTEMIS,
+    "Disc Throw": C.ARTEMIS,
+    "Frisbee": C.ARTEMIS,
+    "Relay": C.HERMES,
+    "Jumping Rope": C.HERMES,
+    "Obstacle Course": C.HERMES,
+    "Blindfolded Obstacle Course": C.HERMES,
+    "Crossfit": C.HERACLES,
+    "Orienteering": C.THESEUS,
+    "Rugby": C.ARES,
+    "Football": C.ARES,
+    "Handball": C.ARES,
+    "Basketball": C.ARES,
+    "Volleyball": C.ARES,
+    "Dodgeball": C.ARES,
+    "Hide and Seek": C.HADES,
+    "Fair": C.DIONYSUS,
+}
+GODS = tuple(dict.fromkeys(FAMILIES.values()))  # the nine, in catalogue order
+
+# Mind or physical, for brains-and-brawn: the Athena disciplines and Blindtest are the mind
+# ones. Fair is neither.
+MINDS = {"General Culture Quizz", "Geography Quizz", "Geoguessr", "Burger Quizz", "Blindtest"}
+KINDS = {name: MIND if name in MINDS else PHYSICAL for name in FAMILIES if name != "Fair"}
+
+SPECIALIST_TIERS = {2: 1, 3: 2, 4: 3}
+ALL_ROUNDER_TIERS = ((3, 1), (5, 2), (8, 3))
+
+
+@dataclass(frozen=True)
+class DisciplineResult:
+    """A team's result in one discipline of a sequence edition, with its standing's rank
+    (0 when hidden or unscored)."""
+
+    team_id: int
+    discipline_id: int
+    name: str
+    result_type: str
+    points: int | None
+    ranking: int
+
+
+def _discipline_results(h):
+    """{sequence index: [DisciplineResult]}: the active results of the sequence (1 query)."""
+    index = {edition.id: i for i, edition in enumerate(h.sequence)}
+    rows = TeamResult.objects.filter(
+        discipline__edition_id__in=index,
+        discipline__is_active=True,
+        team__is_active=True,
+        is_active=True,
+    ).values_list(
+        "id", "team_id", "discipline_id", "discipline__name", "discipline__edition_id",
+        "discipline__result_type", "points",
+    )
+    results = defaultdict(list)
+    for pk, team_id, discipline_id, name, edition_id, result_type, points in rows:
+        i = index[edition_id]
+        ranking = h.standings[i].result(pk).ranking
+        results[i].append(
+            DisciplineResult(team_id, discipline_id, name, result_type, points, ranking)
+        )
+    return results
+
+
+def _disciplines(h):
+    """specialist, all-rounder, decathlete, brains-and-brawn, clean-sweep, metronome,
+    uncrowned, photo-finish, the gods and olympus."""
+    if not h.sequence:
+        return
+    results = _discipline_results(h)
+    for user_id, seats in h.seats.items():
+        yield from _disciplines_of(h, results, user_id, seats)
+
+
+def _disciplines_of(h, results, user_id, seats):
+    won_times = Counter()
+    won, podiums, gods = set(), set(), set()
+    decathlete = False
+    for i, edition in enumerate(h.sequence):
+        seat = seats.get(i)
+        if seat is None or seat.team_id is None:
+            continue
+        edition_id = edition.id
+        rows = results.get(i, [])
+        mine = [r for r in rows if r.team_id == seat.team_id]
+        wins = [r for r in mine if r.ranking == 1]
+        names = sorted({r.name for r in wins})
+
+        for name in names:
+            won_times[name] += 1
+            tier = SPECIALIST_TIERS.get(won_times[name])
+            if tier:
+                yield Earned(user_id, C.SPECIALIST, edition_id, tier=tier, discipline=name)
+        before = len(won)
+        won.update(names)
+        for threshold, tier in ALL_ROUNDER_TIERS:
+            if before < threshold <= len(won):
+                yield Earned(user_id, C.ALL_ROUNDER, edition_id, tier=tier)
+        podiums.update(r.name for r in mine if 1 <= r.ranking <= 3)
+        if not decathlete and len(podiums) >= 10:
+            decathlete = True
+            yield Earned(user_id, C.DECATHLETE, edition_id)
+
+        kinds = {KINDS.get(name) for name in names}
+        if MIND in kinds and PHYSICAL in kinds:
+            yield Earned(user_id, C.BRAINS_AND_BRAWN, edition_id)
+        if len(wins) >= 3:
+            yield Earned(user_id, C.CLEAN_SWEEP, edition_id)
+        ranked = {r.discipline_id for r in rows if r.ranking}
+        on_podium = {r.discipline_id for r in mine if 1 <= r.ranking <= 3}
+        if len(ranked) >= 4 and ranked <= on_podium:
+            yield Earned(user_id, C.METRONOME, edition_id)
+        if _uncrowned(rows, seat, wins):
+            yield Earned(user_id, C.UNCROWNED, edition_id)
+        if _photo_finish(h, i, rows, seat, wins):
+            yield Earned(user_id, C.PHOTO_FINISH, edition_id)
+
+        for name in names:
+            god = FAMILIES.get(name)
+            if god and god not in gods:
+                gods.add(god)
+                yield Earned(user_id, god, edition_id)
+                if len(gods) == len(GODS):
+                    yield Earned(user_id, C.OLYMPUS, edition_id)
+
+
+def _uncrowned(rows, seat, wins):
+    """The most discipline wins of the edition (at least 2, no team with more), without the
+    title (the person's participation counts and is not 1st)."""
+    per_team = Counter(r.team_id for r in rows if r.ranking == 1)
+    rank = _rank(seat)
+    return len(wins) >= 2 and len(wins) == max(per_team.values()) and rank not in (None, 1)
+
+
+def _photo_finish(h, i, rows, seat, wins):
+    """A points discipline won on the points-difference tie-breaker (a rank-2 result with the
+    same points), or a computed edition won alone by 1 total point."""
+    for win in wins:
+        if win.result_type == ResultTypes.POINTS and any(
+            r.discipline_id == win.discipline_id and r.ranking == 2 and r.points == win.points
+            for r in rows
+        ):
+            return True
+    if _rank(seat) != 1:
+        return False
+    teams = h.standings[i].teams
+    mine = teams.get(seat.team_id)
+    if mine is None or mine.total_points is None:  # hand-ranked: no totals
+        return False
+    leaders = [team_id for team_id, team in teams.items() if team.ranking == 1]
+    others = [team.total_points for team_id, team in teams.items() if team_id != seat.team_id]
+    return leaders == [seat.team_id] and bool(others) and mine.total_points - max(others) <= 1
+
+
+RULES = (_places, _streaks, _career, _loyalty, _teammates, _hall_of_fame, _disciplines)
 
 
 def earned(today=None):

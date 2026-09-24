@@ -6,12 +6,41 @@ revealed disciplines with results and games.
 """
 
 from datetime import date
+from datetime import time as dt_time
 
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from olympic_warriors.badges import earned, history
-from olympic_warriors.models import Badge, Edition, Player, Relay, Team, TeamResult
+from olympic_warriors.badges import FAMILIES, KINDS, earned, history
+from olympic_warriors.models import (
+    Badge,
+    Basketball,
+    Blindtest,
+    Crossfit,
+    Dance,
+    Darts,
+    Discipline,
+    Dodgeball,
+    Edition,
+    Fair,
+    Football,
+    Frisbee,
+    Game,
+    GeneralCultureQuizz,
+    Geoguessr,
+    Handball,
+    HideAndSeek,
+    Orienteering,
+    Petanque,
+    Player,
+    Relay,
+    Rugby,
+    Team,
+    TeamResult,
+    TeamSportRound,
+    Volleyball,
+)
+from olympic_warriors.models.ResultTypes import ResultTypes
 
 C = Badge.Codes
 TODAY = date(2031, 1, 1)
@@ -822,3 +851,388 @@ class TestHallOfFame(World, TestCase):
         self.assertEqual(years_of(cat, C.ROCKET), [2023])
         self.assertEqual(years_of(zed, C.ROCKET), [])
         self.assertEqual(years_of(uma, C.ROCKET), [])
+
+
+GOD_CODES = (
+    C.ATHENA,
+    C.APOLLO,
+    C.ARTEMIS,
+    C.HERMES,
+    C.HERACLES,
+    C.THESEUS,
+    C.ARES,
+    C.HADES,
+    C.DIONYSUS,
+    C.OLYMPUS,
+)
+DISCIPLINE_CODES = (
+    C.SPECIALIST,
+    C.ALL_ROUNDER,
+    C.DECATHLETE,
+    C.BRAINS_AND_BRAWN,
+    C.CLEAN_SWEEP,
+    C.METRONOME,
+    C.UNCROWNED,
+    C.PHOTO_FINISH,
+    *GOD_CODES,
+)
+
+
+def disciplines_of(user, today=TODAY):
+    """The user's discipline badges and gods, whatever the other rules give."""
+    return [badge for badge in badges_of(user, today) if badge[0] in DISCIPLINE_CODES]
+
+
+def specialist_of(user, today=TODAY):
+    """The (year, tier, discipline) of the user's specialist badges, sorted."""
+    return sorted(
+        (year, tier, discipline)
+        for c, year, tier, discipline, _ in badges_of(user, today)
+        if c == C.SPECIALIST
+    )
+
+
+class TestDisciplines(World, TestCase):
+    """
+    Computed editions (teams without final_rank): a discipline's first save creates a result
+    per active team, and a person seated on a team gets that team's results.
+    """
+
+    def results(self, discipline_model, edition, values, reveal=True):
+        """
+        A discipline of `edition` whose teams score `values` (a list, in team order): points
+        for a points discipline (higher is better), seconds for a time discipline such as
+        Crossfit or Orienteering (lower is better, stored as a `time`).
+        """
+        discipline = discipline_model.objects.create(edition=edition, reveal_score=reveal)
+        timed = discipline.result_type == ResultTypes.TIME
+        for team, value in zip(Team.objects.filter(edition=edition).order_by("id"), values):
+            field = {"time": dt_time(0, value // 60, value % 60)} if timed else {"points": value}
+            TeamResult.objects.filter(discipline=discipline, team=team).update(**field)
+        return discipline
+
+    def computed(self, year, user, size=2):
+        """A computed edition of `size` teams with `user` on the first. Returns (edition,
+        [teams])."""
+        edition, teams = self.edition(year, size=size, ranked=False)
+        self.seat(user, edition, teams[0])
+        return edition, teams
+
+    def win(self, user, year, *models):
+        """A computed 2-team edition where `user`'s team wins each of the points disciplines
+        `models`, 10 to 0."""
+        edition, _ = self.computed(year, user)
+        for model in models:
+            self.results(model, edition, [10, 0])
+        return edition
+
+    def four(self, year, people, scores):
+        """
+        A computed 4-team edition with one person per team, in team order, and a discipline
+        per (model, points in team order) of `scores`. With 4 teams, global points are 6, 4,
+        3 and 1 for ranks 1 to 4.
+        """
+        edition, teams = self.edition(year, ranked=False)
+        for user, team in zip(people, teams):
+            self.seat(user, edition, team)
+        for model, values in scores:
+            self.results(model, edition, values)
+        return edition
+
+    def test_every_discipline_has_a_god_and_a_kind(self):
+        edition, _ = self.edition(2021, ranked=False)
+        models = Discipline.__subclasses__()
+        names = {model.objects.create(edition=edition).name for model in models}
+
+        self.assertEqual(len(names), len(models))
+        self.assertEqual(sorted(names - set(FAMILIES)), [])
+        self.assertEqual(sorted(names - {"Fair"} - set(KINDS)), [])
+        self.assertNotIn("Fair", KINDS)
+
+    def test_specialist_tiers_in_one_discipline(self):
+        ana = self.person("Ana")
+        for year in range(2021, 2026):
+            self.win(ana, year, Relay)
+
+        self.assertEqual(
+            specialist_of(ana), [(2022, 1, "Relay"), (2023, 2, "Relay"), (2024, 3, "Relay")]
+        )
+
+    def test_no_specialist_for_two_different_disciplines(self):
+        ana = self.person("Ana")
+        self.win(ana, 2021, Relay)
+        self.win(ana, 2022, Darts)
+
+        self.assertEqual(specialist_of(ana), [])
+
+    def test_all_rounder_at_the_third_discipline_won(self):
+        ana = self.person("Ana")
+        self.win(ana, 2021, Relay, Darts)
+        self.win(ana, 2022, Relay)  # the same discipline again: still 2
+        self.win(ana, 2023, GeneralCultureQuizz)
+
+        self.assertEqual(tiers_of(ana, C.ALL_ROUNDER), [(2023, 1)])
+
+    def test_all_rounder_tiers_at_five_and_eight(self):
+        ana = self.person("Ana")
+        self.win(ana, 2021, Relay, Darts, Petanque, Frisbee)  # 4
+        self.win(ana, 2022, Relay, Dance)  # 5
+        self.win(ana, 2023, Football, Handball, Basketball)  # 8
+
+        self.assertEqual(tiers_of(ana, C.ALL_ROUNDER), [(2021, 1), (2022, 2), (2023, 3)])
+
+    def test_decathlete_at_the_tenth_discipline_on_the_podium(self):
+        ana = self.person("Ana")
+        second = [5, 10, 0]  # Ana's team, the first, 2nd of 3
+        for year, models in (
+            (2021, (Relay, Darts, Petanque, Frisbee, Dance)),  # 5
+            (2022, (Relay, Football, Handball, Basketball, Volleyball)),  # 9
+            (2023, (Dodgeball,)),  # 10
+            (2024, (Geoguessr,)),
+        ):
+            edition, _ = self.computed(year, ana, size=3)
+            for model in models:
+                self.results(model, edition, second)
+
+        self.assertEqual(years_of(ana, C.DECATHLETE), [2023])
+
+    def test_brains_and_brawn(self):
+        ana = self.person("Ana")
+        self.win(ana, 2021, GeneralCultureQuizz, Relay)
+
+        self.assertEqual(years_of(ana, C.BRAINS_AND_BRAWN), [2021])
+
+    def test_two_physical_wins_are_not_brains_and_brawn(self):
+        ana = self.person("Ana")
+        self.win(ana, 2021, Relay, Darts)
+
+        self.assertEqual(years_of(ana, C.BRAINS_AND_BRAWN), [])
+
+    def test_fair_is_neither_mind_nor_physical(self):
+        ana = self.person("Ana")
+        self.win(ana, 2021, Fair, GeneralCultureQuizz)
+
+        self.assertEqual(years_of(ana, C.BRAINS_AND_BRAWN), [])
+
+    def test_brains_and_brawn_needs_one_edition(self):
+        ana = self.person("Ana")
+        self.win(ana, 2021, GeneralCultureQuizz)
+        self.win(ana, 2022, Relay)
+
+        self.assertEqual(years_of(ana, C.BRAINS_AND_BRAWN), [])
+
+    def test_clean_sweep_at_three_wins_in_one_edition(self):
+        ana = self.person("Ana")
+        self.win(ana, 2021, Relay, Darts, Petanque)
+
+        self.assertEqual(years_of(ana, C.CLEAN_SWEEP), [2021])
+
+    def test_two_wins_are_no_clean_sweep(self):
+        ana = self.person("Ana")
+        self.win(ana, 2021, Relay, Darts)
+        self.win(ana, 2022, Petanque)
+
+        self.assertEqual(years_of(ana, C.CLEAN_SWEEP), [])
+
+    def podiums(self, user, *extra, reveal=True):
+        """A computed 4-team edition of 2021 where `user`'s team is 1st, 2nd, 3rd and 2nd in
+        four disciplines, plus one discipline per model of `extra` where it is 4th."""
+        edition, _ = self.computed(2021, user, size=4)
+        for model, values in (
+            (Relay, [40, 30, 20, 10]),
+            (Darts, [30, 40, 20, 10]),
+            (Petanque, [20, 40, 30, 10]),
+            (Frisbee, [30, 40, 20, 10]),
+        ):
+            self.results(model, edition, values)
+        for model in extra:
+            self.results(model, edition, [10, 40, 30, 20], reveal=reveal)
+        return edition
+
+    def test_metronome_on_the_podium_of_every_ranked_discipline(self):
+        ana = self.person("Ana")
+        self.podiums(ana)
+
+        self.assertEqual(years_of(ana, C.METRONOME), [2021])
+
+    def test_metronome_needs_every_ranked_discipline(self):
+        ana = self.person("Ana")
+        self.podiums(ana, Dance)
+
+        self.assertEqual(years_of(ana, C.METRONOME), [])
+
+    def test_metronome_needs_four_ranked_disciplines(self):
+        ana = self.person("Ana")
+        edition, _ = self.computed(2021, ana, size=4)
+        for model in (Relay, Darts, Petanque):
+            self.results(model, edition, [40, 30, 20, 10])
+
+        self.assertEqual(years_of(ana, C.METRONOME), [])
+
+    def test_a_hidden_discipline_is_not_ranked(self):
+        ana = self.person("Ana")
+        self.podiums(ana, Dance, reveal=False)
+
+        self.assertEqual(years_of(ana, C.METRONOME), [2021])
+
+    def test_uncrowned_with_the_most_wins_without_the_title(self):
+        # Wins: A 2, B 1, C 1, D 1. Totals: A 15, B 22, C 19, D 14: B is champion.
+        ana, bob, cat, dan = (self.person(n) for n in ("Ana", "Bob", "Cat", "Dan"))
+        self.four(
+            2021,
+            [ana, bob, cat, dan],
+            [
+                (Relay, [40, 30, 20, 10]),
+                (Darts, [40, 30, 20, 10]),
+                (Petanque, [10, 40, 30, 20]),
+                (Frisbee, [10, 30, 40, 20]),
+                (Dance, [10, 30, 20, 40]),
+            ],
+        )
+
+        self.assertEqual(years_of(ana, C.UNCROWNED), [2021])
+        self.assertEqual([years_of(u, C.UNCROWNED) for u in (bob, cat, dan)], [[], [], []])
+
+    def test_the_champion_is_never_uncrowned(self):
+        ana = self.person("Ana")
+        edition, _ = self.computed(2021, ana, size=3)
+        for model in (Relay, Darts):
+            self.results(model, edition, [30, 20, 10])
+
+        self.assertEqual(years_of(ana, C.UNCROWNED), [])
+
+    def test_uncrowned_when_tied_on_wins(self):
+        # Wins: A 2, B 1, C 2. Totals: A 15, B 22, C 22, D 11: B and C share the title.
+        ana, bob, cat, dan = (self.person(n) for n in ("Ana", "Bob", "Cat", "Dan"))
+        self.four(
+            2021,
+            [ana, bob, cat, dan],
+            [
+                (Relay, [40, 30, 20, 10]),
+                (Darts, [40, 30, 20, 10]),
+                (Petanque, [10, 40, 30, 20]),
+                (Frisbee, [10, 30, 40, 20]),
+                (Dance, [10, 30, 40, 20]),
+            ],
+        )
+
+        self.assertEqual(years_of(ana, C.UNCROWNED), [2021])
+        self.assertEqual(years_of(cat, C.UNCROWNED), [])
+
+    def test_one_win_is_not_uncrowned(self):
+        # One win each; totals A 10, B 11, C 9: B is champion, A 2nd.
+        ana = self.person("Ana")
+        edition, _ = self.computed(2021, ana, size=3)
+        for model, values in (
+            (Relay, [30, 20, 10]),
+            (Darts, [10, 20, 30]),
+            (Petanque, [20, 30, 10]),
+        ):
+            self.results(model, edition, values)
+
+        self.assertEqual(years_of(ana, C.UNCROWNED), [])
+
+    def test_photo_finish_on_the_points_difference(self):
+        # A 20-0 C, B 5-0 C, A 0-0 B: A and B have 4 league points, A the better difference.
+        ana, bob = self.person("Ana"), self.person("Bob")
+        edition, (a, b, c) = self.edition(2021, size=3, ranked=False)
+        self.seat(ana, edition, a)
+        self.seat(bob, edition, b)
+        rugby = Rugby.objects.create(edition=edition, reveal_score=True)
+        round_ = TeamSportRound.objects.create(discipline=rugby, order=1)
+        for team1, score1, team2, score2, referees in (
+            (a, 20, c, 0, b),
+            (b, 5, c, 0, a),
+            (a, 0, b, 0, c),
+        ):
+            Game.objects.create(
+                discipline=rugby,
+                round=round_,
+                team1=team1,
+                score1=score1,
+                team2=team2,
+                score2=score2,
+                referees=referees,
+                edition=edition,
+                is_played=True,
+            )
+
+        points = TeamResult.objects.filter(discipline=rugby).order_by("team_id")
+        self.assertEqual(list(points.values_list("points", flat=True)), [4, 4, 0])
+        self.assertEqual(years_of(ana, C.PHOTO_FINISH), [2021])
+        self.assertEqual(years_of(bob, C.PHOTO_FINISH), [])
+
+    def test_photo_finish_by_one_total_point(self):
+        # Totals: A 6 + 3 = 9, B 4 + 6 = 10, C 3 + 4 = 7, D 1 + 1 = 2.
+        ana, bob, cat, dan = (self.person(n) for n in ("Ana", "Bob", "Cat", "Dan"))
+        self.four(
+            2021,
+            [ana, bob, cat, dan],
+            [(Relay, [40, 30, 20, 10]), (Darts, [20, 40, 30, 10])],
+        )
+
+        self.assertEqual(years_of(bob, C.PHOTO_FINISH), [2021])
+        self.assertEqual(years_of(ana, C.PHOTO_FINISH), [])
+
+    def test_no_photo_finish_by_two_points(self):
+        # Totals: A 5, B 3, C 2.
+        ana = self.person("Ana")
+        edition, _ = self.computed(2021, ana, size=3)
+        self.results(Relay, edition, [30, 20, 10])
+
+        self.assertEqual(years_of(ana, C.PHOTO_FINISH), [])
+
+    def test_hidden_disciplines_give_nothing(self):
+        ana = self.person("Ana")
+        for year in (2021, 2022):
+            edition, _ = self.computed(year, ana)
+            for model in (Relay, GeneralCultureQuizz, Darts):
+                self.results(model, edition, [10, 0], reveal=False)
+            self.results(Petanque, edition, [0, 10])  # revealed, Ana 2nd: the edition ranks
+
+        self.assertEqual(disciplines_of(ana), [])
+
+    def test_a_god_once_at_the_first_win_of_its_family(self):
+        ana = self.person("Ana")
+        self.win(ana, 2021, Darts)
+        self.win(ana, 2022, Darts)
+        self.win(ana, 2023, Petanque)
+
+        self.assertEqual(years_of(ana, C.ARTEMIS), [2021])
+
+    def test_olympus_at_the_ninth_god(self):
+        ana = self.person("Ana")
+        e2021 = self.win(ana, 2021, Relay, Darts, GeneralCultureQuizz, Blindtest)
+        self.results(Crossfit, e2021, [60, 120])  # 1:00 against 2:00
+        e2022 = self.win(ana, 2022, Rugby, HideAndSeek)
+        self.results(Orienteering, e2022, [90, 95])
+        self.win(ana, 2023, Fair)
+
+        gods = sorted((c, year) for c, year, *_ in badges_of(ana) if c in GOD_CODES)
+        self.assertEqual(
+            gods,
+            sorted(
+                [
+                    (C.HERMES, 2021),
+                    (C.ARTEMIS, 2021),
+                    (C.ATHENA, 2021),
+                    (C.APOLLO, 2021),
+                    (C.HERACLES, 2021),
+                    (C.THESEUS, 2022),
+                    (C.ARES, 2022),
+                    (C.HADES, 2022),
+                    (C.DIONYSUS, 2023),
+                    (C.OLYMPUS, 2023),
+                ]
+            ),
+        )
+
+    def test_a_hand_ranked_edition_gives_no_discipline_badge(self):
+        ana = self.person("Ana")
+        for year in (2021, 2022):
+            edition, teams = self.edition(year)  # final_rank 1 to 4
+            self.seat(ana, edition, teams[0])
+            Relay.objects.create(edition=edition, reveal_score=True)  # nothing entered
+
+        self.assertEqual(years_of(ana, C.CHAMPION), [2021, 2022])
+        self.assertEqual(disciplines_of(ana), [])
