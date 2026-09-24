@@ -1,5 +1,5 @@
 import { fireEvent, screen, within } from '@testing-library/svelte';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { renderWith } from '$lib/test-utils';
 import { badgeCollection } from '$lib/badges';
 import BadgeCollection from './BadgeCollection.svelte';
@@ -145,5 +145,63 @@ describe('BadgeCollection', () => {
 	it('speaks French for the 0-badge singular', () => {
 		renderCollection([], 'fr');
 		expect(screen.getByText('0 badge sur 63')).toBeInTheDocument();
+	});
+
+	it('gives every slot the rule as its accessible description, for every device', () => {
+		renderCollection(badges);
+		expect(screen.getByRole('button', { name: /^Champion/ })).toHaveAccessibleDescription('Win an edition');
+		expect(screen.getByRole('button', { name: /^Wooden spoon/ })).toHaveAccessibleDescription(
+			'Finish last in an edition of 4 teams or more'
+		);
+	});
+
+	it('speaks the description in French too', () => {
+		renderCollection(badges, 'fr');
+		expect(screen.getByRole('button', { name: /^Champion/ })).toHaveAccessibleDescription('Gagner une édition');
+	});
+
+	it('hides a shown tooltip on Escape without moving focus, and shows it again once the pointer leaves', async () => {
+		renderCollection(badges);
+		const champion = screen.getByRole('button', { name: /^Champion/ });
+
+		await fireEvent.mouseEnter(champion);
+		expect(champion).not.toHaveClass('tooltip-dismissed');
+
+		await fireEvent.keyDown(champion, { key: 'Escape' });
+		expect(champion).toHaveClass('tooltip-dismissed');
+		expect(champion).not.toHaveFocus();
+
+		await fireEvent.mouseLeave(champion);
+		await fireEvent.mouseEnter(champion);
+		expect(champion).not.toHaveClass('tooltip-dismissed');
+	});
+
+	it('aligns the tooltip to the near edge for a slot close to the viewport edge, centred otherwise', async () => {
+		renderCollection(badges);
+		const champion = screen.getByRole('button', { name: /^Champion/ });
+		vi.spyOn(champion, 'getBoundingClientRect').mockReturnValue({ left: 5, width: 70, right: 75 });
+		await fireEvent.mouseEnter(champion);
+		expect(champion).toHaveClass('align-left');
+		expect(champion).not.toHaveClass('align-right');
+
+		const woodenSpoon = screen.getByRole('button', { name: /^Wooden spoon/ });
+		vi.spyOn(woodenSpoon, 'getBoundingClientRect').mockReturnValue({
+			left: window.innerWidth - 75,
+			width: 70,
+			right: window.innerWidth - 5
+		});
+		await fireEvent.mouseEnter(woodenSpoon);
+		expect(woodenSpoon).toHaveClass('align-right');
+		expect(woodenSpoon).not.toHaveClass('align-left');
+
+		const veteran = screen.getByRole('button', { name: /^Veteran/ });
+		vi.spyOn(veteran, 'getBoundingClientRect').mockReturnValue({
+			left: window.innerWidth / 2,
+			width: 70,
+			right: window.innerWidth / 2 + 70
+		});
+		await fireEvent.mouseEnter(veteran);
+		expect(veteran).not.toHaveClass('align-left');
+		expect(veteran).not.toHaveClass('align-right');
 	});
 });
