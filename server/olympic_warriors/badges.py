@@ -1,7 +1,7 @@
 """
 Badges people earn from their editions (see the player badges design spec under
 docs/superpowers/specs/). earned() computes every computed badge from the current data;
-refresh() stores the difference in the Badge table. The nightly cron job, the Edition admin
+refresh() stores the difference in the Badge table. The monthly cron job, the Edition admin
 action and import_edition call refresh(); a page view only reads the table.
 
 The rules read the sequence: the finished active editions with at least one active player,

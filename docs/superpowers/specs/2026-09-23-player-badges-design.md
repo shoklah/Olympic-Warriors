@@ -1,6 +1,8 @@
 # Player badges
 
 > **Built 2026-09-23** in one go, all four phases at once; plan: docs/superpowers/plans/2026-09-23-player-badges.md.
+>
+> **Revised 2026-09-24:** the cron job runs monthly, on the 1st at 02:00 UTC, not nightly (Hugo: editions are yearly), and logs to `$HOME/logs`, since the crontab's user cannot write `/var/log`. Run the admin action once an edition is over rather than wait for the 1st.
 
 ## Goal
 
@@ -22,7 +24,7 @@ Decisions taken while brainstorming (2026-09-23):
    similar cost on every access.
 5. **The global ranking badges** read the all-time table of `/players`, not an edition's
    team ranking, which the place badges already cover.
-6. **A nightly cron job refreshes the badges**, not a page view: reading a profile never
+6. **A monthly cron job refreshes the badges**, not a page view: reading a profile never
    writes. The thresholds of the tiered badges will be tuned later.
 
 ## Definitions
@@ -318,15 +320,15 @@ it.
 
 ### When the badges refresh
 
-- **Every night, by cron.** A crontab entry on the production host runs the command
-  below at 02:00 UTC, which is 03:00 or 04:00 in Paris. That is always after midnight
+- **Every month, by cron.** A crontab entry on the production host runs the command
+  below on the 1st at 02:00 UTC, which is 03:00 or 04:00 in Paris. That is always after midnight
   Paris time, so an edition whose `end_date` was the day before counts as finished:
   ```
   # host clock in UTC
-  0 2 * * * cd <repo> && docker compose -f <compose file> exec -T server python manage.py refresh_badges >> /var/log/olympic-warriors-badges.log 2>&1
+  0 2 1 * * cd <repo> && docker compose -f <compose file> exec -T server python manage.py refresh_badges >> $HOME/logs/olympic-warriors-badges.log 2>&1
   ```
   `-T` because cron has no terminal. The refresh rebuilds everything, so a correction to
-  a past edition also shows after the next night. The profile view only reads.
+  a past edition also shows after the next run. The profile view only reads.
 - **On demand.** An Edition changelist action, « Recalculer les badges (toutes les
   éditions) », runs `refresh()`. The selection does not matter, because streaks and tables
   span editions. It needs the change permission on Edition, so a view-only staff user does
@@ -534,7 +536,7 @@ Front:
 - Badges are only as complete as the rosters, as with the profiles: early editions
   without `Player` rows give nobody anything.
 - Two people with the same full name share a user, and so share their badges.
-- A correction to a finished edition shows after the next nightly run, or at once
+- A correction to a finished edition shows after the next monthly run, or at once
   through the admin action.
 - The cron entry lives on the host, outside the repository. Without it, a finished
   edition's badges wait for the admin action or an `import_edition`.
