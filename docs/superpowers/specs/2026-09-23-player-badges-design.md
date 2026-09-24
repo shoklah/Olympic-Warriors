@@ -59,7 +59,9 @@ Decisions taken while brainstorming (2026-09-23):
 - **Game**: an active, played game of an active round of an active discipline, the filter
   `compute_standings` uses. A game gives a badge only when its discipline is revealed, so
   a badge never leaks a hidden score. Refereeing a game leaks nothing, so every such game
-  counts for the golden whistle.
+  counts for the golden whistle, but only as refereed when the referee team is neither of
+  the two teams playing: the schedulers put a playing team there as a placeholder (Swiss
+  rounds leave team1, and round robin keeps its default when no team is free).
 - **All-time table after E**: the `/players` leaderboard built only from the
   participations of the editions up to E in the sequence, using the same `_record` and
   `_place` as `profiles.py`. Positions are shared as on the page, and someone with nothing
@@ -163,7 +165,7 @@ of fame reads.
 | `brains-and-brawn` | Tête et jambes | Brains and brawn | In one edition, won a mind discipline and a physical one | each | silver | A brain and a flexed arm |
 | `clean-sweep` | Razzia | Clean sweep | Won at least 3 disciplines in one edition | each | gold | A broom ✓ |
 | `metronome` | Métronome | Metronome | Podium in every ranked discipline of an edition, with at least 4 of them | each | gold | A metronome |
-| `uncrowned` | Sans couronne | Uncrowned | The most discipline wins of the edition (at least 2, no team with more) without the title | each | plain | A cracked crown |
+| `uncrowned` | Sans couronne | Uncrowned | The most discipline wins of the edition (at least 2, no team with more) without the title: the person's participation counts and is not 1st | each | plain | A cracked crown |
 | `photo-finish` | Photo-finish | Photo finish | Won a points discipline on the points-difference tie-breaker (same points as a rank-2 result), or won a computed edition alone by 1 total point | once per edition | silver | Stopwatch ✓ |
 
 **The gods.** Winning any discipline of a family earns its god, once per god and person,
@@ -198,8 +200,8 @@ discipline means picking its god and its kind.
 | `perfect-run` | Sans faute | Perfect run | Won every game of a discipline, at least 3 played. Replaces `unbeaten` for that discipline and edition | each, per discipline | gold | Shield with a star |
 | `shutout` | Cadenas | Shutout | Won a game without conceding a point | once per edition | bronze | Padlock |
 | `steamroller` | Rouleau compresseur | Steamroller | The biggest winning margin of the edition's games (ties share it) | once per edition | silver | Road roller |
-| `golden-whistle` | Sifflet d'or | Golden whistle | The person's teams refereed 5 / 10 / 20 games in total | tiers | tiers | Whistle ✓ |
-| `perfect-pitch` | Oreille absolue | Perfect pitch | Artist and song both right on every active round of the edition's blindtest, which must be revealed | once per edition | gold | Tuning fork |
+| `golden-whistle` | Sifflet d'or | Golden whistle | The person's teams refereed 5 / 10 / 20 games in total. A game counts as refereed only when the referee team is neither of the two teams playing (the schedulers put a playing team there as a placeholder) | tiers | tiers | Whistle ✓ |
+| `perfect-pitch` | Oreille absolue | Perfect pitch | Artist and song both right on every round of the edition's blindtest, which must be revealed: every active round that has at least one active guess (`Blindtest.save()` creates a guess per team for every round) | once per edition | gold | Tuning fork |
 
 ### Given by hand
 
@@ -287,9 +289,9 @@ participations, with no query per table.
 1. lock the `BadgeRefresh` row (`select_for_update()`, after a `get_or_create` in case a
    flushed test database lost the row the migration made);
 2. compute `earned(today)`;
-3. diff it against the stored computed rows, keyed as above:
-   - delete the rows no longer earned, active or not, and any duplicate of a key but the
-     one with the lowest id;
+3. diff it against the stored computed rows of active editions, keyed as above:
+   - delete the rows no longer earned, active or not, and any duplicate of a key but one:
+     an inactive one first, so a revocation is never lost, else the lowest id;
    - `bulk_create` the new ones;
    - leave the others alone, so `created_at` and a revoked row's `is_active` survive;
 4. set `BadgeRefresh.refreshed_at` to now, and return how many rows were added, removed
@@ -297,6 +299,12 @@ participations, with no query per table.
 
 Manual rows are never read or written. Running it twice in a row writes nothing the
 second time.
+
+The rows of an inactive edition are not read either. Such an edition is out of the
+sequence and earns nothing, so reading its rows would delete them. It keeps them instead,
+hidden from the profiles (which read active editions only), and a reactivated edition gets
+them back as they were, revocations and `created_at` included; the next refresh then
+deletes whatever it no longer earns.
 
 **`BadgeRefresh`** is a one-row model (`refreshed_at`, a nullable datetime), created by
 the migration and not registered in the admin. Its row lock makes a cron run and an admin
@@ -476,7 +484,8 @@ and the profile payload in `tests/test_profiles.py`:
 - `refresh()`:
   - a second run writes nothing;
   - a badge no longer earned is deleted;
-  - a revoked row stays inactive;
+  - a revoked row stays inactive, and a duplicate keeps the revoked row;
+  - an inactive edition's rows stay, and come back unchanged once it is reactivated;
   - manual rows are untouched;
   - `refresh_badges` calls it and prints the rows added and removed, and
     `refreshed_at` is set;
@@ -505,6 +514,10 @@ Front:
 - The thresholds (networker, golden whistle, veteran, ever-present) are first guesses, to
   tune once the real data is in.
 - `created_at` restarts when a correction removes a badge and a later one earns it back.
+- An inactive edition's badges are frozen: the refresh neither updates nor deletes them
+  while it is inactive, so they come back as they were when it is reactivated, and only
+  the next refresh corrects them. Meanwhile the other editions are computed without it
+  (a streak runs across it), which that refresh also corrects.
 - Manual badges are not part of the edition export and import (`transfer.NOT_EXPORTED`),
   and `import_edition --replace` cascade-deletes the replaced edition's badges.
 
