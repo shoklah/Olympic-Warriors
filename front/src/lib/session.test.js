@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { ME, ORGANISER, TOKEN_COOKIE, tokenCookieOptions } from './session.js';
+import { ORGANISER, TOKEN_COOKIE, tokenCookieOptions } from './session.js';
 
 describe('session constants', () => {
-	it('names the context keys and the cookie', () => {
+	it('names the context key and the cookie', () => {
 		expect(ORGANISER).toBe('organiser');
-		expect(ME).toBe('me');
 		expect(TOKEN_COOKIE).toBe('token');
 	});
 

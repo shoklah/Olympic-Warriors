@@ -6,16 +6,14 @@
 	import { page } from '$app/stores';
 	import { setContext } from 'svelte';
 	import { I18N } from '$lib/i18n';
-	import { ME, ORGANISER } from '$lib/session';
+	import { ORGANISER } from '$lib/session';
 
 	export let data;
 
 	// The language is decided on the server per request; switching it is a full
-	// page load (plain form POST + redirect), so init-time context is enough. So is who is
-	// logged in: logging in and out are plain POSTs that reload the page too.
+	// page load (plain form POST + redirect), so init-time context is enough.
 	setContext(I18N, data.locale);
 	setContext(ORGANISER, data.organiser);
-	setContext(ME, data.me);
 
 	// The hub, the login page and the claim page carry no section, so they get no bottom tab bar.
 	const NO_TAB_BAR = new Set(['/', '/[year=year]', '/login', '/claim/[uid]/[token]']);
@@ -40,7 +38,7 @@
 </script>
 
 <div class="app" class:has-tabbar={showTabBar}>
-	<!-- `me` as a prop, not only the ME context: the pill's photo and name follow invalidateAll(). -->
+	<!-- `me` as a prop, not a context: the pill's photo and name follow invalidateAll(). -->
 	<Header me={data.me} />
 
 	<main>
