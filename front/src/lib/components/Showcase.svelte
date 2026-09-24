@@ -62,9 +62,13 @@
 					<button
 						type="button"
 						aria-label={slotLabel(slots.get(badge.code), t)}
+						aria-describedby="showcase-rule-{badge.code}"
 						on:click={(event) => openSheet(badge.code, event)}
 					>
 						<Badge {badge} />
+						<!-- The rule as the description, as on the collection's slots (without their
+						     hover tooltip: the sheet this opens states the rule too). -->
+						<span id="showcase-rule-{badge.code}" class="visually-hidden">{t(`badge.${badge.code}.rule`)}</span>
 					</button>
 				</li>
 			{/each}
@@ -82,18 +86,28 @@
 <style>
 	.showcase {
 		display: flex;
-		flex-wrap: wrap;
 		align-items: center;
 	}
 
+	/* Badge draws a pip row under each ring: its gap (8% of the size) then its pips (7%, at
+	   least 5px). A page setting `--showcase-hang: 1`, where the medallions sit inline after
+	   a name, lets that row hang below the line: the rings then centre on the name and a row
+	   with a showcase is no taller than one without. */
 	.row {
+		flex: none;
 		gap: 4px;
+		margin-bottom: calc(
+			var(--showcase-hang, 0) * -1 * (var(--badge-size) * 0.08 + max(5px, var(--badge-size) * 0.07))
+		);
 	}
 
+	/* Pulled back by the buttons' padding, so the rings line up with the name above. */
 	.interactive {
+		flex-wrap: wrap;
 		gap: 6px;
 		--badge-size: 40px;
 		margin: 0;
+		margin-inline-start: -3px;
 		padding: 0;
 		list-style: none;
 	}

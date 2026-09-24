@@ -1,4 +1,4 @@
-import { isKnownBadge } from '$lib/badges';
+import { isKnownBadge } from '$lib/badge-codes';
 import { ordinal } from '$lib/edition';
 import { disciplineName, t } from '$lib/i18n';
 import { localeFrom } from '$lib/i18n/locale.js';

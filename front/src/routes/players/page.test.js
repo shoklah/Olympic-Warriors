@@ -120,8 +120,9 @@ describe('players leaderboard page', () => {
 		expect(rows[1]).toHaveTextContent(/^\s*Jules Roux\s*2 editions, showcase: Rookie\s*$/);
 		expect(rows[1]).toHaveAttribute('href', '/players/41');
 		expect(screen.getByRole('link', { name: /^Ana Petit\s*1 edition$/ })).toBe(rows[0]);
-		// jsdom's name computation pads every child element with spaces, hence `\s*,`: the
-		// comma opens the hidden showcase sentence, right after the visible edition count.
+		// `\s*,`: the accessible name puts a space around each child element's text (as
+		// Chromium does too), so one may come before the comma opening the hidden showcase
+		// sentence, right after the visible edition count.
 		expect(screen.getByRole('link', { name: /^Jules Roux\s*2 editions\s*, showcase: Rookie$/ })).toBe(rows[1]);
 		expect(rows[1].querySelector('img[src^="/media/"]')).toHaveAttribute('src', '/media/avatars/41-0a1b2c3d4e5f-sm.webp');
 		expect(within(rows[1]).getByTestId('showcase')).toHaveAttribute('aria-hidden', 'true');

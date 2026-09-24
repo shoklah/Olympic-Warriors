@@ -202,10 +202,20 @@
 		}
 	}
 
+	/* `anywhere` is the last resort for a single word wider than the line. */
 	h1 {
 		margin: 0;
 		line-height: 1;
 		overflow-wrap: anywhere;
+	}
+
+	/* Beside the 96px avatar the name has 231px at 375px and 176px at 320px: the heading
+	   scales with the viewport so a long name part (« Rochefoucauld- ») still fits whole on
+	   a line. No `hyphens: auto`: a dictionary would cut people's names at syllables. */
+	@media (max-width: 599.98px) {
+		h1 {
+			font-size: clamp(1.6rem, 8vw, 2.75rem);
+		}
 	}
 
 	h2 {

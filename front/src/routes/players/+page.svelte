@@ -40,7 +40,7 @@
 						href="/players/{player.id}"
 						data-testid="player-row"
 					>
-						<MedalRank rank={player.position} />
+						<span class="position"><MedalRank rank={player.position} /></span>
 						<Avatar photo={player.photo ?? null} name={player} size={32} lazy />
 						<span class="text">
 							<span class="head">
@@ -142,6 +142,19 @@
 		grid-template-columns: auto minmax(0, 1fr) auto;
 	}
 
+	/* On a phone the position hugs the avatar: a column two digits wide (a third overflows
+	   into the row's padding), the number set against its right edge. */
+	@media (max-width: 599.98px) {
+		.row {
+			grid-template-columns: 28px auto minmax(0, 1fr) auto;
+			column-gap: 10px;
+		}
+
+		.position {
+			justify-self: end;
+		}
+	}
+
 	.row:hover {
 		background: var(--line);
 		transform: translateY(-2px);
@@ -175,8 +188,9 @@
 		overflow-wrap: anywhere;
 	}
 
-	/* The name, then the showcase on its own line below 600px and inline after the name
-	   from 600px. */
+	/* The name, then the showcase on its own line below 600px. From 600px the showcase stays
+	   inline after the name, a long name wrapping beside it, and its pip row hangs below the
+	   line (`--showcase-hang`), so the rings centre on the name and the row keeps its height. */
 	.head {
 		display: flex;
 		flex-direction: column;
@@ -188,9 +202,9 @@
 	@media (min-width: 600px) {
 		.head {
 			flex-direction: row;
-			flex-wrap: wrap;
 			align-items: center;
-			gap: 3px 10px;
+			gap: 10px;
+			--showcase-hang: 1;
 		}
 	}
 

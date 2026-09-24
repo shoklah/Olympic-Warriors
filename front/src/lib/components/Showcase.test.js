@@ -83,6 +83,17 @@ describe('Showcase in the profile header', () => {
 		]);
 	});
 
+	it("describes each button by the badge's rule, like the collection slots", () => {
+		renderHeader();
+
+		expect(screen.getByRole('button', { name: 'Specialist, badge earned' })).toHaveAccessibleDescription(
+			'Win the same discipline 2, 3, then 4 times'
+		);
+		expect(screen.getByRole('button', { name: 'Clean sweep, badge earned 2 times' })).toHaveAccessibleDescription(
+			'Win three disciplines or more in one edition'
+		);
+	});
+
 	it("opens the badge's sheet, with the rarity from badge_stats, and gives focus back on close", async () => {
 		renderHeader({ badgeStats: profile.badge_stats });
 
@@ -116,6 +127,8 @@ describe('Showcase in the profile header', () => {
 		renderHeader({}, 'fr');
 
 		const list = screen.getByRole('list', { name: 'Vitrine' });
-		expect(within(list).getByRole('button', { name: 'Razzia, badge obtenu 2 fois' })).toBeInTheDocument();
+		expect(within(list).getByRole('button', { name: 'Razzia, badge obtenu 2 fois' })).toHaveAccessibleDescription(
+			"Gagner au moins trois épreuves lors d'une même édition"
+		);
 	});
 });
