@@ -7,8 +7,8 @@ const VISITOR = { organiser: false, me: null };
 
 /**
  * Who the token cookie belongs to, from `/me/`: whether they are an organiser (`is_staff`)
- * and `me`, the few fields the pages need (`id`, `first_name`, `photo` as `{ large, small }`
- * or null, `is_person`). The rest of `/me/` stays here: no page needs it, and layout data is
+ * and `me`, the few fields the pages need (`id`, `first_name`, `last_name`, for the initials
+ * of an avatar without a photo, `photo` as `{ large, small }` or null, `is_person`). The rest of `/me/` stays here: no page needs it, and layout data is
  * serialised into every page. A dead token (401/403) is dropped; any other
  * failure (API down, a body that is not the expected object) keeps it and counts as a
  * visitor for this request.
@@ -19,10 +19,16 @@ async function resolveViewer(fetch, cookies) {
 	try {
 		const user = await apiGet(fetch, api('/me/'), token);
 		if (typeof user !== 'object' || user === null || user.id == null) return VISITOR;
-		const { id, first_name, photo, is_person } = user;
+		const { id, first_name, last_name, photo, is_person } = user;
 		return {
 			organiser: Boolean(user.is_staff),
-			me: { id, first_name: first_name ?? '', photo: photo ?? null, is_person: Boolean(is_person) }
+			me: {
+				id,
+				first_name: first_name ?? '',
+				last_name: last_name ?? '',
+				photo: photo ?? null,
+				is_person: Boolean(is_person)
+			}
 		};
 	} catch (err) {
 		if (err?.status === 401 || err?.status === 403) cookies.delete(TOKEN_COOKIE, { path: '/' });

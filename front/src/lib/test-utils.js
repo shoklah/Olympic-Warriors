@@ -4,7 +4,8 @@ import { ME, ORGANISER } from '$lib/session';
 
 /**
  * Render a component with the locale, the organiser flag and the logged-in person
- * (`{ id, first_name, photo, is_person }`) in context, as the root layout does at runtime.
+ * (`{ id, first_name, last_name, photo, is_person }`) in context, as the root layout does
+ * at runtime. A component that takes `me` as a prop (Header) gets it through `props`.
  * Existing tests assert English text, so `en` is the default; French, the organiser view
  * and a logged-in person are opt-in.
  */

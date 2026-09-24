@@ -57,16 +57,17 @@ describe('root layout load', () => {
 		expect(data.me).toEqual({
 			id: 7,
 			first_name: 'Léa',
+			last_name: 'Martin',
 			photo: { large: '/media/avatars/7-abc.webp', small: '/media/avatars/7-abc-sm.webp' },
 			is_person: true
 		});
 	});
 
-	it('keeps only the id, the first name, the photo and whether they are a person', async () => {
+	it('keeps only the id, the names, the photo and whether they are a person', async () => {
 		const { data, cookies } = await run({ token: 'abc', user: json(200, meBody({ photo: null })) });
 		expect(data.organiser).toBe(false);
-		// Never the username, the last name, the lock or the pins: the layout data reaches the page.
-		expect(data.me).toEqual({ id: 7, first_name: 'Léa', photo: null, is_person: true });
+		// Never the username, the lock or the pins: the layout data reaches the page.
+		expect(data.me).toEqual({ id: 7, first_name: 'Léa', last_name: 'Martin', photo: null, is_person: true });
 		expect(cookies.delete).not.toHaveBeenCalled();
 	});
 
@@ -76,7 +77,7 @@ describe('root layout load', () => {
 			user: json(200, meBody({ is_staff: true, is_person: false, photo: null }))
 		});
 		expect(data.organiser).toBe(true);
-		expect(data.me).toEqual({ id: 7, first_name: 'Léa', photo: null, is_person: false });
+		expect(data.me).toEqual({ id: 7, first_name: 'Léa', last_name: 'Martin', photo: null, is_person: false });
 	});
 
 	it.each([401, 403])('drops a dead token (%i)', async (status) => {

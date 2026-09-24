@@ -10,7 +10,7 @@ describe('initials', () => {
 	it('keeps the accents', () => {
 		expect(initials('élodie', 'Évrard')).toBe('ÉÉ');
 		// A decomposed accent (e + combining acute) comes out as one composed letter.
-		expect(initials('élise', 'Ogier')).toBe('ÉO');
+		expect(initials('e\u0301lise', 'Ogier')).toBe('\u00c9O');
 	});
 
 	it('skips what is not a letter', () => {

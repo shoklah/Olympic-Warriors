@@ -4,18 +4,24 @@
 	import logo from '$lib/img/logo.svg';
 	import { switchYearPath } from '$lib/edition';
 	import { useLocale, useT } from '$lib/i18n';
-	import { useMe, useOrganiser } from '$lib/session';
+	import { useOrganiser } from '$lib/session';
 	import Avatar from './Avatar.svelte';
+
+	/**
+	 * Who is logged in, the root layout's `data.me`, or null. A prop rather than the ME
+	 * context: `invalidateAll()` (after a new photo) re-runs the root load without remounting
+	 * the header, and only a prop follows it. An organiser keeps the ORGA pill, with their
+	 * avatar in it when they also play; anyone else logged in gets the account pill.
+	 */
+	export let me = null;
 
 	const locale = useLocale();
 	const t = useT();
 	const organiser = useOrganiser();
-	// Who is logged in, or null. An organiser keeps the ORGA pill, with their avatar in it
-	// when they also play; anyone else logged in gets the account pill.
-	const me = useMe();
-	const smallPhoto = me?.photo?.small ?? null;
+
+	$: smallPhoto = me?.photo?.small ?? null;
 	// The accessible name starts with the visible first name (WCAG 2.5.3).
-	const accountName = me?.first_name ? `${me.first_name} · ${t('account.profile')}` : t('account.profile');
+	$: accountName = me?.first_name ? `${me.first_name} · ${t('account.profile')}` : t('account.profile');
 
 	$: editions = $page.data.editions ?? [];
 	// On an error page the year in the URL may be one with no edition, so fall back to the latest.
@@ -140,7 +146,8 @@
 					<!-- The same plain POST as the ORGA pill. -->
 					<form method="POST" action="/logout">
 						<input type="hidden" name="redirectTo" value={here} />
-						<button class="round logout" aria-label={t('account.logout')}>
+						<!-- An icon alone from 600px up: the title gives a pointer the words too. -->
+						<button class="round logout" aria-label={t('account.logout')} title={t('account.logout')}>
 							<svg viewBox="0 0 24 24" aria-hidden="true">
 								<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
 							</svg>
@@ -375,13 +382,17 @@
 	.account .who {
 		min-width: 0;
 		min-height: 44px;
-		padding: 0 0.9em 0 9px;
-		border: 1px solid var(--line-strong);
-		border-radius: var(--radius-pill);
 		color: var(--text);
 		font-family: var(--font-display);
 		font-size: 1.1rem;
 		letter-spacing: 0.08em;
+	}
+
+	/* Only the link is drawn as a control: a name with no profile page stays plain text. */
+	.account a.who {
+		padding: 0 0.9em 0 9px;
+		border: 1px solid var(--line-strong);
+		border-radius: var(--radius-pill);
 		text-decoration: none;
 	}
 
@@ -645,7 +656,7 @@
 
 		/* The account row: the profile link on the left, like the login row, the logout
 		   button on the right. */
-		.account .who {
+		.account a.who {
 			padding: 0;
 			border: 0;
 			border-radius: 0;

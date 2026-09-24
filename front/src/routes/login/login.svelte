@@ -8,7 +8,7 @@
     const t = useT();
 </script>
 
-<!-- A plain POST: the redirect reloads the page so the organiser context is set from the new cookie. -->
+<!-- A plain POST: the redirect reloads the page so the organiser and me contexts are set from the new cookie. -->
 <form method="POST" action="?/login"
       in:fly={{ delay: 200, x: -200, duration: 300, easing: cubicOut }}>
 

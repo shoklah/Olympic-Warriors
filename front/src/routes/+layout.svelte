@@ -40,7 +40,8 @@
 </script>
 
 <div class="app" class:has-tabbar={showTabBar}>
-	<Header />
+	<!-- `me` as a prop, not only the ME context: the pill's photo and name follow invalidateAll(). -->
+	<Header me={data.me} />
 
 	<main>
 		<slot />
