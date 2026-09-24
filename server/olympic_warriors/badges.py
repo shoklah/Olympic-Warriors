@@ -12,9 +12,13 @@ earned at the edition that completes it: playing more never takes a badge away.
 
 from collections import Counter, defaultdict
 from dataclasses import dataclass
+from datetime import datetime
 from itertools import combinations
 
-from .models import Badge, BlindtestGuess, Game, TeamResult
+from django.db import transaction
+from django.utils import timezone
+
+from .models import Badge, BadgeRefresh, BlindtestGuess, Game, TeamResult
 from .models.ResultTypes import ResultTypes
 from .profiles import _load, _participations, _place, _record, _sort_key, paris_today
 
@@ -664,3 +668,55 @@ def earned(today=None):
     for rule in RULES:
         found.update(rule(h))
     return found
+
+
+@dataclass(frozen=True)
+class RefreshReport:
+    """What a refresh changed."""
+
+    added: int
+    removed: int
+    kept: int
+    refreshed_at: datetime
+
+
+KEY_FIELDS = ("user_id", "code", "edition_id", "tier", "discipline", "partner_id")
+
+
+def refresh(today=None):
+    """
+    Store earned(today) in the Badge table, in one transaction under the BadgeRefresh row
+    lock: delete the computed rows no longer earned (active or not), bulk-create the new
+    ones, and leave the others alone, so created_at and a revoked row's is_active survive.
+    Manual rows are never read or written.
+    """
+    with transaction.atomic():
+        BadgeRefresh.objects.get_or_create(pk=1)  # a flushed test database loses the row
+        state = BadgeRefresh.objects.select_for_update().get(pk=1)
+        wanted = {tuple(getattr(e, f) for f in KEY_FIELDS): e for e in earned(today)}
+        stored = defaultdict(list)
+        for pk, *key in Badge.objects.filter(is_manual=False).values_list("id", *KEY_FIELDS):
+            stored[tuple(key)].append(pk)
+        gone = [
+            pk
+            for key, pks in stored.items()
+            for pk in (pks if key not in wanted else sorted(pks)[1:])
+        ]
+        new = [
+            Badge(
+                user_id=e.user_id, code=e.code, edition_id=e.edition_id, tier=e.tier,
+                discipline=e.discipline, partner_id=e.partner_id,
+            )
+            for key, e in wanted.items()
+            if key not in stored
+        ]
+        if gone:
+            Badge.objects.filter(id__in=gone).delete()
+        if new:
+            Badge.objects.bulk_create(new)
+        state.refreshed_at = timezone.now()
+        state.save(update_fields=["refreshed_at"])
+    return RefreshReport(
+        added=len(new), removed=len(gone), kept=len(wanted) - len(new),
+        refreshed_at=state.refreshed_at,
+    )
