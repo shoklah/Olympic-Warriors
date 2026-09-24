@@ -49,8 +49,15 @@ describe('Badge', () => {
 
 	it('draws a locked medallion with a dashed ring and no lit pip', () => {
 		const { container } = renderWith(Badge, { badge: { code: 'veteran', tier: 0, years: [] }, locked: true });
-		const root = container.querySelector('[data-metal]');
+		const root = container.querySelector('.badge');
 		expect(root).toHaveClass('locked');
 		expect(root.querySelectorAll('.pip.on')).toHaveLength(0);
+	});
+
+	it('carries no metal on a locked medallion: it has not been earned', () => {
+		const { container } = renderWith(Badge, { badge: { code: 'champion', tier: 0, years: [] }, locked: true });
+		const root = container.querySelector('.badge');
+		expect(root).not.toHaveAttribute('data-metal');
+		expect(root).not.toHaveClass('gold');
 	});
 });

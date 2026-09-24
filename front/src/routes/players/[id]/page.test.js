@@ -62,43 +62,45 @@ describe('player profile page', () => {
 		expect(within(rows[2]).queryAllByRole('link').map((a) => a.textContent.trim())).toEqual(['2024']);
 	});
 
-	it('has a tabs nav named "Profile sections" with Profile and Badges · N/63 links', () => {
+	it('has a tabs nav named "Profile sections" with Profile and Badges links', () => {
 		renderWith(Page, { data: { profile } });
 
 		const nav = screen.getByRole('navigation', { name: 'Profile sections' });
 		const profileLink = within(nav).getByRole('link', { name: 'Profile' });
 		expect(profileLink).toHaveAttribute('href', '?');
-		const badgesLink = within(nav).getByRole('link', { name: 'Badges · 4/63' });
+		expect(profileLink).toHaveAttribute('data-sveltekit-keepfocus');
+		const badgesLink = within(nav).getByRole('link', { name: 'Badges' });
 		expect(badgesLink).toHaveAttribute('href', '?tab=badges');
+		expect(badgesLink).toHaveAttribute('data-sveltekit-keepfocus');
 	});
 
 	it('defaults to the Profile tab: Profile current, Éditions shown, no badge slots', () => {
 		renderWith(Page, { data: { profile } });
 
 		expect(screen.getByRole('link', { name: 'Profile' })).toHaveAttribute('aria-current', 'page');
-		expect(screen.getByRole('link', { name: 'Badges · 4/63' })).not.toHaveAttribute('aria-current');
+		expect(screen.getByRole('link', { name: 'Badges' })).not.toHaveAttribute('aria-current');
 		expect(screen.getByRole('heading', { level: 2, name: 'Editions' })).toBeInTheDocument();
-		expect(screen.queryAllByRole('button')).toHaveLength(0);
+		expect(screen.queryByRole('button', { name: /^Champion,/ })).toBeNull();
 	});
 
 	it('shows the Badges tab under ?tab=badges: current, the collection, no Éditions heading', () => {
 		setSearch('?tab=badges');
 		renderWith(Page, { data: { profile } });
 
-		expect(screen.getByRole('link', { name: 'Badges · 4/63' })).toHaveAttribute('aria-current', 'page');
+		expect(screen.getByRole('link', { name: 'Badges' })).toHaveAttribute('aria-current', 'page');
 		expect(screen.getByRole('link', { name: 'Profile' })).not.toHaveAttribute('aria-current');
 		expect(screen.getByText('4 badges out of 63')).toBeInTheDocument();
 		expect(screen.getByRole('heading', { level: 3, name: /Podiums/ })).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: /^Champion,/ })).toBeInTheDocument();
 		expect(screen.queryByRole('heading', { level: 2, name: 'Editions' })).toBeNull();
 	});
 
-	it('shows the badge-count card linking to the Badges tab', () => {
+	it('shows the badge-count card linking to the Badges tab, its accessible name in shown-text order', () => {
 		renderWith(Page, { data: { profile } });
 
 		const card = screen.getByTestId('badge-count');
-		expect(card).toHaveTextContent(/Badges\s*4\s*\/\s*63/);
 		expect(card).toHaveAttribute('href', '?tab=badges');
-		expect(card).toBe(screen.getByRole('link', { name: /see the collection$/ }));
+		expect(screen.getByRole('link', { name: 'Badges 4 / 63 see the collection' })).toBe(card);
 	});
 
 	it('shows 0/63 in the badge-count card for a profile with no badge', () => {
@@ -153,7 +155,10 @@ describe('player profile page', () => {
 
 		const nav = screen.getByRole('navigation', { name: 'Sections du profil' });
 		expect(within(nav).getByRole('link', { name: 'Profil' })).toBeInTheDocument();
-		expect(screen.getByRole('link', { name: /voir la collection$/ })).toBe(screen.getByTestId('badge-count'));
+		expect(within(nav).getByRole('link', { name: 'Badges' })).toHaveAttribute('href', '?tab=badges');
+		expect(screen.getByRole('link', { name: 'Badges 4 / 63 voir la collection' })).toBe(
+			screen.getByTestId('badge-count')
+		);
 	});
 
 	it('shows the best-discipline card with the top discipline', () => {

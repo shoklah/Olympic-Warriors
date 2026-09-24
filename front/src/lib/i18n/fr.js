@@ -42,9 +42,11 @@ export default {
 	'profile.badges': 'Badges',
 	'profile.tabs': 'Sections du profil',
 	'profile.tab.profile': 'Profil',
-	'profile.tab.badges': 'Badges · {earned}/{total}',
+	'profile.tab.badges': 'Badges',
 	'profile.seeCollection': 'voir la collection',
-	'badge.progress': '{earned} badges sur {total}',
+	'badge.progress': { one: '{n} badge sur {total}', other: '{n} badges sur {total}' },
+	'badge.familyProgress': '{earned} sur {total}',
+	'badge.earnedTimes': { one: 'badge obtenu {n} fois', other: 'badge obtenu {n} fois' },
 	'badge.family.podiums': 'Palmarès',
 	'badge.family.streaks': 'Séries',
 	'badge.family.loyalty': 'Fidélité',
@@ -61,12 +63,12 @@ export default {
 	'badge.next.veteran': { one: 'Prochain niveau : {n} édition', other: 'Prochain niveau : {n} éditions' },
 	'badge.first.veteran': { one: 'Premier niveau : {n} édition', other: 'Premier niveau : {n} éditions' },
 	'badge.next.ever-present': {
-		one: 'Prochain niveau : {n} édition de suite',
-		other: 'Prochain niveau : {n} éditions de suite'
+		one: "Prochain niveau : {n} édition d'affilée",
+		other: "Prochain niveau : {n} éditions d'affilée"
 	},
 	'badge.first.ever-present': {
-		one: 'Premier niveau : {n} édition de suite',
-		other: 'Premier niveau : {n} éditions de suite'
+		one: "Premier niveau : {n} édition d'affilée",
+		other: "Premier niveau : {n} éditions d'affilée"
 	},
 	'badge.next.networker': { one: 'Prochain niveau : {n} coéquipier', other: 'Prochain niveau : {n} coéquipiers' },
 	'badge.first.networker': { one: 'Premier niveau : {n} coéquipier', other: 'Premier niveau : {n} coéquipiers' },

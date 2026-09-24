@@ -1,15 +1,13 @@
 <script>
 	import Badge from './Badge.svelte';
 	import BadgeSheet from './BadgeSheet.svelte';
-	import { badgeCollection } from '$lib/badges';
 	import { useT } from '$lib/i18n';
 
-	/** The profile's badges, unfiltered: badgeCollection ignores unknown codes itself. */
-	export let badges = [];
+	/** badgeCollection(profile.badges ?? []); the page computes it once and passes it down. */
+	export let collection;
 
 	const t = useT();
 
-	$: collection = badgeCollection(badges);
 	$: pct = collection.total ? Math.round((100 * collection.earned) / collection.total) : 0;
 
 	/** The code of the slot whose sheet is open, or null. */
@@ -32,24 +30,37 @@
 		openButton = null;
 	}
 
-	/** The button's accessible name: "<name>, <earned|locked>[, ×N]" (spec, BadgeCollection.svelte). */
+	/**
+	 * The button's accessible name: "<name>, <earned|locked>" or, above ×1,
+	 * "<name>, badge earned N times" (a plural key, so a screen reader never hears "×2").
+	 */
 	function slotLabel(slot) {
 		const name = t(`badge.${slot.code}.name`);
-		const status = t(slot.earned ? 'badge.earned' : 'badge.locked');
-		const count = slot.earned && slot.count > 1 ? `, ${t('badge.times', { n: slot.count })}` : '';
-		return `${name}, ${status}${count}`;
+		if (!slot.earned) return `${name}, ${t('badge.locked')}`;
+		if (slot.count > 1) return `${name}, ${t('badge.earnedTimes', { n: slot.count })}`;
+		return `${name}, ${t('badge.earned')}`;
 	}
 </script>
 
+<h2 class="visually-hidden">{t('profile.badges')}</h2>
+
 <div class="progress">
-	<p>{t('badge.progress', { earned: collection.earned, total: collection.total })}</p>
+	<p>{t('badge.progress', { n: collection.earned, total: collection.total })}</p>
 	<div class="bar" aria-hidden="true"><div class="fill" style="width: {pct}%"></div></div>
 	<span class="pct num" aria-hidden="true">{pct}%</span>
 </div>
 
 {#each collection.families as family (family.key)}
 	<section class="family">
-		<h3 class="label">{t(`badge.family.${family.key}`)} {family.earned}/{family.total}</h3>
+		<h3 class="label">
+			{t(`badge.family.${family.key}`)}
+			<!-- "3/5" reads as a fraction or a date to a screen reader: hide it and say the
+			     count in words instead. -->
+			<span aria-hidden="true">{family.earned}/{family.total}</span>
+			<span class="visually-hidden"
+				>{t('badge.familyProgress', { earned: family.earned, total: family.total })}</span
+			>
+		</h3>
 		<div class="slots">
 			{#each family.slots as slot (slot.code)}
 				<button type="button" class="slot" on:click={(event) => openSheet(slot, event)} aria-label={slotLabel(slot)}>
@@ -111,7 +122,7 @@
 
 	.slots {
 		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr));
+		grid-template-columns: repeat(auto-fill, minmax(4.75rem, 1fr));
 		gap: 14px 8px;
 		--badge-size: 48px;
 	}

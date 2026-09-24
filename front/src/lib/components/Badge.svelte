@@ -11,8 +11,10 @@
 	$: tier = badgeTier(badge);
 </script>
 
-<!-- Purely visual: the tile around it writes the name and, for a tiered badge, the tier. -->
-<span class="badge {metal}" class:locked data-metal={metal} aria-hidden="true">
+<!-- Purely visual: the tile around it writes the name and, for a tiered badge, the tier.
+     A locked slot carries no metal: data-metal would otherwise read gold/silver/bronze for
+     a badge that hasn't been earned. -->
+<span class="badge {locked ? '' : metal}" class:locked data-metal={locked ? undefined : metal} aria-hidden="true">
 	<span class="medal"><img src={badgeGlyph(badge)} alt="" /></span>
 	<!-- The pip row keeps its height on an untiered badge too, so that in a grid of tiles
 	     every medallion takes the same room and the names below line up. -->

@@ -43,19 +43,20 @@
 			class="tab"
 			href="?"
 			data-sveltekit-noscroll
+			data-sveltekit-keepfocus
 			aria-current={tab === 'profile' ? 'page' : undefined}>{t('profile.tab.profile')}</a
 		>
 		<a
 			class="tab"
 			href="?tab=badges"
 			data-sveltekit-noscroll
-			aria-current={tab === 'badges' ? 'page' : undefined}
-			>{t('profile.tab.badges', { earned: collection.earned, total: collection.total })}</a
+			data-sveltekit-keepfocus
+			aria-current={tab === 'badges' ? 'page' : undefined}>{t('profile.tab.badges')}</a
 		>
 	</nav>
 
 	{#if tab === 'badges'}
-		<BadgeCollection badges={profile.badges ?? []} />
+		<BadgeCollection {collection} />
 	{:else}
 		<div class="figures">
 			<div class="figure" data-testid="average-rank">
