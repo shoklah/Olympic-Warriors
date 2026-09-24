@@ -1,7 +1,7 @@
 """
 Tests for olympic_warriors.profiles: a person's editions, places, averages and leaderboard place,
 computed from the edition standings, and the two public endpoints serving them, the profile
-with its badges (badges.profile_badges).
+with its badges (badges.profile_badges) and rarity stats (badges.badge_stats).
 """
 
 from datetime import date, datetime, timezone
@@ -12,6 +12,7 @@ from django.contrib.auth.models import User
 from django.test import SimpleTestCase, TestCase
 from rest_framework.test import APIClient
 
+from olympic_warriors.badges import badge_stats
 from olympic_warriors.models import Badge, Darts, Edition, Player, Relay, Team, TeamResult
 from olympic_warriors.profiles import (
     DisciplinePlace,
@@ -497,6 +498,96 @@ class TestDisciplinePlacesGrouping(SimpleTestCase):
         )
 
 
+class TestBadgeStats(ProfilesSetup, TestCase):
+    """badges.badge_stats: how many of the given people hold each badge code, once per
+    person, and for the six tiered codes, how many hold at least each tier."""
+
+    def badge(self, code, edition, user=None, **kwargs):
+        """A stored Badge row, Ana's unless `user` is given."""
+        return Badge.objects.create(user=user or self.ana, code=code, edition=edition, **kwargs)
+
+    def test_players_is_the_number_of_ids_passed(self):
+        stats = badge_stats([self.ana.id, self.bob.id, self.chloe.id])
+
+        self.assertEqual(stats["players"], 3)
+
+    def test_holders_only_lists_codes_with_at_least_one_holder(self):
+        stats = badge_stats([self.ana.id, self.bob.id])
+
+        self.assertEqual(stats, {"players": 2, "holders": {}, "tiers": {}})
+
+    def test_counts_each_person_once_per_code_whatever_tier_discipline_partner_or_year(self):
+        self.badge(Badge.Codes.CHAMPION, self.y2024)
+        self.badge(Badge.Codes.CHAMPION, self.y2025)  # Ana again, another year: still one
+        self.badge(Badge.Codes.SPECIALIST, self.y2024, tier=1, discipline="Darts", user=self.bob)
+        self.badge(Badge.Codes.SPECIALIST, self.y2025, tier=2, discipline="Relay", user=self.bob)
+        self.badge(Badge.Codes.COMRADES, self.y2025, user=self.chloe, partner=self.dan)
+        self.badge(Badge.Codes.COMRADES, self.y2025, user=self.chloe, partner=self.ana)
+
+        stats = badge_stats([self.ana.id, self.bob.id, self.chloe.id, self.dan.id])
+
+        self.assertEqual(
+            stats["holders"], {"champion": 1, "specialist": 1, "comrades": 1}
+        )
+
+    def test_ignores_revoked_rows(self):
+        self.badge(Badge.Codes.CHAMPION, self.y2024, is_active=False)
+
+        stats = badge_stats([self.ana.id])
+
+        self.assertEqual(stats["holders"], {})
+
+    def test_ignores_inactive_editions(self):
+        y2023 = Edition.objects.create(
+            year=2023, host="Brest", start_date="2023-09-23", end_date="2023-09-24",
+            is_active=False,
+        )
+        self.badge(Badge.Codes.ROOKIE, y2023)
+
+        stats = badge_stats([self.ana.id])
+
+        self.assertEqual(stats["holders"], {})
+
+    def test_ignores_people_outside_ids(self):
+        self.badge(Badge.Codes.GOAT, self.y2024, user=self.bob)
+
+        stats = badge_stats([self.ana.id])  # Bob not passed
+
+        self.assertEqual(stats["holders"], {})
+
+    def test_tiers_is_the_at_least_k_count(self):
+        self.badge(Badge.Codes.VETERAN, self.y2024, tier=3)
+        self.badge(Badge.Codes.VETERAN, self.y2025, tier=2, user=self.bob)
+        self.badge(Badge.Codes.VETERAN, self.y2024, tier=1, user=self.chloe)
+
+        stats = badge_stats([self.ana.id, self.bob.id, self.chloe.id])
+
+        self.assertEqual(stats["holders"]["veteran"], 3)
+        self.assertEqual(stats["tiers"]["veteran"], [3, 2, 1])
+
+    def test_tiers_reads_the_highest_tier_per_person(self):
+        self.badge(Badge.Codes.VETERAN, self.y2024, tier=1)
+        self.badge(Badge.Codes.VETERAN, self.y2025, tier=3)  # Ana again, a higher tier
+
+        stats = badge_stats([self.ana.id])
+
+        self.assertEqual(stats["holders"]["veteran"], 1)
+        self.assertEqual(stats["tiers"]["veteran"], [1, 1, 1])
+
+    def test_tiers_only_lists_the_tiered_codes_with_a_holder(self):
+        self.badge(Badge.Codes.CHAMPION, self.y2024)  # untiered: no tiers entry
+
+        stats = badge_stats([self.ana.id])
+
+        self.assertEqual(stats["tiers"], {})
+
+    def test_one_query(self):
+        self.badge(Badge.Codes.CHAMPION, self.y2024)
+
+        with self.assertNumQueries(1):
+            badge_stats([self.ana.id])
+
+
 class TestProfileEndpoints(ProfilesSetup, TestCase):
     def setUp(self):
         super().setUp()
@@ -547,6 +638,7 @@ class TestProfileEndpoints(ProfilesSetup, TestCase):
                 "counted": 2,
                 "average_rank": 1.0,
                 "badges": [],
+                "badge_stats": {"players": 6, "holders": {}, "tiers": {}},
             },
         )
         self.assertNotIn("average_beaten", response.data)
@@ -608,15 +700,38 @@ class TestProfileEndpoints(ProfilesSetup, TestCase):
             self.assertNotIn(b"email", content)
 
     def test_both_endpoints_run_in_a_fixed_number_of_queries(self):
-        # Badges over two editions, one with a partner: the profile reads them in one query.
+        # Badges over two editions, one with a partner: the profile reads them in one query,
+        # plus one more for the rarity stats.
         self.badge(Badge.Codes.CHAMPION, self.y2024)
         self.badge(Badge.Codes.CHAMPION, self.y2025)
         self.badge(Badge.Codes.COMRADES, self.y2025, partner=self.chloe)
 
         with self.assertNumQueries(PROFILES_QUERIES):
             self.assertEqual(self.client.get("/profiles/").status_code, 200)
-        with self.assertNumQueries(PROFILES_QUERIES + 1):
+        with self.assertNumQueries(PROFILES_QUERIES + 2):
             self.assertEqual(self.client.get(f"/profile/{self.ana.id}/").status_code, 200)
+
+    def test_profile_carries_badge_stats(self):
+        self.badge(Badge.Codes.CHAMPION, self.y2024)
+        self.badge(Badge.Codes.VETERAN, self.y2025, tier=2, user=self.bob)
+
+        response = self.client.get(f"/profile/{self.ana.id}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.data["badge_stats"],
+            {
+                "players": 6,
+                "holders": {"champion": 1, "veteran": 1},
+                "tiers": {"veteran": [1, 1, 0]},
+            },
+        )
+
+    def test_profiles_endpoint_carries_no_badge_stats(self):
+        response = self.client.get("/profiles/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("badge_stats", response.data[0])
 
     # Badges
 

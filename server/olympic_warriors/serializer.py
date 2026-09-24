@@ -526,8 +526,8 @@ class ProfileBadgeSerializer(serializers.Serializer):
 
 class ProfileSerializer(serializers.Serializer):
     """A person's profile: position, counted editions and average rank, every edition
-    newest first, the person's places per discipline, ordered like a medal table, and the
-    badges in catalogue order."""
+    newest first, the person's places per discipline, ordered like a medal table, the
+    badges in catalogue order, and badge rarity stats."""
 
     id = serializers.IntegerField(source="user_id", help_text="The user id, not a Player id")
     first_name = serializers.CharField()
@@ -539,7 +539,14 @@ class ProfileSerializer(serializers.Serializer):
     editions = ProfileEditionSerializer(source="participations", many=True)
     # The view passes them as context["badges"] (from badges.profile_badges).
     badges = serializers.SerializerMethodField()
+    # The view passes them as context["badge_stats"] (from badges.badge_stats): how many
+    # people on /players hold each badge code, and for the tiered codes, at least each tier.
+    badge_stats = serializers.SerializerMethodField()
 
     @extend_schema_field(ProfileBadgeSerializer(many=True))
     def get_badges(self, obj):  # pylint: disable=unused-argument
         return ProfileBadgeSerializer(self.context.get("badges", []), many=True).data
+
+    @extend_schema_field(serializers.JSONField())
+    def get_badge_stats(self, obj):  # pylint: disable=unused-argument
+        return self.context.get("badge_stats")

@@ -798,3 +798,45 @@ def profile_badges(user_id):
         )
 
     return sorted(({**g, "years": sorted(g["years"])} for g in groups.values()), key=order)
+
+
+# The six tiered codes (see VETERAN_TIERS, EVER_PRESENT_TIERS, NETWORKER_TIERS,
+# SPECIALIST_TIERS, ALL_ROUNDER_TIERS and GOLDEN_WHISTLE_TIERS above): badge_stats reports
+# an at-least-k holder count for these codes only.
+TIERED_CODES = frozenset(
+    {C.VETERAN, C.EVER_PRESENT, C.NETWORKER, C.SPECIALIST, C.ALL_ROUNDER, C.GOLDEN_WHISTLE}
+)
+
+
+def badge_stats(user_ids):
+    """
+    Rarity stats for GET /profile/<id>/ (1 query), over the given user ids (the leaderboard's
+    people): how many hold each badge code (any tier, discipline, partner or year, each
+    counted once) and, for the six tiered codes, how many hold at least each tier (the
+    person's own highest tier of that code). Same filter as profile_badges: active rows of
+    active editions only. `holders` only lists codes with at least one holder; `tiers` only
+    lists the tiered codes with one. See the "Rarity" design spec.
+
+    {"players": 47, "holders": {"champion": 12, "veteran": 20}, "tiers": {"veteran": [20, 6, 1]}}
+    """
+    rows = Badge.objects.filter(
+        is_active=True, edition__is_active=True, user_id__in=user_ids
+    ).values_list("code", "user_id", "tier")
+    highest = {}
+    for code, user_id, tier in rows:
+        key = (code, user_id)
+        if tier > highest.get(key, -1):
+            highest[key] = tier
+    holders = Counter()
+    tiers = defaultdict(lambda: [0, 0, 0])
+    for (code, user_id), tier in highest.items():  # pylint: disable=unused-variable
+        holders[code] += 1
+        if code in TIERED_CODES:
+            for k in (1, 2, 3):
+                if tier >= k:
+                    tiers[code][k - 1] += 1
+    return {
+        "players": len(user_ids),
+        "holders": dict(holders),
+        "tiers": {code: counts for code, counts in tiers.items()},
+    }
