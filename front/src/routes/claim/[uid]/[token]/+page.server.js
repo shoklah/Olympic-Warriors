@@ -8,8 +8,7 @@ import { TOKEN_COOKIE, tokenCookieOptions } from '$lib/session';
  * One part of a claim link as Django issues it: the user id in base64url, or the
  * `<timestamp>-<hash>` token, so letters, digits, `-` and `_`, and never long. Both parts are
  * spliced into an API path, where a decoded `..` could otherwise walk to another endpoint;
- * anything else is a dead link anyway, so it gets the invalid state without costing the
- * visitor a throttled attempt.
+ * anything else is a dead link anyway, so it gets the invalid state without calling the API.
  */
 const LINK_PART = /^[A-Za-z0-9_-]{1,128}$/;
 
@@ -42,10 +41,13 @@ function passwordErrors(codes) {
  * Whose link this is, `{ state: 'ready', first_name, username }`, or the state the page shows
  * instead of the form: `invalid` for the API's 404 (a bad, used or expired link, or an account
  * that cannot be claimed, all answered alike so the link reveals nobody) and `throttled` for
- * its 429. Any other failure is the error page. The API throttles this read per client IP, like
- * the login, so the visitor's address goes along.
+ * a 429. Any other failure is the error page. The API throttles only the claim itself (the
+ * POST), not this read; the 429 state and the visitor's address stay as a safeguard should
+ * that change. The page carries a live credential in its URL and the username, so no cache
+ * (browser or shared) may keep any rendering of it.
  */
-export const load = async ({ params, fetch, getClientAddress }) => {
+export const load = async ({ params, fetch, getClientAddress, setHeaders }) => {
+	setHeaders({ 'cache-control': 'private, no-store' });
 	const path = claimPath(params);
 	if (!path) return { state: 'invalid' };
 	try {

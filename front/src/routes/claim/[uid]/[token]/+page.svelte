@@ -1,4 +1,5 @@
 <script>
+	import { onMount, tick } from 'svelte';
 	import { useT } from '$lib/i18n';
 
 	export let data;
@@ -10,11 +11,35 @@
 	$: invalid = data.state === 'invalid' || Boolean(form?.invalid);
 	$: passwordErrors = form?.password ?? [];
 	$: confirmationErrors = form?.confirmation ?? [];
+	// The password field also reads the line above the form (throttled, failed), since that
+	// is where focus goes when there is nothing wrong with the fields themselves.
+	$: passwordDescription =
+		[form?.error ? 'claim-form-error' : null, passwordErrors.length > 0 ? 'claim-password-errors' : null]
+			.filter(Boolean)
+			.join(' ') || undefined;
 
 	let usernameElement;
+	let passwordInput;
+	let confirmationInput;
 	let copyStatus = null;
 
+	// A failed submit reloads the page (a plain POST), leaving focus at the top and an alert
+	// that was there from the start, which screen readers do not reliably announce. Focus the
+	// first field in error instead, or the password field for an error of the whole form, so
+	// its description reads the message out.
+	onMount(() => {
+		if (!form || invalid) return;
+		const target =
+			[passwordInput, confirmationInput].find((input) => input?.getAttribute('aria-invalid') === 'true') ??
+			(form.error ? passwordInput : null);
+		target?.focus();
+	});
+
 	async function copyUsername() {
+		// Empty the status first: the same text set again would not change the live region,
+		// so a second copy would go unannounced.
+		copyStatus = null;
+		await tick();
 		try {
 			await navigator.clipboard.writeText(data.username);
 			copyStatus = 'claim.copied';
@@ -46,7 +71,7 @@
 	<!-- A plain POST, never use:enhance: the redirect after a claim then reloads the whole page,
 	     so the root layout sets the organiser and me contexts from the new cookie, as /login does. -->
 	<form method="POST" action="?/claim">
-		<h1>{t('claim.greeting', { name: data.first_name })}</h1>
+		<h1>{t('claim.greeting', { name: data.first_name || data.username })}</h1>
 
 		<div class="identity">
 			<div class="identifier">
@@ -60,7 +85,7 @@
 			<p class="copy-status" role="status">{copyStatus ? t(copyStatus) : ''}</p>
 		</div>
 
-		{#if form?.error}<p class="error" role="alert">{t(form.error)}</p>{/if}
+		{#if form?.error}<p class="error" id="claim-form-error" role="alert">{t(form.error)}</p>{/if}
 
 		<!-- Tells a password manager which account the new password belongs to. -->
 		<input type="text" name="username" autocomplete="username" value={data.username} readonly hidden />
@@ -73,6 +98,7 @@
 				</div>
 			{/if}
 			<input
+				bind:this={passwordInput}
 				id="claim-password"
 				type="password"
 				name="password"
@@ -80,7 +106,7 @@
 				placeholder={t('claim.password')}
 				class:invalid={passwordErrors.length > 0}
 				aria-invalid={passwordErrors.length > 0 ? 'true' : undefined}
-				aria-describedby={passwordErrors.length > 0 ? 'claim-password-errors' : undefined}
+				aria-describedby={passwordDescription}
 			/>
 		</div>
 
@@ -92,6 +118,7 @@
 				</div>
 			{/if}
 			<input
+				bind:this={confirmationInput}
 				id="claim-confirmation"
 				type="password"
 				name="confirmation"

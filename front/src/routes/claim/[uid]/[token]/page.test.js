@@ -37,6 +37,13 @@ describe('claim page', () => {
 		expect(form).toHaveAttribute('action', '?/claim');
 		expect(screen.getByRole('button', { name: 'Activate my account' })).toBeInTheDocument();
 		expect(screen.queryByRole('alert')).toBeNull();
+		expect(document.activeElement).toBe(document.body);
+	});
+
+	it('greets by username when the account has no first name', () => {
+		renderWith(Page, { data: { ...ready, first_name: '' }, form: null });
+
+		expect(screen.getByRole('heading', { level: 1, name: 'Hello leamartin' })).toBeInTheDocument();
 	});
 
 	it('copies the username with the Clipboard API', async () => {
@@ -48,6 +55,25 @@ describe('claim page', () => {
 
 		expect(writeText).toHaveBeenCalledWith('leamartin');
 		await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Username copied'));
+	});
+
+	it('empties the status before a second copy, so it is announced again', async () => {
+		stubClipboard({ writeText: vi.fn().mockResolvedValue(undefined) });
+		renderWith(Page, { data: ready, form: null });
+		const button = screen.getByRole('button', { name: 'Copy the username' });
+		const status = screen.getByRole('status');
+		await fireEvent.click(button);
+		await waitFor(() => expect(status).toHaveTextContent('Username copied'));
+
+		const texts = [];
+		const observer = new MutationObserver((records) => {
+			for (const record of records) texts.push(record.oldValue);
+		});
+		observer.observe(status, { subtree: true, childList: true, characterData: true, characterDataOldValue: true });
+		await fireEvent.click(button);
+		await waitFor(() => expect(texts).toEqual(['Username copied', '']));
+		observer.disconnect();
+		expect(status).toHaveTextContent('Username copied');
 	});
 
 	it('selects the username instead when the browser cannot copy', async () => {
@@ -79,13 +105,26 @@ describe('claim page', () => {
 		const confirmation = screen.getByLabelText('Confirm the password');
 		expect(confirmation).toHaveAttribute('aria-invalid', 'true');
 		expect(confirmation).toHaveAccessibleDescription('The two passwords do not match');
+		// After the reload of a failed submit, focus lands on the first field in error.
+		expect(document.activeElement).toBe(password);
 	});
 
-	it('shows a throttled or failed attempt above the form', () => {
+	it('focuses the confirmation when it alone is in error', () => {
+		renderWith(Page, { data: ready, form: { confirmation: ['claim.error.mismatch'] } });
+
+		const confirmation = screen.getByLabelText('Confirm the password');
+		expect(document.activeElement).toBe(confirmation);
+		expect(screen.getByLabelText('Password')).not.toHaveAttribute('aria-invalid');
+	});
+
+	it('shows a throttled or failed attempt above the form and reads it from the focused password field', () => {
 		renderWith(Page, { data: ready, form: { error: 'login.throttled' } });
 
 		expect(screen.getByRole('alert')).toHaveTextContent('Too many attempts: try again later');
-		expect(screen.getByLabelText('Password')).toBeInTheDocument();
+		const password = screen.getByLabelText('Password');
+		expect(password).not.toHaveAttribute('aria-invalid');
+		expect(password).toHaveAccessibleDescription('Too many attempts: try again later');
+		expect(document.activeElement).toBe(password);
 	});
 
 	it('says the link is no longer valid, with no form', () => {

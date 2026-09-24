@@ -34,10 +34,10 @@ const claim = ({
 };
 
 describe('claim load', () => {
-	it('greets the person behind the link, forwarding the visitor address for the throttle', async () => {
+	it('greets the person behind the link, forwarding the visitor address as a safeguard', async () => {
 		const fetch = vi.fn(async () => json(200, { first_name: 'Léa', username: 'leamartin' }));
 
-		const data = await load({ params, fetch, getClientAddress: address });
+		const data = await load({ setHeaders: vi.fn(), params, fetch, getClientAddress: address });
 
 		expect(data).toEqual({ state: 'ready', first_name: 'Léa', username: 'leamartin' });
 		expect(fetch).toHaveBeenCalledWith(API_PATH, {
@@ -46,24 +46,39 @@ describe('claim load', () => {
 		});
 	});
 
+	it('keeps every rendering of the page out of any cache, whatever the link', async () => {
+		const ok = vi.fn(async () => json(200, { first_name: 'Léa', username: 'leamartin' }));
+		const failing = vi.fn(async () => json(500, { detail: 'Server error' }));
+
+		for (const [linkParams, fetch] of [
+			[params, ok],
+			[{ uid: '..', token: 'me' }, ok],
+			[params, failing]
+		]) {
+			const setHeaders = vi.fn();
+			await load({ setHeaders, params: linkParams, fetch, getClientAddress: address }).catch(() => {});
+			expect(setHeaders).toHaveBeenCalledWith({ 'cache-control': 'private, no-store' });
+		}
+	});
+
 	it("renders the invalid-link state for the API's 404, not the error page", async () => {
 		const fetch = vi.fn(async () => json(404, { detail: 'Not found.' }));
 
-		await expect(load({ params, fetch, getClientAddress: address })).resolves.toEqual({ state: 'invalid' });
+		await expect(load({ setHeaders: vi.fn(), params, fetch, getClientAddress: address })).resolves.toEqual({ state: 'invalid' });
 	});
 
 	it('renders the throttled state for a 429', async () => {
 		const fetch = vi.fn(async () => json(429, { detail: 'Request was throttled.' }));
 
-		await expect(load({ params, fetch, getClientAddress: address })).resolves.toEqual({ state: 'throttled' });
+		await expect(load({ setHeaders: vi.fn(), params, fetch, getClientAddress: address })).resolves.toEqual({ state: 'throttled' });
 	});
 
 	it('throws any other failure to the error page', async () => {
 		const fetch = vi.fn(async () => json(500, { detail: 'Server error' }));
-		await expect(load({ params, fetch, getClientAddress: address })).rejects.toMatchObject({ status: 500 });
+		await expect(load({ setHeaders: vi.fn(), params, fetch, getClientAddress: address })).rejects.toMatchObject({ status: 500 });
 
 		const down = vi.fn().mockRejectedValue(new TypeError('fetch failed'));
-		await expect(load({ params, fetch: down, getClientAddress: address })).rejects.toMatchObject({ status: 502 });
+		await expect(load({ setHeaders: vi.fn(), params, fetch: down, getClientAddress: address })).rejects.toMatchObject({ status: 502 });
 	});
 
 	it('calls the API without the header when the adapter cannot tell the address', async () => {
@@ -72,7 +87,7 @@ describe('claim load', () => {
 			throw new Error('Address header was specified with ADDRESS_HEADER=x-forwarded-for but is absent from request');
 		};
 
-		await load({ params, fetch, getClientAddress });
+		await load({ setHeaders: vi.fn(), params, fetch, getClientAddress });
 
 		expect(fetch.mock.calls[0][1].headers).toEqual({});
 	});
@@ -87,7 +102,7 @@ describe('claim load', () => {
 			{ uid: '', token: 'abc' },
 			{ uid: 'M'.repeat(200), token: 'abc' }
 		]) {
-			await expect(load({ params: linkParams, fetch, getClientAddress: address })).resolves.toEqual({
+			await expect(load({ setHeaders: vi.fn(), params: linkParams, fetch, getClientAddress: address })).resolves.toEqual({
 				state: 'invalid'
 			});
 		}
@@ -142,7 +157,9 @@ describe('claim action', () => {
 			fields: { password: 'Tr3s-Olympique', confirmation: 'Tr3s-Olympiqve' }
 		});
 
-		expect(await result).toMatchObject({ status: 400, data: { confirmation: ['claim.error.mismatch'] } });
+		const failure = await result;
+		expect(failure).toMatchObject({ status: 400, data: { confirmation: ['claim.error.mismatch'] } });
+		expect(JSON.stringify(failure.data)).not.toContain('Tr3s-Olympiq');
 		expect(fetch).not.toHaveBeenCalled();
 		expect(cookies.set).not.toHaveBeenCalled();
 	});
@@ -157,10 +174,12 @@ describe('claim action', () => {
 		];
 		const { result, cookies } = claim({ response: json(400, { errors: codes }) });
 
-		expect(await result).toMatchObject({
+		const failure = await result;
+		expect(failure).toMatchObject({
 			status: 400,
 			data: { password: codes.map((code) => `claim.error.${code}`) }
 		});
+		expect(JSON.stringify(failure.data)).not.toContain('Tr3s-Olympique');
 		expect(cookies.set).not.toHaveBeenCalled();
 	});
 

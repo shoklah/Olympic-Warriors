@@ -259,6 +259,7 @@ export default {
 	'claim.error.password_missing': 'Choose a password',
 	'claim.error.confirmation_missing': 'Confirm your password',
 	'claim.error.mismatch': 'The two passwords do not match',
+	// Django's MinimumLengthValidator, at its default length (server settings.py).
 	'claim.error.password_too_short': 'Password too short: 8 characters minimum',
 	'claim.error.password_too_common': 'Password too common',
 	'claim.error.password_entirely_numeric': 'The password cannot be only digits',
