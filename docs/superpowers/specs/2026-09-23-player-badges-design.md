@@ -2,7 +2,7 @@
 
 > **Built 2026-09-23** in one go, all four phases at once; plan: docs/superpowers/plans/2026-09-23-player-badges.md.
 >
-> **Revised 2026-09-24:** the cron job runs monthly, on the 1st at 02:00 UTC, not nightly (Hugo: editions are yearly), and logs to `$HOME/logs`, since the crontab's user cannot write `/var/log`. Run the admin action once an edition is over rather than wait for the 1st.
+> **Revised 2026-09-24:** the cron job runs monthly, on the 1st at 02:00 host time (the production host runs in Europe/Paris), not nightly (Hugo: editions are yearly), and logs to `$HOME/logs`, since the crontab's user cannot write `/var/log`. Run the admin action once an edition is over rather than wait for the 1st.
 
 ## Goal
 
@@ -321,10 +321,11 @@ it.
 ### When the badges refresh
 
 - **Every month, by cron.** A crontab entry on the production host runs the command
-  below on the 1st at 02:00 UTC, which is 03:00 or 04:00 in Paris. That is always after midnight
+  below on the 1st at 02:00 host time. The production host's clock runs in Europe/Paris,
+  and on a UTC clock 02:00 is 03:00 or 04:00 in Paris: either way it is after midnight
   Paris time, so an edition whose `end_date` was the day before counts as finished:
   ```
-  # host clock in UTC
+  # host clock: Europe/Paris on the production host
   0 2 1 * * cd <repo> && docker compose -f <compose file> exec -T server python manage.py refresh_badges >> $HOME/logs/olympic-warriors-badges.log 2>&1
   ```
   `-T` because cron has no terminal. The refresh rebuilds everything, so a correction to
