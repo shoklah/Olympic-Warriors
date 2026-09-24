@@ -1,8 +1,9 @@
 <script>
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import MedalRank from '$lib/components/MedalRank.svelte';
-	import { editionStatus, formatAverage, fullName } from '$lib/players';
-	import { useLocale, useT } from '$lib/i18n';
+	import { iconFor } from '$lib/icons';
+	import { bestDisciplines, byDisplayedName, editionStatus, formatAverage, fullName, spokenPlaces } from '$lib/players';
+	import { disciplineName, useLocale, useT } from '$lib/i18n';
 
 	export let data;
 
@@ -11,6 +12,11 @@
 
 	$: profile = data.profile;
 	$: name = fullName(profile);
+	// Defensive: a front deployed ahead of a server that doesn't carry `disciplines` yet.
+	// Ties (equal position) are re-sorted by the name as displayed in this locale, so the
+	// server's English database-name order doesn't leak into the French page.
+	$: disciplines = byDisplayedName(profile.disciplines ?? [], locale);
+	$: best = bestDisciplines(disciplines);
 </script>
 
 <div class="page">
@@ -31,6 +37,22 @@
 		<div class="figure" data-testid="average-rank">
 			<span class="label">{t('profile.averageRank')}</span>
 			<span class="num value">{formatAverage(profile.average_rank, locale)}</span>
+		</div>
+		<div class="figure" data-testid="best-discipline">
+			<span class="label">{t('profile.bestDiscipline', { n: Math.max(best.count, 1) })}</span>
+			{#if best.count > 0}
+				<ul class="best-list" role="list">
+					{#each best.shown as d}
+						<li class="best"><img src={iconFor(d.name)} alt="" />{disciplineName(locale, d.name)}</li>
+					{/each}
+				</ul>
+				{#if best.more > 0}
+					<span class="num more" aria-hidden="true">{t('players.more', { n: best.more })}</span>
+					<span class="visually-hidden">{t('profile.moreDisciplines', { n: best.more })}</span>
+				{/if}
+			{:else}
+				<span class="num value">—</span>
+			{/if}
 		</div>
 	</div>
 
@@ -67,6 +89,32 @@
 			</li>
 		{/each}
 	</ul>
+
+	{#if disciplines.length > 0}
+		<h2>{t('profile.byDiscipline')}</h2>
+		<ul class="disciplines" role="list">
+			{#each disciplines as d}
+				<li class="discipline" data-testid="discipline-row">
+					<img src={iconFor(d.name)} alt="" />
+					<span class="name">{disciplineName(locale, d.name)}</span>
+					<span class="places" aria-hidden="true">
+						{#each d.places as p}
+							<span class="discipline-place"
+								><span
+									class="num place-rank"
+									class:gold={p.rank === 1}
+									class:silver={p.rank === 2}
+									class:bronze={p.rank === 3}>{p.rank}</span
+								>
+								<span class="place-year">{p.year}</span></span
+							>{' '}
+						{/each}
+					</span>
+					<span class="visually-hidden">{spokenPlaces(d.places, locale)}</span>
+				</li>
+			{/each}
+		</ul>
+	{/if}
 </div>
 
 <style>
@@ -101,9 +149,16 @@
 
 	.figures {
 		display: grid;
-		grid-template-columns: minmax(0, 14rem);
+		grid-template-columns: repeat(2, minmax(0, 14rem));
 		gap: 8px;
 		margin-bottom: 0.6rem;
+	}
+
+	/* Two 14rem cards don't fit below 360px: stack them instead of squeezing. */
+	@media (max-width: 359.98px) {
+		.figures {
+			grid-template-columns: minmax(0, 14rem);
+		}
 	}
 
 	.figure {
@@ -123,6 +178,37 @@
 		line-height: 1;
 		letter-spacing: 0.04em;
 		color: var(--ink);
+	}
+
+	.best-list {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		margin: auto 0 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.best {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		font-size: 0.95rem;
+		overflow-wrap: break-word;
+		hyphens: auto;
+		color: var(--ink);
+	}
+
+	.best img {
+		width: 20px;
+		height: 20px;
+		flex-shrink: 0;
+	}
+
+	.more {
+		font-size: 0.95rem;
+		line-height: 1.3;
+		color: var(--muted);
 	}
 
 	.counts {
@@ -193,5 +279,70 @@
 		border-radius: var(--radius-pill);
 		color: var(--accent);
 		white-space: nowrap;
+	}
+
+	.disciplines {
+		margin: 0 0 2rem;
+		padding: 0;
+		border-bottom: 1px solid var(--line);
+		list-style: none;
+	}
+
+	.discipline {
+		display: grid;
+		grid-template-columns: 20px minmax(7rem, 1fr) auto;
+		align-items: center;
+		gap: 12px;
+		padding: 10px 0;
+		border-top: 1px solid var(--line);
+	}
+
+	.discipline img {
+		width: 20px;
+		height: 20px;
+	}
+
+	.discipline .name {
+		min-width: 0;
+		overflow-wrap: anywhere;
+	}
+
+	.places {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		justify-content: flex-end;
+		gap: 4px 10px;
+		justify-self: end;
+	}
+
+	.discipline-place {
+		display: inline-flex;
+		align-items: baseline;
+		gap: 4px;
+	}
+
+	.place-rank {
+		font-size: 1.15rem;
+		line-height: 1.1;
+		letter-spacing: 0.04em;
+		color: var(--muted);
+	}
+
+	.place-rank.gold {
+		color: var(--gold);
+	}
+
+	.place-rank.silver {
+		color: var(--silver);
+	}
+
+	.place-rank.bronze {
+		color: var(--bronze);
+	}
+
+	.place-year {
+		font-size: 0.75rem;
+		color: var(--muted);
 	}
 </style>

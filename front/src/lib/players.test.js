@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_PLACES, editionStatus, formatAverage, fullName, shownPlaces } from './players.js';
+import {
+	MAX_PLACES,
+	bestDisciplines,
+	byDisplayedName,
+	editionStatus,
+	formatAverage,
+	fullName,
+	shownPlaces,
+	spokenPlaces
+} from './players.js';
 
 describe('formatAverage', () => {
 	it('prints one decimal with the locale separator', () => {
@@ -61,5 +70,58 @@ describe('shownPlaces', () => {
 		const { shown, more } = shownPlaces(places(MAX_PLACES + 2));
 		expect(shown).toEqual(places(MAX_PLACES));
 		expect(more).toBe(2);
+	});
+});
+
+describe('bestDisciplines', () => {
+	const d = (name, position) => ({ name, position, places: [{ year: 2025, rank: position }] });
+
+	it('keeps the disciplines at position 1', () => {
+		expect(bestDisciplines([d('Relay', 1), d('Darts', 2)])).toEqual({ shown: [d('Relay', 1)], more: 0, count: 1 });
+	});
+
+	it('keeps every tied best discipline up to the cap', () => {
+		const tied = ['A', 'B', 'C', 'D', 'E'].map((n) => d(n, 1));
+		expect(bestDisciplines(tied)).toEqual({ shown: tied.slice(0, 3), more: 2, count: 5 });
+	});
+
+	it('is empty without disciplines', () => {
+		expect(bestDisciplines([])).toEqual({ shown: [], more: 0, count: 0 });
+	});
+});
+
+describe('byDisplayedName', () => {
+	const tie = ['Dodgeball', 'Blindtest', 'Hide and Seek'].map((name) => ({ name, position: 1, places: [] }));
+
+	it('sorts a tie by the French displayed name', () => {
+		expect(byDisplayedName(tie, 'fr').map((d) => d.name)).toEqual(['Dodgeball', 'Blindtest', 'Hide and Seek']);
+	});
+
+	it('sorts a tie by the English displayed name', () => {
+		expect(byDisplayedName(tie, 'en').map((d) => d.name)).toEqual(['Blindtest', 'Dodgeball', 'Hide and Seek']);
+	});
+
+	it('keeps different positions in the server order, only re-sorting ties', () => {
+		const mixed = [
+			{ name: 'Relay', position: 1, places: [] },
+			{ name: 'Darts', position: 2, places: [] },
+			{ name: 'Basketball', position: 2, places: [] }
+		];
+		expect(byDisplayedName(mixed, 'en').map((d) => d.name)).toEqual(['Relay', 'Basketball', 'Darts']);
+	});
+});
+
+describe('spokenPlaces', () => {
+	const places = [
+		{ year: 2026, rank: 1 },
+		{ year: 2023, rank: 2 }
+	];
+
+	it('reads places best first, in English', () => {
+		expect(spokenPlaces(places, 'en')).toBe('1st place in 2026, 2nd place in 2023');
+	});
+
+	it('reads places best first, in French', () => {
+		expect(spokenPlaces(places, 'fr')).toBe('1re place en 2026, 2e place en 2023');
 	});
 });
