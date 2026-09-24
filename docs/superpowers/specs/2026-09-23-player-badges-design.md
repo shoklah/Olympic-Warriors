@@ -54,8 +54,10 @@ Decisions taken while brainstorming (2026-09-23):
 - **Teammate**: another person whose participation in the same edition has the same
   valid team.
 - **Discipline win, discipline podium**: a `ResultStanding.ranking` of 1, or of 1 to 3, in
-  `compute_standings(edition)`, so only for revealed, scored results. A discipline is
-  matched across editions by its `name`, as the rest of the app does.
+  `compute_standings(edition)`, so only for revealed, scored results. A discipline podium
+  also needs an edition of at least 4 teams, as the last place does: in an edition of 2 or
+  3 teams every result is on the podium, the last one included (added on 2026-09-24). A
+  discipline is matched across editions by its `name`, as the rest of the app does.
 - **Game**: an active, played game of an active round of an active discipline, the filter
   `compute_standings` uses. A game gives a badge only when its discipline is revealed, so
   a badge never leaks a hidden score. (Refereeing used to count for the golden whistle,
@@ -161,10 +163,10 @@ of fame reads.
 |---|---|---|---|---|---|---|
 | `specialist` | Spécialiste | Specialist | Won the same discipline in 2 / 3 / 4 editions | tiers, one per discipline | tiers | That discipline's own icon, so there is no new glyph |
 | `all-rounder` | Touche-à-tout | All-rounder | Won 3 / 5 / 8 different disciplines | tiers | tiers | A multi-tool |
-| `decathlete` | Décathlonien | Decathlete | Podium in 10 different disciplines | once | gold | A ten-pointed star |
+| `decathlete` | Décathlonien | Decathlete | Podium in 10 different disciplines, each in an edition of at least 4 teams | once | gold | A ten-pointed star |
 | `brains-and-brawn` | Tête et jambes | Brains and brawn | In one edition, won a mind discipline and a physical one | each | silver | A brain and a flexed arm |
 | `clean-sweep` | Razzia | Clean sweep | Won at least 3 disciplines in one edition | each | gold | A broom ✓ |
-| `metronome` | Métronome | Metronome | Podium in every ranked discipline of an edition, with at least 4 of them | each | gold | A metronome |
+| `metronome` | Métronome | Metronome | Podium in every ranked discipline of an edition of at least 4 teams, with at least 4 of them | each | gold | A metronome |
 | `uncrowned` | Sans couronne | Uncrowned | The most discipline wins of the edition (at least 2, no team with more) without the title: the person's participation counts and is not 1st | each | plain | A cracked crown |
 | `photo-finish` | Photo-finish | Photo finish | Won a points discipline on the points-difference tie-breaker (same points as a rank-2 result), or won a computed edition alone by 1 total point | once per edition | silver | Stopwatch ✓ |
 
@@ -499,6 +501,8 @@ and the profile payload in `tests/test_profiles.py`:
 - playing more never removes a badge: `eternal-second` stays after a later title;
 - a hidden discipline gives no discipline or game badge, and a hand-ranked edition gives
   places but no photo finish on totals;
+- an edition of 2 or 3 teams gives no discipline podium: no `metronome`, even for a team
+  last everywhere or first everywhere, and nothing toward `decathlete`;
 - the hall of fame starts at the second edition with counted places. `kingslayer` and
   `rocket` start one table later;
 - `refresh()`:

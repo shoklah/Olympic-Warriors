@@ -468,7 +468,10 @@ def _disciplines_of(h, results, user_id, seats):
         for threshold, tier in ALL_ROUNDER_TIERS:
             if before < threshold <= len(won):
                 yield Earned(user_id, C.ALL_ROUNDER, edition_id, tier=tier)
-        podiums.update(r.name for r in mine if 1 <= r.ranking <= 3)
+        # A discipline podium needs an edition of at least 4 teams: in a smaller one every
+        # result is on the podium, the last place included.
+        podium = [r for r in mine if 1 <= r.ranking <= 3] if edition.team_count >= 4 else []
+        podiums.update(r.name for r in podium)
         if not decathlete and len(podiums) >= 10:
             decathlete = True
             yield Earned(user_id, C.DECATHLETE, edition_id)
@@ -479,7 +482,7 @@ def _disciplines_of(h, results, user_id, seats):
         if len(wins) >= 3:
             yield Earned(user_id, C.CLEAN_SWEEP, edition_id)
         ranked = {r.discipline_id for r in rows if r.ranking}
-        on_podium = {r.discipline_id for r in mine if 1 <= r.ranking <= 3}
+        on_podium = {r.discipline_id for r in podium}
         if len(ranked) >= 4 and ranked <= on_podium:
             yield Earned(user_id, C.METRONOME, edition_id)
         if _uncrowned(rows, seat, wins):

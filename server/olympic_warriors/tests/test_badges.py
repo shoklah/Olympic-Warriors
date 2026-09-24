@@ -1127,18 +1127,34 @@ class TestDisciplines(World, TestCase):
 
     def test_decathlete_at_the_tenth_discipline_on_the_podium(self):
         ana = self.person("Ana")
-        second = [5, 10, 0]  # Ana's team, the first, 2nd of 3
+        second = [5, 10, 1, 0]  # Ana's team, the first, 2nd of 4
         for year, models in (
             (2021, (Relay, Darts, Petanque, Frisbee, Dance)),  # 5
             (2022, (Relay, Football, Handball, Basketball, Volleyball)),  # 9
             (2023, (Dodgeball,)),  # 10
             (2024, (Geoguessr,)),
         ):
-            edition, _ = self.computed(year, ana, size=3)
+            edition, _ = self.computed(year, ana, size=4)
             for model in models:
                 self.results(model, edition, second)
 
         self.assertEqual(years_of(ana, C.DECATHLETE), [2023])
+
+    def test_no_decathlete_podium_in_an_edition_of_three_teams(self):
+        # Ana is last of 3 in Dodgeball in 2022: every result of a 3-team edition is on the
+        # podium, so that one does not count and the tenth only comes in 2023.
+        ana = self.person("Ana")
+        for year, values, models in (
+            (2021, [5, 10, 1, 0], (Relay, Darts, Petanque, Frisbee, Dance, Football)),  # 6
+            (2022, [0, 10, 5], (Dodgeball,)),  # still 6
+            (2023, [5, 10, 1, 0], (Handball, Basketball, Volleyball)),  # 9
+            (2024, [5, 10, 1, 0], (Geoguessr,)),  # 10
+        ):
+            edition, _ = self.computed(year, ana, size=len(values))
+            for model in models:
+                self.results(model, edition, values)
+
+        self.assertEqual(years_of(ana, C.DECATHLETE), [2024])
 
     def test_brains_and_brawn(self):
         ana = self.person("Ana")
@@ -1218,6 +1234,26 @@ class TestDisciplines(World, TestCase):
             self.results(model, edition, [40, 30, 20, 10])
 
         self.assertEqual(years_of(ana, C.METRONOME), [])
+
+    def test_metronome_needs_an_edition_of_four_teams(self):
+        # Ana's team is last in every discipline of a 2- and a 3-team edition, which is still
+        # a podium there, and 3rd of 4 in every discipline of 2023.
+        ana = self.person("Ana")
+        for year, values in ((2021, [0, 10]), (2022, [0, 10, 5]), (2023, [5, 10, 20, 0])):
+            edition, _ = self.computed(year, ana, size=len(values))
+            for model in (Relay, Darts, Petanque, Frisbee):
+                self.results(model, edition, values)
+
+        self.assertEqual(years_of(ana, C.METRONOME), [2023])
+
+    def test_no_metronome_for_winning_every_discipline_of_three_teams(self):
+        ana = self.person("Ana")
+        edition, _ = self.computed(2021, ana, size=3)
+        for model in (Relay, Darts, Petanque, Frisbee):
+            self.results(model, edition, [30, 20, 10])
+
+        self.assertEqual(years_of(ana, C.METRONOME), [])
+        self.assertEqual(years_of(ana, C.CLEAN_SWEEP), [2021])
 
     def test_a_hidden_discipline_is_not_ranked(self):
         ana = self.person("Ana")
