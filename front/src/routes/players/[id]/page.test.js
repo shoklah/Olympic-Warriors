@@ -1,10 +1,32 @@
 import { screen, within } from '@testing-library/svelte';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderWith } from '$lib/test-utils';
 import Page from './+page.svelte';
 import { profile, profileUnranked } from '$lib/fixtures/players.js';
 
+// A mutable holder so each test can point $page.url at a different query string. Svelte's
+// auto-subscription ($page) reads the store's current value synchronously at component
+// init, so mutating this object before renderWith is enough: no reactive updates needed.
+const pageState = vi.hoisted(() => ({ url: new URL('http://localhost/players/34') }));
+
+vi.mock('$app/stores', () => ({
+	page: {
+		subscribe(run) {
+			run(pageState);
+			return () => {};
+		}
+	}
+}));
+
+const setSearch = (search = '') => {
+	pageState.url = new URL(`http://localhost/players/34${search}`);
+};
+
 describe('player profile page', () => {
+	beforeEach(() => {
+		setSearch();
+	});
+
 	it('shows the name, the all-time position and the average rank figure', () => {
 		renderWith(Page, { data: { profile } });
 
@@ -40,74 +62,58 @@ describe('player profile page', () => {
 		expect(within(rows[2]).queryAllByRole('link').map((a) => a.textContent.trim())).toEqual(['2024']);
 	});
 
-	it('lists the badges with their detail and rule, skipping unknown codes', () => {
+	it('has a tabs nav named "Profile sections" with Profile and Badges · N/63 links', () => {
 		renderWith(Page, { data: { profile } });
 
-		expect(screen.getByRole('heading', { level: 2, name: 'Badges' })).toBeInTheDocument();
-		const tiles = screen.getAllByTestId('badge');
-		expect(tiles).toHaveLength(4);
-		expect(tiles[0]).toHaveTextContent(/Veteran\s*Tier 1 · 2026\s*Play 3, 5, then 10 editions/);
-		expect(tiles[1]).toHaveTextContent(/Comrades in arms\s*with\s*Léa Martin\s*·\s*2026/);
-		expect(within(tiles[1]).getByRole('link', { name: 'Léa Martin' })).toHaveAttribute('href', '/players/12');
-		expect(tiles[2]).toHaveTextContent(/Specialist\s*Relay · Tier 1 · 2026/);
-		expect(tiles[3]).toHaveTextContent(
-			/Clean sweep\s*×2 · 2023 · 2026\s*Win three disciplines or more in one edition/
-		);
-		expect(screen.queryByText(/future-badge/)).toBeNull();
+		const nav = screen.getByRole('navigation', { name: 'Profile sections' });
+		const profileLink = within(nav).getByRole('link', { name: 'Profile' });
+		expect(profileLink).toHaveAttribute('href', '?');
+		const badgesLink = within(nav).getByRole('link', { name: 'Badges · 4/63' });
+		expect(badgesLink).toHaveAttribute('href', '?tab=badges');
 	});
 
-	it('hides the detail separators from assistive tech, keeping the words apart', () => {
+	it('defaults to the Profile tab: Profile current, Éditions shown, no badge slots', () => {
 		renderWith(Page, { data: { profile } });
 
-		// What a screen reader gets: the text outside aria-hidden nodes.
-		const spoken = (el) => {
-			const copy = el.cloneNode(true);
-			copy.querySelectorAll('[aria-hidden="true"]').forEach((node) => node.remove());
-			return copy.textContent.replace(/\s+/g, ' ').trim();
-		};
-		const details = screen.getAllByTestId('badge-detail');
-		expect(details.map(spoken)).toEqual([
-			'Tier 1 2026',
-			'with Léa Martin 2026',
-			'Relay Tier 1 2026',
-			'×2 2023 2026'
-		]);
-		expect(details.map((detail) => detail.textContent.replace(/\s+/g, ' ').trim())).toEqual([
-			'Tier 1 · 2026',
-			'with Léa Martin · 2026',
-			'Relay · Tier 1 · 2026',
-			'×2 · 2023 · 2026'
-		]);
+		expect(screen.getByRole('link', { name: 'Profile' })).toHaveAttribute('aria-current', 'page');
+		expect(screen.getByRole('link', { name: 'Badges · 4/63' })).not.toHaveAttribute('aria-current');
+		expect(screen.getByRole('heading', { level: 2, name: 'Editions' })).toBeInTheDocument();
+		expect(screen.queryAllByRole('button')).toHaveLength(0);
 	});
 
-	it('leaves no dangling separator, nor an empty detail line, when a badge has no year', () => {
-		const lea = { id: 12, first_name: 'Léa', last_name: 'Martin' };
-		const badges = [
-			{ code: 'comrades', tier: 0, years: [], discipline: null, partner: lea },
-			{ code: 'champion', tier: 0, years: [], discipline: null, partner: null }
-		];
-		renderWith(Page, { data: { profile: { ...profileUnranked, badges } } });
+	it('shows the Badges tab under ?tab=badges: current, the collection, no Éditions heading', () => {
+		setSearch('?tab=badges');
+		renderWith(Page, { data: { profile } });
 
-		const tiles = screen.getAllByTestId('badge');
-		expect(within(tiles[0]).getByTestId('badge-detail')).toHaveTextContent(/^with Léa Martin$/);
-		expect(within(tiles[0]).getByRole('link', { name: 'Léa Martin' })).toHaveAttribute('href', '/players/12');
-		expect(within(tiles[1]).queryByTestId('badge-detail')).toBeNull();
-		expect(tiles[1]).toHaveTextContent(/^Champion\s*Win an edition$/);
+		expect(screen.getByRole('link', { name: 'Badges · 4/63' })).toHaveAttribute('aria-current', 'page');
+		expect(screen.getByRole('link', { name: 'Profile' })).not.toHaveAttribute('aria-current');
+		expect(screen.getByText('4 badges out of 63')).toBeInTheDocument();
+		expect(screen.getByRole('heading', { level: 3, name: /Podiums/ })).toBeInTheDocument();
+		expect(screen.queryByRole('heading', { level: 2, name: 'Editions' })).toBeNull();
 	});
 
-	it('has no badges section without badges', () => {
+	it('shows the badge-count card linking to the Badges tab', () => {
+		renderWith(Page, { data: { profile } });
+
+		const card = screen.getByTestId('badge-count');
+		expect(card).toHaveTextContent(/Badges\s*4\s*\/\s*63/);
+		expect(card).toHaveAttribute('href', '?tab=badges');
+		expect(card).toBe(screen.getByRole('link', { name: /see the collection$/ }));
+	});
+
+	it('shows 0/63 in the badge-count card for a profile with no badge', () => {
 		renderWith(Page, { data: { profile: profileUnranked } });
-		expect(screen.queryByRole('heading', { level: 2, name: 'Badges' })).toBeNull();
-		expect(screen.queryAllByTestId('badge')).toHaveLength(0);
+
+		expect(screen.getByTestId('badge-count')).toHaveTextContent(/Badges\s*0\s*\/\s*63/);
 	});
 
-	it('has no badges section for a payload without the badges key, like an older API', () => {
+	it('does not crash for a payload without the badges key, like an older API', () => {
 		const older = { ...profileUnranked };
 		delete older.badges;
 		renderWith(Page, { data: { profile: older } });
+
 		expect(screen.getByRole('heading', { level: 1, name: 'Ana Petit' })).toBeInTheDocument();
-		expect(screen.queryByRole('heading', { level: 2, name: 'Badges' })).toBeNull();
-		expect(screen.queryAllByTestId('badge')).toHaveLength(0);
+		expect(screen.getByTestId('badge-count')).toHaveTextContent(/Badges\s*0\s*\/\s*63/);
 	});
 
 	it('dashes the figures and says so when nothing is counted yet', () => {
@@ -134,19 +140,20 @@ describe('player profile page', () => {
 		expect(rows[0]).toHaveTextContent(/2030\s*Les Aigles\s*En cours/);
 		expect(rows[1]).toHaveTextContent(/2026\s*MxM\s*2\s*\/ 6/);
 		expect(rows[2]).toHaveTextContent(/2024\s*Pas d'équipe/);
-		const tiles = screen.getAllByTestId('badge');
-		expect(tiles[0]).toHaveTextContent(/Vétéran\s*Niveau 1 · 2026/);
-		expect(tiles[1]).toHaveTextContent(/Compagnons d'armes\s*avec\s*Léa Martin/);
-		expect(tiles[2]).toHaveTextContent(/Spécialiste\s*Relais · Niveau 1 · 2026/);
-		expect(tiles[3]).toHaveTextContent(
-			/Razzia\s*×2 · 2023 · 2026\s*Gagner au moins trois épreuves lors d'une même édition/
-		);
 	});
 
 	it('says nothing is ranked yet, in French too', () => {
 		renderWith(Page, { data: { profile: profileUnranked } }, 'fr');
 
 		expect(screen.getByText("Aucune édition classée pour l'instant")).toBeInTheDocument();
+	});
+
+	it('speaks French for the tabs and the badge-count card', () => {
+		renderWith(Page, { data: { profile } }, 'fr');
+
+		const nav = screen.getByRole('navigation', { name: 'Sections du profil' });
+		expect(within(nav).getByRole('link', { name: 'Profil' })).toBeInTheDocument();
+		expect(screen.getByRole('link', { name: /voir la collection$/ })).toBe(screen.getByTestId('badge-count'));
 	});
 
 	it('shows the best-discipline card with the top discipline', () => {
