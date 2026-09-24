@@ -1,7 +1,8 @@
 """
 Tests for olympic_warriors.profiles: a person's editions, places, averages and leaderboard place,
 computed from the edition standings, and the two public endpoints serving them, the profile
-with its badges (badges.profile_badges) and rarity stats (badges.badge_stats).
+with its badges (badges.profile_badges) and rarity stats (badges.badge_stats). The photos and
+showcases these endpoints carry are tested in test_showcase.py.
 """
 
 from datetime import date, datetime, timezone
@@ -14,14 +15,28 @@ from rest_framework.test import APIClient
 
 from olympic_warriors import badges as badges_module
 from olympic_warriors.badges import badge_stats
-from olympic_warriors.models import Badge, Darts, Edition, Player, Relay, Team, TeamResult
+from olympic_warriors.models import (
+    Badge,
+    Darts,
+    Discipline,
+    Edition,
+    HideAndSeek,
+    Player,
+    Relay,
+    Team,
+    TeamResult,
+    UserProfile,
+)
 from olympic_warriors.profiles import (
     DisciplinePlace,
     DisciplinePlaces,
     Participation,
+    discipline_table,
+    held_disciplines,
     leaderboard,
     paris_today,
     participations,
+    profile_record,
     _discipline_places,
     _load,
     _place,
@@ -29,9 +44,19 @@ from olympic_warriors.profiles import (
 )
 
 TODAY = date(2026, 9, 23)
-# The editions query, the players query, then three per finished edition with players
-# (2024 and 2025 in ProfilesSetup; 2026 is still running).
-PROFILES_QUERIES = 2 + 3 * 2
+# participations() and leaderboard(): the editions query, the players query (each user's
+# profile row joined in), then three per finished edition with players (2024 and 2025 in
+# ProfilesSetup; 2026 is still running). profile_record() runs the same, plus three per
+# running edition in which the person has a team (the standings of its revealed places).
+LEADERBOARD_QUERIES = 2 + 3 * 2
+# Either endpoint: the leaderboard, then the badges (every person's in one query on
+# /profiles/, the one person's on /profile/<id>/) and the rarity stats: 4 + 3 per finished
+# edition with players. The photos, the pins and a comrades partner's photo ride on joins.
+# /profile/<id>/ adds profile_record()'s three per running edition the person has a team in.
+PROFILES_QUERIES = 4 + 3 * 2
+# The discipline's name, the active editions holding it, their players, then three per such
+# edition with players (2024 and 2025 for DisciplinesSetup's Relay).
+DISCIPLINE_TABLE_QUERIES = 1 + 2 + 3 * 2
 
 
 class TestParisToday(SimpleTestCase):
@@ -69,9 +94,9 @@ class ProfilesSetup:
         self.loups, self.ours, self.pumas = [
             Team.objects.create(name=name, edition=self.y2025) for name in ("Loups", "Ours", "Pumas")
         ]
-        relay = Relay.objects.create(edition=self.y2025, reveal_score=True)
+        self.relay2025 = Relay.objects.create(edition=self.y2025, reveal_score=True)
         for team, points in [(self.loups, 10), (self.ours, 5), (self.pumas, 0)]:
-            TeamResult.objects.filter(discipline=relay, team=team).update(points=points)
+            TeamResult.objects.filter(discipline=self.relay2025, team=team).update(points=points)
         self.renards, self.sangliers = [
             Team.objects.create(name=name, edition=self.y2026) for name in ("Renards", "Sangliers")
         ]
@@ -105,6 +130,21 @@ class ProfilesSetup:
     @staticmethod
     def play(user, edition, team=None, **kwargs):
         return Player.objects.create(user=user, edition=edition, team=team, rating=5, **kwargs)
+
+    @staticmethod
+    def give_photo(user, **fields):
+        """A profile row with a photo (its file names only: nothing reads the files), plus
+        any other `fields`."""
+        base = f"avatars/{user.id}-0123456789ab"
+        return UserProfile.objects.create(
+            user=user, photo=f"{base}.webp", photo_small=f"{base}-sm.webp", **fields
+        )
+
+    @staticmethod
+    def photo_of(user):
+        """The URLs of the photo give_photo() stores for `user`."""
+        base = f"/media/avatars/{user.id}-0123456789ab"
+        return {"large": f"{base}.webp", "small": f"{base}-sm.webp"}
 
 
 def summary_of(parts):
@@ -203,7 +243,7 @@ class TestParticipations(ProfilesSetup, TestCase):
         )
         Team.objects.create(name="Vide", edition=empty)
 
-        with self.assertNumQueries(PROFILES_QUERIES):
+        with self.assertNumQueries(LEADERBOARD_QUERIES):
             participations(TODAY)
 
 
@@ -309,46 +349,91 @@ class TestLeaderboard(ProfilesSetup, TestCase):
         self.assertEqual(rows["Ana"].counted, 2)
 
     def test_query_budget_matches_participations(self):
-        with self.assertNumQueries(PROFILES_QUERIES):
+        with self.assertNumQueries(LEADERBOARD_QUERIES):
             leaderboard(TODAY)
 
+    def test_records_carry_the_photo_and_the_pins_from_the_players_query(self):
+        # Ana plays three editions (three Player rows, one user) and has both; Bob has a
+        # row without a photo or a pin, and two rows in 2025; Chloé has no row at all.
+        self.give_photo(self.ana, showcase=[Badge.Codes.GOAT, Badge.Codes.CHAMPION])
+        UserProfile.objects.create(user=self.bob)
+        self.play(self.bob, self.y2025)
 
-class TestDisciplinePlaces(ProfilesSetup, TestCase):
+        with self.assertNumQueries(LEADERBOARD_QUERIES):
+            rows = self.rows()
+
+        self.assertEqual(rows["Ana"].photo, self.photo_of(self.ana))
+        self.assertEqual(rows["Ana"].pins, (Badge.Codes.GOAT, Badge.Codes.CHAMPION))
+        for name in ("Bob", "Chloé"):
+            with self.subTest(name=name):
+                self.assertIsNone(rows[name].photo)
+                self.assertEqual(rows[name].pins, ())
+
+    def test_a_record_with_a_photo_and_pins_stays_hashable(self):
+        self.give_photo(self.ana, showcase=[Badge.Codes.GOAT])
+
+        record = self.rows()["Ana"]
+
+        self.assertIsNotNone(record.photo)
+        self.assertIn(record, {record})  # a frozen dataclass, usable as a key
+
+    def test_a_record_built_from_a_bare_user_has_no_photo_and_no_pins(self):
+        # Records rebuilt from plain values (the hall of fame's tables, unit tests) read a
+        # missing profile as none, never as an error.
+        record = _record(SimpleNamespace(id=1, first_name="A", last_name="Aa"), ())
+
+        self.assertEqual((record.photo, record.pins), (None, ()))
+
+
+class DisciplinesSetup(ProfilesSetup):
     """
     On top of ProfilesSetup's revealed 2025 Relay (Loups 1, Ours 2, Pumas 3): a revealed
-    2024 Relay (Bisons 1, Aigles 2, Cerfs 3, Daims 4), a revealed 2024 Darts (Aigles 1),
-    a hidden 2025 Darts, and a revealed 2026 Darts in the running edition.
+    2024 Relay (Bisons 1, Aigles 2, Cerfs 3, Daims 4), a revealed 2024 Darts (Aigles 1,
+    Bisons 2, Cerfs 3, Daims 4), a hidden 2025 Darts (Loups 1, Ours 2), and a revealed 2026
+    Darts in the running edition (Renards 1, Sangliers 2).
     """
 
     def setUp(self):
         super().setUp()
-        relay = Relay.objects.create(edition=self.y2024, reveal_score=True)
+        self.relay2024 = Relay.objects.create(edition=self.y2024, reveal_score=True)
         for team, points in [(self.bisons, 8), (self.aigles, 5), (self.cerfs, 1), (self.daims, 0)]:
-            TeamResult.objects.filter(discipline=relay, team=team).update(points=points)
-        darts = Darts.objects.create(edition=self.y2024, reveal_score=True)
+            TeamResult.objects.filter(discipline=self.relay2024, team=team).update(points=points)
+        self.darts2024 = Darts.objects.create(edition=self.y2024, reveal_score=True)
         for team, points in [(self.aigles, 9), (self.bisons, 4), (self.cerfs, 2), (self.daims, 1)]:
-            TeamResult.objects.filter(discipline=darts, team=team).update(points=points)
-        hidden = Darts.objects.create(edition=self.y2025, reveal_score=False)
-        TeamResult.objects.filter(discipline=hidden, team=self.loups).update(points=9)
-        running = Darts.objects.create(edition=self.y2026, reveal_score=True)
-        TeamResult.objects.filter(discipline=running, team=self.renards).update(points=9)
+            TeamResult.objects.filter(discipline=self.darts2024, team=team).update(points=points)
+        self.hidden_darts = Darts.objects.create(edition=self.y2025, reveal_score=False)
+        for team, points in [(self.loups, 9), (self.ours, 3)]:
+            TeamResult.objects.filter(discipline=self.hidden_darts, team=team).update(points=points)
+        self.running_darts = Darts.objects.create(edition=self.y2026, reveal_score=True)
+        for team, points in [(self.renards, 9), (self.sangliers, 4)]:
+            TeamResult.objects.filter(discipline=self.running_darts, team=team).update(points=points)
+
+
+class TestDisciplinePlaces(DisciplinesSetup, TestCase):
+    """A profile's places per discipline (profile_record): every revealed result of the
+    person's teams, running editions included, whether or not the participation counts."""
+
+    def record(self, first_name):
+        user = User.objects.get(first_name=first_name)
+        return profile_record(user.id, TODAY)[1]
 
     def disciplines(self, first_name):
-        record = next(r for r in leaderboard(TODAY) if r.first_name == first_name)
         return [
-            (d.name, d.position, [(p.year, p.rank) for p in d.places]) for d in record.disciplines
+            (d.name, d.position, [(p.year, p.rank) for p in d.places])
+            for d in self.record(first_name).disciplines
         ]
 
     def test_places_aggregate_by_name_best_first_and_order_like_a_medal_table(self):
-        # Ana: Relay 1st in 2025 and 2nd in 2024, Darts 1st in 2024 (the hidden 2025 Darts
-        # and the running 2026 Darts give nothing). Relay has an extra lower place: first.
+        # Ana: Darts 1st in the running 2026 and in 2024 (the hidden 2025 Darts gives
+        # nothing), Relay 1st in 2025 and 2nd in 2024. Two 1st places beat a 1st and a 2nd.
         self.assertEqual(
             self.disciplines("Ana"),
-            [("Relay", 1, [(2025, 1), (2024, 2)]), ("Darts", 2, [(2024, 1)])],
+            [("Darts", 1, [(2026, 1), (2024, 1)]), ("Relay", 2, [(2025, 1), (2024, 2)])],
         )
 
     def test_bob_places(self):
-        # Bob: Relay 1st in 2024 and 2nd in 2025; Darts 2nd in 2024.
+        # Bob: Relay 1st in 2024 and 2nd in 2025; Darts 2nd in 2024. An extra lower place
+        # puts Relay first.
         self.assertEqual(
             self.disciplines("Bob"),
             [("Relay", 1, [(2024, 1), (2025, 2)]), ("Darts", 2, [(2024, 2)])],
@@ -360,13 +445,86 @@ class TestDisciplinePlaces(ProfilesSetup, TestCase):
             self.disciplines("Dan"), [("Darts", 1, [(2024, 3)]), ("Relay", 1, [(2024, 3)])]
         )
 
-    def test_no_counted_participation_means_no_disciplines(self):
-        self.assertEqual(self.disciplines("Eve"), [])  # 2026 is running
+    def test_a_running_edition_gives_its_revealed_places(self):
+        # Eve (Sangliers) plays the running 2026 only: 2nd in its revealed Darts.
+        self.assertEqual(self.disciplines("Eve"), [("Darts", 1, [(2026, 2)])])
+
+    def test_no_team_means_no_disciplines(self):
         self.assertEqual(self.disciplines("Fay"), [])  # no team in 2024
 
-    def test_query_budget_is_unchanged(self):
-        with self.assertNumQueries(PROFILES_QUERIES):
+    def test_an_uncontested_discipline_gives_no_place(self):
+        # Sangliers not scored yet: Renards' lone score beats nobody. A revealed 2026 Relay
+        # with both teams at 0 (as before any game) ties everyone for 1st on nothing.
+        TeamResult.objects.filter(discipline=self.running_darts, team=self.sangliers).update(
+            points=None
+        )
+        relay = Relay.objects.create(edition=self.y2026, reveal_score=True)
+        TeamResult.objects.filter(discipline=relay).update(points=0)
+
+        self.assertEqual(self.disciplines("Eve"), [])
+        self.assertEqual(
+            self.disciplines("Ana"),
+            [("Relay", 1, [(2025, 1), (2024, 2)]), ("Darts", 2, [(2024, 1)])],
+        )
+
+    def test_a_participation_that_does_not_count_still_gives_its_places(self):
+        # Without a final_rank, Aigles have no rank in hand-ranked 2024: Ana's 2024 no
+        # longer counts for the leaderboard, but its revealed results still show.
+        Team.objects.filter(pk=self.aigles.pk).update(final_rank=None)
+
+        ana = self.record("Ana")
+
+        self.assertEqual(ana.counted, 1)
+        self.assertEqual(
+            [(d.name, [(p.year, p.rank) for p in d.places]) for d in ana.disciplines],
+            [("Darts", [(2026, 1), (2024, 1)]), ("Relay", [(2025, 1), (2024, 2)])],
+        )
+
+    def test_running_places_leave_the_leaderboard_figures_alone(self):
+        records, ana = profile_record(self.ana.id, TODAY)
+        on_the_leaderboard = next(r for r in leaderboard(TODAY) if r.user_id == self.ana.id)
+
+        self.assertEqual([r.user_id for r in records], [r.user_id for r in leaderboard(TODAY)])
+        self.assertEqual(
+            (ana.position, ana.places, ana.counted, ana.average_rank),
+            (
+                on_the_leaderboard.position,
+                on_the_leaderboard.places,
+                on_the_leaderboard.counted,
+                on_the_leaderboard.average_rank,
+            ),
+        )
+
+    def test_someone_who_never_played_has_no_record(self):
+        root = User.objects.create_superuser("root", "root@mail.example", "pw")
+
+        records, record = profile_record(root.id, TODAY)
+
+        self.assertIsNone(record)
+        self.assertEqual(len(records), 6)
+
+    def test_latest_is_the_newest_place_with_its_discipline_row(self):
+        # Bob's best Relay place is 2024, but the newest is 2025, whose page the profile
+        # links to; Ana's newest Darts place is the running edition's.
+        relay, darts = self.record("Bob").disciplines
+        ana_darts = self.record("Ana").disciplines[0]
+
+        self.assertEqual(relay.places[0].year, 2024)
+        self.assertEqual((relay.latest.year, relay.latest.discipline_id), (2025, self.relay2025.id))
+        self.assertEqual((darts.latest.year, darts.latest.discipline_id), (2024, self.darts2024.id))
+        self.assertEqual(
+            (ana_darts.latest.year, ana_darts.latest.discipline_id), (2026, self.running_darts.id)
+        )
+
+    def test_query_budget(self):
+        # The leaderboard's, plus three per running edition the person has a team in:
+        # Ana plays 2026, Bob does not.
+        with self.assertNumQueries(LEADERBOARD_QUERIES):
             leaderboard(TODAY)
+        with self.assertNumQueries(LEADERBOARD_QUERIES + 3):
+            profile_record(self.ana.id, TODAY)
+        with self.assertNumQueries(LEADERBOARD_QUERIES):
+            profile_record(self.bob.id, TODAY)
 
 
 class TestRecordAndPlace(SimpleTestCase):
@@ -449,6 +607,11 @@ class TestRecordAndPlace(SimpleTestCase):
         self.assertEqual([record.last_name for record in placed], ["Durand", "Ébert", "Faure"])
 
 
+def place(name, year, rank):
+    """A DisciplinePlace for the grouping tests, whose discipline row id plays no part."""
+    return DisciplinePlace(name, year, rank, discipline_id=1)
+
+
 class TestDisciplinePlacesGrouping(SimpleTestCase):
     """`_discipline_places` groups and positions a person's places, no database needed."""
 
@@ -457,7 +620,7 @@ class TestDisciplinePlacesGrouping(SimpleTestCase):
         """A counted Participation (finished, ranked, teams >= 2) carrying these
         (name, year, rank) discipline places."""
         disciplines = tuple(
-            DisciplinePlace(name, year, rank) for name, year, rank in discipline_ranks
+            place(name, year, rank) for name, year, rank in discipline_ranks
         )
         return Participation(2024, None, None, 1, 10, True, disciplines=disciplines)
 
@@ -474,10 +637,10 @@ class TestDisciplinePlacesGrouping(SimpleTestCase):
         self.assertEqual(
             _discipline_places([part]),
             (
-                DisciplinePlaces("Fencing", (DisciplinePlace("Fencing", 2024, 1),), 1),
-                DisciplinePlaces("Archery", (DisciplinePlace("Archery", 2024, 2),), 2),
-                DisciplinePlaces("Chess", (DisciplinePlace("Chess", 2024, 2),), 2),
-                DisciplinePlaces("Darts", (DisciplinePlace("Darts", 2024, 4),), 4),
+                DisciplinePlaces("Fencing", (place("Fencing", 2024, 1),), 1),
+                DisciplinePlaces("Archery", (place("Archery", 2024, 2),), 2),
+                DisciplinePlaces("Chess", (place("Chess", 2024, 2),), 2),
+                DisciplinePlaces("Darts", (place("Darts", 2024, 4),), 4),
             ),
         )
 
@@ -492,7 +655,7 @@ class TestDisciplinePlacesGrouping(SimpleTestCase):
             (
                 DisciplinePlaces(
                     "Relay",
-                    (DisciplinePlace("Relay", 2024, 1), DisciplinePlace("Relay", 2023, 1)),
+                    (place("Relay", 2024, 1), place("Relay", 2023, 1)),
                     1,
                 ),
             ),
@@ -501,7 +664,7 @@ class TestDisciplinePlacesGrouping(SimpleTestCase):
 
 class TestBadgeStats(ProfilesSetup, TestCase):
     """badges.badge_stats: how many of the given people hold each badge code, once per
-    person, and for the six tiered codes, how many hold at least each tier."""
+    person, and for the five tiered codes, how many hold at least each tier."""
 
     def badge(self, code, edition, user=None, **kwargs):
         """A stored Badge row, Ana's unless `user` is given."""
@@ -612,14 +775,18 @@ class TestBadgeStats(ProfilesSetup, TestCase):
         self.assertEqual(derived, set(badges_module.TIERED_CODES))
 
 
-class TestProfileEndpoints(ProfilesSetup, TestCase):
+class EndpointSetup(ProfilesSetup):
+    """ProfilesSetup seen on TODAY through the public endpoints, with no credentials."""
+
     def setUp(self):
         super().setUp()
         patcher = mock.patch("olympic_warriors.profiles.paris_today", return_value=TODAY)
         patcher.start()
-        self.addCleanup(patcher.stop)
+        self.addCleanup(patcher.stop)  # pylint: disable=no-member
         self.client = APIClient()  # no credentials: both endpoints are public
 
+
+class TestProfileEndpoints(EndpointSetup, TestCase):
     def test_leaderboard_is_public_and_ordered(self):
         response = self.client.get("/profiles/")
 
@@ -639,6 +806,8 @@ class TestProfileEndpoints(ProfilesSetup, TestCase):
                 "average_rank": 1.0,
                 "places": [{"year": 2025, "rank": 1}, {"year": 2024, "rank": 1}],
                 "position": 1,
+                "photo": None,
+                "showcase": [],
             },
         )
         self.assertNotIn("average_beaten", response.data[0])
@@ -663,12 +832,21 @@ class TestProfileEndpoints(ProfilesSetup, TestCase):
                 "average_rank": 1.0,
                 "badges": [],
                 "badge_stats": {"players": 6, "holders": {}, "tiers": {}},
+                "photo": None,
+                "showcase": {"auto": True, "badges": []},
             },
         )
         self.assertNotIn("average_beaten", response.data)
         self.assertEqual(
             response.data["disciplines"],
-            [{"name": "Relay", "position": 1, "places": [{"year": 2025, "rank": 1}]}],
+            [
+                {
+                    "name": "Relay",
+                    "position": 1,
+                    "places": [{"year": 2025, "rank": 1}],
+                    "latest": {"year": 2025, "discipline": self.relay2025.id},
+                }
+            ],
         )
         self.assertEqual(
             response.data["editions"],
@@ -724,16 +902,41 @@ class TestProfileEndpoints(ProfilesSetup, TestCase):
             self.assertNotIn(b"email", content)
 
     def test_both_endpoints_run_in_a_fixed_number_of_queries(self):
-        # Badges over two editions, one with a partner: the profile reads them in one query,
-        # plus one more for the rarity stats.
+        # Badges over two editions, one with a partner, for two people: either endpoint reads
+        # them in one query, plus one more for the rarity stats. The photos, Ana's pins and
+        # the partner's photo cost none.
         self.badge(Badge.Codes.CHAMPION, self.y2024)
         self.badge(Badge.Codes.CHAMPION, self.y2025)
         self.badge(Badge.Codes.COMRADES, self.y2025, partner=self.chloe)
+        self.badge(Badge.Codes.COMRADES, self.y2025, user=self.chloe, partner=self.ana)
+        self.badge(Badge.Codes.ROOKIE, self.y2024, user=self.bob)
+        self.give_photo(self.ana, showcase=[Badge.Codes.COMRADES])
+        self.give_photo(self.chloe)
+        UserProfile.objects.create(user=self.bob)
 
         with self.assertNumQueries(PROFILES_QUERIES):
-            self.assertEqual(self.client.get("/profiles/").status_code, 200)
-        with self.assertNumQueries(PROFILES_QUERIES + 2):
-            self.assertEqual(self.client.get(f"/profile/{self.ana.id}/").status_code, 200)
+            response = self.client.get("/profiles/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data[0]["photo"], self.photo_of(self.ana)["small"])
+        # Plus three for the standings of the running 2026, where Ana has a team; the
+        # photos, the pins and the partner's photo still cost nothing.
+        with self.assertNumQueries(PROFILES_QUERIES + 3):
+            response = self.client.get(f"/profile/{self.ana.id}/")
+        self.assertEqual(response.status_code, 200)
+        comrades = next(b for b in response.data["badges"] if b["code"] == "comrades")
+        self.assertEqual(comrades["partner"]["photo"], self.photo_of(self.chloe)["small"])
+        # Bob plays no running edition.
+        with self.assertNumQueries(PROFILES_QUERIES):
+            self.assertEqual(self.client.get(f"/profile/{self.bob.id}/").status_code, 200)
+
+    def test_nobody_to_list_costs_no_badge_query(self):
+        Player.objects.all().delete()
+
+        # The editions and the players; no badges or rarity stats for nobody.
+        with self.assertNumQueries(2):
+            response = self.client.get("/profiles/")
+
+        self.assertEqual((response.status_code, response.data), (200, []))
 
     def test_profile_carries_badge_stats(self):
         self.badge(Badge.Codes.CHAMPION, self.y2024)
@@ -816,7 +1019,10 @@ class TestProfileEndpoints(ProfilesSetup, TestCase):
                 self.entry(
                     "comrades",
                     [2025],
-                    partner={"id": self.chloe.id, "first_name": "Chloé", "last_name": "Dupont"},
+                    partner={
+                        "id": self.chloe.id, "first_name": "Chloé", "last_name": "Dupont",
+                        "photo": None,
+                    },
                 )
             ],
         )
@@ -852,3 +1058,268 @@ class TestProfileEndpoints(ProfilesSetup, TestCase):
         self.badge(Badge.Codes.ROOKIE, y2023)
 
         self.assertEqual(self.badges(), [self.entry("champion", [2024])])
+
+
+class TestDisciplineTable(DisciplinesSetup, TestCase):
+    """profiles.discipline_table and GET /discipline/<id>/all-time/: every revealed result
+    of a discipline, across editions by name, running ones included, credited to the
+    team's roster and in medal-table order."""
+
+    def setUp(self):
+        super().setUp()
+        self.client = APIClient()  # no credentials: the endpoint is public
+
+    @staticmethod
+    def rows(table):
+        """(first name, position, [(year, rank), ...]) per row, for compact asserts."""
+        return [
+            (row.first_name, row.position, [(p.year, p.rank) for p in row.places])
+            for row in table.rows
+        ]
+
+    def test_places_aggregate_by_name_across_editions_in_medal_table_order(self):
+        # Ana (2nd in 2024, 1st in 2025) and Bob (1st in 2024, 2nd in 2025) have identical
+        # places: tied, listed by name. Chloé's single 1st loses to their extra 2nd.
+        table = discipline_table("Relay")
+
+        self.assertEqual(table.name, "Relay")
+        self.assertEqual(table.years, (2024, 2025))
+        self.assertEqual(
+            self.rows(table),
+            [
+                ("Ana", 1, [(2025, 1), (2024, 2)]),
+                ("Bob", 1, [(2024, 1), (2025, 2)]),
+                ("Chloé", 3, [(2025, 1)]),
+                ("Dan", 4, [(2024, 3)]),
+            ],
+        )
+
+    def test_the_running_edition_counts_once_revealed_and_a_hidden_result_never(self):
+        # The running 2026 Darts is revealed: Renards (Ana) 1st, Sangliers (Eve) 2nd. Eve
+        # and Bob tie on a single 2nd place, listed by name. The hidden 2025 Darts gives
+        # Chloé nothing, and Fay had no team in 2024.
+        table = discipline_table("Darts")
+
+        self.assertEqual(table.years, (2024, 2026))
+        self.assertEqual(
+            self.rows(table),
+            [
+                ("Ana", 1, [(2026, 1), (2024, 1)]),
+                ("Eve", 2, [(2026, 2)]),
+                ("Bob", 2, [(2024, 2)]),
+                ("Dan", 4, [(2024, 3)]),
+            ],
+        )
+
+    def test_an_uncontested_discipline_gives_no_place(self):
+        # A lone scored result beats nobody, nor does a tie of every team on 0.
+        TeamResult.objects.filter(discipline=self.running_darts, team=self.sangliers).update(
+            points=None
+        )
+        relay = Relay.objects.create(edition=self.y2026, reveal_score=True)
+        TeamResult.objects.filter(discipline=relay).update(points=0)
+
+        self.assertEqual(discipline_table("Darts").years, (2024,))
+        self.assertEqual(discipline_table("Relay").years, (2024, 2025))
+
+    def test_revealing_a_result_adds_it_and_hiding_it_takes_it_back(self):
+        Darts.objects.filter(pk=self.hidden_darts.pk).update(reveal_score=True)
+        Darts.objects.filter(pk=self.running_darts.pk).update(reveal_score=False)
+
+        # Ana (Aigles, then Loups) now has two 1st places, Chloé (Loups) one, and Bob
+        # (Bisons, then Ours) two 2nd places.
+        self.assertEqual(
+            self.rows(discipline_table("Darts")),
+            [
+                ("Ana", 1, [(2025, 1), (2024, 1)]),
+                ("Chloé", 2, [(2025, 1)]),
+                ("Bob", 3, [(2025, 2), (2024, 2)]),
+                ("Dan", 4, [(2024, 3)]),
+            ],
+        )
+
+    def test_a_place_counts_whether_or_not_the_participation_does(self):
+        # Without a final_rank, Aigles have no rank in hand-ranked 2024, so Ana's 2024 counts
+        # neither on her profile nor for the leaderboard: its revealed Relay place still does.
+        Team.objects.filter(pk=self.aigles.pk).update(final_rank=None)
+
+        rows = self.rows(discipline_table("Relay"))
+
+        self.assertEqual(rows[0], ("Ana", 1, [(2025, 1), (2024, 2)]))
+
+    def test_an_inactive_discipline_or_team_drops_out(self):
+        # Without the 2024 Relay, Chloé (Dupont) and Ana (Lopez) tie on a single 1st place,
+        # listed by name; with Cerfs inactive, Dan has no team and no place.
+        Relay.objects.filter(pk=self.relay2024.pk).update(is_active=False)
+        Team.objects.filter(pk=self.cerfs.pk).update(is_active=False)
+
+        table = discipline_table("Relay")
+
+        self.assertEqual(table.years, (2025,))
+        self.assertEqual(
+            self.rows(table),
+            [("Chloé", 1, [(2025, 1)]), ("Ana", 1, [(2025, 1)]), ("Bob", 3, [(2025, 2)])],
+        )
+
+    def test_a_discipline_without_a_place_gives_an_empty_table(self):
+        table = discipline_table("Rugby")
+
+        self.assertEqual((table.name, table.years, table.rows), ("Rugby", (), ()))
+
+    def test_query_budget_follows_the_editions_holding_the_discipline(self):
+        # Relay: 2024 and 2025. Darts: 2024, 2025 and 2026. A discipline held nowhere: the
+        # editions query alone.
+        with self.assertNumQueries(2 + 3 * 2):
+            discipline_table("Relay")
+        with self.assertNumQueries(2 + 3 * 3):
+            discipline_table("Darts")
+        with self.assertNumQueries(1):
+            discipline_table("Rugby")
+
+    def test_endpoint_is_public_and_serves_the_table(self):
+        response = self.client.get(f"/discipline/{self.relay2024.id}/all-time/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["name"], "Relay")
+        self.assertEqual(response.data["years"], [2024, 2025])
+        self.assertEqual(
+            response.data["players"][0],
+            {
+                "id": self.ana.id,
+                "first_name": "Ana",
+                "last_name": "Lopez",
+                "position": 1,
+                "places": [{"year": 2025, "rank": 1}, {"year": 2024, "rank": 2}],
+            },
+        )
+        self.assertEqual(
+            [(row["first_name"], row["position"]) for row in response.data["players"]],
+            [("Ana", 1), ("Bob", 1), ("Chloé", 3), ("Dan", 4)],
+        )
+
+    def test_every_edition_of_a_discipline_serves_the_same_table(self):
+        # Including the running edition's Darts and the hidden 2025 one: the table does not
+        # depend on the page it is shown on.
+        relay = self.client.get(f"/discipline/{self.relay2024.id}/all-time/").data
+        darts = self.client.get(f"/discipline/{self.darts2024.id}/all-time/").data
+
+        self.assertEqual(self.client.get(f"/discipline/{self.relay2025.id}/all-time/").data, relay)
+        for discipline in (self.hidden_darts, self.running_darts):
+            self.assertEqual(self.client.get(f"/discipline/{discipline.id}/all-time/").data, darts)
+
+    def test_empty_table(self):
+        unplayed = Darts.objects.create(edition=self.y2026, reveal_score=False)
+        Darts.objects.exclude(pk=unplayed.pk).update(is_active=False)
+
+        response = self.client.get(f"/discipline/{unplayed.id}/all-time/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, {"name": "Darts", "years": [], "players": []})
+
+    def test_404_for_an_unknown_or_inactive_discipline_and_an_inactive_edition(self):
+        Relay.objects.filter(pk=self.relay2024.pk).update(is_active=False)
+        Edition.objects.filter(pk=self.y2025.pk).update(is_active=False)
+
+        for discipline_id in (999999, self.relay2024.id, self.relay2025.id):
+            response = self.client.get(f"/discipline/{discipline_id}/all-time/")
+            self.assertEqual(response.status_code, 404)
+
+    def test_payload_carries_no_login_name_or_email(self):
+        content = self.client.get(f"/discipline/{self.relay2024.id}/all-time/").content
+
+        self.assertNotIn(b"login-", content)
+        self.assertNotIn(b"mail.example", content)
+        self.assertNotIn(b"username", content)
+        self.assertNotIn(b"email", content)
+
+    def test_endpoint_runs_in_a_fixed_number_of_queries(self):
+        with self.assertNumQueries(DISCIPLINE_TABLE_QUERIES):
+            self.assertEqual(
+                self.client.get(f"/discipline/{self.relay2024.id}/all-time/").status_code, 200
+            )
+
+
+class TestHeldDisciplines(DisciplinesSetup, TestCase):
+    """profiles.held_disciplines and GET /disciplines/all-time/: every discipline name an
+    active edition held, with those editions, the index of the all-time tables."""
+
+    def setUp(self):
+        super().setUp()
+        self.client = APIClient()  # no credentials: the endpoint is public
+
+    @staticmethod
+    def held():
+        """(name, [(year, discipline id), ...]) per held discipline, for compact asserts."""
+        return [
+            (d.name, [(e.year, e.discipline_id) for e in d.editions]) for d in held_disciplines()
+        ]
+
+    def test_every_name_held_by_an_active_edition_in_name_order_editions_oldest_first(self):
+        # The hidden 2025 Darts and the running 2026 Darts are held all the same.
+        self.assertEqual(
+            self.held(),
+            [
+                (
+                    "Darts",
+                    [
+                        (2024, self.darts2024.id),
+                        (2025, self.hidden_darts.id),
+                        (2026, self.running_darts.id),
+                    ],
+                ),
+                ("Relay", [(2024, self.relay2024.id), (2025, self.relay2025.id)]),
+            ],
+        )
+
+    def test_a_discipline_without_any_result_is_held(self):
+        seek = HideAndSeek.objects.create(edition=self.y2026)
+
+        self.assertIn(("Hide and Seek", [(2026, seek.id)]), self.held())
+
+    def test_an_edition_holding_a_name_twice_gives_its_lowest_id(self):
+        Darts.objects.create(edition=self.y2024)
+
+        self.assertEqual(self.held()[0][1][0], (2024, self.darts2024.id))
+
+    def test_inactive_disciplines_and_editions_are_left_out(self):
+        Darts.objects.filter(pk=self.running_darts.pk).update(is_active=False)
+        Edition.objects.filter(pk=self.y2024.pk).update(is_active=False)
+
+        self.assertEqual(
+            self.held(),
+            [
+                ("Darts", [(2025, self.hidden_darts.id)]),
+                ("Relay", [(2025, self.relay2025.id)]),
+            ],
+        )
+
+    def test_a_row_without_a_name_is_left_out(self):
+        Discipline.objects.create(edition=self.y2026, name="")
+
+        self.assertEqual([name for name, _ in self.held()], ["Darts", "Relay"])
+
+    def test_endpoint_is_public_and_serves_the_index_in_one_query(self):
+        with self.assertNumQueries(1):
+            response = self.client.get("/disciplines/all-time/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.data,
+            [
+                {
+                    "name": "Darts",
+                    "editions": [
+                        {"year": 2024, "discipline": self.darts2024.id},
+                        {"year": 2025, "discipline": self.hidden_darts.id},
+                        {"year": 2026, "discipline": self.running_darts.id},
+                    ],
+                },
+                {
+                    "name": "Relay",
+                    "editions": [
+                        {"year": 2024, "discipline": self.relay2024.id},
+                        {"year": 2025, "discipline": self.relay2025.id},
+                    ],
+                },
+            ],
+        )

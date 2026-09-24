@@ -6,7 +6,7 @@ from olympic_warriors.models import Discipline, Edition
 class TestPublicEndpoints(APITestCase):
     """
     Editions and disciplines are decorated with AllowAny and must be readable
-    without a token, despite the global IsAuthenticated default.
+    without a token, despite the global staff-only default.
     """
 
     def setUp(self):

@@ -1,3 +1,4 @@
+import { isKnownBadge } from '$lib/badge-codes';
 import { ordinal } from '$lib/edition';
 import { disciplineName, t } from '$lib/i18n';
 import { localeFrom } from '$lib/i18n/locale.js';
@@ -60,7 +61,23 @@ export function byDisplayedName(disciplines, locale) {
 	);
 }
 
+/** Years as a sentence list: "2024, 2025 et 2026" in French, "2024, 2025, and 2026" in English. */
+export function listYears(years, locale) {
+	return new Intl.ListFormat(localeFrom(locale), { type: 'conjunction' }).format(years.map(String));
+}
+
 /** "1st place in 2026, 2nd place in 2023" for screen readers. */
 export function spokenPlaces(places, locale) {
 	return places.map((p) => t(locale, 'players.placeIn', { place: ordinal(p.rank, locale), year: p.year })).join(', ');
+}
+
+/**
+ * The showcase's part of a leaderboard row's spoken sentence, the row being one link that
+ * cannot hold buttons: "showcase: Champion, Veteran" from `[{ code, tier, discipline }]` in
+ * display order, badge names only. A code the front does not know (a newer server) is left
+ * out, and an empty showcase (or none, from an older server) gives '' so nothing is added.
+ */
+export function showcaseLabel(showcase, locale) {
+	const names = (showcase ?? []).filter(isKnownBadge).map((badge) => t(locale, `badge.${badge.code}.name`));
+	return names.length ? t(locale, 'showcase.spoken', { badges: names.join(', ') }) : '';
 }

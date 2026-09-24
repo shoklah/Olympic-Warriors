@@ -20,6 +20,7 @@ from olympic_warriors.models import (
     BlindtestGuess,
     ResultTypes,
 )
+from .avatars import small_photo_url
 from .standings import compute_standings
 
 
@@ -186,6 +187,36 @@ class BlindtestRoundSerializer(serializers.ModelSerializer):
         return BlindtestGuessSerializer(guesses, many=True).data
 
 
+# A person's photo and showcase: the public payloads and /me/ share them.
+
+
+class PhotoSerializer(serializers.Serializer):
+    """A person's photo: the site-relative URLs of its two WebP squares
+    (avatars.photo_urls), under MEDIA_URL (/media/avatars/...)."""
+
+    large = serializers.CharField(help_text="512 px, the profile header")
+    small = serializers.CharField(help_text="128 px, everywhere else")
+
+
+class ShowcaseBadgeSerializer(serializers.Serializer):
+    """One badge of a showcase, drawn like its collection slot's medallion (see
+    badges.showcase)."""
+
+    code = serializers.CharField()
+    tier = serializers.IntegerField(help_text="0 untiered, 1 to 3 (bronze, silver, gold)")
+    discipline = serializers.CharField(
+        allow_null=True, help_text="The database Discipline.name for specialist, else null"
+    )
+
+
+class ShowcaseSerializer(serializers.Serializer):
+    """The badges a profile shows (badges.showcase): the pins still earned, in the person's
+    order, or the rarest earned badges when `auto`."""
+
+    auto = serializers.BooleanField(help_text="No pin still earned: the rarest badges")
+    badges = ShowcaseBadgeSerializer(many=True, help_text="At most 3, in the order shown")
+
+
 # Edition summary: everything the public front needs for one edition in one payload.
 
 
@@ -202,12 +233,22 @@ class SummaryDisciplineSerializer(serializers.ModelSerializer):
 
 
 class SummaryPlayerSerializer(serializers.ModelSerializer):
+    """A roster line: the Player id, the user id (the profile link), the names and the
+    small photo. EditionSummarySerializer joins each user's profile row into the players
+    query, so the photo costs no query."""
+
     first_name = serializers.CharField(source="user.first_name")
     last_name = serializers.CharField(source="user.last_name")
+    photo = serializers.SerializerMethodField()
 
     class Meta:
         model = Player
-        fields = ("id", "user", "first_name", "last_name")
+        fields = ("id", "user", "first_name", "last_name", "photo")
+
+    @extend_schema_field(serializers.CharField(allow_null=True, help_text="128 px, or null"))
+    def get_photo(self, obj):
+        """The small URL, or None without a profile row or a photo."""
+        return small_photo_url(getattr(obj.user, "profile", None))
 
 
 class SummaryTeamSerializer(serializers.ModelSerializer):
@@ -377,7 +418,7 @@ class EditionSummarySerializer(serializers.Serializer):
                 Prefetch(
                     "player_set",
                     queryset=Player.objects.filter(is_active=True, edition=instance)
-                    .select_related("user")
+                    .select_related("user__profile")  # the photo, joined: no query more
                     .order_by("user__last_name", "user__first_name"),
                     to_attr="active_players",
                 )
@@ -477,6 +518,14 @@ class PlaceSerializer(serializers.Serializer):
     rank = serializers.IntegerField()
 
 
+class LatestPlaceSerializer(serializers.Serializer):
+    """The newest of a person's places in a discipline: its edition's year and the
+    Discipline row of that edition, whose page holds the discipline's all-time table."""
+
+    year = serializers.IntegerField()
+    discipline = serializers.IntegerField(source="discipline_id")
+
+
 class DisciplinePlacesSerializer(serializers.Serializer):
     """A person's places in one discipline across editions, best first (see
     profiles.DisciplinePlaces), with the discipline's shared position among the
@@ -486,13 +535,59 @@ class DisciplinePlacesSerializer(serializers.Serializer):
     name = serializers.CharField()
     position = serializers.IntegerField()
     places = PlaceSerializer(many=True)
+    latest = LatestPlaceSerializer()
+
+
+class DisciplineAllTimeRowSerializer(serializers.Serializer):
+    """
+    A person in a discipline's all-time table (a profiles.DisciplineRow): their places
+    there, best first, and their shared position.
+    Public: names only, never the username (the login name) nor the email.
+    """
+
+    id = serializers.IntegerField(source="user_id", help_text="The user id, not a Player id")
+    first_name = serializers.CharField()
+    last_name = serializers.CharField()
+    position = serializers.IntegerField()
+    places = PlaceSerializer(many=True, help_text="Best rank first")
+
+
+class DisciplineAllTimeSerializer(serializers.Serializer):
+    """A discipline's all-time table (a profiles.DisciplineTable). `name` is the database
+    Discipline.name, untranslated."""
+
+    name = serializers.CharField()
+    years = serializers.ListField(
+        child=serializers.IntegerField(), help_text="The years that give a place, oldest first"
+    )
+    players = DisciplineAllTimeRowSerializer(source="rows", many=True)
+
+
+class HeldEditionSerializer(serializers.Serializer):
+    """An edition that held a discipline: its year and the Discipline row of that edition,
+    whose page holds the discipline's all-time table."""
+
+    year = serializers.IntegerField()
+    discipline = serializers.IntegerField(source="discipline_id")
+
+
+class HeldDisciplineSerializer(serializers.Serializer):
+    """A discipline held by at least one active edition (a profiles.HeldDiscipline). `name`
+    is the database Discipline.name, untranslated."""
+
+    name = serializers.CharField()
+    editions = HeldEditionSerializer(many=True, help_text="Oldest first")
 
 
 class LeaderboardRowSerializer(serializers.Serializer):
     """
     A person on the all-time leaderboard (a PlayerRecord, see olympic_warriors.profiles):
-    places and average rank; the order comes from the places only.
-    Public: names only, never the username (the login name) nor the email.
+    places and average rank; the order comes from the places only. The small photo, and
+    the showcase's badges without its `auto` flag (nobody edits from the leaderboard): the
+    view computes them for every row at once and passes them as context["showcases"], by
+    user id.
+    Public: names only, never the username (the login name) nor the email, nor the stored
+    pins or anything else only /me/ carries.
     """
 
     id = serializers.IntegerField(source="user_id", help_text="The user id, not a Player id")
@@ -503,14 +598,28 @@ class LeaderboardRowSerializer(serializers.Serializer):
     average_rank = serializers.FloatField(allow_null=True)
     places = PlaceSerializer(many=True, help_text="Counted editions, best rank first")
     position = serializers.IntegerField(allow_null=True)
+    photo = serializers.SerializerMethodField()
+    showcase = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.CharField(allow_null=True, help_text="128 px, or null"))
+    def get_photo(self, obj):
+        """The record's small URL, or None without a photo."""
+        return obj.photo["small"] if obj.photo else None
+
+    @extend_schema_field(ShowcaseBadgeSerializer(many=True, help_text="At most 3, in order"))
+    def get_showcase(self, obj):
+        """The showcase's badges from context["showcases"], [] for someone without one."""
+        badges = self.context.get("showcases", {}).get(obj.user_id, [])
+        return ShowcaseBadgeSerializer(badges, many=True).data
 
 
 class ProfileBadgePartnerSerializer(serializers.Serializer):
-    """The other person of a comrades badge: names only."""
+    """The other person of a comrades badge: names and small photo only."""
 
     id = serializers.IntegerField(help_text="The user id")
     first_name = serializers.CharField()
     last_name = serializers.CharField()
+    photo = serializers.CharField(allow_null=True, help_text="128 px, or null")
 
 
 class ProfileBadgeSerializer(serializers.Serializer):
@@ -526,7 +635,7 @@ class ProfileBadgeSerializer(serializers.Serializer):
 
 class BadgeStatsSerializer(serializers.Serializer):
     """badges.badge_stats: how many of the leaderboard's people hold each badge code
-    (holders), and for the six tiered codes, how many hold at least each tier (tiers,
+    (holders), and for the five tiered codes, how many hold at least each tier (tiers,
     [tier-1, tier-2, tier-3] counts). See the "Rarity" design spec."""
 
     players = serializers.IntegerField(help_text="Size of the leaderboard the stats are computed over")
@@ -542,7 +651,8 @@ class BadgeStatsSerializer(serializers.Serializer):
 class ProfileSerializer(serializers.Serializer):
     """A person's profile: position, counted editions and average rank, every edition
     newest first, the person's places per discipline, ordered like a medal table, the
-    badges in catalogue order, and badge rarity stats."""
+    badges in catalogue order, badge rarity stats, the photo in both sizes and the
+    showcase (never the stored pins as such: /me/ alone carries those)."""
 
     id = serializers.IntegerField(source="user_id", help_text="The user id, not a Player id")
     first_name = serializers.CharField()
@@ -557,6 +667,10 @@ class ProfileSerializer(serializers.Serializer):
     # The view passes them as context["badge_stats"] (from badges.badge_stats): how many
     # people on /players hold each badge code, and for the tiered codes, at least each tier.
     badge_stats = serializers.SerializerMethodField()
+    photo = PhotoSerializer(allow_null=True)
+    # The view passes it as context["showcase"] (from badges.showcase, with the person's
+    # pins and the rarity counts of badge_stats).
+    showcase = serializers.SerializerMethodField()
 
     @extend_schema_field(ProfileBadgeSerializer(many=True))
     def get_badges(self, obj):  # pylint: disable=unused-argument
@@ -565,3 +679,36 @@ class ProfileSerializer(serializers.Serializer):
     @extend_schema_field(BadgeStatsSerializer())
     def get_badge_stats(self, obj):  # pylint: disable=unused-argument
         return self.context.get("badge_stats")
+
+    @extend_schema_field(ShowcaseSerializer())
+    def get_showcase(self, obj):  # pylint: disable=unused-argument
+        """context["showcase"], or an empty automatic one when none is given."""
+        shown = self.context.get("showcase", {"auto": True, "badges": []})
+        return ShowcaseSerializer(shown).data
+
+
+class MeShowcaseSerializer(serializers.Serializer):
+    """The caller's stored pins, as they left them (the showcase shown filters them)."""
+
+    auto = serializers.BooleanField(help_text="No pin stored: the automatic showcase")
+    codes = serializers.ListField(child=serializers.CharField(), help_text="In the pin order")
+
+
+class MeSerializer(serializers.Serializer):
+    """
+    The caller's own account (GET /me/): any logged-in user, a person or not. The only
+    payload carrying the username (the login name) and photo_locked, and only to their
+    owner. A user without a UserProfile row reads as no photo, unlocked, no pins.
+    """
+
+    id = serializers.IntegerField(help_text="The user id, as on /profile/<id>/")
+    first_name = serializers.CharField()
+    last_name = serializers.CharField()
+    username = serializers.CharField(help_text="The login name")
+    is_staff = serializers.BooleanField(help_text="An organiser")
+    is_person = serializers.BooleanField(
+        help_text="An active player of an active edition: has a profile, a photo and a showcase"
+    )
+    photo = PhotoSerializer(allow_null=True)
+    photo_locked = serializers.BooleanField(help_text="Uploads refused by an organiser")
+    showcase = MeShowcaseSerializer()

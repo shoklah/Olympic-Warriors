@@ -34,6 +34,8 @@ class BaseConfig(BaseSettings):
     # the value below is used.
     # If a .env file is present, and a variable is defined in the .env file,
     # the value in the .env file is used.
+    # A real environment variable overrides both, parsed and validated like a value of the
+    # .env file (tests/test_config.py).
     # The .env file is not committed to the repository.
     # See the .env.example file for an example of the .env file.
     # See https://pydantic-docs.helpmanual.io/usage/settings/ for more information.
@@ -56,12 +58,20 @@ class BaseConfig(BaseSettings):
 
     BASE_URL: str = "localhost"
 
+    # The front's public address (a trailing slash is ignored), the base of the claim links
+    # organisers hand out from the admin (claims.claim_link). Optional, so a deploy never
+    # fails on it: without an absolute http(s) address the admin refuses to make links.
+    PUBLIC_URL: str = ""
+
     ALLOWED_HOSTS: list = ["*"]
     CSRF_TRUSTED_ORIGINS: list = ["https://*", "http://*"]
 
-    # Login attempts per client IP, /auth/token/ and /admin/login/ together, in DRF's
-    # "<count>/<sec|min|hour|day>".
+    # Login attempts per client IP, /auth/token/, /admin/login/ and a claim link's POST
+    # together, in DRF's "<count>/<sec|min|hour|day>".
     LOGIN_THROTTLE_RATE: str = "5/min"
+    # Photo uploads per user (PUT /me/photo/), in the same format: each one is decoded and
+    # re-encoded, and a person needs only a few.
+    PHOTO_THROTTLE_RATE: str = "10/hour"
     # Proxies in front of Django that append the client IP to X-Forwarded-For: nginx for a
     # direct API call, the front for a login through the site. DRF trusts that many entries
     # from the right; only correct if nothing reaches Django without passing one of them.
@@ -83,17 +93,6 @@ class BaseConfig(BaseSettings):
 
         return self
 
-    @model_validator(mode="after")
-    def override_if_env(self):
-        """
-        override the values if they are defined in the environment
-        """
-        for key, value in os.environ.items():
-            if hasattr(self, key):
-                setattr(self, key, value)
-
-        return self
-
     class Config:
         """
         Pydantic configuration.
@@ -108,6 +107,8 @@ class DevConfig(BaseConfig):
     """
     Development configuration class.
     """
+
+    PUBLIC_URL: str = "http://localhost:5173"  # the Vite dev server
 
     class Config:
         """

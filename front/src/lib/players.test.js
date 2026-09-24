@@ -6,6 +6,8 @@ import {
 	editionStatus,
 	formatAverage,
 	fullName,
+	listYears,
+	showcaseLabel,
 	shownPlaces,
 	spokenPlaces
 } from './players.js';
@@ -123,5 +125,49 @@ describe('spokenPlaces', () => {
 
 	it('reads places best first, in French', () => {
 		expect(spokenPlaces(places, 'fr')).toBe('1re place en 2026, 2e place en 2023');
+	});
+});
+
+describe('showcaseLabel', () => {
+	const showcase = [
+		{ code: 'champion', tier: 0, discipline: null },
+		{ code: 'veteran', tier: 2, discipline: null },
+		{ code: 'networker', tier: 1, discipline: null }
+	];
+
+	it('names the badges in display order, in English', () => {
+		expect(showcaseLabel(showcase, 'en')).toBe('showcase: Champion, Veteran, Networker');
+	});
+
+	it('names the badges in display order, in French', () => {
+		expect(showcaseLabel(showcase, 'fr')).toBe('vitrine : Champion, Vétéran, Rassembleur');
+	});
+
+	it('names a specialist by the badge, not its discipline', () => {
+		expect(showcaseLabel([{ code: 'specialist', tier: 1, discipline: 'Relay' }], 'fr')).toBe('vitrine : Spécialiste');
+	});
+
+	it('skips a code the front does not know, from a newer server', () => {
+		const withUnknown = [showcase[0], { code: 'future-badge', tier: 0, discipline: null }, showcase[2]];
+		expect(showcaseLabel(withUnknown, 'en')).toBe('showcase: Champion, Networker');
+	});
+
+	it('adds nothing for an empty showcase, one of unknown codes only, or none at all', () => {
+		expect(showcaseLabel([], 'en')).toBe('');
+		expect(showcaseLabel([{ code: 'future-badge', tier: 0, discipline: null }], 'fr')).toBe('');
+		expect(showcaseLabel(undefined, 'en')).toBe('');
+	});
+});
+
+describe('listYears', () => {
+	it('joins years as a sentence list in English', () => {
+		expect(listYears([2024], 'en')).toBe('2024');
+		expect(listYears([2024, 2026], 'en')).toBe('2024 and 2026');
+		expect(listYears([2024, 2025, 2026], 'en')).toBe('2024, 2025, and 2026');
+	});
+
+	it('joins years as a sentence list in French', () => {
+		expect(listYears([2024, 2026], 'fr')).toBe('2024 et 2026');
+		expect(listYears([2024, 2025, 2026], 'fr')).toBe('2024, 2025 et 2026');
 	});
 });

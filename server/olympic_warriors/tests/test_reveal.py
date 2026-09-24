@@ -2,7 +2,7 @@
 The game, round and result read endpoints apply the summary's reveal rule: scores and
 stored values are null until the discipline is revealed, except for staff. They also
 leave out what the summary leaves out: games of an inactive round or discipline,
-results of an inactive discipline or team.
+results of an inactive discipline or team, and every row of an inactive edition.
 """
 
 from django.contrib.auth.models import User
@@ -265,3 +265,20 @@ class TestInactiveRows(RevealSetup):
         for url in self.result_urls(self.result)[1:]:
             ids = [r["id"] for r in self.results(client, url)]
             self.assertNotIn(self.result.id, ids, url)
+
+    def test_rows_of_an_inactive_edition(self):
+        """A player's token reads no more than the public, whose summary of it is a 404."""
+        self.reveal(self.darts)
+        self.reveal(self.crossfit)
+        Edition.objects.filter(id=self.edition.id).update(is_active=False)
+        self.assertEqual(self.client.get("/edition/year/2026/summary/").status_code, 404)
+        for client in (self.as_user(self.player), self.as_user(self.staff)):
+            self.assert_game_gone(client)
+            self.assertEqual(client.get(f"/round/{self.round.id}/").status_code, 404)
+            for url in ("/rounds/", f"/rounds/discipline/{self.darts.id}/"):
+                self.assertNotIn(self.round.id, [r["id"] for r in self.results(client, url)], url)
+            for result in (self.result, self.time_result):
+                self.assertEqual(client.get(f"/result/{result.id}/").status_code, 404)
+                for url in self.result_urls(result)[1:]:
+                    ids = [r["id"] for r in self.results(client, url)]
+                    self.assertNotIn(result.id, ids, url)

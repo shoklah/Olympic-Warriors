@@ -1,7 +1,7 @@
 """
 Badges people earn from their editions (see the player badges design spec under
 docs/superpowers/specs/). earned() computes every computed badge from the current data;
-refresh() stores the difference in the Badge table. The nightly cron job, the Edition admin
+refresh() stores the difference in the Badge table. The monthly cron job, the Edition admin
 action and import_edition call refresh(); a page view only reads the table.
 
 The rules read the sequence: the finished active editions with at least one active player,
@@ -18,9 +18,10 @@ from itertools import combinations
 from django.db import transaction
 from django.utils import timezone
 
+from .avatars import small_photo_url
 from .models import Badge, BadgeRefresh, BlindtestGuess, Game
 from .models.ResultTypes import ResultTypes
-from .profiles import _load, _participations, _place, _record, _sort_key, paris_today
+from .profiles import _contested, _load, _participations, _place, _record, _sort_key, paris_today
 
 C = Badge.Codes
 
@@ -401,7 +402,7 @@ ALL_ROUNDER_TIERS = ((3, 1), (5, 2), (8, 3))
 @dataclass(frozen=True)
 class DisciplineResult:
     """A team's result in one discipline of a sequence edition, with its standing's rank
-    (0 when hidden or unscored)."""
+    (0 when hidden, unscored, or in an uncontested discipline: see _discipline_results)."""
 
     team_id: int
     discipline_id: int
@@ -415,10 +416,14 @@ def _discipline_results(h):
     """
     {sequence index: [DisciplineResult]}: the active results of the sequence's active teams
     and disciplines, read from each edition's Standings (disciplines_of), which
-    compute_standings already loaded: no query of its own.
+    compute_standings already loaded: no query of its own. A discipline whose ranked results
+    all share one rank (profiles._contested: a lone scored result, or every team tied on 0
+    before any game) beats nobody, so its results rank 0 here as they give no place on the
+    profiles: no win, no podium, and no ranked discipline for the metronome.
     """
     results = {}
     for i, standing in enumerate(h.standings):
+        contested = _contested(standing)
         results[i] = [
             DisciplineResult(
                 team_id,
@@ -426,7 +431,7 @@ def _discipline_results(h):
                 discipline.discipline_name,
                 discipline.result_type,
                 discipline.points,
-                discipline.standing.ranking,
+                discipline.standing.ranking if discipline.discipline_id in contested else 0,
             )
             for team_id, disciplines in standing.team_disciplines.items()
             for discipline in disciplines
@@ -468,7 +473,10 @@ def _disciplines_of(h, results, user_id, seats):
         for threshold, tier in ALL_ROUNDER_TIERS:
             if before < threshold <= len(won):
                 yield Earned(user_id, C.ALL_ROUNDER, edition_id, tier=tier)
-        podiums.update(r.name for r in mine if 1 <= r.ranking <= 3)
+        # A discipline podium needs an edition of at least 4 teams: in a smaller one every
+        # result is on the podium, the last place included.
+        podium = [r for r in mine if 1 <= r.ranking <= 3] if edition.team_count >= 4 else []
+        podiums.update(r.name for r in podium)
         if not decathlete and len(podiums) >= 10:
             decathlete = True
             yield Earned(user_id, C.DECATHLETE, edition_id)
@@ -479,7 +487,7 @@ def _disciplines_of(h, results, user_id, seats):
         if len(wins) >= 3:
             yield Earned(user_id, C.CLEAN_SWEEP, edition_id)
         ranked = {r.discipline_id for r in rows if r.ranking}
-        on_podium = {r.discipline_id for r in mine if 1 <= r.ranking <= 3}
+        on_podium = {r.discipline_id for r in podium}
         if len(ranked) >= 4 and ranked <= on_podium:
             yield Earned(user_id, C.METRONOME, edition_id)
         if _uncrowned(rows, seat, wins):
@@ -735,16 +743,42 @@ def refresh(today=None):
 CATALOGUE_ORDER = {code: n for n, code in enumerate(Badge.Codes.values)}
 
 
+def _shown_rows():
+    """The badge rows a profile shows: active rows of active editions, with what grouping
+    them reads (the edition's year, the partner's names and profile row, for the photo),
+    all joined in: a partner without a profile row is cached as None, so still no query."""
+    return Badge.objects.filter(is_active=True, edition__is_active=True).select_related(
+        "edition", "partner__profile"
+    )
+
+
 def profile_badges(user_id):
     """
     The person's active badges of active editions for GET /profile/<id>/ (1 query), grouped
     by (code, discipline, partner) in catalogue order: [{code, tier, years, discipline,
-    partner}], `tier` the highest, `years` sorted, names only for the partner.
+    partner}], `tier` the highest, `years` sorted, the partner as {id, first_name,
+    last_name, photo} (the small photo URL or None; never the login name).
     """
+    return _grouped(_shown_rows().filter(user_id=user_id))
+
+
+def badges_by_user(user_ids):
+    """
+    profile_badges() for each of `user_ids` (a collection of ids) in 1 query, none for no
+    id: {user id: entries}, every given id included, [] for someone without a badge.
+    """
+    by_user = {user_id: [] for user_id in user_ids}
+    rows = defaultdict(list)
+    for row in _shown_rows().filter(user_id__in=list(by_user)):
+        rows[row.user_id].append(row)
+    for user_id, mine in rows.items():
+        by_user[user_id] = _grouped(mine)
+    return by_user
+
+
+def _grouped(rows):
+    """One person's badge rows as profile_badges() entries (see there)."""
     groups = {}
-    rows = Badge.objects.filter(
-        user_id=user_id, is_active=True, edition__is_active=True
-    ).select_related("edition", "partner")
     for row in rows:
         partner = row.partner
         group = groups.setdefault(
@@ -760,6 +794,8 @@ def profile_badges(user_id):
                     "id": partner.id,
                     "first_name": partner.first_name,
                     "last_name": partner.last_name,
+                    # select_related: no query, and no row reads as no photo.
+                    "photo": small_photo_url(getattr(partner, "profile", None)),
                 },
             },
         )
@@ -779,6 +815,64 @@ def profile_badges(user_id):
     return sorted(({**g, "years": sorted(g["years"])} for g in groups.values()), key=order)
 
 
+SHOWCASE_SIZE = 3
+
+
+def valid_pins(codes, entries):
+    """
+    Whether `codes`, the `codes` of a PUT /me/showcase/ body (any JSON value), can be stored
+    as a person's pins: a list of at most SHOWCASE_SIZE distinct catalogue codes, each earned
+    (in the person's profile_badges() `entries`). [] is valid: back to the automatic
+    showcase.
+    """
+    if not isinstance(codes, list) or len(codes) > SHOWCASE_SIZE:
+        return False
+    if not all(isinstance(code, str) for code in codes) or len(set(codes)) != len(codes):
+        return False
+    held = {entry["code"] for entry in entries}
+    return all(code in CATALOGUE_ORDER and code in held for code in codes)
+
+
+def showcase(entries, pins, holders):
+    """
+    The badges a person's profile shows (no query), from their profile_badges() `entries`,
+    their stored `pins` (UserProfile.showcase) and the rarity counts of badge_stats() over
+    the leaderboard's people (its `holders`): {"auto": bool, "badges": [{code, tier,
+    discipline}]}, at most SHOWCASE_SIZE, in the order shown.
+
+    - Pinned: the pins still earned, in the person's order. A pin stops showing once its
+      badge is revoked or recomputed away, and none left means automatic.
+    - Automatic: the rarest earned codes, fewest holders first (a code without a count has
+      none), then the higher tier held, then catalogue order.
+    - Each code is drawn from its entry with the highest tier, the first one among equals,
+      as the front's badgeCollection picks a collection slot's medallion: the metal, the
+      pips and specialist's discipline icon match the slot's. A partner is never shown.
+    """
+    medals = {}
+    for entry in entries:
+        best = medals.get(entry["code"])
+        if best is None or entry["tier"] > best["tier"]:
+            medals[entry["code"]] = entry
+    codes = [code for code in dict.fromkeys(pins) if code in medals][:SHOWCASE_SIZE]
+    auto = not codes
+    if auto:
+        codes = sorted(
+            medals,
+            key=lambda code: (
+                holders.get(code, 0),
+                -medals[code]["tier"],
+                CATALOGUE_ORDER.get(code, len(CATALOGUE_ORDER)),
+            ),
+        )[:SHOWCASE_SIZE]
+    return {
+        "auto": auto,
+        "badges": [
+            {"code": code, "tier": medals[code]["tier"], "discipline": medals[code]["discipline"]}
+            for code in codes
+        ],
+    }
+
+
 # The five tiered codes (see VETERAN_TIERS, EVER_PRESENT_TIERS, NETWORKER_TIERS,
 # SPECIALIST_TIERS and ALL_ROUNDER_TIERS above): badge_stats reports an at-least-k holder
 # count for these codes only.
@@ -787,12 +881,12 @@ TIERED_CODES = frozenset({C.VETERAN, C.EVER_PRESENT, C.NETWORKER, C.SPECIALIST, 
 
 def badge_stats(user_ids):
     """
-    Rarity stats for GET /profile/<id>/ (1 query), over the given user ids (the leaderboard's
-    people): how many hold each badge code (any tier, discipline, partner or year, each
-    counted once) and, for the six tiered codes, how many hold at least each tier (the
-    person's own highest tier of that code). Same filter as profile_badges: active rows of
-    active editions only. `holders` only lists codes with at least one holder; `tiers` only
-    lists the tiered codes with one. See the "Rarity" design spec.
+    Rarity stats for the profile and the showcases (1 query, none for no id), over the given
+    user ids (the leaderboard's people): how many hold each badge code (any tier, discipline,
+    partner or year, each counted once) and, for the five tiered codes, how many hold at least
+    each tier (the person's own highest tier of that code). Same filter as profile_badges:
+    active rows of active editions only. `holders` only lists codes with at least one holder;
+    `tiers` only lists the tiered codes with one. See the "Rarity" design spec.
 
     {"players": 47, "holders": {"champion": 12, "veteran": 20}, "tiers": {"veteran": [20, 6, 1]}}
     """

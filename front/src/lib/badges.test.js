@@ -14,7 +14,8 @@ import {
 	hasGlyph,
 	isKnownBadge,
 	isTiered,
-	nextThreshold
+	nextThreshold,
+	slotLabel
 } from './badges.js';
 
 /** Badge.Codes in server/olympic_warriors/models/Badge.py, in order. Keep in sync by hand. */
@@ -248,5 +249,26 @@ describe('badgeRarity', () => {
 		expect(badgeRarity(null, 'champion')).toBeNull();
 		expect(badgeRarity(undefined, 'champion')).toBeNull();
 		expect(badgeRarity({ players: 0, holders: { champion: 0 } }, 'champion')).toBeNull();
+	});
+});
+
+describe('slotLabel', () => {
+	const slotOf = (code, badges) =>
+		badgeCollection(badges)
+			.families.flatMap((f) => f.slots)
+			.find((s) => s.code === code);
+	const clean = (years) => [{ code: 'clean-sweep', tier: 0, years, discipline: null, partner: null }];
+
+	it('names an earned slot, a repeated one with a spoken count, and a locked one', () => {
+		const t = translator('en');
+		expect(slotLabel(slotOf('clean-sweep', clean([2026])), t)).toBe('Clean sweep, badge earned');
+		expect(slotLabel(slotOf('clean-sweep', clean([2023, 2026])), t)).toBe('Clean sweep, badge earned 2 times');
+		expect(slotLabel(slotOf('clean-sweep', []), t)).toBe('Clean sweep, badge locked');
+	});
+
+	it('speaks French', () => {
+		const t = translator('fr');
+		expect(slotLabel(slotOf('clean-sweep', clean([2023, 2026])), t)).toBe('Razzia, badge obtenu 2 fois');
+		expect(slotLabel(slotOf('clean-sweep', []), t)).toBe('Razzia, badge à débloquer');
 	});
 });

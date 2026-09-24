@@ -6,20 +6,22 @@
 	import { page } from '$app/stores';
 	import { setContext } from 'svelte';
 	import { I18N } from '$lib/i18n';
-	import { ORGANISER } from '$lib/session';
+	import { ME, ORGANISER } from '$lib/session';
 
 	export let data;
 
 	// The language is decided on the server per request; switching it is a full
-	// page load (plain form POST + redirect), so init-time context is enough.
+	// page load (plain form POST + redirect), so init-time context is enough. So is who is
+	// logged in: logging in and out are plain POSTs that reload the page too.
 	setContext(I18N, data.locale);
 	setContext(ORGANISER, data.organiser);
+	setContext(ME, data.me);
 
-	// The hub and the login page carry no section, so they get no bottom tab bar.
-	const HUB_OR_LOGIN = new Set(['/', '/[year=year]', '/login']);
+	// The hub, the login page and the claim page carry no section, so they get no bottom tab bar.
+	const NO_TAB_BAR = new Set(['/', '/[year=year]', '/login', '/claim/[uid]/[token]']);
 
 	// An unmatched 404 has no route id: no section to show, so no tab bar either.
-	$: showTabBar = $page.route.id !== null && !HUB_OR_LOGIN.has($page.route.id);
+	$: showTabBar = $page.route.id !== null && !NO_TAB_BAR.has($page.route.id);
 	// On an error page the year in the URL may be one with no edition, so fall back to the latest.
 	$: year = ($page.error ? null : $page.params.year) ?? $page.data.latestYear;
 	$: photosUrl =
@@ -38,7 +40,8 @@
 </script>
 
 <div class="app" class:has-tabbar={showTabBar}>
-	<Header />
+	<!-- `me` as a prop, not only the ME context: the pill's photo and name follow invalidateAll(). -->
+	<Header me={data.me} />
 
 	<main>
 		<slot />

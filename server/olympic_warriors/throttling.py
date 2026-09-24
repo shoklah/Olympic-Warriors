@@ -1,10 +1,11 @@
 """
-The login throttle: on the token endpoint, the only throttled API view, and the admin login form.
+The only throttled requests: the login throttle, on the token endpoint, a claim link's POST
+and the admin login form, per client IP; and the photo throttle, on a photo upload, per user.
 """
 
 import ipaddress
 
-from rest_framework.throttling import SimpleRateThrottle
+from rest_framework.throttling import SimpleRateThrottle, UserRateThrottle
 
 
 def client_key(ident):
@@ -44,3 +45,38 @@ class LoginRateThrottle(SimpleRateThrottle):
     def get_cache_key(self, request, view):
         ident = client_key(self.get_ident(request))
         return self.cache_format % {"scope": self.scope, "ident": ident}
+
+
+class ClaimRateThrottle(LoginRateThrottle):
+    """
+    The login bucket, on a claim link's POST only. Choosing a password through a link is a
+    login attempt, so it counts with /auth/token/ and the admin login in the same per-IP
+    budget (same scope, same rate). The GET is not counted: it answers only for a valid
+    token, which cannot be guessed, and the claim page re-runs it after every refused POST,
+    which would otherwise spend the budget twice per attempt. A function view has one
+    throttle list for all its methods, hence the method check here.
+    """
+
+    def allow_request(self, request, view):
+        if request.method != "POST":
+            return True
+        return super().allow_request(request, view)
+
+
+class PhotoRateThrottle(UserRateThrottle):
+    """
+    Photo uploads per user, at the "photo" rate of DEFAULT_THROTTLE_RATES
+    (PHOTO_THROTTLE_RATE, 10/hour by default): each upload is decoded, re-encoded and
+    written twice, so one account cannot keep the server busy or churn the media volume.
+    Every PUT counts, refused or not. The views are for logged-in users only, so the key is
+    always the user, whatever address they call from. PUT only: taking a photo down is
+    never limited (a function view has one throttle list for all its methods, hence the
+    method check here, as in ClaimRateThrottle).
+    """
+
+    scope = "photo"
+
+    def allow_request(self, request, view):
+        if request.method != "PUT":
+            return True
+        return super().allow_request(request, view)

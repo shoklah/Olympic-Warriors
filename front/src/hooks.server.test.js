@@ -23,6 +23,15 @@ describe('handle', () => {
 		expect((await run({ theme: 'sepia' })).html).toBe('<html lang="fr" data-theme="system">');
 	});
 
+	it('lets universal loads read the content type during SSR, and no other header', async () => {
+		let options;
+		const event = { cookies: { get: () => undefined }, setHeaders: vi.fn() };
+		await handle({ event, resolve: (_event, opts) => (options = opts) });
+
+		expect(options.filterSerializedResponseHeaders('content-type')).toBe(true);
+		expect(options.filterSerializedResponseHeaders('set-cookie')).toBe(false);
+	});
+
 	it('varies the response on the cookie', async () => {
 		const { event } = await run({ lang: 'en' });
 		expect(event.setHeaders).toHaveBeenCalledWith({ vary: 'Cookie' });

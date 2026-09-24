@@ -1,6 +1,8 @@
 <script>
+	import Avatar from '$lib/components/Avatar.svelte';
 	import MedalRank from '$lib/components/MedalRank.svelte';
-	import { formatAverage, fullName, shownPlaces, spokenPlaces } from '$lib/players';
+	import Showcase from '$lib/components/Showcase.svelte';
+	import { formatAverage, fullName, showcaseLabel, shownPlaces, spokenPlaces } from '$lib/players';
 	import { useLocale, useT } from '$lib/i18n';
 
 	export let data;
@@ -11,9 +13,13 @@
 	$: ranked = data.players.filter((player) => player.position !== null);
 	$: waiting = data.players.filter((player) => player.position === null);
 
+	// The row is one link: the showcase's medallions are aria-hidden, so their names join
+	// this sentence (nothing for a player without a badge).
 	const spoken = (player) => {
 		const average = t('players.averageSpoken', { value: formatAverage(player.average_rank, locale) });
-		return [spokenPlaces(player.places, locale), average].join(', ');
+		return [spokenPlaces(player.places, locale), average, showcaseLabel(player.showcase, locale)]
+			.filter(Boolean)
+			.join(', ');
 	};
 </script>
 
@@ -34,9 +40,13 @@
 						href="/players/{player.id}"
 						data-testid="player-row"
 					>
-						<MedalRank rank={player.position} />
+						<span class="position"><MedalRank rank={player.position} /></span>
+						<Avatar photo={player.photo ?? null} name={player} size={32} lazy />
 						<span class="text">
-							<span class="name">{fullName(player)}</span>
+							<span class="head">
+								<span class="name">{fullName(player)}</span>
+								<Showcase badges={player.showcase ?? []} />
+							</span>
 							<span class="places" aria-hidden="true" data-testid="places">
 								{#each shown as place}
 									<span
@@ -67,10 +77,19 @@
 		<h2>{t('players.notRanked')}</h2>
 		<ul class="list" role="list">
 			{#each waiting as player}
+				{@const showcase = showcaseLabel(player.showcase, locale)}
 				<li>
 					<a class="row waiting" href="/players/{player.id}" data-testid="unranked-row">
-						<span class="name">{fullName(player)}</span>
-						<span class="detail">{t('players.editions', { n: player.played })}</span>
+						<Avatar photo={player.photo ?? null} name={player} size={32} lazy />
+						<span class="head">
+							<span class="name">{fullName(player)}</span>
+							<Showcase badges={player.showcase ?? []} />
+						</span>
+						<span class="detail"
+							>{t('players.editions', { n: player.played })}{#if showcase}<span class="visually-hidden"
+									>, {showcase}</span
+								>{/if}</span
+						>
 					</a>
 				</li>
 			{/each}
@@ -103,7 +122,7 @@
 
 	.row {
 		display: grid;
-		grid-template-columns: 44px minmax(0, 1fr) auto;
+		grid-template-columns: 44px auto minmax(0, 1fr) auto;
 		align-items: center;
 		gap: 12px;
 		--medal-size: 1.9rem;
@@ -120,7 +139,20 @@
 	}
 
 	.row.waiting {
-		grid-template-columns: minmax(0, 1fr) auto;
+		grid-template-columns: auto minmax(0, 1fr) auto;
+	}
+
+	/* On a phone the position hugs the avatar: a column two digits wide (a third overflows
+	   into the row's padding), the number set against its right edge. */
+	@media (max-width: 599.98px) {
+		.row {
+			grid-template-columns: 28px auto minmax(0, 1fr) auto;
+			column-gap: 10px;
+		}
+
+		.position {
+			justify-self: end;
+		}
 	}
 
 	.row:hover {
@@ -156,8 +188,24 @@
 		overflow-wrap: anywhere;
 	}
 
-	.text .name {
-		display: block;
+	/* The name, then the showcase on its own line below 600px. From 600px the showcase stays
+	   inline after the name, a long name wrapping beside it, and its pip row hangs below the
+	   line (`--showcase-hang`), so the rings centre on the name and the row keeps its height. */
+	.head {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 3px;
+		min-width: 0;
+	}
+
+	@media (min-width: 600px) {
+		.head {
+			flex-direction: row;
+			align-items: center;
+			gap: 10px;
+			--showcase-hang: 1;
+		}
 	}
 
 	.detail {
