@@ -34,6 +34,8 @@ class BaseConfig(BaseSettings):
     # the value below is used.
     # If a .env file is present, and a variable is defined in the .env file,
     # the value in the .env file is used.
+    # A real environment variable overrides both, parsed and validated like a value of the
+    # .env file (tests/test_config.py).
     # The .env file is not committed to the repository.
     # See the .env.example file for an example of the .env file.
     # See https://pydantic-docs.helpmanual.io/usage/settings/ for more information.
@@ -88,17 +90,6 @@ class BaseConfig(BaseSettings):
 
         if log_level_file not in LogLevel.__members__:
             raise ValueError(f"Invalid log level: {log_level_file}")
-
-        return self
-
-    @model_validator(mode="after")
-    def override_if_env(self):
-        """
-        override the values if they are defined in the environment
-        """
-        for key, value in os.environ.items():
-            if hasattr(self, key):
-                setattr(self, key, value)
 
         return self
 

@@ -45,12 +45,15 @@ PUBLIC = {
     "auth/token/",
     # a claim link: the link is the credential (its POST shares the login throttle)
     "claim/<str:uidb64>/<str:token>/",
-    # what the front reads: the editions, the summary, the disciplines, the profiles
+    # what the front reads: the editions, the summary, the disciplines, the profiles, and a
+    # discipline's all-time table with its index (the disciplines page's « Palmarès » deck)
     "editions/",
     "edition/<int:edition_id>/",
     "edition/year/<int:year>/summary/",
     "discipline/<int:discipline_id>/",
+    "discipline/<int:discipline_id>/all-time/",
     "disciplines/",
+    "disciplines/all-time/",
     "disciplines/<int:edition_id>/",
     "profiles/",
     "profile/<int:user_id>/",

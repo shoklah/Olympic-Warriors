@@ -17,6 +17,9 @@
  * Xavier's three rarest earned codes by those holders (clean sweep 3, specialist 5,
  * comrades 8).
  * `profileUnranked` has nothing counted, no discipline places, no badge and no photo.
+ * `allTime` is /discipline/10/all-time/ (Relay, 2024 and 2025): Léa and Hugo tied 1st on a
+ * 1st and a 2nd place each, Inès 3rd on a single 1st place, Xavier 4th on a 4th place.
+ * `allTimeEmpty` is a discipline without any revealed result yet.
  */
 export const leaderboard = [
 	{
@@ -65,9 +68,9 @@ export const profile = {
 		{ year: 2023, team: { id: 5, name: 'Bisons' }, rank: 3, teams: 8, finished: true }
 	],
 	disciplines: [
-		{ name: 'Relay', position: 1, places: [{ year: 2026, rank: 1 }, { year: 2023, rank: 2 }] },
-		{ name: 'Crossfit', position: 2, places: [{ year: 2026, rank: 1 }, { year: 2023, rank: 4 }] },
-		{ name: 'Darts', position: 3, places: [{ year: 2026, rank: 3 }] }
+		{ name: 'Relay', position: 1, places: [{ year: 2026, rank: 1 }, { year: 2023, rank: 2 }], latest: { year: 2026, discipline: 10 } },
+		{ name: 'Crossfit', position: 2, places: [{ year: 2026, rank: 1 }, { year: 2023, rank: 4 }], latest: { year: 2026, discipline: 13 } },
+		{ name: 'Darts', position: 3, places: [{ year: 2026, rank: 3 }], latest: { year: 2026, discipline: 12 } }
 	],
 	badges: [
 		{ code: 'veteran', tier: 1, years: [2026], discipline: null, partner: null },
@@ -111,3 +114,16 @@ export const profileUnranked = {
 	photo: null,
 	showcase: { auto: true, badges: [] }
 };
+
+export const allTime = {
+	name: 'Relay',
+	years: [2024, 2025],
+	players: [
+		{ id: 12, first_name: 'Léa', last_name: 'Martin', position: 1, places: [{ year: 2025, rank: 1 }, { year: 2024, rank: 2 }] },
+		{ id: 7, first_name: 'Hugo', last_name: 'Maurinier', position: 1, places: [{ year: 2024, rank: 1 }, { year: 2025, rank: 2 }] },
+		{ id: 9, first_name: 'Inès', last_name: 'Moreau', position: 3, places: [{ year: 2025, rank: 1 }] },
+		{ id: 34, first_name: 'Xavier', last_name: 'Baby', position: 4, places: [{ year: 2024, rank: 4 }] }
+	]
+};
+
+export const allTimeEmpty = { name: 'Darts', years: [], players: [] };

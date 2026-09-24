@@ -1,9 +1,10 @@
 <script>
-	import { createEventDispatcher, onDestroy, tick } from 'svelte';
+	import { createEventDispatcher, tick } from 'svelte';
 	import Avatar from './Avatar.svelte';
 	import Badge from './Badge.svelte';
 	import { badgeDetail, badgeRarity, badgeTier, isTiered, nextThreshold } from '$lib/badges';
 	import { fullName } from '$lib/players';
+	import { modal } from '$lib/modal';
 	import { useLocale, useT } from '$lib/i18n';
 
 	/** A slot from badgeCollection: { code, entries, count, earned, medal }, or null. */
@@ -22,69 +23,6 @@
 
 	const close = () => dispatch('close');
 
-	/** Every element the sheet lets Tab reach, in DOM order (links then the close button). */
-	function focusables() {
-		if (!sheetEl) return [];
-		return [
-			...sheetEl.querySelectorAll(
-				'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
-			)
-		];
-	}
-
-	/** Escape closes; Tab/Shift+Tab wraps inside the sheet, since aria-modal alone doesn't
-	    stop the browser sending focus to the page behind it (no jsdom support for native
-	    <dialog>.showModal(), see the badge collection review). */
-	const onKey = (event) => {
-		if (!open) return;
-		if (event.key === 'Escape') {
-			close();
-			return;
-		}
-		if (event.key !== 'Tab') return;
-		const items = focusables();
-		if (items.length === 0) {
-			event.preventDefault();
-			return;
-		}
-		const first = items[0];
-		const last = items[items.length - 1];
-		const active = document.activeElement;
-		// Focus landed outside the sheet altogether (e.g. a stray click on the page behind
-		// the backdrop): pull it back in rather than letting Tab carry on from there.
-		if (!sheetEl.contains(active)) {
-			event.preventDefault();
-			(event.shiftKey ? last : first).focus();
-			return;
-		}
-		if (event.shiftKey) {
-			if (active === first || active === sheetEl) {
-				event.preventDefault();
-				last.focus();
-			}
-		} else if (active === last) {
-			event.preventDefault();
-			first.focus();
-		}
-	};
-
-	// The background page must not scroll behind an open sheet. previousOverflow stays null
-	// while unlocked, so a stray call (e.g. the initial `open: false`) is a no-op.
-	let previousOverflow = null;
-	function lockScroll() {
-		if (typeof document === 'undefined' || previousOverflow !== null) return;
-		previousOverflow = document.body.style.overflow;
-		document.body.style.overflow = 'hidden';
-	}
-	function unlockScroll() {
-		if (typeof document === 'undefined' || previousOverflow === null) return;
-		document.body.style.overflow = previousOverflow;
-		previousOverflow = null;
-	}
-	$: if (open) lockScroll();
-	else unlockScroll();
-	onDestroy(unlockScroll);
-
 	$: tiered = slot ? isTiered(slot.code) : false;
 	$: titleId = slot ? `badge-sheet-title-${slot.code}` : null;
 	/** The first tier's threshold for a locked tiered slot (slot.medal.tier is 0). */
@@ -96,11 +34,17 @@
 	$: tierRarity = slot && tiered && slot.earned ? badgeRarity(badgeStats, slot.code, badgeTier(slot.medal)) : null;
 </script>
 
-<svelte:window on:keydown={onKey} />
-
 {#if open && slot}
 	<div class="backdrop" data-testid="backdrop" on:click={close} aria-hidden="true"></div>
-	<div class="sheet" role="dialog" aria-modal="true" aria-labelledby={titleId} tabindex="-1" bind:this={sheetEl}>
+	<div
+		class="sheet"
+		role="dialog"
+		aria-modal="true"
+		aria-labelledby={titleId}
+		tabindex="-1"
+		bind:this={sheetEl}
+		use:modal={{ onClose: close }}
+	>
 		<div class="medallion" style="--badge-size: 64px">
 			<Badge badge={slot.medal} locked={!slot.earned} />
 		</div>

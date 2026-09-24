@@ -61,6 +61,11 @@ export function byDisplayedName(disciplines, locale) {
 	);
 }
 
+/** Years as a sentence list: "2024, 2025 et 2026" in French, "2024, 2025, and 2026" in English. */
+export function listYears(years, locale) {
+	return new Intl.ListFormat(localeFrom(locale), { type: 'conjunction' }).format(years.map(String));
+}
+
 /** "1st place in 2026, 2nd place in 2023" for screen readers. */
 export function spokenPlaces(places, locale) {
 	return places.map((p) => t(locale, 'players.placeIn', { place: ordinal(p.rank, locale), year: p.year })).join(', ');

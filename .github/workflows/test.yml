@@ -32,21 +32,63 @@ jobs:
       - name: Build and start Docker containers
         run: docker compose up -d
 
-      # - name: Wait for the database to be ready
-      #   run: |
-      #     until docker compose exec db pg_isready -U user -d mydb-dev; do
-      #       sleep 1
-      #     done
-
-      # - name: Run migrations
-      #   run: docker compose exec server python manage.py migrate
-
-    # - name: Run Django tests
-    #  run: docker-compose exec server python manage.py test
-
       - name: Stop Docker containers
         if: always()
         run: docker compose down
+
+  server:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: server
+
+    services:
+      db:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: ci
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    # No dev.env in CI: DevConfig reads every setting from these variables.
+    env:
+      ENV: dev
+      SECRET_KEY: ci-only-not-a-secret
+      DEBUG: 'False'
+      DB_HOST: localhost
+      DB_PORT: '5432'
+      DB_NAME: ci
+      DB_USER: ci
+      DB_PASS: ci
+      LOG_FILE: logs/olympic_warriors.log
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: server/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Check for missing migrations
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Run Django tests
+        run: python manage.py test
 
   front:
     runs-on: ubuntu-latest

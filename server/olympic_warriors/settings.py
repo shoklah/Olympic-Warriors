@@ -252,8 +252,7 @@ REST_FRAMEWORK = {
         'login': settings.LOGIN_THROTTLE_RATE,
         'photo': settings.PHOTO_THROTTLE_RATE,
     },
-    # int(): a real env var reaches the config as a string (BaseConfig.override_if_env).
-    'NUM_PROXIES': int(settings.NUM_PROXIES),
+    'NUM_PROXIES': settings.NUM_PROXIES,
 }
 
 # Spectacular settings

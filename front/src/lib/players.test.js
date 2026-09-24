@@ -6,6 +6,7 @@ import {
 	editionStatus,
 	formatAverage,
 	fullName,
+	listYears,
 	showcaseLabel,
 	shownPlaces,
 	spokenPlaces
@@ -155,5 +156,18 @@ describe('showcaseLabel', () => {
 		expect(showcaseLabel([], 'en')).toBe('');
 		expect(showcaseLabel([{ code: 'future-badge', tier: 0, discipline: null }], 'fr')).toBe('');
 		expect(showcaseLabel(undefined, 'en')).toBe('');
+	});
+});
+
+describe('listYears', () => {
+	it('joins years as a sentence list in English', () => {
+		expect(listYears([2024], 'en')).toBe('2024');
+		expect(listYears([2024, 2026], 'en')).toBe('2024 and 2026');
+		expect(listYears([2024, 2025, 2026], 'en')).toBe('2024, 2025, and 2026');
+	});
+
+	it('joins years as a sentence list in French', () => {
+		expect(listYears([2024, 2026], 'fr')).toBe('2024 et 2026');
+		expect(listYears([2024, 2025, 2026], 'fr')).toBe('2024, 2025 et 2026');
 	});
 });
