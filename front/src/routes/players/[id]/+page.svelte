@@ -3,9 +3,11 @@
 	import BadgeCollection from '$lib/components/BadgeCollection.svelte';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import MedalRank from '$lib/components/MedalRank.svelte';
+	import PlaceList from '$lib/components/PlaceList.svelte';
 	import { badgeCollection } from '$lib/badges';
+	import { disciplinePath } from '$lib/edition';
 	import { iconFor } from '$lib/icons';
-	import { bestDisciplines, byDisplayedName, editionStatus, formatAverage, fullName, spokenPlaces } from '$lib/players';
+	import { bestDisciplines, byDisplayedName, editionStatus, formatAverage, fullName } from '$lib/players';
 	import { disciplineName, useLocale, useT } from '$lib/i18n';
 
 	export let data;
@@ -129,23 +131,18 @@
 			<h2>{t('profile.byDiscipline')}</h2>
 			<ul class="disciplines" role="list">
 				{#each disciplines as d}
-					<li class="discipline" data-testid="discipline-row">
-						<img src={iconFor(d.name)} alt="" />
-						<span class="name">{disciplineName(locale, d.name)}</span>
-						<span class="places" aria-hidden="true">
-							{#each d.places as p}
-								<span class="discipline-place"
-									><span
-										class="num place-rank"
-										class:gold={p.rank === 1}
-										class:silver={p.rank === 2}
-										class:bronze={p.rank === 3}>{p.rank}</span
-									>
-									<span class="place-year">{p.year}</span></span
-								>{' '}
-							{/each}
-						</span>
-						<span class="visually-hidden">{spokenPlaces(d.places, locale)}</span>
+					<!-- The row links to the discipline's all-time table, on the page of the edition
+					     where this person last placed in it (a plain row from a server without `latest`). -->
+					<li data-testid="discipline-row">
+						<svelte:element
+							this={d.latest ? 'a' : 'div'}
+							class="discipline"
+							href={d.latest ? disciplinePath(d.latest.year, d.latest.discipline, true) : undefined}
+						>
+							<img src={iconFor(d.name)} alt="" />
+							<span class="name">{disciplineName(locale, d.name)}</span>
+							<PlaceList places={d.places} />
+						</svelte:element>
 					</li>
 				{/each}
 			</ul>
@@ -398,13 +395,33 @@
 		list-style: none;
 	}
 
+	.disciplines li {
+		border-top: 1px solid var(--line);
+	}
+
 	.discipline {
 		display: grid;
 		grid-template-columns: 20px minmax(7rem, 1fr) auto;
 		align-items: center;
 		gap: 12px;
 		padding: 10px 0;
-		border-top: 1px solid var(--line);
+		color: var(--text);
+		text-decoration: none;
+	}
+
+	/* A whole-row link among plain rows: the name takes the quiet-link underline. */
+	a.discipline:hover .name,
+	a.discipline:focus-visible .name {
+		text-decoration: underline;
+		text-decoration-color: var(--accent);
+		text-decoration-thickness: 1px;
+		text-underline-offset: 0.22em;
+	}
+
+	a.discipline:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
+		border-radius: 2px;
 	}
 
 	.discipline img {
@@ -418,42 +435,4 @@
 		overflow-wrap: anywhere;
 	}
 
-	.places {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: baseline;
-		justify-content: flex-end;
-		gap: 4px 10px;
-		justify-self: end;
-	}
-
-	.discipline-place {
-		display: inline-flex;
-		align-items: baseline;
-		gap: 4px;
-	}
-
-	.place-rank {
-		font-size: 1.15rem;
-		line-height: 1.1;
-		letter-spacing: 0.04em;
-		color: var(--muted);
-	}
-
-	.place-rank.gold {
-		color: var(--gold);
-	}
-
-	.place-rank.silver {
-		color: var(--silver);
-	}
-
-	.place-rank.bronze {
-		color: var(--bronze);
-	}
-
-	.place-year {
-		font-size: 0.75rem;
-		color: var(--muted);
-	}
 </style>

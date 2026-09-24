@@ -1,5 +1,5 @@
 """
-Recompute every computed badge and store the difference. The nightly host crontab runs it
+Recompute every computed badge and store the difference. The monthly host crontab runs it
 (see CLAUDE.md, "Player badges").
 """
 
@@ -9,7 +9,7 @@ from olympic_warriors.badges import refresh
 
 
 class Command(BaseCommand):
-    help = "Recompute every computed badge and store the difference (the nightly cron job)."
+    help = "Recompute every computed badge and store the difference (the monthly cron job)."
 
     def handle(self, *args, **options):
         report = refresh()

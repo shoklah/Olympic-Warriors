@@ -238,6 +238,24 @@ describe('player profile page', () => {
 		expect(rows[0].querySelector('.places')).toHaveAttribute('aria-hidden', 'true');
 	});
 
+	it("links each discipline row to the discipline's all-time table, on its newest edition", () => {
+		renderWith(Page, { data: { profile } });
+
+		const rows = screen.getAllByTestId('discipline-row');
+		const relay = within(rows[0]).getByRole('link', { name: 'Relay 1st place in 2026, 2nd place in 2023' });
+		expect(relay).toHaveAttribute('href', '/2026/disciplines/10?tab=all-time');
+		expect(within(rows[2]).getByRole('link')).toHaveAttribute('href', '/2026/disciplines/12?tab=all-time');
+	});
+
+	it('keeps a discipline row plain without a latest place from the server', () => {
+		const older = { ...profile, disciplines: profile.disciplines.map(({ latest, ...d }) => d) };
+		renderWith(Page, { data: { profile: older } });
+
+		const rows = screen.getAllByTestId('discipline-row');
+		expect(rows[0]).toHaveTextContent(/Relay\s*1\s*2026\s*2\s*2023/);
+		expect(within(rows[0]).queryByRole('link')).toBeNull();
+	});
+
 	it('gives the best-discipline icons an empty alt (decorative)', () => {
 		renderWith(Page, { data: { profile } });
 
