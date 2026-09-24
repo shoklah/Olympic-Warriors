@@ -14,7 +14,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from itertools import combinations
 
-from .models import Badge, TeamResult
+from .models import Badge, BlindtestGuess, Game, TeamResult
 from .models.ResultTypes import ResultTypes
 from .profiles import _load, _participations, _place, _record, _sort_key, paris_today
 
@@ -518,7 +518,143 @@ def _photo_finish(h, i, rows, seat, wins):
     return leaders == [seat.team_id] and bool(others) and mine.total_points - max(others) <= 1
 
 
-RULES = (_places, _streaks, _career, _loyalty, _teammates, _hall_of_fame, _disciplines)
+GOLDEN_WHISTLE_TIERS = ((5, 1), (10, 2), (20, 3))
+
+
+@dataclass(frozen=True)
+class GameRow:
+    """One game of a sequence edition, as the game badges read it."""
+
+    discipline_name: str
+    revealed: bool
+    team1_id: int
+    score1: int
+    team2_id: int
+    score2: int
+    referees_id: int
+
+
+@dataclass(frozen=True)
+class GameFacts:
+    """What one edition's games say about its teams."""
+
+    records: dict  # team id -> {discipline name: (played, won, lost)}, revealed games only
+    shutouts: frozenset
+    steamrollers: frozenset
+    refereed: dict  # team id -> games refereed, revealed or not
+
+
+def _game_rows(h):
+    """{sequence index: [GameRow]}: the active, played games of active rounds of active
+    disciplines, the filter compute_standings uses (1 query)."""
+    index = {edition.id: i for i, edition in enumerate(h.sequence)}
+    rows = Game.objects.filter(
+        discipline__edition_id__in=index,
+        discipline__is_active=True,
+        round__is_active=True,
+        is_active=True,
+        is_played=True,
+    ).values_list(
+        "discipline__edition_id", "discipline__name", "discipline__reveal_score",
+        "team1_id", "score1", "team2_id", "score2", "referees_id",
+    )
+    games = defaultdict(list)
+    for edition_id, *game in rows:
+        games[index[edition_id]].append(GameRow(*game))
+    return games
+
+
+def _game_facts(games):
+    records = defaultdict(lambda: defaultdict(lambda: [0, 0, 0]))
+    shutouts, margins, refereed = set(), [], Counter()
+    for game in games:
+        refereed[game.referees_id] += 1
+        if not game.revealed:  # a badge never leaks a hidden score
+            continue
+        for team_id, mine, theirs in (
+            (game.team1_id, game.score1, game.score2),
+            (game.team2_id, game.score2, game.score1),
+        ):
+            record = records[team_id][game.discipline_name]
+            record[0] += 1
+            if mine > theirs:
+                record[1] += 1
+                margins.append((mine - theirs, team_id))
+                if theirs == 0:
+                    shutouts.add(team_id)
+            elif mine < theirs:
+                record[2] += 1
+    best = max((margin for margin, _ in margins), default=0)
+    return GameFacts(
+        records={
+            team_id: {name: tuple(r) for name, r in by_name.items()}
+            for team_id, by_name in records.items()
+        },
+        shutouts=frozenset(shutouts),
+        steamrollers=frozenset(team_id for margin, team_id in margins if margin == best),
+        refereed=dict(refereed),
+    )
+
+
+def _perfect_pitch(h):
+    """{sequence index: team ids} that found artist and song in every active round of a
+    revealed, active blindtest (1 query)."""
+    index = {edition.id: i for i, edition in enumerate(h.sequence)}
+    rows = BlindtestGuess.objects.filter(
+        blindtest_round__blindtest__edition_id__in=index,
+        blindtest_round__blindtest__is_active=True,
+        blindtest_round__blindtest__reveal_score=True,
+        blindtest_round__is_active=True,
+        is_active=True,
+    ).values_list(
+        "blindtest_round__blindtest__edition_id", "blindtest_round__blindtest_id",
+        "blindtest_round_id", "team_id", "is_artist_correct", "is_song_correct",
+    )
+    rounds, found, edition_of = defaultdict(set), defaultdict(set), {}
+    for edition_id, blindtest_id, round_id, team_id, artist, song in rows:
+        rounds[blindtest_id].add(round_id)
+        edition_of[blindtest_id] = index[edition_id]
+        if artist and song:
+            found[(blindtest_id, team_id)].add(round_id)
+    teams = defaultdict(set)
+    for (blindtest_id, team_id), rounds_found in found.items():
+        if rounds_found == rounds[blindtest_id]:
+            teams[edition_of[blindtest_id]].add(team_id)
+    return teams
+
+
+def _games(h):
+    """unbeaten, perfect-run, shutout, steamroller, golden-whistle and perfect-pitch."""
+    if not h.sequence:
+        return
+    games = _game_rows(h)
+    pitch = _perfect_pitch(h)
+    facts = [_game_facts(games.get(i, [])) for i in range(len(h.sequence))]
+    for user_id, seats in h.seats.items():
+        refereed = 0
+        for i, edition in enumerate(h.sequence):
+            seat = seats.get(i)
+            if seat is None or seat.team_id is None:
+                continue
+            edition_id, team_id, fact = edition.id, seat.team_id, facts[i]
+            for name, (played, won, lost) in sorted(fact.records.get(team_id, {}).items()):
+                if played >= 3 and lost == 0:
+                    code = C.PERFECT_RUN if won == played else C.UNBEATEN
+                    yield Earned(user_id, code, edition_id, discipline=name)
+            if team_id in fact.shutouts:
+                yield Earned(user_id, C.SHUTOUT, edition_id)
+            if team_id in fact.steamrollers:
+                yield Earned(user_id, C.STEAMROLLER, edition_id)
+            if team_id in pitch.get(i, ()):
+                yield Earned(user_id, C.PERFECT_PITCH, edition_id)
+            before = refereed
+            refereed += fact.refereed.get(team_id, 0)
+            for threshold, tier in GOLDEN_WHISTLE_TIERS:
+                if before < threshold <= refereed:
+                    yield Earned(user_id, C.GOLDEN_WHISTLE, edition_id, tier=tier)
+
+
+RULES = (_places, _streaks, _career, _loyalty, _teammates, _hall_of_fame, _disciplines, _games)
 
 
 def earned(today=None):
