@@ -146,6 +146,87 @@ describe('Header', () => {
 		expect(screen.getByRole('link', { name: 'Connexion' })).toHaveAttribute('href', '/login');
 	});
 
+	describe('for a logged-in player', () => {
+		const lea = { id: 7, first_name: 'Léa', photo: { large: '/media/7.webp', small: '/media/7-sm.webp' }, is_person: true };
+
+		it('shows an account pill linking to their profile, with a logout beside it', () => {
+			renderWith(Header, {}, 'en', false, lea);
+
+			const link = screen.getByRole('link', { name: 'Léa · My profile' });
+			expect(link).toHaveAttribute('href', '/players/7');
+			// The small photo, then the first name; the avatar says nothing to assistive tech.
+			expect(link).toHaveTextContent(/^Léa$/);
+			expect(link.querySelector('img')).toHaveAttribute('src', '/media/7-sm.webp');
+
+			const logout = screen.getByRole('button', { name: 'Log out' });
+			const form = logout.closest('form');
+			expect(form).toHaveAttribute('action', '/logout');
+			expect(form).toHaveAttribute('method', 'POST');
+			expect(form.querySelector('input[name="redirectTo"]')).toHaveValue('/2026/ranking?tab=all');
+
+			expect(screen.queryByRole('link', { name: 'Log in' })).toBeNull();
+			expect(screen.queryByRole('button', { name: /Orga/ })).toBeNull();
+		});
+
+		it('draws the initial without a photo', () => {
+			renderWith(Header, {}, 'en', false, { ...lea, photo: null });
+
+			const link = screen.getByRole('link', { name: 'Léa · My profile' });
+			expect(link.querySelector('img')).toBeNull();
+			expect(link).toHaveTextContent(/^L\s*Léa$/);
+		});
+
+		it('folds the pill and the logout into the menu panel, one row', () => {
+			renderWith(Header, {}, 'en', false, lea);
+
+			const panel = document.getElementById('header-settings');
+			const link = within(panel).getByRole('link', { name: 'Léa · My profile' });
+			const logout = within(panel).getByRole('button', { name: 'Log out' });
+			// One row of the panel holds both, as the ORGA row holds the pill and its action.
+			expect(link.closest('#header-settings > *')).toBe(logout.closest('#header-settings > *'));
+			// The phone menu spells the action out beside its icon.
+			expect(logout).toHaveTextContent(/^Log out$/);
+		});
+
+		it('words the account pill in French', () => {
+			renderWith(Header, {}, 'fr', false, lea);
+
+			expect(screen.getByRole('link', { name: 'Léa · Mon profil' })).toHaveAttribute('href', '/players/7');
+			expect(screen.getByRole('button', { name: 'Se déconnecter' })).toHaveTextContent(/^Se déconnecter$/);
+			expect(screen.queryByRole('link', { name: 'Connexion' })).toBeNull();
+		});
+
+		it('names without linking someone who has no profile page', () => {
+			renderWith(Header, {}, 'en', false, { ...lea, is_person: false });
+
+			expect(screen.queryByRole('link', { name: /Léa/ })).toBeNull();
+			expect(document.getElementById('header-settings')).toHaveTextContent(/Léa/);
+			expect(screen.getByRole('button', { name: 'Log out' })).toBeInTheDocument();
+			expect(screen.queryByRole('link', { name: 'Log in' })).toBeNull();
+		});
+	});
+
+	describe('for an organiser', () => {
+		it('puts their avatar in the ORGA pill when they are a person', () => {
+			renderWith(Header, {}, 'fr', true, { id: 3, first_name: 'Hugo', photo: { large: '/l.webp', small: '/s.webp' }, is_person: true });
+
+			const button = screen.getByRole('button', { name: 'Orga · Se déconnecter' });
+			expect(button.querySelector('img')).toHaveAttribute('src', '/s.webp');
+			expect(button).toHaveTextContent(/^Orga\s*Se déconnecter$/);
+			// ORGA stays the way out: no account pill beside it.
+			expect(screen.queryByRole('link', { name: /Mon profil/ })).toBeNull();
+			expect(screen.getAllByRole('button', { name: /Se déconnecter/ })).toHaveLength(1);
+		});
+
+		it('keeps the ORGA pill bare for an organiser who never played', () => {
+			renderWith(Header, {}, 'fr', true, { id: 3, first_name: 'Hugo', photo: null, is_person: false });
+
+			const button = screen.getByRole('button', { name: 'Orga · Se déconnecter' });
+			expect(button.querySelector('.avatar')).toBeNull();
+			expect(button).toHaveTextContent(/^Orga\s*Se déconnecter$/);
+		});
+	});
+
 	it('links the players leaderboard after the disciplines, outside any year', () => {
 		renderWith(Header, {}, 'en');
 

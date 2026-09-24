@@ -4,11 +4,18 @@
 	import logo from '$lib/img/logo.svg';
 	import { switchYearPath } from '$lib/edition';
 	import { useLocale, useT } from '$lib/i18n';
-	import { useOrganiser } from '$lib/session';
+	import { useMe, useOrganiser } from '$lib/session';
+	import Avatar from './Avatar.svelte';
 
 	const locale = useLocale();
 	const t = useT();
 	const organiser = useOrganiser();
+	// Who is logged in, or null. An organiser keeps the ORGA pill, with their avatar in it
+	// when they also play; anyone else logged in gets the account pill.
+	const me = useMe();
+	const smallPhoto = me?.photo?.small ?? null;
+	// The accessible name starts with the visible first name (WCAG 2.5.3).
+	const accountName = me?.first_name ? `${me.first_name} · ${t('account.profile')}` : t('account.profile');
 
 	$: editions = $page.data.editions ?? [];
 	// On an error page the year in the URL may be one with no edition, so fall back to the latest.
@@ -104,13 +111,45 @@
 				<form method="POST" action="/logout" class="orga">
 					<input type="hidden" name="redirectTo" value={here} />
 					<!-- The accessible name must contain the visible text (WCAG 2.5.3). -->
-					<button aria-label="{t('orga.pill')} · {t('orga.logout')}">
-						<span class="pill">{t('orga.pill')}</span>
+					<button class:with-avatar={me?.is_person} aria-label="{t('orga.pill')} · {t('orga.logout')}">
+						<!-- One group, so the phone menu keeps the avatar beside the pill. -->
+						<span class="who">
+							{#if me?.is_person}
+								<Avatar photo={smallPhoto} name={me} size={24} />
+							{/if}
+							<span class="pill">{t('orga.pill')}</span>
+						</span>
 						<span class="menu-text">{t('orga.logout')}</span>
 					</button>
 				</form>
+			{:else if me}
+				<!-- A logged-in player: the way to their own profile, and the way out beside it. -->
+				<div class="account">
+					{#if me.is_person}
+						<a class="who" href="/players/{me.id}" aria-label={accountName}>
+							<Avatar photo={smallPhoto} name={me} size={24} />
+							<span class="name">{me.first_name || t('account.profile')}</span>
+						</a>
+					{:else}
+						<!-- No active player row any more, so no profile page to link to. -->
+						<span class="who">
+							<Avatar photo={smallPhoto} name={me} size={24} />
+							<span class="name">{me.first_name}</span>
+						</span>
+					{/if}
+					<!-- The same plain POST as the ORGA pill. -->
+					<form method="POST" action="/logout">
+						<input type="hidden" name="redirectTo" value={here} />
+						<button class="round logout" aria-label={t('account.logout')}>
+							<svg viewBox="0 0 24 24" aria-hidden="true">
+								<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
+							</svg>
+							<span class="menu-text">{t('account.logout')}</span>
+						</button>
+					</form>
+				</div>
 			{:else}
-				<!-- Same slot as the pill: a visitor gets the way in, an organiser the way out. -->
+				<!-- Same slot as the pills: a visitor gets the way in, anyone logged in the way out. -->
 				<a class="login" href="/login">{t('header.login')}</a>
 			{/if}
 			<!-- A plain POST (no use:enhance): the redirect reloads the page in the new language. -->
@@ -195,6 +234,9 @@
 		display: flex;
 		align-items: center;
 		gap: 0.8rem;
+		/* Lets a long first name in the account pill shrink to an ellipsis rather than overflow
+		   the bar (at 600px, or at 1000px beside the tabs): every other control keeps its width. */
+		min-width: 0;
 	}
 
 	.logo a {
@@ -304,6 +346,66 @@
 	.orga button:focus-visible {
 		outline: 2px solid var(--accent);
 		outline-offset: 2px;
+	}
+
+	/* The avatar sits in the rim: 10px round a 24px avatar in a 44px pill. */
+	.orga button.with-avatar {
+		padding-left: 9px;
+	}
+
+	.who {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.45em;
+	}
+
+	/* A logged-in player: avatar and first name, quiet like the login pill, then the round
+	   logout button. */
+	.account {
+		display: flex;
+		align-items: center;
+		gap: 0.8rem;
+		min-width: 0;
+	}
+
+	.account form {
+		margin: 0;
+	}
+
+	.account .who {
+		min-width: 0;
+		min-height: 44px;
+		padding: 0 0.9em 0 9px;
+		border: 1px solid var(--line-strong);
+		border-radius: var(--radius-pill);
+		color: var(--text);
+		font-family: var(--font-display);
+		font-size: 1.1rem;
+		letter-spacing: 0.08em;
+		text-decoration: none;
+	}
+
+	.account a.who:hover {
+		color: var(--accent);
+		border-color: var(--accent);
+		text-decoration: none;
+	}
+
+	.account a.who:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
+	}
+
+	.name {
+		min-width: 0;
+		max-width: 10em;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.logout {
+		display: flex;
 	}
 
 	.login {
@@ -528,7 +630,8 @@
 		}
 
 		/* The whole row is the button: the ORGA pill on the left, the action on the right. */
-		.orga button {
+		.orga button,
+		.orga button.with-avatar {
 			flex: 1;
 			display: flex;
 			align-items: center;
@@ -540,6 +643,15 @@
 			border-radius: 0;
 		}
 
+		/* The account row: the profile link on the left, like the login row, the logout
+		   button on the right. */
+		.account .who {
+			padding: 0;
+			border: 0;
+			border-radius: 0;
+			color: var(--accent);
+		}
+
 		.orga .pill {
 			padding: 0.15em 0.8em;
 			background: var(--accent);
@@ -547,8 +659,9 @@
 			border-radius: var(--radius-pill);
 		}
 
-		/* A pill naming the theme it leads to, beside its icon. */
-		.theme button {
+		/* A pill naming the theme it leads to, or the logout, beside its icon. */
+		.theme button,
+		.account .logout {
 			width: auto;
 			padding: 0 1em;
 			border-radius: var(--radius-pill);

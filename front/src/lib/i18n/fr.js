@@ -18,6 +18,8 @@ export default {
 	'header.menu': 'Menu',
 	'header.light': 'Clair',
 	'header.dark': 'Sombre',
+	'account.profile': 'Mon profil',
+	'account.logout': 'Se déconnecter',
 	'hub.days': 'Jours',
 	'hub.hours': 'Heures',
 	'hub.minutes': 'Minutes',

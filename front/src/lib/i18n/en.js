@@ -14,6 +14,8 @@ export default {
 	'header.menu': 'Menu',
 	'header.light': 'Light',
 	'header.dark': 'Dark',
+	'account.profile': 'My profile',
+	'account.logout': 'Log out',
 	'hub.days': 'Days',
 	'hub.hours': 'Hours',
 	'hub.minutes': 'Minutes',
