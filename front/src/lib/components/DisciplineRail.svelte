@@ -72,6 +72,7 @@
 	.tile img {
 		height: 76%;
 		width: 76%;
+		filter: var(--icon-filter);
 	}
 
 	.tile:not(.current):hover {
@@ -79,14 +80,14 @@
 		transform: translateY(-2px);
 	}
 
-	/* The icons are white SVGs, so the accent-filled current tile inverts them. */
+	/* The icons are white SVGs: the theme says whether they need inverting on the accent fill. */
 	.tile.current {
 		background: var(--accent);
 		border-color: var(--accent);
 	}
 
 	.tile.current img {
-		filter: invert(1);
+		filter: var(--icon-filter-on-accent);
 	}
 
 	.tile:focus-visible {

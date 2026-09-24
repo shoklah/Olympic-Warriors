@@ -77,6 +77,7 @@
 	img {
 		width: 60%;
 		height: 60%;
+		filter: var(--icon-filter);
 	}
 
 	.pips {

@@ -62,7 +62,7 @@
 			{/if}
 
 			{#if team1Href && !own1}
-				<a class="team {team1Class}" href={team1Href}>{name1}</a>
+				<a class="team quiet-link {team1Class}" href={team1Href}>{name1}</a>
 			{:else}
 				<span class="team {team1Class}" class:own={own1}>{name1}</span>
 			{/if}
@@ -76,7 +76,7 @@
 			{/if}
 
 			{#if team2Href && !own2}
-				<a class="team right {team2Class}" href={team2Href}>{name2}</a>
+				<a class="team right quiet-link {team2Class}" href={team2Href}>{name2}</a>
 			{:else}
 				<span class="team right {team2Class}" class:own={own2}>{name2}</span>
 			{/if}
@@ -109,7 +109,6 @@
 		min-width: 0;
 		overflow-wrap: anywhere;
 		color: var(--text);
-		text-decoration: none;
 	}
 
 	.team.right {
@@ -126,6 +125,31 @@
 	   outcome reads from its name alone, not only from the opponent's contrast. */
 	.team.own {
 		color: var(--accent);
+	}
+
+	/* The accent alone is too close to the body text to tell the own team from a draw's
+	   opponent, so a dot marks it on its outer side, in its colour and fading. */
+	.team.own::before,
+	.team.own.right::after {
+		content: '';
+		display: inline-block;
+		width: 0.45em;
+		height: 0.45em;
+		border-radius: 50%;
+		background: currentColor;
+		vertical-align: 0.12em;
+	}
+
+	.team.own::before {
+		margin-right: 0.45em;
+	}
+
+	.team.own.right::before {
+		content: none;
+	}
+
+	.team.own.right::after {
+		margin-left: 0.45em;
 	}
 
 	.team.own.loser {

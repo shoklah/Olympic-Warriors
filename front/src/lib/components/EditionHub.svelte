@@ -26,7 +26,9 @@
 	});
 </script>
 
-<div class="fullscreen">
+<!-- The eclipse is a photograph on black: this marker keeps the whole hub, header
+     included, on the dark tokens whatever the theme (see styles.css). -->
+<div class="fullscreen" data-always-dark>
 	<!-- The title is anchored to the moon, not to the hero box: `.moon` is the rendered
 	     image (its aspect ratio, contained in the hero), and the disc sits at 49.3% / 53% of it. -->
 	<div class="moon">

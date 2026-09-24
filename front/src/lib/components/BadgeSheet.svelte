@@ -153,7 +153,7 @@
 							<span class="detail" data-testid="badge-sheet-detail">
 								{#if entry.partner}
 									{t('badge.with')}
-									<a href="/players/{entry.partner.id}">{fullName(entry.partner)}</a>
+									<a class="quiet-link" href="/players/{entry.partner.id}">{fullName(entry.partner)}</a>
 								{/if}
 								{#each parts as part, i}{#if i > 0 || entry.partner}{' '}<span class="sep" aria-hidden="true"
 											>·</span
