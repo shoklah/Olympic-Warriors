@@ -25,13 +25,14 @@ Decisions taken while brainstorming (2026-09-24):
 
 This is front-end only. `/profile/<id>/` already carries the earned badges, and
 `src/lib/badges.js` already knows every code (61 since golden whistle and globetrotter
-were removed on 2026-09-24; 63 before).
+were removed on 2026-09-24; 63 before; 62 once `master` was added, the same day, in the
+`disciplines` family, which has 9 codes since).
 
 ## Definitions
 
-- **Slot.** One per catalogue code (61 of them), in catalogue order inside its family.
+- **Slot.** One per catalogue code (62 of them), in catalogue order inside its family.
 - **Entries of a slot.** The profile's `badges` entries with that code. There can be
-  several: one per discipline (`specialist`, `unbeaten`, `perfect-run`, `steamroller`) or one per partner
+  several: one per discipline (`specialist`, `master`, `unbeaten`, `perfect-run`, `steamroller`) or one per partner
   (`comrades`). Codes the front doesn't know are ignored, as today.
 - **Earned.** A slot is earned when it has at least one entry. A tiered badge is earned
   from tier 1.
@@ -48,7 +49,7 @@ were removed on 2026-09-24; 63 before).
   - Locked: `Badge.svelte` with `locked` set: a dashed `--ghost` ring, the glyph at 0.35
     opacity and no metal. A locked specialist shows the fallback glyph.
 - **Progress.**
-  - Overall: `earned / 61`.
+  - Overall: `earned / 62`.
   - Per family: earned slots out of that family's slots.
 - **Families**, in this order. The two lists match the catalogue and must cover every code
   exactly once:
@@ -60,7 +61,7 @@ were removed on 2026-09-24; 63 before).
   | `loyalty` | Fidélité | Loyalty | rookie, veteran, argonaut, ever-present, homecoming |
   | `teammates` | Coéquipiers | Teammates | comrades, networker |
   | `hall-of-fame` | Panthéon | Hall of fame | goat … rocket (7) |
-  | `disciplines` | Épreuves | Disciplines | specialist … photo-finish (8) |
+  | `disciplines` | Épreuves | Disciplines | specialist … photo-finish (9) |
   | `olympus` | Olympe | Olympus | athena … olympus (10) |
   | `games` | Matchs | Games | unbeaten, perfect-run, shutout, steamroller, perfect-pitch |
   | `awards` | Distinctions | Awards | mvp, fair-play, hype, costume, wounded, torchbearer |
@@ -109,7 +110,7 @@ Props: `collection`, the page's `badgeCollection(profile.badges ?? [])`, compute
 shared with the count card, and `badgeStats`, the profile's `badge_stats` (see Rarity).
 
 It renders:
-- the overall line « 28 badges sur 61 » / "28 badges out of 61", a progress bar
+- the overall line « 28 badges sur 62 » / "28 badges out of 62", a progress bar
   (decorative, `aria-hidden`; the line says the same thing), and the percentage;
 - for each family:
   - a heading (`h3`, `.label`) with the family name and `earned/total` in the same heading,
@@ -185,7 +186,7 @@ Content:
 - **Badges tab** holds `BadgeCollection`, and nothing else from the profile.
 - **Figures:** a third card, `data-testid="badge-count"`:
   - a link to `?tab=badges`, labelled `profile.badges`;
-  - a large `28` with a muted `/ 61`;
+  - a large `28` with a muted `/ 62`;
   - a thin progress bar;
   - the visually hidden text « voir la collection » / "see the collection" after the
     visible text, so the accessible name starts with what is shown (WCAG 2.5.3).
@@ -295,7 +296,7 @@ Rarity on the slots or in the hover tooltip. The future highlight may reuse
 - **Collection component tests:**
   - the progress line;
   - the family headings with their counts;
-  - 61 slots;
+  - 62 slots;
   - the accessible names for an earned slot and a locked one;
   - the ×N chip;
   - clicking a slot opens the sheet, whose content covers entry lines, partner link,

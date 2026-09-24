@@ -9,7 +9,7 @@ import json
 import os
 import tempfile
 from collections import Counter
-from datetime import datetime, timezone as dt_timezone
+from datetime import date, datetime, timezone as dt_timezone
 from io import StringIO
 from unittest import mock
 
@@ -21,8 +21,14 @@ from django.db import connection
 from django.test import TestCase, override_settings
 
 from olympic_warriors.badges import RefreshReport, earned, refresh
-from olympic_warriors.models import MANUAL_CODES, Badge, BadgeRefresh, Team
-from olympic_warriors.tests.test_badges import BADGES_QUERIES, PLACE_CODES, TODAY, World
+from olympic_warriors.models import MANUAL_CODES, Badge, BadgeRefresh, Relay, Team
+from olympic_warriors.tests.test_badges import (
+    BADGES_QUERIES,
+    PLACE_CODES,
+    TODAY,
+    DisciplineWorld,
+    World,
+)
 
 C = Badge.Codes
 
@@ -242,6 +248,39 @@ class TestRefresh(World, TestCase):
             f"Badges: {sum(wanted().values())} added, 0 removed, 0 kept. "
             f"Refreshed at {refreshed_at.isoformat()}.\n",
         )
+        self.assertEqual(stored(), wanted())
+
+
+class TestMasterRefresh(DisciplineWorld, TestCase):
+    """master is a title held, not earned for good: Ana won the relay of 2021 and 2022, so
+    she holds it until the relay of 2023 is over."""
+
+    def setUp(self):
+        self.ana = self.person("Ana")
+        self.win(self.ana, 2021, Relay)
+        self.win(self.ana, 2022, Relay)
+        self.e2023, _ = self.computed(2023, self.ana)
+        refresh(date(2023, 1, 1))  # 2023 not finished yet
+        self.held = Badge.objects.get(user=self.ana, code=C.MASTER)
+
+    def test_a_master_held_on_keeps_its_row(self):
+        self.results(Relay, self.e2023, [10, 0])
+        Badge.objects.filter(pk=self.held.pk).update(is_active=False)  # revoked
+
+        refresh(TODAY)
+
+        kept = Badge.objects.get(user=self.ana, code=C.MASTER)
+        self.assertEqual((kept.edition.year, kept.discipline), (2022, "Relay"))
+        self.assertEqual((kept.pk, kept.created_at), (self.held.pk, self.held.created_at))
+        self.assertFalse(kept.is_active)
+
+    def test_a_master_lost_is_deleted(self):
+        self.results(Relay, self.e2023, [0, 10])
+
+        report = refresh(TODAY)
+
+        self.assertFalse(Badge.objects.filter(code=C.MASTER).exists())
+        self.assertEqual(report.removed, 1)  # master alone: every other badge stays
         self.assertEqual(stored(), wanted())
 
 
