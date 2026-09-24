@@ -27,7 +27,7 @@ describe('BadgeSheet', () => {
 		expect(dialog).toHaveTextContent('Next tier: 5 editions');
 	});
 
-	it('drops the ×N chip from entry lines, keeping it only in the status line', () => {
+	it('shows each entry\'s years with no count: the status line says that once, on its own', () => {
 		const badges = [{ code: 'clean-sweep', tier: 0, years: [2023, 2026], discipline: null, partner: null }];
 		renderWith(BadgeSheet, { slot: slotFor('clean-sweep', badges), open: true });
 
@@ -36,6 +36,20 @@ describe('BadgeSheet', () => {
 		const detail = screen.getByTestId('badge-sheet-detail');
 		expect(detail).not.toHaveTextContent('×2');
 		expect(detail.textContent.replace(/\s+/g, ' ').trim()).toBe('2023 · 2026');
+	});
+
+	it("hides the status line's ×N from assistive tech and gives it a spoken count instead", () => {
+		const badges = [{ code: 'clean-sweep', tier: 0, years: [2023, 2026], discipline: null, partner: null }];
+		const { container } = renderWith(BadgeSheet, { slot: slotFor('clean-sweep', badges), open: true });
+
+		const status = container.querySelector('.status');
+		expect(status).toHaveTextContent('Badge earned · ×2');
+		const spoken = (el) => {
+			const copy = el.cloneNode(true);
+			copy.querySelectorAll('[aria-hidden="true"]').forEach((node) => node.remove());
+			return copy.textContent.replace(/\s+/g, ' ').trim();
+		};
+		expect(spoken(status)).toBe('Badge earned badge earned 2 times');
 	});
 
 	it('hides the detail separators from assistive tech, keeping the words apart', () => {
@@ -129,6 +143,36 @@ describe('BadgeSheet', () => {
 		expect(closeBtn).toHaveFocus();
 	});
 
+	it('wraps Shift+Tab to the last focusable when the sheet itself has focus', async () => {
+		const lea = { id: 12, first_name: 'Léa', last_name: 'Martin' };
+		const badges = [{ code: 'comrades', tier: 0, years: [2026], discipline: null, partner: lea }];
+		renderWith(BadgeSheet, { slot: slotFor('comrades', badges), open: true });
+		// The opening focus lands on the sheet itself (see ScoreSheet's own pattern).
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(screen.getByRole('dialog')).toHaveFocus();
+
+		const closeBtn = screen.getByRole('button', { name: 'Close' });
+		await fireEvent.keyDown(window, { key: 'Tab', shiftKey: true });
+		expect(closeBtn).toHaveFocus();
+	});
+
+	it('pulls focus back inside on Tab when focus has landed outside the sheet', async () => {
+		const outside = document.createElement('button');
+		outside.textContent = 'Outside';
+		document.body.appendChild(outside);
+		const badges = [{ code: 'veteran', tier: 1, years: [2026], discipline: null, partner: null }];
+		renderWith(BadgeSheet, { slot: slotFor('veteran', badges), open: true });
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		outside.focus();
+		expect(outside).toHaveFocus();
+		const closeBtn = screen.getByRole('button', { name: 'Close' });
+		await fireEvent.keyDown(window, { key: 'Tab' });
+		expect(closeBtn).toHaveFocus();
+
+		outside.remove();
+	});
+
 	it('locks the page scroll while open and restores it when it closes', async () => {
 		document.body.style.overflow = '';
 		const badges = [{ code: 'veteran', tier: 1, years: [2026], discipline: null, partner: null }];
@@ -137,6 +181,16 @@ describe('BadgeSheet', () => {
 
 		component.$set({ open: false });
 		await tick();
+		expect(document.body.style.overflow).toBe('');
+	});
+
+	it('restores the page scroll if the sheet is destroyed while still open', () => {
+		document.body.style.overflow = '';
+		const badges = [{ code: 'veteran', tier: 1, years: [2026], discipline: null, partner: null }];
+		const { unmount } = renderWith(BadgeSheet, { slot: slotFor('veteran', badges), open: true });
+		expect(document.body.style.overflow).toBe('hidden');
+
+		unmount();
 		expect(document.body.style.overflow).toBe('');
 	});
 

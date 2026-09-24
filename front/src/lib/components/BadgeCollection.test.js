@@ -38,11 +38,12 @@ describe('BadgeCollection', () => {
 	it('pluralises the overall progress line: 0, 1 and 2+', () => {
 		renderCollection([]);
 		expect(screen.getByText('0 badges out of 63')).toBeInTheDocument();
-	});
 
-	it('pluralises the overall progress line at 1', () => {
 		renderCollection([{ code: 'champion', tier: 0, years: [2026], discipline: null, partner: null }]);
 		expect(screen.getByText('1 badge out of 63')).toBeInTheDocument();
+
+		renderCollection(badges);
+		expect(screen.getByText('4 badges out of 63')).toBeInTheDocument();
 	});
 
 	it('renders every catalogue code as a slot button', () => {

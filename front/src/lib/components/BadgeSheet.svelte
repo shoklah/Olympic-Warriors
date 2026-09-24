@@ -47,6 +47,13 @@
 		const first = items[0];
 		const last = items[items.length - 1];
 		const active = document.activeElement;
+		// Focus landed outside the sheet altogether (e.g. a stray click on the page behind
+		// the backdrop): pull it back in rather than letting Tab carry on from there.
+		if (!sheetEl.contains(active)) {
+			event.preventDefault();
+			(event.shiftKey ? last : first).focus();
+			return;
+		}
 		if (event.shiftKey) {
 			if (active === first || active === sheetEl) {
 				event.preventDefault();
@@ -79,14 +86,6 @@
 	$: titleId = slot ? `badge-sheet-title-${slot.code}` : null;
 	/** The first tier's threshold for a locked tiered slot (slot.medal.tier is 0). */
 	$: firstGoal = slot && tiered && !slot.earned ? nextThreshold(slot.code, 0) : null;
-
-	/**
-	 * badgeDetail's parts, minus the "×N" chip: the status line above already says the
-	 * slot's count, so repeating it on every entry line would say it twice.
-	 */
-	function entryParts(entry) {
-		return badgeDetail(entry, t, locale).filter((part) => !/^×\d+$/.test(part));
-	}
 </script>
 
 <svelte:window on:keydown={onKey} />
@@ -101,7 +100,8 @@
 		<p class="status">
 			{t(slot.earned ? 'badge.statusEarned' : 'badge.statusLocked')}
 			{#if slot.earned && slot.count > 1}
-				<span aria-hidden="true"> · </span>{t('badge.times', { n: slot.count })}
+				<span aria-hidden="true"> · {t('badge.times', { n: slot.count })}</span>
+				<span class="visually-hidden">{t('badge.earnedTimes', { n: slot.count })}</span>
 			{/if}
 		</p>
 		<p class="rule">{t(`badge.${slot.code}.rule`)}</p>
@@ -109,7 +109,7 @@
 		{#if slot.earned}
 			<ul class="entries" role="list">
 				{#each slot.entries as entry}
-					{@const parts = entryParts(entry)}
+					{@const parts = badgeDetail(entry, t, locale)}
 					{@const next = tiered ? nextThreshold(entry.code, badgeTier(entry)) : null}
 					<li class="entry">
 						{#if entry.partner || parts.length}

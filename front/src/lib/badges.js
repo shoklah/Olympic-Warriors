@@ -109,12 +109,13 @@ export function badgeGlyph(badge) {
 }
 
 /**
- * The text parts of a profile tile's detail line, which the page joins with ' · '. The
- * discipline comes first whenever the badge has one (specialist, unbeaten, perfect-run,
- * steamroller), so two tiles of one code tell their disciplines apart. Then a tiered badge
- * gives ['Tier 2', year reached]; comrades gives [year], the page writing the partner link
- * before it; any other badge gives ['×2', ...years] when earned more than once, else
- * [year]. No year gives no part (the page then leaves the line, or its separator, out).
+ * The text parts of a badge sheet's entry line, which BadgeSheet (its only caller) joins
+ * with ' · '. The discipline comes first whenever the badge has one (specialist, unbeaten,
+ * perfect-run, steamroller), so two entries of one code tell their disciplines apart. Then
+ * a tiered badge gives ['Tier 2', year reached]; comrades gives [year], the sheet writing
+ * the partner link before it; any other badge gives its years, in order. No year gives no
+ * part (the sheet then leaves the line, or its separator, out). The repeat count itself is
+ * not here: BadgeSheet's status line says it once, from the slot's own count.
  */
 export function badgeDetail(badge, t, locale) {
 	const years = badge.years.map(String);
@@ -125,7 +126,7 @@ export function badgeDetail(badge, t, locale) {
 		return parts;
 	}
 	if (badge.code === 'comrades') return [...parts, ...years.slice(-1)];
-	return years.length > 1 ? [...parts, t('badge.times', { n: years.length }), ...years] : [...parts, ...years];
+	return [...parts, ...years];
 }
 
 /**

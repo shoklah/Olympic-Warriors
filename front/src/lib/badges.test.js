@@ -101,9 +101,9 @@ describe('isKnownBadge and isTiered', () => {
 });
 
 describe('badgeDetail', () => {
-	it('counts and lists the years of a repeated badge', () => {
+	it('lists every year of a repeated badge; the sheet says the count separately', () => {
 		const champion = { code: 'champion', tier: 0, years: [2024, 2026], discipline: null, partner: null };
-		expect(badgeDetail(champion, tEn, 'en')).toEqual(['×2', '2024', '2026']);
+		expect(badgeDetail(champion, tEn, 'en')).toEqual(['2024', '2026']);
 		expect(badgeDetail({ ...champion, years: [2025] }, tEn, 'en')).toEqual(['2025']);
 	});
 
@@ -128,8 +128,8 @@ describe('badgeDetail', () => {
 
 	it('names the discipline of any badge that has one', () => {
 		const unbeaten = { code: 'unbeaten', tier: 0, years: [2025, 2026], discipline: 'Dodgeball', partner: null };
-		expect(badgeDetail(unbeaten, tEn, 'en')).toEqual(['Dodgeball', '×2', '2025', '2026']);
-		expect(badgeDetail(unbeaten, tFr, 'fr')).toEqual(['Balle au prisonnier', '×2', '2025', '2026']);
+		expect(badgeDetail(unbeaten, tEn, 'en')).toEqual(['Dodgeball', '2025', '2026']);
+		expect(badgeDetail(unbeaten, tFr, 'fr')).toEqual(['Balle au prisonnier', '2025', '2026']);
 	});
 
 	it('leaves the partner of comrades to the page, keeping the year', () => {

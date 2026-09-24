@@ -6,9 +6,9 @@
  * one without a team, places in three disciplines (Relay 1st, Crossfit 2nd, Darts 3rd),
  * and five badges in catalogue order: veteran at tier 1, comrades with Léa, a Relay
  * specialist, clean sweep twice and a code the front does not know. The badges exercise
- * the tile shapes (tier, partner link, discipline, ×2, unknown code); they are not
- * derived from the editions and places above. `profileUnranked` has nothing counted, no
- * discipline places and no badge.
+ * the badge collection's slot and sheet shapes (tier, partner link, discipline, a repeat,
+ * an unknown code); they are not derived from the editions and places above.
+ * `profileUnranked` has nothing counted, no discipline places and no badge.
  */
 export const leaderboard = [
 	{ id: 12, first_name: 'Léa', last_name: 'Martin', played: 3, counted: 2, places: [{ year: 2024, rank: 1 }, { year: 2026, rank: 2 }], position: 1, average_rank: 1.5 },

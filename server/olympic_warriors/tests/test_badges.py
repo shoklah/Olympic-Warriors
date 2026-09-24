@@ -1636,8 +1636,8 @@ class TestGames(World, TestCase):
         # Raw margins aren't comparable across sports: Darts' 301-141 (margin 160) dwarfs any
         # Rugby score, but each discipline judges only its own games. Rugby: Ana's team wins
         # by 13, Cat's by 2, so Ana's the biggest Rugby margin. Darts: Bob's team wins by 160,
-        # Dan's by 10, so Bob's the biggest Darts margin. Both earn steamroller, each with
-        # their own discipline.
+        # Ana's second Darts game only by 10, so Bob's still the biggest Darts margin. Both
+        # earn steamroller, each with their own discipline.
         edition, (a, b, c, d) = self.four()
         rugby = self.sport(edition)
         self.game(rugby, a, 13, b, 0, c)
@@ -1683,7 +1683,7 @@ class TestGames(World, TestCase):
 
     def test_a_hidden_disciplines_games_give_no_steamroller(self):
         # Dan's 30-0 win is the only game of the edition, but its Football is hidden: no one
-        # earns the badge, not even at a smaller margin elsewhere.
+        # earns the badge.
         edition, (a, b, c, d) = self.four()
         football = self.sport(edition, Football, reveal=False)
         self.game(football, d, 30, b, 0, a)
