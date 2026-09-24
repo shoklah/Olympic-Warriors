@@ -274,6 +274,14 @@ class TestStreaks(World, TestCase):
 
         self.assertEqual(years_of(ana, C.BACK_TO_BACK), [2022, 2025])
 
+    def test_every_later_streak_earns_each_badge_again(self):
+        ana = self.person("Ana")
+        self.play(ana, [1, 1, 1, 1, 2, 1, 1, 1, 1])
+
+        self.assertEqual(years_of(ana, C.BACK_TO_BACK), [2022, 2027])
+        self.assertEqual(years_of(ana, C.THREEPEAT), [2023, 2028])
+        self.assertEqual(years_of(ana, C.DYNASTY), [2024, 2029])
+
     def test_a_year_without_an_edition_is_skipped(self):
         ana = self.person("Ana")
         for year in (2021, 2022, 2024):
@@ -365,6 +373,12 @@ class TestCareer(World, TestCase):
 
         self.assertEqual(years_of(ana, C.LEGEND), [])
 
+    def test_legend_once(self):
+        ana = self.person("Ana")
+        self.play(ana, [1, 3, 1, 1, 1])
+
+        self.assertEqual(years_of(ana, C.LEGEND), [2024])
+
     def test_full_set(self):
         ana = self.person("Ana")
         self.play(ana, [3, 1, 2])
@@ -376,6 +390,12 @@ class TestCareer(World, TestCase):
         self.play(ana, [1, 2])
 
         self.assertEqual(years_of(ana, C.FULL_SET), [])
+
+    def test_full_set_once(self):
+        ana = self.person("Ana")
+        self.play(ana, [3, 1, 2, 1])
+
+        self.assertEqual(years_of(ana, C.FULL_SET), [2023])
 
     def test_eternal_second(self):
         ana = self.person("Ana")
@@ -401,6 +421,24 @@ class TestCareer(World, TestCase):
 
         self.assertEqual(years_of(ana, C.JANUS), [2022])
 
+    def test_no_janus_without_a_title(self):
+        ana = self.person("Ana")
+        self.play(ana, [2, 6])
+
+        self.assertEqual(years_of(ana, C.JANUS), [])
+
+    def test_janus_whatever_the_order(self):
+        ana = self.person("Ana")
+        self.play(ana, [6, 1])
+
+        self.assertEqual(years_of(ana, C.JANUS), [2022])
+
+    def test_no_janus_without_the_last_place(self):
+        ana = self.person("Ana")
+        self.play(ana, [1, 5])  # 5th of 6 is not last
+
+        self.assertEqual(years_of(ana, C.JANUS), [])
+
     def test_comeback_from_last_to_the_podium(self):
         ana = self.person("Ana")
         self.play(ana, [6, 3])
@@ -412,6 +450,24 @@ class TestCareer(World, TestCase):
         self.play(ana, [6, None, 1])
 
         self.assertEqual(years_of(ana, C.COMEBACK), [])
+
+    def test_no_comeback_from_above_the_last_place(self):
+        ana = self.person("Ana")
+        self.play(ana, [5, 3])  # 5th of 6 is not last
+
+        self.assertEqual(years_of(ana, C.COMEBACK), [])
+
+    def test_no_comeback_off_the_podium(self):
+        ana = self.person("Ana")
+        self.play(ana, [6, 4])
+
+        self.assertEqual(years_of(ana, C.COMEBACK), [])
+
+    def test_comeback_at_every_return(self):
+        ana = self.person("Ana")
+        self.play(ana, [6, 3, 6, 2])
+
+        self.assertEqual(years_of(ana, C.COMEBACK), [2022, 2024])
 
     def test_on_the_rise_is_two_climbs(self):
         ana = self.person("Ana")
@@ -458,6 +514,18 @@ class TestCareer(World, TestCase):
 
         self.assertEqual(years_of(ana, C.ICARUS), [])
 
+    def test_no_icarus_without_a_title(self):
+        ana = self.person("Ana")
+        self.play(ana, [2, 4])
+
+        self.assertEqual(years_of(ana, C.ICARUS), [])
+
+    def test_no_icarus_across_a_missed_edition(self):
+        ana = self.person("Ana")
+        self.play(ana, [1, None, 4])
+
+        self.assertEqual(years_of(ana, C.ICARUS), [])
+
     def test_lucky_charm(self):
         ana = self.person("Ana")
         self.play(ana, [2, 3, 1])
@@ -475,6 +543,13 @@ class TestCareer(World, TestCase):
         self.play(ana, [2, 3, 1, 6])
 
         self.assertEqual(years_of(ana, C.LUCKY_CHARM), [2023])
+
+    def test_lucky_charm_reads_counted_participations(self):
+        ana = self.person("Ana")
+        self.play(ana, [2, 3, None, 1])
+        self.seat(ana, Edition.objects.get(year=2023))  # played 2023, without a team
+
+        self.assertEqual(years_of(ana, C.LUCKY_CHARM), [2024])
 
 
 LOYALTY_CODES = (
@@ -670,6 +745,26 @@ class TestTeammates(World, TestCase):
         self.assertEqual(comrades_of(self.ana), [(2023, self.bob.id)])
         self.assertEqual(comrades_of(self.bob), [(2023, self.ana.id)])
 
+    def test_comrades_with_each_teammate(self):
+        chloe = self.person("Chloé")
+        for year in (2021, 2022, 2023):
+            self.meet(year, [self.bob, chloe])
+
+        ana, bob = self.ana.id, self.bob.id
+        self.assertEqual(comrades_of(self.ana), [(2023, bob), (2023, chloe.id)])
+        self.assertEqual(comrades_of(self.bob), [(2023, ana), (2023, chloe.id)])
+        self.assertEqual(comrades_of(chloe), [(2023, ana), (2023, bob)])
+
+    def test_no_comrades_without_a_team(self):
+        uma, vic = self.person("Uma"), self.person("Vic")
+        for year in (2021, 2022, 2023):
+            edition, _ = self.edition(year)
+            self.seat(uma, edition)
+            self.seat(vic, edition)
+
+        self.assertEqual(comrades_of(uma), [])
+        self.assertEqual(comrades_of(vic), [])
+
     def test_networker_at_twenty_teammates(self):
         self.meet(2021, self.crowd(2021))
         self.meet(2022, self.crowd(2022))
@@ -681,6 +776,17 @@ class TestTeammates(World, TestCase):
             self.meet(year, self.crowd(year))
 
         self.assertEqual(tiers_of(self.ana, C.NETWORKER), [(2022, 1), (2024, 2), (2026, 3)])
+
+    def test_two_networker_tiers_in_one_edition(self):
+        self.meet(2021, [self.person(f"Mate{n}") for n in range(41)])  # 41 teammates
+
+        self.assertEqual(tiers_of(self.ana, C.NETWORKER), [(2021, 1), (2021, 2)])
+
+    def test_networker_when_the_threshold_is_passed_not_reached(self):
+        self.meet(2021, [self.person(f"Mate{n}") for n in range(15)])
+        self.meet(2022, self.crowd(2022))  # 25 teammates: 20 passed, never reached
+
+        self.assertEqual(tiers_of(self.ana, C.NETWORKER), [(2022, 1)])
 
     def test_meeting_the_same_people_again_adds_nothing(self):
         mates = self.crowd(2021)
