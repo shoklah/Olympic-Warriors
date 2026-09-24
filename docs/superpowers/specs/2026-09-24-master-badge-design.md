@@ -20,25 +20,29 @@ good: the next edition of that discipline that the person does not win takes it 
   contested, as for the other discipline badges. Disciplines are matched across editions
   by name. A hidden, unscored or uncontested discipline (a lone scored result, or every
   team tied, which beats nobody) ranks nothing: that edition neither extends nor breaks
-  the run, so a badge never leaks a hidden result. A hand-ranked edition has no results
-  and does not count either.
+  the run, so a badge never leaks a hidden result. A hand-ranked edition without results
+  does not count either; one whose results were entered counts like any other edition,
+  as for every discipline badge.
 - **Winning it** means being seated on a valid team ranked 1st there. A shared 1st place
-  is a win, as long as some team is ranked below it. Two disciplines of one name in one edition are two events, and both must be
-  won.
+  is a win, as long as some team is ranked below it. Two disciplines of one name in one
+  edition are two events, and both must be won.
 - **Every edition**, not only those the person played: a person who missed an edition of
   the discipline, before their first participation or after, did not win it.
 - **At least 2 editions** (`MASTER_EDITIONS` in `badges.py`). With one, `master` would be
   a plain discipline win, which the gods already reward.
 - **Earned at** the edition that completed it, the second edition of the discipline.
-  The row stays the same while the person keeps winning, so its `created_at` and an
-  organiser's revocation (`is_active` off) survive.
+  The row stays the same while the person keeps winning new editions, so its
+  `created_at` and an organiser's revocation (`is_active` off) survive. A correction of
+  past data can move that edition (an earlier edition of the discipline revealed late),
+  which replaces the row, revocation included, as it does for any badge whose earning
+  edition moves.
 - **Lost** when a later edition of the discipline finishes and the person did not win it,
   played or missed. The rule is judged on the whole sequence, not up to each edition as
   every other rule is, so `earned()` stops returning it and the next refresh deletes the
   row. A lost title cannot come back without a correction of past data, since one edition
   was not won. An unfinished edition is not in the sequence yet, so the title is kept
-  until the edition is over and the refresh runs (the nightly cron job, the Edition
-  action or an import).
+  until the edition is over and the refresh runs (the monthly cron job, the Edition
+  action or an import), so a title can outlive its loss by up to a month.
 
 ## Build
 

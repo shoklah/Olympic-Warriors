@@ -263,7 +263,7 @@ class Badge(models.Model):
     code = models.CharField(max_length=32, choices=Codes.choices)
     edition = models.ForeignKey("Edition", on_delete=models.CASCADE)  # earned at
     tier = models.PositiveSmallIntegerField(default=0)                # 0 untiered, 1 to 3
-    discipline = models.CharField(max_length=100, blank=True, default="")  # specialist, unbeaten, perfect-run, steamroller
+    discipline = models.CharField(max_length=100, blank=True, default="")  # specialist, master, unbeaten, perfect-run, steamroller
     partner = models.ForeignKey(User, null=True, blank=True, on_delete=models.CASCADE, related_name="+")  # comrades
     is_manual = models.BooleanField(default=False)
     note = models.CharField(max_length=200, blank=True)  # organiser memo, never public
@@ -443,7 +443,8 @@ house style:
 Olympic rings, a protected symbol.
 
 The first 20 glyphs, the ✓ rows above, came with this spec to settle the style. The other
-42 came with the build, so every code but `specialist` has its glyph (62 files).
+42 came with the build, so every code but `specialist` has its glyph (62 files then; 61
+since the two removals and `master`).
 
 ### `src/lib/badges.js`
 
@@ -488,7 +489,7 @@ and each tile shows:
 - the name, `badge.<code>.name`, in `.label` style;
 - a detail line in `--muted`, its parts joined by ` · ` (the dots in `--ghost` and hidden
   from screen readers), starting with the translated discipline name whenever the badge
-  has one (`specialist`, `unbeaten`, `perfect-run`, `steamroller`), so two tiles of one code
+  has one (`specialist`, `master`, `unbeaten`, `perfect-run`, `steamroller`), so two tiles of one code
   tell their disciplines apart:
   - a tiered badge: « Niveau 2 » / "Tier 2", then the year that tier was reached
     (`Rugby · Tier 1 · 2026`);
