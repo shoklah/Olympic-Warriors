@@ -1,0 +1,8 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- A whistle on its ring. -->
+<path d="M800 760H1720V1010H1170A400 400 0 1 1 800 760Z" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="800" cy="1160" r="120" fill="white"/>
+<path d="M1180 760V880" stroke="white" stroke-width="90" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="420" cy="700" r="110" stroke="white" stroke-width="90"/>
+<path d="M500 780L620 880" stroke="white" stroke-width="80" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

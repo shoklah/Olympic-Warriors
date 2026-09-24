@@ -1,0 +1,10 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- Heracles' knotty club, thick end up, tilted. -->
+<g transform="rotate(38 1000 1000)">
+<path d="M920 1830L905 1440C885 1140 790 860 745 640C690 360 820 170 1010 170C1210 170 1320 360 1270 620C1230 850 1120 1140 1095 1440L1080 1830Q1000 1880 920 1830Z" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M820 960L700 890M1215 780L1340 720M760 500L640 450M1150 1180L1250 1150" stroke="white" stroke-width="100" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M915 1650L1085 1650" stroke="white" stroke-width="80" stroke-linecap="round" stroke-linejoin="round"/>
+<ellipse cx="1060" cy="460" rx="50" ry="80" fill="white"/>
+<ellipse cx="960" cy="820" rx="45" ry="75" fill="white"/>
+</g>
+</svg>

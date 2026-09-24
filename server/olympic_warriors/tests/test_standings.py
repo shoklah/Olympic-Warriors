@@ -17,6 +17,7 @@ from olympic_warriors.models import (
     Orienteering,
     Relay,
 )
+from olympic_warriors.models.ResultTypes import ResultTypes
 from olympic_warriors.standings import ResultStanding, TeamStanding, compute_standings
 
 
@@ -206,6 +207,9 @@ class TestTeamStandings(StandingsSetup):
         self.assertEqual(b["Relay"].standing.ranking, 1)
         self.assertEqual(b["Relay"].discipline_id, relay.id)
         self.assertEqual(b["Darts"].standing.ranking, 2)
+        # The result's type and stored points ride along, for the badges' photo finish.
+        self.assertEqual((b["Relay"].result_type, b["Relay"].points), (ResultTypes.POINTS, 1))
+        self.assertEqual(b["Darts"].result_type, ResultTypes.POINTS)
         self.assertEqual(standings.disciplines_of(self.ghost.id), ())  # inactive team
         self.assertEqual(standings.disciplines_of(999999), ())
 

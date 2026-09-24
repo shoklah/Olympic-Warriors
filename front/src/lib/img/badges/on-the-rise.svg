@@ -1,0 +1,6 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- Three stairs rising left to right, an arrow going up them. -->
+<path d="M280 1720V1400H760V1060H1240V720H1720V1720Z" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M380 1120L1160 400" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1350 225L1060 300L1270 530Z" fill="white" stroke="white" stroke-width="70" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

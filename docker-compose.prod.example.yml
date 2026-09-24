@@ -5,6 +5,8 @@ services:
     build:
       context: ./server
       dockerfile: Dockerfile.prod
+    # Badges are rebuilt nightly by a crontab entry on the host (see CLAUDE.md, "Player badges"):
+    # 0 2 * * * cd <repo> && docker compose -f <this file> exec -T server python manage.py refresh_badges >> /var/log/olympic-warriors-badges.log 2>&1
     command: gunicorn olympic_warriors.wsgi:application --bind 0.0.0.0:3003
     # Loopback only: the login throttle trusts the last X-Forwarded-For entry (NUM_PROXIES=1),
     # so a client reaching Django without nginx or the front could name any IP. nginx reaches

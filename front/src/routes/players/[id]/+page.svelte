@@ -1,6 +1,8 @@
 <script>
+	import Badge from '$lib/components/Badge.svelte';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import MedalRank from '$lib/components/MedalRank.svelte';
+	import { badgeDetail, isKnownBadge } from '$lib/badges';
 	import { iconFor } from '$lib/icons';
 	import { bestDisciplines, byDisplayedName, editionStatus, formatAverage, fullName, spokenPlaces } from '$lib/players';
 	import { disciplineName, useLocale, useT } from '$lib/i18n';
@@ -12,6 +14,7 @@
 
 	$: profile = data.profile;
 	$: name = fullName(profile);
+	$: badges = (profile.badges ?? []).filter(isKnownBadge);
 	// Defensive: a front deployed ahead of a server that doesn't carry `disciplines` yet.
 	// Ties (equal position) are re-sorted by the name as displayed in this locale, so the
 	// server's English database-name order doesn't leak into the French page.
@@ -63,6 +66,34 @@
 	</p>
 	{#if profile.counted === 0}
 		<p class="counts">{t('profile.noRankedEdition')}</p>
+	{/if}
+
+	{#if badges.length}
+		<h2>{t('profile.badges')}</h2>
+		<ul class="badges" role="list">
+			{#each badges as badge}
+				{@const parts = badgeDetail(badge, t, locale)}
+				<li class="tile" data-testid="badge">
+					<Badge {badge} />
+					<span class="label name">{t(`badge.${badge.code}.name`)}</span>
+					{#if badge.partner || parts.length}
+						<!-- Each part is its own text, with the dots hidden from assistive tech;
+						     the spaces stay outside them so spoken parts never run together. -->
+						<span class="detail" data-testid="badge-detail">
+							{#if badge.partner}
+								{t('badge.with')}
+								<a href="/players/{badge.partner.id}">{fullName(badge.partner)}</a>
+							{/if}
+							{#each parts as part, i}{#if i > 0 || badge.partner}{' '}<span
+										class="sep"
+										aria-hidden="true">·</span
+									>{' '}{/if}<span>{part}</span>{/each}
+						</span>
+					{/if}
+					<span class="rule">{t(`badge.${badge.code}.rule`)}</span>
+				</li>
+			{/each}
+		</ul>
 	{/if}
 
 	<h2>{t('profile.editions')}</h2>
@@ -214,6 +245,54 @@
 	.counts {
 		margin: 0 0 0.4rem;
 		font-size: 0.85rem;
+		color: var(--muted);
+	}
+
+	.badges {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+		gap: 22px 16px;
+		--badge-size: 56px;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.tile {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 6px;
+		min-width: 0;
+	}
+
+	.name {
+		color: var(--ink);
+	}
+
+	.detail {
+		font-size: 0.85rem;
+		color: var(--muted);
+		overflow-wrap: anywhere;
+	}
+
+	.detail a {
+		color: var(--accent);
+	}
+
+	.sep {
+		color: var(--ghost);
+	}
+
+	.detail a:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
+		border-radius: 2px;
+	}
+
+	.rule {
+		font-size: 0.78rem;
+		line-height: 1.35;
 		color: var(--muted);
 	}
 

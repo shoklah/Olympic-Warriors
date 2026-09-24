@@ -48,6 +48,12 @@ TABLES = (
     ("BlindtestGuess", BlindtestGuess, "blindtest_round__blindtest__edition"),
 )
 
+# Root models an edition export leaves out on purpose: badges are derived from the
+# edition's data, and badges.refresh() rebuilds them after an import (import_edition runs
+# it). Manual badges are not transferred, and --replace cascade-deletes the replaced
+# edition's ones.
+NOT_EXPORTED = frozenset({"Badge", "BadgeRefresh"})
+
 
 class TransferError(ValueError):
     """The document cannot be imported as is."""

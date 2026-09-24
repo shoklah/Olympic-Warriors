@@ -40,6 +40,76 @@ describe('player profile page', () => {
 		expect(within(rows[2]).queryAllByRole('link').map((a) => a.textContent.trim())).toEqual(['2024']);
 	});
 
+	it('lists the badges with their detail and rule, skipping unknown codes', () => {
+		renderWith(Page, { data: { profile } });
+
+		expect(screen.getByRole('heading', { level: 2, name: 'Badges' })).toBeInTheDocument();
+		const tiles = screen.getAllByTestId('badge');
+		expect(tiles).toHaveLength(4);
+		expect(tiles[0]).toHaveTextContent(/Veteran\s*Tier 1 · 2026\s*Play 3, 5, then 10 editions/);
+		expect(tiles[1]).toHaveTextContent(/Comrades in arms\s*with\s*Léa Martin\s*·\s*2026/);
+		expect(within(tiles[1]).getByRole('link', { name: 'Léa Martin' })).toHaveAttribute('href', '/players/12');
+		expect(tiles[2]).toHaveTextContent(/Specialist\s*Relay · Tier 1 · 2026/);
+		expect(tiles[3]).toHaveTextContent(
+			/Clean sweep\s*×2 · 2023 · 2026\s*Win three disciplines or more in one edition/
+		);
+		expect(screen.queryByText(/future-badge/)).toBeNull();
+	});
+
+	it('hides the detail separators from assistive tech, keeping the words apart', () => {
+		renderWith(Page, { data: { profile } });
+
+		// What a screen reader gets: the text outside aria-hidden nodes.
+		const spoken = (el) => {
+			const copy = el.cloneNode(true);
+			copy.querySelectorAll('[aria-hidden="true"]').forEach((node) => node.remove());
+			return copy.textContent.replace(/\s+/g, ' ').trim();
+		};
+		const details = screen.getAllByTestId('badge-detail');
+		expect(details.map(spoken)).toEqual([
+			'Tier 1 2026',
+			'with Léa Martin 2026',
+			'Relay Tier 1 2026',
+			'×2 2023 2026'
+		]);
+		expect(details.map((detail) => detail.textContent.replace(/\s+/g, ' ').trim())).toEqual([
+			'Tier 1 · 2026',
+			'with Léa Martin · 2026',
+			'Relay · Tier 1 · 2026',
+			'×2 · 2023 · 2026'
+		]);
+	});
+
+	it('leaves no dangling separator, nor an empty detail line, when a badge has no year', () => {
+		const lea = { id: 12, first_name: 'Léa', last_name: 'Martin' };
+		const badges = [
+			{ code: 'comrades', tier: 0, years: [], discipline: null, partner: lea },
+			{ code: 'champion', tier: 0, years: [], discipline: null, partner: null }
+		];
+		renderWith(Page, { data: { profile: { ...profileUnranked, badges } } });
+
+		const tiles = screen.getAllByTestId('badge');
+		expect(within(tiles[0]).getByTestId('badge-detail')).toHaveTextContent(/^with Léa Martin$/);
+		expect(within(tiles[0]).getByRole('link', { name: 'Léa Martin' })).toHaveAttribute('href', '/players/12');
+		expect(within(tiles[1]).queryByTestId('badge-detail')).toBeNull();
+		expect(tiles[1]).toHaveTextContent(/^Champion\s*Win an edition$/);
+	});
+
+	it('has no badges section without badges', () => {
+		renderWith(Page, { data: { profile: profileUnranked } });
+		expect(screen.queryByRole('heading', { level: 2, name: 'Badges' })).toBeNull();
+		expect(screen.queryAllByTestId('badge')).toHaveLength(0);
+	});
+
+	it('has no badges section for a payload without the badges key, like an older API', () => {
+		const older = { ...profileUnranked };
+		delete older.badges;
+		renderWith(Page, { data: { profile: older } });
+		expect(screen.getByRole('heading', { level: 1, name: 'Ana Petit' })).toBeInTheDocument();
+		expect(screen.queryByRole('heading', { level: 2, name: 'Badges' })).toBeNull();
+		expect(screen.queryAllByTestId('badge')).toHaveLength(0);
+	});
+
 	it('dashes the figures and says so when nothing is counted yet', () => {
 		renderWith(Page, { data: { profile: profileUnranked } });
 
@@ -64,6 +134,13 @@ describe('player profile page', () => {
 		expect(rows[0]).toHaveTextContent(/2030\s*Les Aigles\s*En cours/);
 		expect(rows[1]).toHaveTextContent(/2026\s*MxM\s*2\s*\/ 6/);
 		expect(rows[2]).toHaveTextContent(/2024\s*Pas d'équipe/);
+		const tiles = screen.getAllByTestId('badge');
+		expect(tiles[0]).toHaveTextContent(/Vétéran\s*Niveau 1 · 2026/);
+		expect(tiles[1]).toHaveTextContent(/Compagnons d'armes\s*avec\s*Léa Martin/);
+		expect(tiles[2]).toHaveTextContent(/Spécialiste\s*Relais · Niveau 1 · 2026/);
+		expect(tiles[3]).toHaveTextContent(
+			/Razzia\s*×2 · 2023 · 2026\s*Gagner au moins trois épreuves lors d'une même édition/
+		);
 	});
 
 	it('says nothing is ranked yet, in French too', () => {

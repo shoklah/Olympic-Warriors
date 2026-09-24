@@ -1,0 +1,9 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- A rocket tilted towards the upper right. -->
+<g transform="rotate(40 1000 1000)">
+<path d="M1000 180C1250 420 1270 900 1190 1300H810C730 900 750 420 1000 180Z" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="1000" cy="760" r="130" stroke="white" stroke-width="110"/>
+<path d="M815 1060L600 1330V1520L840 1380M1185 1060L1400 1330V1520L1160 1380" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M890 1440Q1000 1860 1110 1440" stroke="white" stroke-width="100" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+</svg>

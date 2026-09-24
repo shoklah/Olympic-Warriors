@@ -1,5 +1,6 @@
 """
-Import an edition exported with export_edition, giving every row a fresh id.
+Import an edition exported with export_edition, giving every row a fresh id, then refresh
+the badges (badges.refresh()) after a real import.
 """
 
 import json
@@ -7,6 +8,7 @@ import json
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
+from olympic_warriors.badges import refresh
 from olympic_warriors.transfer import TransferError, import_edition
 
 
@@ -47,6 +49,17 @@ class Command(BaseCommand):
             raise CommandError(str(exc)) from exc
         else:
             self.stdout.write(self.style.SUCCESS(f"Imported edition {report['year']}."))
+            try:
+                badges = refresh()
+            except Exception as exc:
+                # The import's transaction has committed: only the badges are missing.
+                self.stderr.write(
+                    "Import committed; badges not refreshed: run manage.py refresh_badges."
+                )
+                raise CommandError(f"Badge refresh failed: {exc}") from exc
+            self.stdout.write(
+                f"Badges: {badges.added} added, {badges.removed} removed, {badges.kept} kept."
+            )
 
     def _print(self, report):
         self.stdout.write(f"Edition {report['year']} -> id {report['edition_id']}")

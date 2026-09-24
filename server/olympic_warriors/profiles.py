@@ -135,13 +135,24 @@ def _is_ranked(standing):
     return any(result.ranking != 0 for result in standing.results.values())
 
 
-def participations(today=None):
+@dataclass(frozen=True)
+class Loaded:
     """
-    Every person's participations, newest edition first, keyed by user id:
-    {user_id: (user, (Participation, ...))}.
-    Queries: the editions, the players, then three per finished edition with a player.
+    What participations() and badges.earned() both read, from 2 + 3 per finished edition with
+    a player queries: the active editions by id (annotated with `team_count`, their active
+    teams), the chosen Player row per (user id, edition id), the finished edition ids, the
+    standings of the finished editions that have a player, and which of those rank.
     """
-    today = today or paris_today()
+
+    editions: dict
+    chosen: dict
+    finished: frozenset
+    standings: dict
+    ranked: frozenset
+
+
+def _load(today):
+    """The data behind the participations on `today` (a Paris date)."""
     editions = {
         edition.id: edition
         for edition in Edition.objects.filter(is_active=True).annotate(
@@ -155,19 +166,23 @@ def participations(today=None):
     )
     chosen = _one_row_per_edition(players)
 
-    finished = {pk for pk, edition in editions.items() if edition.end_date < today}
+    finished = frozenset(pk for pk, edition in editions.items() if edition.end_date < today)
     with_players = {edition_id for _, edition_id in chosen}
     standings = {pk: compute_standings(editions[pk]) for pk in sorted(with_players & finished)}
-    ranked = {pk for pk, standing in standings.items() if _is_ranked(standing)}
+    ranked = frozenset(pk for pk, standing in standings.items() if _is_ranked(standing))
+    return Loaded(editions, chosen, finished, standings, ranked)
 
+
+def _participations(loaded):
+    """Every person's participations from loaded data, see participations()."""
     by_user = {}
-    for (user_id, edition_id), player in chosen.items():
-        edition = editions[edition_id]
+    for (user_id, edition_id), player in loaded.chosen.items():
+        edition = loaded.editions[edition_id]
         team = _valid_team(player)
         rank = None
-        if team is not None and edition_id in ranked:
+        if team is not None and edition_id in loaded.ranked:
             # A hand-entered final_rank of 0 means no rank too.
-            rank = standings[edition_id].team(team.id).ranking or None
+            rank = loaded.standings[edition_id].team(team.id).ranking or None
         _, parts = by_user.setdefault(user_id, (player.user, []))
         part = Participation(
             year=edition.year,
@@ -175,7 +190,7 @@ def participations(today=None):
             team_name=team.name if team else None,
             rank=rank,
             teams=edition.team_count,
-            finished=edition_id in finished,
+            finished=edition_id in loaded.finished,
         )
         if part.counts:
             # counts implies a rank, and rank is only set above for a team in a ranked edition.
@@ -183,7 +198,7 @@ def participations(today=None):
                 DisciplinePlace(
                     discipline.discipline_name, edition.year, discipline.standing.ranking
                 )
-                for discipline in standings[edition_id].disciplines_of(team.id)
+                for discipline in loaded.standings[edition_id].disciplines_of(team.id)
                 if discipline.standing.ranking > 0
             )
             part = replace(part, disciplines=disciplines)
@@ -193,6 +208,15 @@ def participations(today=None):
         user_id: (user, tuple(sorted(parts, key=lambda p: p.year, reverse=True)))
         for user_id, (user, parts) in by_user.items()
     }
+
+
+def participations(today=None):
+    """
+    Every person's participations, newest edition first, keyed by user id:
+    {user_id: (user, (Participation, ...))}.
+    Queries: the editions, the players, then three per finished edition with a player.
+    """
+    return _participations(_load(today or paris_today()))
 
 
 @dataclass(frozen=True)

@@ -1,0 +1,8 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- A crown on a bar. -->
+<path d="M380 1380L280 620L700 960L1000 460L1300 960L1720 620L1620 1380Z" stroke="white" stroke-width="130" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M380 1620H1620" stroke="white" stroke-width="130" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="1000" cy="460" r="70" fill="white"/>
+<circle cx="280" cy="620" r="60" fill="white"/>
+<circle cx="1720" cy="620" r="60" fill="white"/>
+</svg>

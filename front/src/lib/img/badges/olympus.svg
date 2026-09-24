@@ -1,0 +1,7 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- Mount Olympus with a small temple on its summit. -->
+<path d="M200 1690L580 1190L700 1290L860 980H1140L1300 1290L1420 1190L1800 1690Z" stroke="white" stroke-width="130" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M620 580L1000 330L1380 580Z" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M730 690V870M1000 690V870M1270 690V870" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M640 980H1360" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

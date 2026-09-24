@@ -1,0 +1,17 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- Dionysus' bunch of grapes, with a vine leaf beside its stem. -->
+<circle cx="640" cy="945" r="120" stroke="white" stroke-width="105"/>
+<circle cx="880" cy="945" r="120" stroke="white" stroke-width="105"/>
+<circle cx="1120" cy="945" r="120" stroke="white" stroke-width="105"/>
+<circle cx="1360" cy="945" r="120" stroke="white" stroke-width="105"/>
+<circle cx="760" cy="1153" r="120" stroke="white" stroke-width="105"/>
+<circle cx="1000" cy="1153" r="120" stroke="white" stroke-width="105"/>
+<circle cx="1240" cy="1153" r="120" stroke="white" stroke-width="105"/>
+<circle cx="880" cy="1361" r="120" stroke="white" stroke-width="105"/>
+<circle cx="1120" cy="1361" r="120" stroke="white" stroke-width="105"/>
+<circle cx="1000" cy="1569" r="120" stroke="white" stroke-width="105"/>
+<path d="M1000 790C1000 660 960 560 860 500" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+<g transform="translate(1010 660) rotate(45) scale(0.95)">
+<path d="M0 0C120 0 260 -80 300 -300Q200 -290 90 -250Q150 -400 0 -520Q-150 -400 -90 -250Q-200 -290 -300 -300C-260 -80 -120 0 0 0Z" stroke="white" stroke-width="105" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+</svg>

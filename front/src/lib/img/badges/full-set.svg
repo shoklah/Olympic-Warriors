@@ -1,0 +1,11 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- Three medals hanging side by side from a rack, the middle one lower and larger. -->
+<path d="M250 380H1750" stroke="white" stroke-width="130" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M375 380V975M505 380V975M935 380V1200M1065 380V1200M1495 380V975M1625 380V975" stroke="white" stroke-width="75" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="440" cy="1170" r="205" stroke="white" stroke-width="105"/>
+<circle cx="440" cy="1170" r="86" fill="white"/>
+<circle cx="1000" cy="1430" r="240" stroke="white" stroke-width="105"/>
+<circle cx="1000" cy="1430" r="101" fill="white"/>
+<circle cx="1560" cy="1170" r="205" stroke="white" stroke-width="105"/>
+<circle cx="1560" cy="1170" r="86" fill="white"/>
+</svg>

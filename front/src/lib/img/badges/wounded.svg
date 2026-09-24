@@ -1,0 +1,11 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- An adhesive bandage, tilted, its pad dotted. -->
+<g transform="rotate(-45 1000 1000)">
+<path d="M460 720H1540A280 280 0 0 1 1540 1280H460A280 280 0 0 1 460 720Z" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M780 810H1220V1190H780Z" stroke="white" stroke-width="90" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="910" cy="930" r="45" fill="white"/>
+<circle cx="1090" cy="930" r="45" fill="white"/>
+<circle cx="910" cy="1070" r="45" fill="white"/>
+<circle cx="1090" cy="1070" r="45" fill="white"/>
+</g>
+</svg>

@@ -1,0 +1,7 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- A wooden spoon, bowl up and left, its handle widening to a rounded end. -->
+<g transform="rotate(-45 1000 1000)">
+<ellipse cx="1000" cy="560" rx="250" ry="380" stroke="white" stroke-width="120"/>
+<path d="M968 940L940 1690A60 60 0 0 0 1060 1690L1032 940" stroke="white" stroke-width="100" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+</svg>

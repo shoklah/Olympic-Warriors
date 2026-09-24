@@ -1,6 +1,7 @@
 """
 Tests for olympic_warriors.profiles: a person's editions, places, averages and leaderboard place,
-computed from the edition standings, and the two public endpoints serving them.
+computed from the edition standings, and the two public endpoints serving them, the profile
+with its badges (badges.profile_badges).
 """
 
 from datetime import date, datetime, timezone
@@ -11,7 +12,7 @@ from django.contrib.auth.models import User
 from django.test import SimpleTestCase, TestCase
 from rest_framework.test import APIClient
 
-from olympic_warriors.models import Darts, Edition, Player, Relay, Team, TeamResult
+from olympic_warriors.models import Badge, Darts, Edition, Player, Relay, Team, TeamResult
 from olympic_warriors.profiles import (
     DisciplinePlace,
     DisciplinePlaces,
@@ -20,6 +21,7 @@ from olympic_warriors.profiles import (
     paris_today,
     participations,
     _discipline_places,
+    _load,
     _place,
     _record,
 )
@@ -201,6 +203,19 @@ class TestParticipations(ProfilesSetup, TestCase):
 
         with self.assertNumQueries(PROFILES_QUERIES):
             participations(TODAY)
+
+
+class TestLoad(ProfilesSetup, TestCase):
+    def test_exposes_the_data_participations_reads(self):
+        loaded = _load(TODAY)
+
+        self.assertEqual(set(loaded.editions), {self.y2024.id, self.y2025.id, self.y2026.id})
+        self.assertEqual(loaded.editions[self.y2024.id].team_count, 4)
+        self.assertEqual(loaded.finished, {self.y2024.id, self.y2025.id})
+        # Standings only for finished editions with a player, and both of those rank.
+        self.assertEqual(set(loaded.standings), {self.y2024.id, self.y2025.id})
+        self.assertEqual(loaded.ranked, {self.y2024.id, self.y2025.id})
+        self.assertEqual(loaded.chosen[(self.ana.id, self.y2025.id)].team_id, self.loups.id)
 
 
 class TestLeaderboard(ProfilesSetup, TestCase):
@@ -531,6 +546,7 @@ class TestProfileEndpoints(ProfilesSetup, TestCase):
                 "position": 1,
                 "counted": 2,
                 "average_rank": 1.0,
+                "badges": [],
             },
         )
         self.assertNotIn("average_beaten", response.data)
@@ -592,7 +608,108 @@ class TestProfileEndpoints(ProfilesSetup, TestCase):
             self.assertNotIn(b"email", content)
 
     def test_both_endpoints_run_in_a_fixed_number_of_queries(self):
+        # Badges over two editions, one with a partner: the profile reads them in one query.
+        self.badge(Badge.Codes.CHAMPION, self.y2024)
+        self.badge(Badge.Codes.CHAMPION, self.y2025)
+        self.badge(Badge.Codes.COMRADES, self.y2025, partner=self.chloe)
+
         with self.assertNumQueries(PROFILES_QUERIES):
             self.assertEqual(self.client.get("/profiles/").status_code, 200)
-        with self.assertNumQueries(PROFILES_QUERIES):
+        with self.assertNumQueries(PROFILES_QUERIES + 1):
             self.assertEqual(self.client.get(f"/profile/{self.ana.id}/").status_code, 200)
+
+    # Badges
+
+    def badge(self, code, edition, user=None, **kwargs):
+        """A stored Badge row, Ana's unless `user` is given."""
+        return Badge.objects.create(user=user or self.ana, code=code, edition=edition, **kwargs)
+
+    def badges(self, user=None):
+        """The `badges` of the user's profile, Ana's by default."""
+        response = self.client.get(f"/profile/{(user or self.ana).id}/")
+        self.assertEqual(response.status_code, 200)
+        return response.data["badges"]
+
+    @staticmethod
+    def entry(code, years, tier=0, discipline=None, partner=None):
+        return {
+            "code": code, "tier": tier, "years": years, "discipline": discipline,
+            "partner": partner,
+        }
+
+    def test_a_profile_without_badges_has_an_empty_list(self):
+        self.badge(Badge.Codes.CHAMPION, self.y2024)  # Ana's, not Fay's
+
+        self.assertEqual(self.badges(self.fay), [])
+
+    def test_the_rows_of_one_badge_are_grouped_with_their_years_oldest_first(self):
+        self.badge(Badge.Codes.CHAMPION, self.y2025)
+        self.badge(Badge.Codes.CHAMPION, self.y2024)
+
+        self.assertEqual(self.badges(), [self.entry("champion", [2024, 2025])])
+
+    def test_a_tiered_badge_carries_its_highest_tier(self):
+        self.badge(Badge.Codes.VETERAN, self.y2025, tier=2)
+        self.badge(Badge.Codes.VETERAN, self.y2024, tier=1)
+
+        self.assertEqual(self.badges(), [self.entry("veteran", [2024, 2025], tier=2)])
+
+    def test_a_discipline_badge_is_one_entry_per_discipline_by_name(self):
+        self.badge(Badge.Codes.SPECIALIST, self.y2025, tier=1, discipline="Relay")
+        self.badge(Badge.Codes.SPECIALIST, self.y2024, tier=1, discipline="Darts")
+
+        self.assertEqual(
+            self.badges(),
+            [
+                self.entry("specialist", [2024], tier=1, discipline="Darts"),
+                self.entry("specialist", [2025], tier=1, discipline="Relay"),
+            ],
+        )
+
+    def test_a_comrades_badge_names_the_partner_and_nothing_else(self):
+        self.badge(Badge.Codes.COMRADES, self.y2025, partner=self.chloe)
+
+        response = self.client.get(f"/profile/{self.ana.id}/")
+
+        self.assertEqual(
+            response.data["badges"],
+            [
+                self.entry(
+                    "comrades",
+                    [2025],
+                    partner={"id": self.chloe.id, "first_name": "Chloé", "last_name": "Dupont"},
+                )
+            ],
+        )
+        content = response.content
+        self.assertNotIn(b"username", content)
+        self.assertNotIn(b"email", content)
+        self.assertNotIn(b"login-", content)  # neither Ana's login nor Chloé's
+        self.assertNotIn(b"mail.example", content)
+
+    def test_badges_come_in_catalogue_order_and_keep_private_fields_out(self):
+        self.badge(Badge.Codes.MVP, self.y2025, is_manual=True, note="Try of the day")
+        self.badge(Badge.Codes.GOAT, self.y2025)
+        self.badge(Badge.Codes.WOODEN_SPOON, self.y2024)
+
+        response = self.client.get(f"/profile/{self.ana.id}/")
+
+        self.assertEqual(
+            [badge["code"] for badge in response.data["badges"]],
+            ["wooden-spoon", "goat", "mvp"],
+        )
+        self.assertEqual(response.data["badges"][2], self.entry("mvp", [2025]))
+        self.assertNotIn(b"Try of the day", response.content)
+        self.assertNotIn(b"is_manual", response.content)
+        self.assertNotIn(b"created_at", response.content)
+
+    def test_inactive_rows_and_rows_of_an_inactive_edition_are_left_out(self):
+        y2023 = Edition.objects.create(
+            year=2023, host="Brest", start_date="2023-09-23", end_date="2023-09-24",
+            is_active=False,
+        )
+        self.badge(Badge.Codes.CHAMPION, self.y2024)
+        self.badge(Badge.Codes.CHAMPION, self.y2025, is_active=False)
+        self.badge(Badge.Codes.ROOKIE, y2023)
+
+        self.assertEqual(self.badges(), [self.entry("champion", [2024])])

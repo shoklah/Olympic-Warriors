@@ -39,6 +39,7 @@ from .serializer import (
     LeaderboardRowSerializer,
     ProfileSerializer,
 )
+from .badges import profile_badges
 from .profiles import leaderboard
 from .permissions import IsOrganiser
 from .throttling import LoginRateThrottle
@@ -224,7 +225,7 @@ def getProfiles(request):
 
 
 @extend_schema(
-    summary="One person's editions, average rank, places per discipline and all-time position",
+    summary="One person's editions, average rank, discipline places, position and badges",
     responses={
         "200": ProfileSerializer,
         "404": OpenApiResponse(description="Player not found"),
@@ -238,7 +239,7 @@ def getProfile(request, user_id):
     record = next((r for r in leaderboard() if r.user_id == user_id), None)
     if record is None:
         return Response({"error": "Player not found"}, status=404)
-    return Response(ProfileSerializer(record).data)
+    return Response(ProfileSerializer(record, context={"badges": profile_badges(user_id)}).data)
 
 
 # Editions
