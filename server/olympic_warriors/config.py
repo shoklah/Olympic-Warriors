@@ -57,9 +57,9 @@ class BaseConfig(BaseSettings):
     BASE_URL: str = "localhost"
 
     # The front's public address (a trailing slash is ignored), the base of the claim links
-    # organisers hand out from the admin (claims.claim_link). Required, except in dev
-    # (DevConfig): a link built on a guessed default would send players nowhere.
-    PUBLIC_URL: str
+    # organisers hand out from the admin (claims.claim_link). Optional, so a deploy never
+    # fails on it: without an absolute http(s) address the admin refuses to make links.
+    PUBLIC_URL: str = ""
 
     ALLOWED_HOSTS: list = ["*"]
     CSRF_TRUSTED_ORIGINS: list = ["https://*", "http://*"]

@@ -9,7 +9,7 @@ from django.contrib.admin import action, display, site, ModelAdmin, SimpleListFi
 from django.contrib.admin.actions import delete_selected as stock_delete_selected
 from django.contrib.admin.forms import AdminAuthenticationForm
 from django.contrib.auth import get_user_model
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ImproperlyConfigured, ValidationError
 from django.db import transaction
 from django.forms import ModelChoiceField, ModelForm
 from django.http import HttpRequest
@@ -17,7 +17,7 @@ from django.utils.html import format_html
 from django.utils.translation import gettext_lazy
 from .avatars import remove_photo
 from .badges import refresh
-from .claims import INACTIVE, NOT_A_PERSON, STAFF, claim_link
+from .claims import INACTIVE, NOT_A_PERSON, STAFF, Unclaimable, claim_link, public_url
 from .profiles import PARIS
 from .throttling import LoginRateThrottle
 from .models import (
@@ -191,14 +191,24 @@ CLAIM_REFUSALS = {
 }
 
 
-@action(description="Générer un lien d'activation", permissions=["change"])
+@action(description="Générer un lien d'activation", permissions=["claim"])
 def generate_claim_links(modeladmin, request, queryset):
     """
     One message per user of the selection (several players of one person make one line), by
-    name: the claim link to send them, or a warning saying why there is none. A new link
-    does not revoke older unused ones: they all die when any of them is used. The links are
-    shown, never stored or logged.
+    name: the claim link to send them, or a warning saying why there is none; or a single
+    error when PUBLIC_URL cannot make a link. A new link does not revoke older unused ones:
+    they all die when any of them is used. The links travel to the page in Django's
+    messages, and are never logged or kept once shown.
     """
+    try:
+        public_url()
+    except ImproperlyConfigured:
+        modeladmin.message_user(
+            request,
+            "Aucun lien généré : PUBLIC_URL (l'adresse publique du site) n'est pas configuré.",
+            messages.ERROR,
+        )
+        return
     users = get_user_model().objects.filter(pk__in=queryset.values("user_id")).order_by(
         "last_name", "first_name", "username"
     )
@@ -206,17 +216,26 @@ def generate_claim_links(modeladmin, request, queryset):
         label = f"{user.get_full_name() or user.username} ({user.username})"
         try:
             link = claim_link(user)
-        except ValueError as error:
+        except Unclaimable as refusal:
             modeladmin.message_user(
                 request,
-                f"{label} : pas de lien, {CLAIM_REFUSALS[error.args[0]]}.",
+                f"{label} : pas de lien, {CLAIM_REFUSALS[refusal.reason]}.",
                 messages.WARNING,
             )
         else:
             modeladmin.message_user(request, f"{label} : {link}", messages.INFO)
 
 
-class PlayerAdmin(ModelAdmin):
+class ClaimLinksPermission:  # pylint: disable=too-few-public-methods
+    """The permission generate_claim_links asks of an admin mixing this in."""
+
+    def has_claim_permission(self, request):
+        """A link lets whoever opens it set the person's password: only a user who may
+        change users gets the action, whatever their rights on the admin's own model."""
+        return request.user.has_perm("auth.change_user")
+
+
+class PlayerAdmin(ClaimLinksPermission, ModelAdmin):
     """
     Admin dashboard configuration for the Player model.
     """
@@ -716,7 +735,7 @@ def remove_and_lock(modeladmin, request, queryset):
     )
 
 
-class UserProfileAdmin(ModelAdmin):
+class UserProfileAdmin(ClaimLinksPermission, ModelAdmin):
     """
     Photo moderation. Organisers never upload a photo (every face on the site was put there
     by its owner), so no form here has a file input: the photo shows as a thumbnail linking

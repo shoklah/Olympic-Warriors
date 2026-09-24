@@ -138,10 +138,14 @@ rules.
 
 ### 4. Claim flow (`olympic_warriors/claims.py`, views in `views.py`)
 
-- `claim_link(user)` returns the URL, or raises for an unclaimable user. The public base
-  URL is a new config value, `PUBLIC_URL` (for example
-  `https://olympicwarriors.com`), required in `ProdConfig` and defaulting to
-  `http://localhost:5173` in `DevConfig`.
+- `claim_link(user)` returns the URL, or raises `Unclaimable` (a `ValueError` carrying
+  the `reason`) for an unclaimable user. The public base URL is a new config value,
+  `PUBLIC_URL` (for example `https://olympicwarriors.com`), defaulting to
+  `http://localhost:5173` in `DevConfig`. It is **optional** everywhere else (empty by
+  default), so a deploy never fails on it: `Dockerfile.prod` and `Dockerfile.stage` run
+  `collectstatic` with `ENV=prod` against `prod.env`. Without an absolute `http(s)`
+  address, `claim_link` raises `ImproperlyConfigured` and the admin action refuses (decided
+  in review, 2026-09-24).
 - One view serves both methods. It is `AllowAny` and ignores any token header
   (`authentication_classes([])`): the link is the credential, and a stale token forwarded
   by the front must not turn the claim page into a 401.
@@ -172,8 +176,12 @@ rules.
   already work edition by edition. For each selected player's user (several players of
   one person make one line, users in name order) it adds one message line,
   `Léa Martin (leamartin) : <link>`, and skips with a warning line, naming why, a staff
-  user or superuser, a deactivated user, or a user who is not a person. The same action
-  goes on `UserProfileAdmin` for re-issuing links.
+  user or superuser, a deactivated user, or a user who is not a person. Without a usable
+  `PUBLIC_URL` it makes no link and shows one error line, « Aucun lien généré : PUBLIC_URL
+  (l'adresse publique du site) n'est pas configuré. ». A link lets whoever opens it set
+  the person's password, so the action needs `auth.change_user` (`has_claim_permission`),
+  whatever the organiser's rights on players or profiles. The same action goes on
+  `UserProfileAdmin` for re-issuing links.
 
 ### 5. Player endpoints
 
@@ -339,7 +347,8 @@ visitor.
    Additive, so an older front ignores them.
 3. **Front:** `/me/`, the claim page, `Avatar`, `PhotoEditor` and `Showcase`.
 4. **Prod:**
-   - `PUBLIC_URL` in `prod.env`;
+   - `PUBLIC_URL` in the `prod.env` of both prod and stage (each its own public
+     address); without it the site runs, but the admin makes no claim link;
    - rebuild the server image (Pillow);
    - optionally, `location /media/avatars/ { expires max; }` in the host nginx, since the
      names are immutable;

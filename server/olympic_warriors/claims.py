@@ -11,7 +11,9 @@ The rules:
 - a link is <PUBLIC_URL>/claim/<uidb64>/<token>, the token from Django's
   default_token_generator: a hash of the password hash, last_login, email and a timestamp,
   so nothing is stored, a link expires after PASSWORD_RESET_TIMEOUT (a week), and every
-  link of a person dies once any of them sets the password;
+  link of a person dies once any of them sets the password. PUBLIC_URL is optional, so a
+  deploy never fails on it, but no link is made without an absolute http(s) address:
+  a relative one would reach nobody;
 - a link that fails for any reason (unreadable, nobody, not claimable, bad or expired
   token) fails the same way, so the endpoint tells nobody who exists;
 - completing a claim re-checks the link under the user's row lock, so two uses of one link
@@ -21,10 +23,13 @@ The rules:
   stamps UserProfile.claimed_at.
 """
 
+from urllib.parse import urlsplit
+
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.tokens import default_token_generator
+from django.core.exceptions import ImproperlyConfigured
 from django.db import transaction
 from django.utils import timezone
 from django.utils.encoding import force_bytes
@@ -38,6 +43,15 @@ from .models import Player, UserProfile
 STAFF = "staff"
 INACTIVE = "inactive"
 NOT_A_PERSON = "not_a_person"
+
+
+class Unclaimable(ValueError):
+    """No claim link for this user; `reason` is STAFF, INACTIVE or NOT_A_PERSON."""
+
+    def __init__(self, reason):
+        super().__init__(reason)
+        self.reason = reason
+
 
 # auth_user.id is a 32-bit serial: a larger number names nobody, so it never reaches a query.
 MAX_USER_ID = 2**31 - 1
@@ -60,14 +74,26 @@ def is_claimable(user):
     return unclaimable_reason(user) is None
 
 
+def public_url():
+    """PUBLIC_URL without its trailing slash, or ImproperlyConfigured unless it is an
+    absolute http(s) address: empty or relative, a link would lead nowhere."""
+    base = settings.PUBLIC_URL.strip().rstrip("/")
+    parsed = urlsplit(base)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise ImproperlyConfigured("PUBLIC_URL must be the site's absolute http(s) address")
+    return base
+
+
 def claim_link(user):
-    """The front's claim page for `user`, or ValueError(reason) when unclaimable."""
+    """The front's claim page for `user`. Raises ImproperlyConfigured without a usable
+    PUBLIC_URL, then Unclaimable when no link is for this user."""
+    base = public_url()
     reason = unclaimable_reason(user)
     if reason is not None:
-        raise ValueError(reason)
+        raise Unclaimable(reason)
     uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
     token = default_token_generator.make_token(user)
-    return f"{settings.PUBLIC_URL.rstrip('/')}/claim/{uidb64}/{token}"
+    return f"{base}/claim/{uidb64}/{token}"
 
 
 def _user(uidb64):

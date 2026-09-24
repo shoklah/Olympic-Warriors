@@ -13,21 +13,30 @@ per-IP bucket as /auth/token/ and the admin login.
 import datetime
 import os
 import re
+import threading
 from unittest import mock
 
 from django.conf import settings
-from django.contrib.auth.models import User
+from django.contrib.auth.models import Permission, User
 from django.contrib.auth.tokens import PasswordResetTokenGenerator, default_token_generator
 from django.core.cache import cache
-from django.test import TestCase, override_settings
+from django.core.exceptions import ImproperlyConfigured
+from django.db import connections
+from django.test import TestCase, TransactionTestCase, override_settings
 from django.utils import timezone
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
-from pydantic import ValidationError as ConfigError
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient, APITestCase
 
-from olympic_warriors.claims import check_claim, claim_link, complete_claim, is_claimable
+from olympic_warriors import claims
+from olympic_warriors.claims import (
+    Unclaimable,
+    check_claim,
+    claim_link,
+    complete_claim,
+    is_claimable,
+)
 from olympic_warriors.config import DevConfig, ProdConfig
 from olympic_warriors.models import Edition, Player, Team, UserProfile
 from olympic_warriors.throttling import LoginRateThrottle
@@ -128,17 +137,26 @@ class TestClaimable(ClaimSetup, TestCase):
             (self.stranger, "not_a_person"),
         ):
             with self.subTest(user=user.username):
-                with self.assertRaisesMessage(ValueError, reason):
+                with self.assertRaises(Unclaimable) as raised:
                     claim_link(user)
+                self.assertEqual(raised.exception.reason, reason)
+                self.assertIsInstance(raised.exception, ValueError)
+
+    def test_no_link_without_a_usable_public_url(self):
+        for base in ("", "   ", "ow.example", "/claim", "ftp://ow.example", "https://"):
+            with self.subTest(base=base), override_settings(PUBLIC_URL=base):
+                with self.assertRaises(ImproperlyConfigured):
+                    claim_link(self.lea)
 
     def test_the_links_last_a_week(self):
         self.assertEqual(settings.PASSWORD_RESET_TIMEOUT, 7 * 24 * 3600)
 
 
 class TestConfig(TestCase):
-    """PUBLIC_URL, the base of every link: a default in dev, required in production."""
+    """PUBLIC_URL, the base of every link: the Vite dev server in dev, empty (links refused,
+    the rest of the site unaffected) in production until it is set."""
 
-    # The DB_* values are required by every config; PUBLIC_URL only by production's.
+    # The values every config requires.
     BASE = {
         "SECRET_KEY": "k", "DEBUG": False, "DB_HOST": "h", "DB_NAME": "n", "DB_USER": "u",
         "DB_PASS": "p", "DB_PORT": 5432,
@@ -153,9 +171,8 @@ class TestConfig(TestCase):
     def test_dev_defaults_to_the_local_front(self):
         self.assertEqual(DevConfig(_env_file=None, **self.BASE).PUBLIC_URL, "http://localhost:5173")
 
-    def test_prod_requires_it(self):
-        with self.assertRaisesRegex(ConfigError, "PUBLIC_URL"):
-            ProdConfig(_env_file=None, **self.BASE)
+    def test_prod_defaults_to_empty_so_a_deploy_never_fails_on_it(self):
+        self.assertEqual(ProdConfig(_env_file=None, **self.BASE).PUBLIC_URL, "")
         config = ProdConfig(_env_file=None, PUBLIC_URL="https://ow.example", **self.BASE)
         self.assertEqual(config.PUBLIC_URL, "https://ow.example")
 
@@ -377,6 +394,71 @@ class TestCompleteClaim(ClaimSetup, TestCase):
         self.assertFalse(UserProfile.objects.filter(user=self.lea).exists())
 
 
+@override_settings(PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"])
+class TestCompleteClaimRace(TransactionTestCase):
+    """
+    One link used twice at the same moment: the user's row lock lets one use set the
+    password, and the other, reading the row only once the first has committed, finds the
+    link dead. Real transactions, one connection per thread, which the single wrapping
+    transaction of a TestCase would not allow.
+    """
+
+    def setUp(self):
+        edition = Edition.objects.create(
+            year=2026, host="Paris", start_date="2026-09-19", end_date="2026-09-20"
+        )
+        self.lea = User.objects.create_user(username="leamartin", first_name="Léa")
+        Player.objects.create(user=self.lea, edition=edition, rating=5)
+
+    def test_one_link_used_twice_at_once_sets_one_password(self):
+        uidb64, token = parts(self.lea)
+        user = check_claim(uidb64, token)
+        # Inside the locked section each use waits for the other, for a moment only. Without
+        # the lock both get there together and both would claim; with it the second is still
+        # blocked on the row when the first stops waiting and commits.
+        inside = threading.Barrier(2)
+        real_is_claimable = claims.is_claimable
+
+        def meet_then_check(candidate):
+            try:
+                inside.wait(timeout=0.5)
+            except threading.BrokenBarrierError:
+                pass
+            return real_is_claimable(candidate)
+
+        outcomes = {}
+
+        def use(password):
+            try:
+                outcomes[password] = complete_claim(user, token, password)
+            except Exception as error:  # pylint: disable=broad-exception-caught
+                outcomes[password] = error
+            finally:
+                connections.close_all()  # this thread's own connection
+
+        with mock.patch.object(claims, "is_claimable", meet_then_check):
+            threads = [
+                threading.Thread(target=use, args=(password,))
+                for password in (GOOD, "another-long-phrase")
+            ]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join(timeout=10)
+
+        self.assertFalse(any(thread.is_alive() for thread in threads))
+        self.assertEqual(len(outcomes), 2)
+        self.assertFalse([o for o in outcomes.values() if isinstance(o, Exception)], outcomes)
+        winners = [password for password, key in outcomes.items() if key is not None]
+        self.assertEqual(len(winners), 1, outcomes)
+        self.assertEqual(
+            list(Token.objects.filter(user=self.lea).values_list("key", flat=True)),
+            [outcomes[winners[0]]],
+        )
+        self.lea.refresh_from_db()
+        self.assertTrue(self.lea.check_password(winners[0]))
+
+
 @PRIVATE_CACHE
 class TestClaimThrottle(ClaimSetup, APITestCase):
     """The POST is a login attempt: the login bucket, per client IP, shared with /auth/token/
@@ -523,3 +605,77 @@ class TestClaimAdminAction(ClaimSetup, TestCase):
         nameless = self.person("nameless", "", "", self.y2026)
         lines = self.act("/admin/olympic_warriors/player/", nameless.player_set.all())
         self.assert_link_line(lines[0], nameless, "nameless")
+
+    def test_without_a_usable_public_url_no_link_is_generated(self):
+        rows = Player.objects.filter(user__in=[self.lea, self.staff])
+        for base in ("", "ow.example", "ftp://ow.example"):
+            with self.subTest(base=base), override_settings(PUBLIC_URL=base):
+                self.assertEqual(
+                    self.act("/admin/olympic_warriors/player/", rows),
+                    [
+                        (
+                            "error",
+                            "Aucun lien généré : PUBLIC_URL (l'adresse publique du site) "
+                            "n'est pas configuré.",
+                        )
+                    ],
+                )
+
+
+@override_settings(
+    PUBLIC_URL="https://ow.example",
+    STATICFILES_STORAGE="django.contrib.staticfiles.storage.StaticFilesStorage",
+)
+class TestClaimActionPermission(ClaimSetup, TestCase):
+    """A claim link lets whoever opens it set the person's password, so only a staff user
+    who may change users (auth.change_user) gets the action, whatever their rights on
+    players and profiles."""
+
+    CHANGELISTS = ("/admin/olympic_warriors/player/", "/admin/olympic_warriors/userprofile/")
+
+    def setUp(self):
+        super().setUp()
+        UserProfile.objects.create(user=self.lea)
+        self.orga = User.objects.create_user(username="orga", is_staff=True)
+        self.orga.user_permissions.add(
+            *Permission.objects.filter(
+                content_type__app_label="olympic_warriors",
+                codename__in=[
+                    "view_player", "change_player", "view_userprofile", "change_userprofile",
+                ],
+            )
+        )
+        self.client.force_login(self.orga)
+
+    def actions(self, changelist):
+        response = self.client.get(changelist)
+        self.assertEqual(response.status_code, 200)
+        form = response.context["action_form"]  # None when no action is allowed at all
+        return [] if form is None else [name for name, _ in form.fields["action"].choices]
+
+    def posted_messages(self, changelist, rows):
+        response = self.client.post(
+            changelist,
+            {"action": "generate_claim_links", "_selected_action": [r.pk for r in rows],
+             "index": 0},
+            follow=True,
+        )
+        return [str(message) for message in response.context["messages"]]
+
+    def test_without_change_user_the_action_is_not_offered(self):
+        for changelist in self.CHANGELISTS:
+            with self.subTest(changelist=changelist):
+                self.assertNotIn("generate_claim_links", self.actions(changelist))
+        lines = self.posted_messages(self.CHANGELISTS[0], self.lea.player_set.all())
+        self.assertFalse([line for line in lines if "/claim/" in line], lines)
+
+    def test_with_change_user_it_is(self):
+        self.orga.user_permissions.add(
+            Permission.objects.get(content_type__app_label="auth", codename="change_user")
+        )
+        for changelist in self.CHANGELISTS:
+            with self.subTest(changelist=changelist):
+                self.assertIn("generate_claim_links", self.actions(changelist))
+        lines = self.posted_messages(self.CHANGELISTS[0], self.lea.player_set.all())
+        self.assertEqual(len(lines), 1)
+        self.assertTrue(lines[0].startswith("Léa Martin (leamartin) : https://ow.example/claim/"))

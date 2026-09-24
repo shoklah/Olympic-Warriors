@@ -142,7 +142,8 @@ AUTH_PASSWORD_VALIDATORS = [
 # open it. A link dies sooner once any claim link of the same person is used.
 PASSWORD_RESET_TIMEOUT = 7 * 24 * 3600
 
-# The front's public address, the base of every claim link (config.PUBLIC_URL).
+# The front's public address, the base of every claim link (config.PUBLIC_URL; empty in
+# production until set, and then the admin makes no link).
 PUBLIC_URL = settings.PUBLIC_URL
 
 
