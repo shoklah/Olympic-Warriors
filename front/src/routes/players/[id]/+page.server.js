@@ -1,5 +1,6 @@
 import { error, fail } from '@sveltejs/kit';
 import { apiGet, apiSend } from '$lib/api';
+import { isKnownBadge } from '$lib/badge-codes';
 import { api } from '$lib/server/urls';
 import { TOKEN_COOKIE } from '$lib/session';
 
@@ -42,11 +43,6 @@ function photoError(err) {
 
 /** A showcase holds this many badges at most, as `PUT /me/showcase/` checks. */
 const SHOWCASE_SIZE = 3;
-/**
- * A badge code as `Badge.Codes` writes them, lowercase words and hyphens, within the 32
- * characters of `UserProfile.showcase`'s field. Whether the caller earned it is the API's call.
- */
-const BADGE_CODE = /^[a-z0-9-]{1,32}$/;
 
 /**
  * The dictionary key for a failed showcase call: the API's only 400 is `invalid_showcase` (a
@@ -90,13 +86,14 @@ async function asOwner({ fetch, params }, action, token, keys, send) {
 
 /**
  * The `codes` fields of a showcase form in the order posted, which is the pick order, or
- * null when they cannot be a showcase: more than three, a file, anything but a badge code,
- * or a code twice. None at all is `[]`, back to automatic.
+ * null when they cannot be a showcase: more than three, a file, a code the catalogue does
+ * not know (the collection offers no slot for one), or a code twice. None at all is `[]`,
+ * back to automatic. Whether the caller earned them is the API's call.
  */
 function showcaseCodes(form) {
 	const codes = form.getAll('codes');
 	if (codes.length > SHOWCASE_SIZE) return null;
-	if (!codes.every((code) => typeof code === 'string' && BADGE_CODE.test(code))) return null;
+	if (!codes.every((code) => typeof code === 'string' && isKnownBadge({ code }))) return null;
 	return new Set(codes).size === codes.length ? codes : null;
 }
 

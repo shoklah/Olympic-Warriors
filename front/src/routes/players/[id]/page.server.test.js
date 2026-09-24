@@ -338,6 +338,7 @@ describe('showcase action', () => {
 		['a code twice', ['champion', 'champion']],
 		['an empty code', ['']],
 		['something that is not a badge code', ['../me/photo']],
+		['a code the catalogue does not know', ['future-badge']],
 		['an uppercase code', ['Champion']],
 		['a code longer than the model field', ['a'.repeat(33)]]
 	])('refuses %s before calling any API', async (_, codes) => {

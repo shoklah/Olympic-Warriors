@@ -182,7 +182,8 @@
 		if (!busy) stopSelecting();
 	}
 
-	/** Pick or unpick an earned slot; taking one back renumbers the ones after it. */
+	/** Pick or unpick an earned slot; taking one back renumbers the ones after it. A change
+	    clears the alert of a failed save: it was about the picks as they were. */
 	function toggle(slot) {
 		if (busy || !slot.earned) return;
 		if (picks.includes(slot.code)) {
@@ -194,6 +195,50 @@
 			return;
 		}
 		refused = 0;
+		error = null;
+	}
+
+	/**
+	 * A slot's click: its sheet, or in the selection mode a toggle. A pointer pick (`detail`
+	 * counts the clicks; Enter or Space gives 0) also dismisses the slot's tooltip, as closing
+	 * the sheet does: its rule has been read, and it would hide the slots around it while the
+	 * pointer stays. A keyboard pick keeps it, as focus does.
+	 */
+	function onSlotClick(slot, event) {
+		if (!selecting) {
+			openSheet(slot, event);
+			return;
+		}
+		toggle(slot);
+		if (event.detail > 0) dismissedCode = slot.code;
+	}
+
+	/**
+	 * use:action on the bar: while it shows, the page keeps its height (plus its offset from
+	 * the bottom and the focus ring's margin) as scroll-padding-bottom, so a slot Tab
+	 * reaches is scrolled clear of the bar instead of behind it (WCAG 2.4.11). Measured, not
+	 * guessed: the bar grows with the alert line and wraps on a phone. Removed with the bar.
+	 */
+	function reserveRoom(bar) {
+		const root = document.documentElement;
+		const previous = root.style.scrollPaddingBottom;
+		const measure = () => {
+			const offset = parseFloat(getComputedStyle(bar).bottom) || 0;
+			root.style.scrollPaddingBottom = `${Math.ceil(bar.offsetHeight + offset + 8)}px`;
+		};
+		measure();
+		// jsdom and older engines have no ResizeObserver: the first measure stands then.
+		const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null;
+		observer?.observe(bar);
+		// Crossing 1000px moves the bar above or below the tab bar without resizing it.
+		window.addEventListener('resize', measure);
+		return {
+			destroy() {
+				observer?.disconnect();
+				window.removeEventListener('resize', measure);
+				root.style.scrollPaddingBottom = previous;
+			}
+		};
 	}
 
 	/** The key of a fail() from the page's own action, or the generic one. */
@@ -287,7 +332,7 @@
 					class:tooltip-shown={tooltipShown && tooltipCode === slot.code}
 					class:align-left={tooltipCode === slot.code && tooltipAlign === 'left'}
 					class:align-right={tooltipCode === slot.code && tooltipAlign === 'right'}
-					on:click={(event) => (selecting ? toggle(slot) : openSheet(slot, event))}
+					on:click={(event) => onSlotClick(slot, event)}
 					on:mouseenter={(event) => onHoverEnter(slot, event)}
 					on:mouseleave={() => onHoverLeave(slot)}
 					on:focus={(event) => onFocusIn(slot, event)}
@@ -333,7 +378,7 @@
 {#if selecting}
 	<!-- After the slots, so the keyboard reaches it last, and held at the bottom of the screen
 	     while they scroll by, so Save is at hand from the first family to the last. -->
-	<div class="picker" data-testid="showcase-picker">
+	<div class="picker" data-testid="showcase-picker" use:reserveRoom>
 		{#if error}
 			<p class="picker-error" role="alert">{t(error)}</p>
 		{/if}
@@ -627,7 +672,9 @@
 	/* Above the phones' bottom tab bar, and clear of the screen's edge everywhere. On a phone
 	   the status takes a line of its own and the two buttons share the next, so a longer
 	   status (« 3 badges maximum », « Enregistrement… ») never pushes a button off the row;
-	   from 480px everything sits on one line. */
+	   from 480px everything sits on one line. The shadow paints the page colour 8px around
+	   the sides and down to the tab bar (or the screen's edge), so the slots scrolling under
+	   never show through the gap. */
 	.picker {
 		position: sticky;
 		bottom: 8px;
@@ -641,6 +688,7 @@
 		background: var(--bg-raised);
 		border: 1px solid var(--line-strong);
 		border-radius: var(--radius-lg);
+		box-shadow: 0 8px 0 8px var(--bg);
 	}
 
 	@media (max-width: 999.98px) {

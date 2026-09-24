@@ -530,6 +530,56 @@ describe('BadgeCollection showcase selection (the owner)', () => {
 		await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('The change failed: try again later'));
 	});
 
+	it('reserves room for the bar at the bottom of the page while it shows, so a focused slot scrolls clear of it', async () => {
+		const root = document.documentElement;
+		root.style.scrollPaddingBottom = '';
+		const { unmount } = renderOwner();
+		await fireEvent.click(choose());
+		// jsdom lays nothing out (the bar measures 0), leaving the focus ring's margin.
+		expect(root.style.scrollPaddingBottom).toMatch(/^\d+(\.\d+)?px$/);
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+		expect(root.style.scrollPaddingBottom).toBe('');
+
+		await fireEvent.click(choose());
+		expect(root.style.scrollPaddingBottom).not.toBe('');
+		unmount();
+		expect(root.style.scrollPaddingBottom).toBe('');
+	});
+
+	it("hides a slot's tooltip once a pointer picks it, and keeps it for a keyboard pick", async () => {
+		renderOwner();
+		await fireEvent.click(choose());
+
+		const champion = slot('Champion');
+		await fireEvent.mouseEnter(champion);
+		expect(champion).toHaveClass('tooltip-shown');
+		await fireEvent.click(champion, { detail: 1 });
+		expect(champion).toHaveAttribute('aria-pressed', 'true');
+		expect(champion).not.toHaveClass('tooltip-shown');
+
+		const veteran = slot('Veteran');
+		await fireEvent.mouseLeave(champion);
+		await fireEvent.focus(veteran);
+		expect(veteran).toHaveClass('tooltip-shown');
+		// Enter or Space on a button clicks it with detail 0.
+		await fireEvent.click(veteran, { detail: 0 });
+		expect(veteran).toHaveAttribute('aria-pressed', 'true');
+		expect(veteran).toHaveClass('tooltip-shown');
+	});
+
+	it('clears the alert of a failed save once the picks change', async () => {
+		forms.result = { type: 'failure', status: 400, data: { action: 'showcase', error: 'showcase.error.invalid' } };
+		renderOwner();
+		await fireEvent.click(choose());
+		await fireEvent.click(slot('Veteran'));
+		await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+		await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+
+		await fireEvent.click(slot('Champion'));
+		expect(screen.queryByRole('alert')).toBeNull();
+	});
+
 	it("ends the mode when the page stops being the owner's, or has nothing left to choose", async () => {
 		const { component } = renderOwner();
 		await fireEvent.click(choose());
