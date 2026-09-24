@@ -164,7 +164,7 @@ describe('FAMILIES', () => {
 describe('TIER_THRESHOLDS and nextThreshold', () => {
 	it('lists the six tiered codes with the server thresholds', () => {
 		expect(TIER_THRESHOLDS).toEqual({
-			veteran: [3, 5, 10], 'ever-present': [4, 6, 8], networker: [20, 40, 60],
+			veteran: [3, 5, 10], 'ever-present': [4, 6, 8], networker: [5, 10, 20],
 			specialist: [2, 3, 4], 'all-rounder': [3, 5, 8], 'golden-whistle': [5, 10, 20]
 		});
 		expect(Object.keys(TIER_THRESHOLDS).sort()).toEqual(Object.keys(BADGES).filter(isTiered).sort());

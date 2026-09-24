@@ -172,7 +172,7 @@ export const FAMILIES = [
 export const TIER_THRESHOLDS = {
 	veteran: [3, 5, 10],
 	'ever-present': [4, 6, 8],
-	networker: [20, 40, 60],
+	networker: [5, 10, 20],
 	specialist: [2, 3, 4],
 	'all-rounder': [3, 5, 8],
 	'golden-whistle': [5, 10, 20]

@@ -767,34 +767,35 @@ class TestTeammates(World, TestCase):
         self.assertEqual(comrades_of(uma), [])
         self.assertEqual(comrades_of(vic), [])
 
-    def test_networker_at_twenty_teammates(self):
-        self.meet(2021, self.crowd(2021))
-        self.meet(2022, self.crowd(2022))
+    def test_networker_at_five_teammates(self):
+        self.meet(2021, [self.person(f"Mate{n}") for n in range(3)])
+        self.meet(2022, [self.person(f"Mate2-{n}") for n in range(2)])  # 5th teammate here
 
         self.assertEqual(tiers_of(self.ana, C.NETWORKER), [(2022, 1)])
 
-    def test_networker_tiers_at_forty_and_sixty(self):
-        for year in range(2021, 2027):
-            self.meet(year, self.crowd(year))
+    def test_networker_tiers_at_ten_and_twenty(self):
+        self.meet(2021, [self.person(f"Mate21-{n}") for n in range(5)])
+        self.meet(2022, [self.person(f"Mate22-{n}") for n in range(5)])  # 10th teammate here
+        self.meet(2023, [self.person(f"Mate23-{n}") for n in range(10)])  # 20th teammate here
 
-        self.assertEqual(tiers_of(self.ana, C.NETWORKER), [(2022, 1), (2024, 2), (2026, 3)])
+        self.assertEqual(tiers_of(self.ana, C.NETWORKER), [(2021, 1), (2022, 2), (2023, 3)])
 
     def test_two_networker_tiers_in_one_edition(self):
-        self.meet(2021, [self.person(f"Mate{n}") for n in range(41)])  # 41 teammates
+        self.meet(2021, [self.person(f"Mate{n}") for n in range(11)])  # 11 teammates
 
         self.assertEqual(tiers_of(self.ana, C.NETWORKER), [(2021, 1), (2021, 2)])
 
     def test_networker_when_the_threshold_is_passed_not_reached(self):
-        self.meet(2021, [self.person(f"Mate{n}") for n in range(15)])
-        self.meet(2022, self.crowd(2022))  # 25 teammates: 20 passed, never reached
+        self.meet(2021, [self.person(f"Mate{n}") for n in range(4)])
+        self.meet(2022, [self.person(f"Mate2-{n}") for n in range(3)])  # 7 teammates: 5 passed, never reached
 
         self.assertEqual(tiers_of(self.ana, C.NETWORKER), [(2022, 1)])
 
     def test_meeting_the_same_people_again_adds_nothing(self):
-        mates = self.crowd(2021)
+        mates = [self.person(f"Mate{n}") for n in range(4)]
         self.meet(2021, mates)
         self.meet(2022, mates)
-        self.meet(2023, self.crowd(2023))
+        self.meet(2023, [self.person(f"Mate2-{n}") for n in range(3)])  # 7 teammates: 5 crossed here
 
         self.assertEqual(tiers_of(self.ana, C.NETWORKER), [(2023, 1)])
 

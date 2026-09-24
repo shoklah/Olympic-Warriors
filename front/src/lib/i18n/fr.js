@@ -152,7 +152,7 @@ export default {
 	'badge.comrades.name': "Compagnons d'armes",
 	'badge.comrades.rule': "Partager l'équipe de la même personne trois fois",
 	'badge.networker.name': 'Rassembleur',
-	'badge.networker.rule': 'Jouer avec 20, 40 puis 60 coéquipiers différents',
+	'badge.networker.rule': 'Jouer avec 5, 10 puis 20 coéquipiers différents',
 	'badge.goat.name': 'G.O.A.T',
 	'badge.goat.rule': 'Atteindre la 1re place du classement général',
 	'badge.alone-at-the-top.name': 'Seul au sommet',

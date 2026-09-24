@@ -133,7 +133,7 @@ export default {
 	'badge.comrades.name': 'Comrades in arms',
 	'badge.comrades.rule': 'Share a team with the same person three times',
 	'badge.networker.name': 'Networker',
-	'badge.networker.rule': 'Play alongside 20, 40, then 60 different teammates',
+	'badge.networker.rule': 'Play alongside 5, 10, then 20 different teammates',
 	'badge.goat.name': 'G.O.A.T',
 	'badge.goat.rule': 'Reach 1st place in the all-time ranking',
 	'badge.alone-at-the-top.name': 'Alone at the top',

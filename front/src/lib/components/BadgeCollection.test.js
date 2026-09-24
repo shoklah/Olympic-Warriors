@@ -89,7 +89,7 @@ describe('BadgeCollection', () => {
 
 		const dialog = screen.getByRole('dialog', { name: 'Networker' });
 		expect(within(dialog).getByText('Badge locked')).toBeInTheDocument();
-		expect(dialog).toHaveTextContent('First tier: 20 teammates');
+		expect(dialog).toHaveTextContent('First tier: 5 teammates');
 	});
 
 	it('shows the top-tier line for a badge at tier 3', async () => {

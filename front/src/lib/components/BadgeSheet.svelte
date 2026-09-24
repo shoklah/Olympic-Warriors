@@ -184,12 +184,14 @@
 		margin: 0 0 1rem;
 		font-size: 0.9rem;
 		line-height: 1.4;
+		text-align: center;
 		color: var(--muted);
 	}
 
 	.entries {
 		margin: 0 0 1rem;
 		padding: 0;
+		text-align: center;
 		list-style: none;
 	}
 
@@ -226,12 +228,13 @@
 		display: block;
 		margin-top: 0.15rem;
 		font-size: 0.85rem;
+		text-align: center;
 		color: var(--muted);
 	}
 
 	.actions {
 		display: flex;
-		justify-content: flex-end;
+		justify-content: center;
 	}
 
 	.actions button {

@@ -225,7 +225,7 @@ def _career_of(h, user_id, seats):
 
 VETERAN_TIERS = {3: 1, 5: 2, 10: 3}
 EVER_PRESENT_TIERS = {4: 1, 6: 2, 8: 3}
-NETWORKER_TIERS = ((20, 1), (40, 2), (60, 3))
+NETWORKER_TIERS = ((5, 1), (10, 2), (20, 3))
 
 
 def _loyalty(h):

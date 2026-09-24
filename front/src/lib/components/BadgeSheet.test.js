@@ -95,7 +95,7 @@ describe('BadgeSheet', () => {
 		renderWith(BadgeSheet, { slot: slotFor('networker', []), open: true });
 		const dialog = screen.getByRole('dialog', { name: 'Networker' });
 		expect(dialog).toHaveTextContent('Badge locked');
-		expect(dialog).toHaveTextContent('First tier: 20 teammates');
+		expect(dialog).toHaveTextContent('First tier: 5 teammates');
 	});
 
 	it('shows nothing extra for a locked untiered slot', () => {
