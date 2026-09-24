@@ -467,21 +467,35 @@ def _reveal_context(request):
 
 
 def _games():
-    """The games the summary lists: active, in an active round of an active discipline."""
+    """
+    The games the summary lists: active, in an active round of an active discipline of an
+    active edition (the summary of an inactive one is a 404).
+    """
     return Game.objects.filter(
-        is_active=True, round__is_active=True, discipline__is_active=True
+        is_active=True,
+        round__is_active=True,
+        discipline__is_active=True,
+        discipline__edition__is_active=True,
     ).select_related("discipline")
 
 
 def _rounds():
-    """The rounds the summary lists: active, of an active discipline."""
-    return TeamSportRound.objects.filter(is_active=True, discipline__is_active=True)
+    """The rounds the summary lists: active, of an active discipline of an active edition."""
+    return TeamSportRound.objects.filter(
+        is_active=True, discipline__is_active=True, discipline__edition__is_active=True
+    )
 
 
 def _results():
-    """The results the summary lists: active, of an active discipline and an active team."""
+    """
+    The results the summary lists: active, of an active discipline and an active team, in an
+    active edition.
+    """
     return TeamResult.objects.filter(
-        is_active=True, discipline__is_active=True, team__is_active=True
+        is_active=True,
+        discipline__is_active=True,
+        team__is_active=True,
+        discipline__edition__is_active=True,
     ).select_related("team", "discipline__edition")
 
 

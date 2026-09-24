@@ -6,20 +6,26 @@ logged-in user, such as a player, when it is in PLAYER (with IsAuthenticated). T
 every route of urls.py, so a new view is closed to players and visitors until it is added to
 one of the two lists, and a view opened without being listed fails here too.
 
-Each route is called with every method its view handles, with an id for each converter and
-no body. The database holds nothing but the callers, so a view that let a request through
-could only answer 200, 400 or 404, never write: only 401 and 403 matter. OPTIONS is left
-out: DRF runs the same permission check before it as before the view's own methods, and
-drf-spectacular's HTML viewers cannot render it at all (a 500 whoever calls). The admin is
-left out too: it is Django's own site, behind its own staff login.
+The walk enters every include() but the admin's (Django's own site, behind its own staff
+login) and calls each route with every method its view handles, OPTIONS included, with a
+sample value for each converter and no body. Each sample URL must resolve to its route's own
+view, so a shadowed route cannot pass on Django's 404. A view that lets a call through may
+answer 400 or 404, never 401, 403 or a 500. No call changes anything: the database holds
+only the two users and their tokens, so no id matches a row, and neither user is a person
+(no Player row), so a view acting on the caller's own records has none to act on.
+
+The Swagger page is called without OPTIONS: drf-spectacular renders the OPTIONS metadata
+through its HTML template, whose {% include template_name_js %} then has no name to include
+(TemplateDoesNotExist, a 500 whoever calls).
 """
 
 import re
 
+from django.contrib import admin
 from django.contrib.auth.models import User
 from django.core.cache import cache
 from django.test import override_settings
-from django.urls import URLPattern
+from django.urls import URLResolver, include, path, resolve
 from django.urls.converters import IntConverter, StringConverter
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient, APITestCase
@@ -70,27 +76,34 @@ PLAYER = {
     "results/edition/<int:edition_id>/",
 }
 
+# Routes called with their own methods but not OPTIONS (see the module docstring).
+NO_OPTIONS = {"api/schema/swagger/"}
+
 # A value for each converter type the routes use; a new type fails the walk until it has one.
 SAMPLES = {IntConverter: "1", StringConverter: "x"}
 
 REFUSED = (401, 403)
 
 
-def sample_url(pattern):
+def sample_url(route, converters):
     """The route as a path, each converter replaced by a sample value of its type."""
-    converters = pattern.pattern.converters
     return "/" + re.sub(
-        r"<(?:\w+:)?(\w+)>",
-        lambda match: SAMPLES[type(converters[match.group(1)])],
-        str(pattern.pattern),
+        r"<(?:\w+:)?(\w+)>", lambda match: SAMPLES[type(converters[match.group(1)])], route
     )
 
 
-def routes():
-    """(route, url, methods, view) for every route of urls.py but the admin (a resolver)."""
+def routes(patterns=None, prefix="", converters=None):
+    """
+    (route, url, methods, view) for every view `patterns` routes (urls.py by default), through
+    every include() but the admin's, the route and its converters carrying the include's.
+    """
     found = []
-    for pattern in urls.urlpatterns:
-        if not isinstance(pattern, URLPattern):
+    for pattern in urls.urlpatterns if patterns is None else patterns:
+        route = prefix + str(pattern.pattern)
+        known = {**(converters or {}), **pattern.pattern.converters}
+        if isinstance(pattern, URLResolver):
+            if pattern.app_name != "admin":  # every AdminSite's urls carry this app name
+                found.extend(routes(pattern.url_patterns, route, known))
             continue
         if pattern.callback.__module__ == "django.views.static":
             continue  # the media files, served by Django in dev only (no permission layer)
@@ -98,9 +111,9 @@ def routes():
         methods = sorted(
             method
             for method in getattr(view_class, "http_method_names", [])
-            if method != "options" and hasattr(view_class, method)
+            if hasattr(view_class, method) and not (method == "options" and route in NO_OPTIONS)
         )
-        found.append((str(pattern.pattern), sample_url(pattern), methods, pattern.callback))
+        found.append((route, sample_url(route, known), methods, pattern.callback))
     return found
 
 
@@ -145,31 +158,53 @@ class TestPermissions(APITestCase):
     def status(client, method, url):
         return getattr(client, method)(url).status_code
 
+    def assert_answers(self, client, method, url):
+        """Let through, and answered: neither refused nor a server error."""
+        status = self.status(client, method, url)
+        self.assertNotIn(status, REFUSED)
+        self.assertLess(status, 500)
+
     def test_the_walk_finds_every_route(self):
-        found = {route: (methods, view) for route, _, methods, view in routes()}
+        found = {route: (url, methods, view) for route, url, methods, view in routes()}
         self.assertGreater(len(found), 60)
         self.assertIn("auth/token/", found)
         self.assertIn("api/schema/", found)
-        for route, (methods, view) in found.items():
+        for route, (url, methods, view) in found.items():
             with self.subTest(route=route):
                 self.assertTrue(hasattr(view, "cls"), "not a DRF view: no permission check")
-                self.assertTrue(methods, "no method to call")
+                self.assertIs(resolve(url).func, view, f"{url} reaches another view")
+                self.assertEqual("options" in methods, route not in NO_OPTIONS)
+                self.assertGreater(len(methods), 0 if route in NO_OPTIONS else 1)
+
+    def test_the_walk_enters_every_include_but_the_admin(self):
+        view = next(view for route, _, _, view in routes() if route == "users/")
+        found = routes(
+            [
+                path("admin/", admin.site.urls),
+                path("extra/<int:edition_id>/", include([path("more/<str:code>/", view)])),
+            ]
+        )
+        self.assertEqual(
+            [(route, url, methods) for route, url, methods, _ in found],
+            [("extra/<int:edition_id>/more/<str:code>/", "/extra/1/more/x/", ["get", "options"])],
+        )
 
     def test_the_lists_name_routes(self):
         found = {route for route, _, _, _ in routes()}
         self.assertEqual(PUBLIC - found, set(), "PUBLIC lists a route urls.py does not have")
         self.assertEqual(PLAYER - found, set(), "PLAYER lists a route urls.py does not have")
+        self.assertEqual(NO_OPTIONS - found, set(), "NO_OPTIONS lists a route urls.py lacks")
         self.assertEqual(PUBLIC & PLAYER, set())
 
     def test_public_routes_answer_without_a_token(self):
         for route, method, url in self.calls(lambda route: route in PUBLIC):
             with self.subTest(route=route, method=method):
-                self.assertNotIn(self.status(self.anonymous, method, url), REFUSED)
+                self.assert_answers(self.anonymous, method, url)
 
     def test_player_routes_answer_a_player_token(self):
         for route, method, url in self.calls(lambda route: route in PLAYER):
             with self.subTest(route=route, method=method):
-                self.assertNotIn(self.status(self.player, method, url), REFUSED)
+                self.assert_answers(self.player, method, url)
 
     def test_player_routes_refuse_an_anonymous_call(self):
         for route, method, url in self.calls(lambda route: route in PLAYER):
@@ -189,4 +224,4 @@ class TestPermissions(APITestCase):
     def test_staff_reach_every_route(self):
         for route, method, url in self.calls(lambda route: True):
             with self.subTest(route=route, method=method):
-                self.assertNotIn(self.status(self.staff, method, url), REFUSED)
+                self.assert_answers(self.staff, method, url)

@@ -201,7 +201,7 @@ The API has about 70 function views in `views.py`, wired in one hand-written lis
 
 `POST /auth/token/` with `{"username": ..., "password": ...}` returns `{"token": ...}`. Send the token on later requests as `Authorization: Token <token>`. Every user gets a token automatically when they are created. Run `create_tokens_for_users` to backfill tokens for users created before that.
 
-Every endpoint is for staff users only unless it is listed as public below: it returns 401 without a token and 403 for a non-staff user. The one exception is the game, round and result reads (`/game/<id>/`, `/games/...`, `/round/<id>/`, `/rounds/...`, `/result/<id>/`, `/results/...`), which any token may call, a player's included: they apply the summary's reveal rule, so they carry nothing the public summary does not.
+Every endpoint is for staff users only unless it is listed as public below: it returns 401 without a token and 403 for a non-staff user. The one exception is the game, round and result reads (`/game/<id>/`, `/games/...`, `/round/<id>/`, `/rounds/...`, `/result/<id>/`, `/results/...`), which any token may call, a player's included: they apply the summary's reveal rule and leave out what the summary leaves out (inactive rows, and every row of an inactive edition), so they carry nothing the public summary does not.
 
 ### Public endpoints
 
@@ -211,8 +211,10 @@ Every endpoint is for staff users only unless it is listed as public below: it r
 | `GET /edition/<id>/` | One edition |
 | `GET /edition/year/<year>/summary/` | The whole edition in one payload (see below) |
 | `GET /disciplines/`, `/discipline/<id>/`, `/disciplines/<edition_id>/` | Disciplines |
+| `GET /profiles/` | The all-time leaderboard: one row per person, ranked like a medal table |
+| `GET /profile/<user_id>/` | One person's profile, with their editions, disciplines and badges (404 for someone who never played) |
 
-`/auth/token/`, the admin login page and `/api/schema/*` need no token either. Of the read endpoints, the front uses only `/editions/` and the summary. It also calls `/user/current/`, `/auth/token/` and the organiser endpoints below.
+`/auth/token/`, the admin login page and `/api/schema/*` need no token either. Of the read endpoints, the front uses only `/editions/`, the summary, `/profiles/` and `/profile/<user_id>/`. It also calls `/user/current/`, `/auth/token/` and the organiser endpoints below.
 
 The summary returns the edition's active rows: `edition`, `disciplines`, `teams` (each with its roster, `ranking` and `total_points`), `results`, `rounds` and `games`. Until a discipline is revealed, its scores are hidden:
 
