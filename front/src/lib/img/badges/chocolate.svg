@@ -1,0 +1,6 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- A medal whose upper right has been bitten off, with a 4. -->
+<path d="M720 200L900 700M1280 200L1100 700" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1000 640A560 560 0 1 0 1560 1200Q1470 1160 1440 1070Q1370 1060 1340 970Q1260 950 1250 870Q1170 850 1150 770Q1060 740 1000 640" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1070 1460V1000L840 1300H1160" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

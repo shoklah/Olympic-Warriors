@@ -1,0 +1,12 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- A goat's head, horns curling out, under a crown. -->
+<path d="M830 420L800 170L910 280L1000 130L1090 280L1200 170L1170 420Z" stroke="white" stroke-width="90" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M790 700C690 440 540 330 370 360C290 380 270 460 320 520M1210 700C1310 440 1460 330 1630 360C1710 380 1730 460 1680 520" stroke="white" stroke-width="150" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M800 830Q560 820 390 990Q620 1030 815 960M1200 830Q1440 820 1610 990Q1380 1030 1185 960" stroke="white" stroke-width="100" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M780 700Q1000 610 1220 700L1150 1330Q1000 1460 850 1330Z" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="900" cy="940" r="55" fill="white"/>
+<circle cx="1100" cy="940" r="55" fill="white"/>
+<circle cx="960" cy="1280" r="30" fill="white"/>
+<circle cx="1040" cy="1280" r="30" fill="white"/>
+<path d="M920 1450L1000 1800L1080 1450" stroke="white" stroke-width="100" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -1,0 +1,13 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- A wing, two of its feathers falling away. -->
+<g transform="translate(0 170)">
+<path d="M380 700C600 420 1100 380 1650 460Q1500 640 1350 640Q1300 800 1120 790Q1060 960 880 930Q800 1080 620 1020Q520 900 380 700Z" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M540 740C800 620 1100 570 1420 560" stroke="white" stroke-width="80" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<g transform="rotate(25 1250 1420)">
+<path d="M1250 1250Q1340 1420 1250 1600Q1160 1420 1250 1250ZM1250 1600V1680" stroke="white" stroke-width="70" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<g transform="rotate(-20 1560 1560)">
+<path d="M1560 1420Q1630 1560 1560 1700Q1490 1560 1560 1420ZM1560 1700V1760" stroke="white" stroke-width="60" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+</svg>

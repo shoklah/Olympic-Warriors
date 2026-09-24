@@ -1,0 +1,10 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- A crown toppling over onto its side, with two motion lines. -->
+<path d="M560 1111L777 587L920 960L1298 751L1305 1182L1700 1120L1355 1570Z" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="1298" cy="751" r="52" fill="white"/>
+<circle cx="777" cy="587" r="44" fill="white"/>
+<circle cx="1700" cy="1120" r="44" fill="white"/>
+<path d="M263 846A1310 1310 0 0 1 540 544" stroke="white" stroke-width="100" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M197 680A1460 1460 0 0 1 487 395" stroke="white" stroke-width="100" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M300 1640H1740" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

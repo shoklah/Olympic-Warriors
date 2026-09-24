@@ -469,10 +469,23 @@ class ProfileEditionSerializer(serializers.Serializer):
 
 
 class PlaceSerializer(serializers.Serializer):
-    """One counted edition of a person: the year and the team's rank that year."""
+    """A year and the team's rank that year: one counted edition on the leaderboard
+    (LeaderboardRowSerializer.places), or one discipline place on a profile
+    (DisciplinePlacesSerializer.places)."""
 
     year = serializers.IntegerField()
     rank = serializers.IntegerField()
+
+
+class DisciplinePlacesSerializer(serializers.Serializer):
+    """A person's places in one discipline across editions, best first (see
+    profiles.DisciplinePlaces), with the discipline's shared position among the
+    person's own disciplines. `name` is the database Discipline.name, untranslated:
+    the front is responsible for mapping it to a display name."""
+
+    name = serializers.CharField()
+    position = serializers.IntegerField()
+    places = PlaceSerializer(many=True)
 
 
 class LeaderboardRowSerializer(serializers.Serializer):
@@ -492,9 +505,29 @@ class LeaderboardRowSerializer(serializers.Serializer):
     position = serializers.IntegerField(allow_null=True)
 
 
+class ProfileBadgePartnerSerializer(serializers.Serializer):
+    """The other person of a comrades badge: names only."""
+
+    id = serializers.IntegerField(help_text="The user id")
+    first_name = serializers.CharField()
+    last_name = serializers.CharField()
+
+
+class ProfileBadgeSerializer(serializers.Serializer):
+    """One badge on a profile: the rows of one (code, discipline, partner), see
+    badges.profile_badges."""
+
+    code = serializers.CharField()
+    tier = serializers.IntegerField(help_text="0 untiered, 1 to 3 (bronze, silver, gold)")
+    years = serializers.ListField(child=serializers.IntegerField(), help_text="Oldest first")
+    discipline = serializers.CharField(allow_null=True)
+    partner = ProfileBadgePartnerSerializer(allow_null=True)
+
+
 class ProfileSerializer(serializers.Serializer):
-    """A person's profile: position, counted editions and average rank, plus every edition,
-    newest first."""
+    """A person's profile: position, counted editions and average rank, every edition
+    newest first, the person's places per discipline, ordered like a medal table, and the
+    badges in catalogue order."""
 
     id = serializers.IntegerField(source="user_id", help_text="The user id, not a Player id")
     first_name = serializers.CharField()
@@ -502,4 +535,11 @@ class ProfileSerializer(serializers.Serializer):
     position = serializers.IntegerField(allow_null=True)
     counted = serializers.IntegerField()
     average_rank = serializers.FloatField(allow_null=True)
+    disciplines = DisciplinePlacesSerializer(many=True)
     editions = ProfileEditionSerializer(source="participations", many=True)
+    # The view passes them as context["badges"] (from badges.profile_badges).
+    badges = serializers.SerializerMethodField()
+
+    @extend_schema_field(ProfileBadgeSerializer(many=True))
+    def get_badges(self, obj):  # pylint: disable=unused-argument
+        return ProfileBadgeSerializer(self.context.get("badges", []), many=True).data

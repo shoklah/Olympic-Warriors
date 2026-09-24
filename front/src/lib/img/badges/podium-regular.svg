@@ -1,0 +1,7 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- A three-step podium under a circular loop arrow. -->
+<path d="M1263 529A280 280 0 1 1 882 371" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1074 281L810 217L954 525Z" fill="white" stroke="white" stroke-width="60" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M240 1740V1360H740V1080H1260V1480H1760V1740Z" stroke="white" stroke-width="125" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M740 1360V1740M1260 1480V1740" stroke="white" stroke-width="100" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

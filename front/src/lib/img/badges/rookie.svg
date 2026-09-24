@@ -1,0 +1,8 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- An olive sprout: a short stem with two leaves, from a ground line. -->
+<path d="M300 1640Q1000 1500 1700 1640" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1000 1570Q1010 1160 990 740" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M990 1040Q851 658 447 701Q586 1082 990 1040Z" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M995 810Q1387 808 1484 428Q1092 430 995 810Z" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M990 740Q960 520 1040 360" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

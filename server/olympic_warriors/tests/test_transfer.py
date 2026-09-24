@@ -23,6 +23,7 @@ from olympic_warriors.models import (
 )
 from olympic_warriors.transfer import (
     FORMAT,
+    NOT_EXPORTED,
     TABLES,
     EditionExists,
     TransferError,
@@ -162,7 +163,7 @@ class ExportEditionTests(TestCase):
             for model in apps.get_app_config("olympic_warriors").get_models()
             if not model._meta.get_parent_list()
         }
-        self.assertEqual(roots, {name for name, _, _ in TABLES} | {"Edition"})
+        self.assertEqual(roots, {name for name, _, _ in TABLES} | {"Edition"} | NOT_EXPORTED)
 
 
 class ImportEditionTests(TestCase):

@@ -1,0 +1,7 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- A lone mountain peak with a pennant on its summit. -->
+<path d="M230 1700L590 1200L730 1340L1080 640L1770 1700Z" stroke="white" stroke-width="130" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M925 950L1000 1030L1090 930L1190 1030L1282 950" stroke="white" stroke-width="100" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1080 640V220" stroke="white" stroke-width="100" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1080 180L1440 320L1080 460Z" fill="white"/>
+</svg>

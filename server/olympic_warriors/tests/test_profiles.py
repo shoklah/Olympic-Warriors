@@ -1,6 +1,7 @@
 """
 Tests for olympic_warriors.profiles: a person's editions, places, averages and leaderboard place,
-computed from the edition standings, and the two public endpoints serving them.
+computed from the edition standings, and the two public endpoints serving them, the profile
+with its badges (badges.profile_badges).
 """
 
 from datetime import date, datetime, timezone
@@ -11,12 +12,16 @@ from django.contrib.auth.models import User
 from django.test import SimpleTestCase, TestCase
 from rest_framework.test import APIClient
 
-from olympic_warriors.models import Edition, Player, Relay, Team, TeamResult
+from olympic_warriors.models import Badge, Darts, Edition, Player, Relay, Team, TeamResult
 from olympic_warriors.profiles import (
+    DisciplinePlace,
+    DisciplinePlaces,
     Participation,
     leaderboard,
     paris_today,
     participations,
+    _discipline_places,
+    _load,
     _place,
     _record,
 )
@@ -200,6 +205,19 @@ class TestParticipations(ProfilesSetup, TestCase):
             participations(TODAY)
 
 
+class TestLoad(ProfilesSetup, TestCase):
+    def test_exposes_the_data_participations_reads(self):
+        loaded = _load(TODAY)
+
+        self.assertEqual(set(loaded.editions), {self.y2024.id, self.y2025.id, self.y2026.id})
+        self.assertEqual(loaded.editions[self.y2024.id].team_count, 4)
+        self.assertEqual(loaded.finished, {self.y2024.id, self.y2025.id})
+        # Standings only for finished editions with a player, and both of those rank.
+        self.assertEqual(set(loaded.standings), {self.y2024.id, self.y2025.id})
+        self.assertEqual(loaded.ranked, {self.y2024.id, self.y2025.id})
+        self.assertEqual(loaded.chosen[(self.ana.id, self.y2025.id)].team_id, self.loups.id)
+
+
 class TestLeaderboard(ProfilesSetup, TestCase):
     def rows(self, today=TODAY):
         return {record.first_name: record for record in leaderboard(today)}
@@ -293,6 +311,62 @@ class TestLeaderboard(ProfilesSetup, TestCase):
             leaderboard(TODAY)
 
 
+class TestDisciplinePlaces(ProfilesSetup, TestCase):
+    """
+    On top of ProfilesSetup's revealed 2025 Relay (Loups 1, Ours 2, Pumas 3): a revealed
+    2024 Relay (Bisons 1, Aigles 2, Cerfs 3, Daims 4), a revealed 2024 Darts (Aigles 1),
+    a hidden 2025 Darts, and a revealed 2026 Darts in the running edition.
+    """
+
+    def setUp(self):
+        super().setUp()
+        relay = Relay.objects.create(edition=self.y2024, reveal_score=True)
+        for team, points in [(self.bisons, 8), (self.aigles, 5), (self.cerfs, 1), (self.daims, 0)]:
+            TeamResult.objects.filter(discipline=relay, team=team).update(points=points)
+        darts = Darts.objects.create(edition=self.y2024, reveal_score=True)
+        for team, points in [(self.aigles, 9), (self.bisons, 4), (self.cerfs, 2), (self.daims, 1)]:
+            TeamResult.objects.filter(discipline=darts, team=team).update(points=points)
+        hidden = Darts.objects.create(edition=self.y2025, reveal_score=False)
+        TeamResult.objects.filter(discipline=hidden, team=self.loups).update(points=9)
+        running = Darts.objects.create(edition=self.y2026, reveal_score=True)
+        TeamResult.objects.filter(discipline=running, team=self.renards).update(points=9)
+
+    def disciplines(self, first_name):
+        record = next(r for r in leaderboard(TODAY) if r.first_name == first_name)
+        return [
+            (d.name, d.position, [(p.year, p.rank) for p in d.places]) for d in record.disciplines
+        ]
+
+    def test_places_aggregate_by_name_best_first_and_order_like_a_medal_table(self):
+        # Ana: Relay 1st in 2025 and 2nd in 2024, Darts 1st in 2024 (the hidden 2025 Darts
+        # and the running 2026 Darts give nothing). Relay has an extra lower place: first.
+        self.assertEqual(
+            self.disciplines("Ana"),
+            [("Relay", 1, [(2025, 1), (2024, 2)]), ("Darts", 2, [(2024, 1)])],
+        )
+
+    def test_bob_places(self):
+        # Bob: Relay 1st in 2024 and 2nd in 2025; Darts 2nd in 2024.
+        self.assertEqual(
+            self.disciplines("Bob"),
+            [("Relay", 1, [(2024, 1), (2025, 2)]), ("Darts", 2, [(2024, 2)])],
+        )
+
+    def test_identical_places_share_a_position_listed_by_name(self):
+        # Dan (Cerfs 2024): Relay 3rd and Darts 3rd: tied, listed by name.
+        self.assertEqual(
+            self.disciplines("Dan"), [("Darts", 1, [(2024, 3)]), ("Relay", 1, [(2024, 3)])]
+        )
+
+    def test_no_counted_participation_means_no_disciplines(self):
+        self.assertEqual(self.disciplines("Eve"), [])  # 2026 is running
+        self.assertEqual(self.disciplines("Fay"), [])  # no team in 2024
+
+    def test_query_budget_is_unchanged(self):
+        with self.assertNumQueries(PROFILES_QUERIES):
+            leaderboard(TODAY)
+
+
 class TestRecordAndPlace(SimpleTestCase):
     """`_record` and `_place` work on plain values, no database needed."""
 
@@ -373,6 +447,56 @@ class TestRecordAndPlace(SimpleTestCase):
         self.assertEqual([record.last_name for record in placed], ["Durand", "Ébert", "Faure"])
 
 
+class TestDisciplinePlacesGrouping(SimpleTestCase):
+    """`_discipline_places` groups and positions a person's places, no database needed."""
+
+    @staticmethod
+    def counted(*discipline_ranks):
+        """A counted Participation (finished, ranked, teams >= 2) carrying these
+        (name, year, rank) discipline places."""
+        disciplines = tuple(
+            DisciplinePlace(name, year, rank) for name, year, rank in discipline_ranks
+        )
+        return Participation(2024, None, None, 1, 10, True, disciplines=disciplines)
+
+    def test_shared_positions_can_land_away_from_first(self):
+        # Fencing alone in 1st, Archery and Chess tied for 2nd, Darts alone with a 4th:
+        # positions 1, 2, 2, 4, not the ordinal 1, 2, 2, 3.
+        part = self.counted(
+            ("Fencing", 2024, 1),
+            ("Archery", 2024, 2),
+            ("Chess", 2024, 2),
+            ("Darts", 2024, 4),
+        )
+
+        self.assertEqual(
+            _discipline_places([part]),
+            (
+                DisciplinePlaces("Fencing", (DisciplinePlace("Fencing", 2024, 1),), 1),
+                DisciplinePlaces("Archery", (DisciplinePlace("Archery", 2024, 2),), 2),
+                DisciplinePlaces("Chess", (DisciplinePlace("Chess", 2024, 2),), 2),
+                DisciplinePlaces("Darts", (DisciplinePlace("Darts", 2024, 4),), 4),
+            ),
+        )
+
+    def test_equal_ranks_in_one_discipline_are_ordered_newest_first(self):
+        older = self.counted(("Relay", 2023, 1))
+        newer = self.counted(("Relay", 2024, 1))
+
+        result = _discipline_places([older, newer])
+
+        self.assertEqual(
+            result,
+            (
+                DisciplinePlaces(
+                    "Relay",
+                    (DisciplinePlace("Relay", 2024, 1), DisciplinePlace("Relay", 2023, 1)),
+                    1,
+                ),
+            ),
+        )
+
+
 class TestProfileEndpoints(ProfilesSetup, TestCase):
     def setUp(self):
         super().setUp()
@@ -403,6 +527,7 @@ class TestProfileEndpoints(ProfilesSetup, TestCase):
             },
         )
         self.assertNotIn("average_beaten", response.data[0])
+        self.assertNotIn("disciplines", response.data[0])  # /profiles/ rows carry no disciplines
         self.assertEqual(response.data[1]["position"], 2)  # Chloé: one 1st place
         self.assertEqual(response.data[1]["average_rank"], 1.0)
         self.assertEqual((response.data[4]["places"], response.data[4]["position"]), ([], None))
@@ -413,7 +538,7 @@ class TestProfileEndpoints(ProfilesSetup, TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
-            {k: v for k, v in response.data.items() if k != "editions"},
+            {k: v for k, v in response.data.items() if k not in ("editions", "disciplines")},
             {
                 "id": self.ana.id,
                 "first_name": "Ana",
@@ -421,9 +546,14 @@ class TestProfileEndpoints(ProfilesSetup, TestCase):
                 "position": 1,
                 "counted": 2,
                 "average_rank": 1.0,
+                "badges": [],
             },
         )
         self.assertNotIn("average_beaten", response.data)
+        self.assertEqual(
+            response.data["disciplines"],
+            [{"name": "Relay", "position": 1, "places": [{"year": 2025, "rank": 1}]}],
+        )
         self.assertEqual(
             response.data["editions"],
             [
@@ -457,6 +587,7 @@ class TestProfileEndpoints(ProfilesSetup, TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIsNone(response.data["position"])
         self.assertIsNone(response.data["average_rank"])
+        self.assertEqual(response.data["disciplines"], [])
         self.assertEqual(
             response.data["editions"],
             [{"year": 2024, "team": None, "rank": None, "teams": 4, "finished": True}],
@@ -477,7 +608,108 @@ class TestProfileEndpoints(ProfilesSetup, TestCase):
             self.assertNotIn(b"email", content)
 
     def test_both_endpoints_run_in_a_fixed_number_of_queries(self):
+        # Badges over two editions, one with a partner: the profile reads them in one query.
+        self.badge(Badge.Codes.CHAMPION, self.y2024)
+        self.badge(Badge.Codes.CHAMPION, self.y2025)
+        self.badge(Badge.Codes.COMRADES, self.y2025, partner=self.chloe)
+
         with self.assertNumQueries(PROFILES_QUERIES):
             self.assertEqual(self.client.get("/profiles/").status_code, 200)
-        with self.assertNumQueries(PROFILES_QUERIES):
+        with self.assertNumQueries(PROFILES_QUERIES + 1):
             self.assertEqual(self.client.get(f"/profile/{self.ana.id}/").status_code, 200)
+
+    # Badges
+
+    def badge(self, code, edition, user=None, **kwargs):
+        """A stored Badge row, Ana's unless `user` is given."""
+        return Badge.objects.create(user=user or self.ana, code=code, edition=edition, **kwargs)
+
+    def badges(self, user=None):
+        """The `badges` of the user's profile, Ana's by default."""
+        response = self.client.get(f"/profile/{(user or self.ana).id}/")
+        self.assertEqual(response.status_code, 200)
+        return response.data["badges"]
+
+    @staticmethod
+    def entry(code, years, tier=0, discipline=None, partner=None):
+        return {
+            "code": code, "tier": tier, "years": years, "discipline": discipline,
+            "partner": partner,
+        }
+
+    def test_a_profile_without_badges_has_an_empty_list(self):
+        self.badge(Badge.Codes.CHAMPION, self.y2024)  # Ana's, not Fay's
+
+        self.assertEqual(self.badges(self.fay), [])
+
+    def test_the_rows_of_one_badge_are_grouped_with_their_years_oldest_first(self):
+        self.badge(Badge.Codes.CHAMPION, self.y2025)
+        self.badge(Badge.Codes.CHAMPION, self.y2024)
+
+        self.assertEqual(self.badges(), [self.entry("champion", [2024, 2025])])
+
+    def test_a_tiered_badge_carries_its_highest_tier(self):
+        self.badge(Badge.Codes.VETERAN, self.y2025, tier=2)
+        self.badge(Badge.Codes.VETERAN, self.y2024, tier=1)
+
+        self.assertEqual(self.badges(), [self.entry("veteran", [2024, 2025], tier=2)])
+
+    def test_a_discipline_badge_is_one_entry_per_discipline_by_name(self):
+        self.badge(Badge.Codes.SPECIALIST, self.y2025, tier=1, discipline="Relay")
+        self.badge(Badge.Codes.SPECIALIST, self.y2024, tier=1, discipline="Darts")
+
+        self.assertEqual(
+            self.badges(),
+            [
+                self.entry("specialist", [2024], tier=1, discipline="Darts"),
+                self.entry("specialist", [2025], tier=1, discipline="Relay"),
+            ],
+        )
+
+    def test_a_comrades_badge_names_the_partner_and_nothing_else(self):
+        self.badge(Badge.Codes.COMRADES, self.y2025, partner=self.chloe)
+
+        response = self.client.get(f"/profile/{self.ana.id}/")
+
+        self.assertEqual(
+            response.data["badges"],
+            [
+                self.entry(
+                    "comrades",
+                    [2025],
+                    partner={"id": self.chloe.id, "first_name": "Chloé", "last_name": "Dupont"},
+                )
+            ],
+        )
+        content = response.content
+        self.assertNotIn(b"username", content)
+        self.assertNotIn(b"email", content)
+        self.assertNotIn(b"login-", content)  # neither Ana's login nor Chloé's
+        self.assertNotIn(b"mail.example", content)
+
+    def test_badges_come_in_catalogue_order_and_keep_private_fields_out(self):
+        self.badge(Badge.Codes.MVP, self.y2025, is_manual=True, note="Try of the day")
+        self.badge(Badge.Codes.GOAT, self.y2025)
+        self.badge(Badge.Codes.WOODEN_SPOON, self.y2024)
+
+        response = self.client.get(f"/profile/{self.ana.id}/")
+
+        self.assertEqual(
+            [badge["code"] for badge in response.data["badges"]],
+            ["wooden-spoon", "goat", "mvp"],
+        )
+        self.assertEqual(response.data["badges"][2], self.entry("mvp", [2025]))
+        self.assertNotIn(b"Try of the day", response.content)
+        self.assertNotIn(b"is_manual", response.content)
+        self.assertNotIn(b"created_at", response.content)
+
+    def test_inactive_rows_and_rows_of_an_inactive_edition_are_left_out(self):
+        y2023 = Edition.objects.create(
+            year=2023, host="Brest", start_date="2023-09-23", end_date="2023-09-24",
+            is_active=False,
+        )
+        self.badge(Badge.Codes.CHAMPION, self.y2024)
+        self.badge(Badge.Codes.CHAMPION, self.y2025, is_active=False)
+        self.badge(Badge.Codes.ROOKIE, y2023)
+
+        self.assertEqual(self.badges(), [self.entry("champion", [2024])])

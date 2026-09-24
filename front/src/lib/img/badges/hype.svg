@@ -1,0 +1,9 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- A megaphone with three sound arcs. -->
+<g transform="rotate(-12 1000 1000)">
+<path d="M260 860H420V1140H260Z" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M420 860L1080 600V1400L420 1140Z" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M640 1230L680 1480H820L800 1290" stroke="white" stroke-width="100" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1305 870A260 260 0 0 1 1305 1130M1461 743A460 460 0 0 1 1461 1257M1607 603A660 660 0 0 1 1607 1397" stroke="white" stroke-width="100" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+</svg>

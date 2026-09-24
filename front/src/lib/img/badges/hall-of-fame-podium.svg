@@ -1,0 +1,5 @@
+<svg width="2000" height="2000" viewBox="0 0 2000 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- A temple with three columns: the top three of the hall of fame. -->
+<path d="M250 720L1000 290L1750 720Z" stroke="white" stroke-width="130" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M320 860H1680M560 980V1480M1000 980V1480M1440 980V1480M320 1600H1680M200 1760H1800" stroke="white" stroke-width="130" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
