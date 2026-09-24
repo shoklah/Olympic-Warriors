@@ -20,10 +20,13 @@ The rules (see the player profiles design spec under docs/superpowers/specs/):
   extra lower place counts in a person's favour; identical places share a position and
   are listed by name; people with nothing counted follow by name, without a position.
   The average rank plays no part in the order.
-- a counted participation also carries its team's discipline places (rank > 0, by
-  discipline name); a person's discipline places aggregate those by name across
+- a participation with a team also carries its team's discipline places: every revealed,
+  scored result (rank > 0, by discipline name), whether or not the participation counts;
+  participations() fills them for finished editions, and profile_record() adds the
+  person's running ones. A person's discipline places aggregate those by name across
   editions, sorted best first, and are ordered and positioned by the same medal-table
-  rule as the leaderboard, with the name as tie-break.
+  rule as the leaderboard, with the name as tie-break. The leaderboard, the average
+  rank and the badges never read them.
 - a discipline's all-time table ranks every person on their team's revealed results in
   it (by discipline name, across editions, running ones included, whether or not the
   participation counts) with the same medal-table rule; identical places share a
@@ -83,8 +86,10 @@ class Participation:
     the edition is over. rank is None without a team, for an inactive team, for a
     hand-ranked team without a final_rank or with one of 0, before the edition ends, or
     for a computed edition where nothing has a rank yet (see the rules in the module
-    docstring above, and "Edition rank" in the design spec). disciplines is filled only
-    when the participation counts, from the team's ranked discipline standings."""
+    docstring above, and "Edition rank" in the design spec). disciplines holds the team's
+    revealed, scored discipline results (_revealed_places), whether or not the
+    participation counts: filled by participations() for a finished edition, and by
+    profile_record() for the person's running ones."""
 
     year: int
     team_id: int | None
@@ -183,6 +188,22 @@ def _load(today):
     return Loaded(editions, chosen, finished, standings, ranked)
 
 
+def _revealed_places(standing, team_id, year):
+    """A team's revealed, scored results in an edition's standings (rank > 0), as
+    DisciplinePlace items in discipline id order: the places a discipline credits to every
+    member of the team, on the profiles and in the all-time tables alike."""
+    return tuple(
+        DisciplinePlace(
+            discipline.discipline_name,
+            year,
+            discipline.standing.ranking,
+            discipline.discipline_id,
+        )
+        for discipline in standing.disciplines_of(team_id)
+        if discipline.standing.ranking > 0
+    )
+
+
 def _participations(loaded):
     """Every person's participations from loaded data, see participations()."""
     by_user = {}
@@ -202,19 +223,11 @@ def _participations(loaded):
             teams=edition.team_count,
             finished=edition_id in loaded.finished,
         )
-        if part.counts:
-            # counts implies a rank, and rank is only set above for a team in a ranked edition.
-            disciplines = tuple(
-                DisciplinePlace(
-                    discipline.discipline_name,
-                    edition.year,
-                    discipline.standing.ranking,
-                    discipline.discipline_id,
-                )
-                for discipline in loaded.standings[edition_id].disciplines_of(team.id)
-                if discipline.standing.ranking > 0
+        if team is not None and edition_id in loaded.standings:
+            part = replace(
+                part,
+                disciplines=_revealed_places(loaded.standings[edition_id], team.id, edition.year),
             )
-            part = replace(part, disciplines=disciplines)
         parts.append(part)
 
     return {
@@ -268,7 +281,7 @@ def _record(user, parts):
         places=tuple(sorted(counted_parts, key=lambda part: (part.rank, -part.year))),
         counted=len(counted_parts),
         average_rank=average_rank,
-        disciplines=_discipline_places(counted_parts),
+        disciplines=_discipline_places(parts),
     )
 
 
@@ -313,15 +326,15 @@ def _positioned(items, key):
         yield position, item
 
 
-def _discipline_places(counted_parts):
+def _discipline_places(parts):
     """
-    A person's discipline places: their counted participations' places grouped by
-    discipline name, each sorted best first (lower rank, then newer year), then the
-    groups ordered and positioned like the leaderboard's medal table (identical medal
-    keys share a position, see _positioned), with the name as tie-break.
+    A person's discipline places: their participations' places grouped by discipline
+    name, each sorted best first (lower rank, then newer year), then the groups ordered
+    and positioned like the leaderboard's medal table (identical medal keys share a
+    position, see _positioned), with the name as tie-break.
     """
     by_name = defaultdict(list)
-    for part in counted_parts:
+    for part in parts:
         for place in part.disciplines:
             by_name[place.name].append(place)
 
@@ -364,6 +377,38 @@ def leaderboard(today=None):
     return _place([_record(user, parts) for user, parts in participations(today).values()])
 
 
+def profile_record(user_id, today=None):
+    """
+    The leaderboard, as leaderboard() returns it, and the record of `user_id` in it (None
+    when the person never played). The record's discipline places also count the
+    revealed results of the person's running editions, as the all-time discipline tables
+    do; its position, places and average rank are the leaderboard's.
+    Queries: leaderboard()'s, plus three per running edition in which the person has a team.
+    """
+    loaded = _load(today or paris_today())
+    people = _participations(loaded)
+    records = _place([_record(user, parts) for user, parts in people.values()])
+    record = next((r for r in records if r.user_id == user_id), None)
+    if record is None:
+        return records, None
+
+    running = {}  # year -> places: one participation per edition, and the year is unique
+    for (person, edition_id), player in loaded.chosen.items():
+        team = _valid_team(player)
+        if person != user_id or edition_id in loaded.finished or team is None:
+            continue
+        edition = loaded.editions[edition_id]
+        running[edition.year] = _revealed_places(compute_standings(edition), team.id, edition.year)
+    if running:
+        _, parts = people[user_id]
+        parts = tuple(
+            replace(part, disciplines=running[part.year]) if part.year in running else part
+            for part in parts
+        )
+        record = replace(record, participations=parts, disciplines=_discipline_places(parts))
+    return records, record
+
+
 @dataclass(frozen=True)
 class DisciplineRow:
     """One person in a discipline's all-time table: their places there, best first, and
@@ -392,8 +437,9 @@ def discipline_table(name):
     it in an active edition, finished or still running, credited to its team's roster
     (each person's one participation per edition, chosen as for the profiles), ordered
     like the leaderboard's medal table on those places, identical places sharing a
-    position and listed by name. Unlike PlayerRecord.disciplines it does not wait for the
-    edition to end, nor ask the edition or the team to be ranked.
+    position and listed by name. It does not wait for the edition to end, nor ask the
+    edition or the team to be ranked: a person's row matches their profile's places in
+    the discipline (profile_record).
     Queries: the active editions holding the discipline, their players, then three per
     such edition with a player.
     """
@@ -418,17 +464,11 @@ def discipline_table(name):
         team = _valid_team(player)
         if team is None:
             continue
-        for discipline in standings[edition_id].disciplines_of(team.id):
-            if discipline.discipline_name == name and discipline.standing.ranking > 0:
+        year = editions[edition_id].year
+        for place in _revealed_places(standings[edition_id], team.id, year):
+            if place.name == name:
                 people[user_id] = player.user
-                places[user_id].append(
-                    DisciplinePlace(
-                        name,
-                        editions[edition_id].year,
-                        discipline.standing.ranking,
-                        discipline.discipline_id,
-                    )
-                )
+                places[user_id].append(place)
 
     rows = sorted(
         (

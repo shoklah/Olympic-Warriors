@@ -29,9 +29,11 @@ Settled with Hugo on 2026-09-24:
 
    Revised the same day. The first version applied the profile's rule (counted
    participations only, so a running edition entered the day after its `end_date`).
-   Hugo chose to show revealed results as they come instead. The profile's « Par épreuve »,
-   the leaderboard and the badges keep the profile's rule, so during an edition the table
-   can show a place that a profile doesn't show yet.
+   Hugo chose to show revealed results as they come instead, and then to have the
+   profile's « Par épreuve » (and so its « Épreuve fétiche ») follow the same rule, so a
+   person's row in a table always matches their profile's row for that discipline. The
+   leaderboard (position, places, average rank) and the badges keep counting finished
+   editions only.
 4. **Every discipline with a revealed result has a table**, including one held once.
 5. **Where: a tab on the edition's discipline page**, `/<year>/disciplines/<id>`, not a
    route of its own. The server resolves the discipline's name from the id, so no slug is
@@ -81,6 +83,21 @@ Settled with Hugo on 2026-09-24:
 
   That is `2 + 3 × editions holding the discipline with a player` queries, one query
   when the discipline is held nowhere.
+
+### Profile places (revised)
+
+The profile's discipline places follow decision 3 too:
+
+- `Participation.disciplines` holds the team's revealed, scored results
+  (`_revealed_places`, shared with `discipline_table`) for every participation with a
+  valid team, whether or not it counts. `participations()` fills them for finished
+  editions, the only ones whose standings `_load` computes.
+- New `profile_record(user_id, today=None)` returns the leaderboard and the person's record.
+  It adds the places of the person's running editions, computing their standings, and
+  regroups the disciplines. The position, places and average rank stay the leaderboard's.
+  `GET /profile/<id>/` uses it in place of `leaderboard()`, at 3 more queries per running
+  edition in which the person has a team.
+- The leaderboard and the badges never read discipline places, so they are unchanged.
 
 ### API
 
@@ -191,7 +208,10 @@ Server (`test_profiles.py`, or a new `test_discipline_table.py`):
   - carries names only (no username, no email);
   - runs in `DISCIPLINE_TABLE_QUERIES`.
 - `/profile/<id>/`: `disciplines[].latest` points to the newest place's year and
-  discipline id; `PROFILES_QUERIES` still holds.
+  discipline id.
+- `profile_record`: the places count the running edition's revealed results and a
+  participation that does not count; the position, places and average rank match the
+  leaderboard's; it costs the leaderboard's queries plus 3 per running edition with a team.
 - `test_routes.py` covers the new route by itself.
 
 Front:

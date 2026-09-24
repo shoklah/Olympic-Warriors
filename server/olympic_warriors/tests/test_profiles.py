@@ -23,6 +23,7 @@ from olympic_warriors.profiles import (
     leaderboard,
     paris_today,
     participations,
+    profile_record,
     _discipline_places,
     _load,
     _place,
@@ -340,23 +341,30 @@ class DisciplinesSetup(ProfilesSetup):
 
 
 class TestDisciplinePlaces(DisciplinesSetup, TestCase):
+    """A profile's places per discipline (profile_record): every revealed result of the
+    person's teams, running editions included, whether or not the participation counts."""
+
+    def record(self, first_name):
+        user = User.objects.get(first_name=first_name)
+        return profile_record(user.id, TODAY)[1]
 
     def disciplines(self, first_name):
-        record = next(r for r in leaderboard(TODAY) if r.first_name == first_name)
         return [
-            (d.name, d.position, [(p.year, p.rank) for p in d.places]) for d in record.disciplines
+            (d.name, d.position, [(p.year, p.rank) for p in d.places])
+            for d in self.record(first_name).disciplines
         ]
 
     def test_places_aggregate_by_name_best_first_and_order_like_a_medal_table(self):
-        # Ana: Relay 1st in 2025 and 2nd in 2024, Darts 1st in 2024 (the hidden 2025 Darts
-        # and the running 2026 Darts give nothing). Relay has an extra lower place: first.
+        # Ana: Darts 1st in the running 2026 and in 2024 (the hidden 2025 Darts gives
+        # nothing), Relay 1st in 2025 and 2nd in 2024. Two 1st places beat a 1st and a 2nd.
         self.assertEqual(
             self.disciplines("Ana"),
-            [("Relay", 1, [(2025, 1), (2024, 2)]), ("Darts", 2, [(2024, 1)])],
+            [("Darts", 1, [(2026, 1), (2024, 1)]), ("Relay", 2, [(2025, 1), (2024, 2)])],
         )
 
     def test_bob_places(self):
-        # Bob: Relay 1st in 2024 and 2nd in 2025; Darts 2nd in 2024.
+        # Bob: Relay 1st in 2024 and 2nd in 2025; Darts 2nd in 2024. An extra lower place
+        # puts Relay first.
         self.assertEqual(
             self.disciplines("Bob"),
             [("Relay", 1, [(2024, 1), (2025, 2)]), ("Darts", 2, [(2024, 2)])],
@@ -368,22 +376,68 @@ class TestDisciplinePlaces(DisciplinesSetup, TestCase):
             self.disciplines("Dan"), [("Darts", 1, [(2024, 3)]), ("Relay", 1, [(2024, 3)])]
         )
 
-    def test_no_counted_participation_means_no_disciplines(self):
-        self.assertEqual(self.disciplines("Eve"), [])  # 2026 is running
+    def test_no_revealed_result_of_a_team_means_no_disciplines(self):
+        self.assertEqual(self.disciplines("Eve"), [])  # Sangliers have no 2026 Darts score yet
         self.assertEqual(self.disciplines("Fay"), [])  # no team in 2024
 
+    def test_a_participation_that_does_not_count_still_gives_its_places(self):
+        # Without a final_rank, Aigles have no rank in hand-ranked 2024: Ana's 2024 no
+        # longer counts for the leaderboard, but its revealed results still show.
+        Team.objects.filter(pk=self.aigles.pk).update(final_rank=None)
+
+        ana = self.record("Ana")
+
+        self.assertEqual(ana.counted, 1)
+        self.assertEqual(
+            [(d.name, [(p.year, p.rank) for p in d.places]) for d in ana.disciplines],
+            [("Darts", [(2026, 1), (2024, 1)]), ("Relay", [(2025, 1), (2024, 2)])],
+        )
+
+    def test_running_places_leave_the_leaderboard_figures_alone(self):
+        records, ana = profile_record(self.ana.id, TODAY)
+        on_the_leaderboard = next(r for r in leaderboard(TODAY) if r.user_id == self.ana.id)
+
+        self.assertEqual([r.user_id for r in records], [r.user_id for r in leaderboard(TODAY)])
+        self.assertEqual(
+            (ana.position, ana.places, ana.counted, ana.average_rank),
+            (
+                on_the_leaderboard.position,
+                on_the_leaderboard.places,
+                on_the_leaderboard.counted,
+                on_the_leaderboard.average_rank,
+            ),
+        )
+
+    def test_someone_who_never_played_has_no_record(self):
+        root = User.objects.create_superuser("root", "root@mail.example", "pw")
+
+        records, record = profile_record(root.id, TODAY)
+
+        self.assertIsNone(record)
+        self.assertEqual(len(records), 6)
+
     def test_latest_is_the_newest_place_with_its_discipline_row(self):
-        # Bob's best Relay place is 2024, but the newest is 2025, whose page the profile links to.
-        bob = next(r for r in leaderboard(TODAY) if r.first_name == "Bob")
-        relay, darts = bob.disciplines
+        # Bob's best Relay place is 2024, but the newest is 2025, whose page the profile
+        # links to; Ana's newest Darts place is the running edition's.
+        relay, darts = self.record("Bob").disciplines
+        ana_darts = self.record("Ana").disciplines[0]
 
         self.assertEqual(relay.places[0].year, 2024)
         self.assertEqual((relay.latest.year, relay.latest.discipline_id), (2025, self.relay2025.id))
         self.assertEqual((darts.latest.year, darts.latest.discipline_id), (2024, self.darts2024.id))
+        self.assertEqual(
+            (ana_darts.latest.year, ana_darts.latest.discipline_id), (2026, self.running_darts.id)
+        )
 
-    def test_query_budget_is_unchanged(self):
+    def test_query_budget(self):
+        # The leaderboard's, plus three per running edition the person has a team in:
+        # Ana plays 2026, Bob does not.
         with self.assertNumQueries(PROFILES_QUERIES):
             leaderboard(TODAY)
+        with self.assertNumQueries(PROFILES_QUERIES + 3):
+            profile_record(self.ana.id, TODAY)
+        with self.assertNumQueries(PROFILES_QUERIES):
+            profile_record(self.bob.id, TODAY)
 
 
 class TestRecordAndPlace(SimpleTestCase):
@@ -756,8 +810,12 @@ class TestProfileEndpoints(ProfilesSetup, TestCase):
 
         with self.assertNumQueries(PROFILES_QUERIES):
             self.assertEqual(self.client.get("/profiles/").status_code, 200)
-        with self.assertNumQueries(PROFILES_QUERIES + 2):
+        # Plus three for the standings of the running 2026, where Ana has a team.
+        with self.assertNumQueries(PROFILES_QUERIES + 2 + 3):
             self.assertEqual(self.client.get(f"/profile/{self.ana.id}/").status_code, 200)
+        # Bob plays no running edition.
+        with self.assertNumQueries(PROFILES_QUERIES + 2):
+            self.assertEqual(self.client.get(f"/profile/{self.bob.id}/").status_code, 200)
 
     def test_profile_carries_badge_stats(self):
         self.badge(Badge.Codes.CHAMPION, self.y2024)

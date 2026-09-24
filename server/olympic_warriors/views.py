@@ -41,7 +41,7 @@ from .serializer import (
     DisciplineAllTimeSerializer,
 )
 from .badges import badge_stats, profile_badges
-from .profiles import discipline_table, leaderboard
+from .profiles import discipline_table, leaderboard, profile_record
 from .permissions import IsOrganiser
 from .throttling import LoginRateThrottle
 from .models import (
@@ -240,9 +240,9 @@ def getProfiles(request):
 @permission_classes([AllowAny])
 def getProfile(request, user_id):
     # The same leaderboard as /profiles/, so a profile can never disagree on a position; its
-    # user ids are also the rarity stats' denominator (everyone on /players).
-    records = leaderboard()
-    record = next((r for r in records if r.user_id == user_id), None)
+    # user ids are also the rarity stats' denominator (everyone on /players). The record's
+    # discipline places also count the person's running editions, like the all-time tables.
+    records, record = profile_record(user_id)
     if record is None:
         return Response({"error": "Player not found"}, status=404)
     context = {
