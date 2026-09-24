@@ -225,7 +225,7 @@ def getProfiles(request):
 
 
 @extend_schema(
-    summary="One person's editions, average rank, all-time position and badges, by user id",
+    summary="One person's editions, average rank, discipline places, position and badges",
     responses={
         "200": ProfileSerializer,
         "404": OpenApiResponse(description="Player not found"),

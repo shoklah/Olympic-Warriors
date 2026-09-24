@@ -3,12 +3,12 @@
  * and a 2nd place, average rank 1.5), Hugo and Inès tied 2nd (one 1st place each, average
  * rank 1), Xavier 4th (a 2nd, a 3rd and a 4th place, average rank 3), then two not ranked
  * yet (no average rank). `profile` is /profile/34/: a running edition, two ranked ones and
- * one without a team, and five badges in catalogue order: veteran at tier 1 (his third
- * finished edition, 2026), comrades with Léa (2026), a Relay specialist (won in 2023 and
- * 2026), clean sweep twice (2023, 2026: three disciplines won without the title), and a
- * code the front does not know. The comrades tile is there to exercise the partner link:
- * it takes three shared editions, and Xavier has a team in only two finished ones.
- * `profileUnranked` has nothing counted and no badge.
+ * one without a team, places in three disciplines (Relay 1st, Crossfit 2nd, Darts 3rd),
+ * and five badges in catalogue order: veteran at tier 1, comrades with Léa, a Relay
+ * specialist, clean sweep twice and a code the front does not know. The badges exercise
+ * the tile shapes (tier, partner link, discipline, ×2, unknown code); they are not
+ * derived from the editions and places above. `profileUnranked` has nothing counted, no
+ * discipline places and no badge.
  */
 export const leaderboard = [
 	{ id: 12, first_name: 'Léa', last_name: 'Martin', played: 3, counted: 2, places: [{ year: 2024, rank: 1 }, { year: 2026, rank: 2 }], position: 1, average_rank: 1.5 },
@@ -32,6 +32,11 @@ export const profile = {
 		{ year: 2024, team: null, rank: null, teams: 8, finished: true },
 		{ year: 2023, team: { id: 5, name: 'Bisons' }, rank: 3, teams: 8, finished: true }
 	],
+	disciplines: [
+		{ name: 'Relay', position: 1, places: [{ year: 2026, rank: 1 }, { year: 2023, rank: 2 }] },
+		{ name: 'Crossfit', position: 2, places: [{ year: 2026, rank: 1 }, { year: 2023, rank: 4 }] },
+		{ name: 'Darts', position: 3, places: [{ year: 2026, rank: 3 }] }
+	],
 	badges: [
 		{ code: 'veteran', tier: 1, years: [2026], discipline: null, partner: null },
 		{ code: 'comrades', tier: 0, years: [2026], discipline: null, partner: { id: 12, first_name: 'Léa', last_name: 'Martin' } },
@@ -49,5 +54,6 @@ export const profileUnranked = {
 	counted: 0,
 	average_rank: null,
 	editions: [{ year: 2030, team: { id: 41, name: 'Renards' }, rank: null, teams: 4, finished: false }],
+	disciplines: [],
 	badges: []
 };

@@ -469,10 +469,23 @@ class ProfileEditionSerializer(serializers.Serializer):
 
 
 class PlaceSerializer(serializers.Serializer):
-    """One counted edition of a person: the year and the team's rank that year."""
+    """A year and the team's rank that year: one counted edition on the leaderboard
+    (LeaderboardRowSerializer.places), or one discipline place on a profile
+    (DisciplinePlacesSerializer.places)."""
 
     year = serializers.IntegerField()
     rank = serializers.IntegerField()
+
+
+class DisciplinePlacesSerializer(serializers.Serializer):
+    """A person's places in one discipline across editions, best first (see
+    profiles.DisciplinePlaces), with the discipline's shared position among the
+    person's own disciplines. `name` is the database Discipline.name, untranslated:
+    the front is responsible for mapping it to a display name."""
+
+    name = serializers.CharField()
+    position = serializers.IntegerField()
+    places = PlaceSerializer(many=True)
 
 
 class LeaderboardRowSerializer(serializers.Serializer):
@@ -512,8 +525,9 @@ class ProfileBadgeSerializer(serializers.Serializer):
 
 
 class ProfileSerializer(serializers.Serializer):
-    """A person's profile: position, counted editions and average rank, plus every edition,
-    newest first, and the badges in catalogue order."""
+    """A person's profile: position, counted editions and average rank, every edition
+    newest first, the person's places per discipline, ordered like a medal table, and the
+    badges in catalogue order."""
 
     id = serializers.IntegerField(source="user_id", help_text="The user id, not a Player id")
     first_name = serializers.CharField()
@@ -521,6 +535,7 @@ class ProfileSerializer(serializers.Serializer):
     position = serializers.IntegerField(allow_null=True)
     counted = serializers.IntegerField()
     average_rank = serializers.FloatField(allow_null=True)
+    disciplines = DisciplinePlacesSerializer(many=True)
     editions = ProfileEditionSerializer(source="participations", many=True)
     # The view passes them as context["badges"] (from badges.profile_badges).
     badges = serializers.SerializerMethodField()
