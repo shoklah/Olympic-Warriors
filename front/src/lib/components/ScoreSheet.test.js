@@ -1,4 +1,5 @@
 import { fireEvent, screen } from '@testing-library/svelte';
+import { tick } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderWith } from '$lib/test-utils';
 import ScoreSheet from './ScoreSheet.svelte';
@@ -7,6 +8,7 @@ vi.mock('$app/forms', () => ({ enhance: () => ({ destroy() {} }) }));
 
 afterEach(() => {
 	vi.unstubAllGlobals();
+	document.body.style.overflow = '';
 });
 
 const game = {
@@ -82,6 +84,66 @@ describe('ScoreSheet', () => {
 		renderWith(ScoreSheet, { game, roundNumber: 1, open: true });
 		await new Promise((resolve) => setTimeout(resolve, 0));
 		expect(screen.getByLabelText('Cerfs')).toHaveFocus();
+	});
+
+	// The same keyboard handling as BadgeSheet, through the shared `modal` action. The form's
+	// hidden game input is no Tab stop, so the first minus button is the first one.
+	it('traps Tab focus inside the sheet, wrapping both ways', async () => {
+		renderWith(ScoreSheet, { game, roundNumber: 1, open: true });
+		// Let the opening focus settle first, so it doesn't steal focus back afterwards.
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		const minus1 = screen.getByRole('button', { name: 'One point less for Cerfs' });
+		const save = screen.getByRole('button', { name: 'Save' });
+
+		save.focus();
+		await fireEvent.keyDown(window, { key: 'Tab' });
+		expect(minus1).toHaveFocus();
+
+		await fireEvent.keyDown(window, { key: 'Tab', shiftKey: true });
+		expect(save).toHaveFocus();
+	});
+
+	it('wraps Shift+Tab to Save when the sheet itself has focus, as it does on a phone', async () => {
+		renderWith(ScoreSheet, { game, roundNumber: 1, open: true });
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(screen.getByRole('dialog')).toHaveFocus();
+
+		await fireEvent.keyDown(window, { key: 'Tab', shiftKey: true });
+		expect(screen.getByRole('button', { name: 'Save' })).toHaveFocus();
+	});
+
+	it('pulls focus back inside on Tab when focus has landed outside the sheet', async () => {
+		const outside = document.createElement('button');
+		outside.textContent = 'Outside';
+		document.body.appendChild(outside);
+		renderWith(ScoreSheet, { game, roundNumber: 1, open: true });
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		outside.focus();
+		await fireEvent.keyDown(window, { key: 'Tab' });
+		expect(screen.getByRole('button', { name: 'One point less for Cerfs' })).toHaveFocus();
+
+		outside.remove();
+	});
+
+	it('locks the page scroll while open and restores it when it closes', async () => {
+		document.body.style.overflow = '';
+		const { component } = renderWith(ScoreSheet, { game, roundNumber: 1, open: true });
+		expect(document.body.style.overflow).toBe('hidden');
+
+		component.$set({ open: false });
+		await tick();
+		expect(document.body.style.overflow).toBe('');
+	});
+
+	it('restores the page scroll if the sheet is destroyed while still open', () => {
+		document.body.style.overflow = '';
+		const { unmount } = renderWith(ScoreSheet, { game, roundNumber: 1, open: true });
+		expect(document.body.style.overflow).toBe('hidden');
+
+		unmount();
+		expect(document.body.style.overflow).toBe('');
 	});
 
 	it('renders nothing when closed and shows the error line when given', () => {
