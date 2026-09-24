@@ -295,14 +295,16 @@ def _teammates(h):
 
 def _tables(h):
     """
-    (sequence index, {user id: position}) for every all-time table the hall of fame reads:
-    the /players leaderboard built from the editions up to that index, from the first index
-    at which two editions of the sequence have counted participations (the table after a
-    single edition is only that edition's ranking, which the place badges cover).
+    (sequence index, counted, {user id: position}) for every all-time table the hall of fame
+    reads: the /players leaderboard built from the editions up to that index, from the first
+    index at which two editions of the sequence have counted participations (the table after
+    a single edition is only that edition's ranking, which the place badges cover). counted
+    says whether the edition at that index has counted participations of its own.
     """
     with_counted = 0
     for i in range(len(h.sequence)):
-        if any(i in seats and seats[i].counts for seats in h.seats.values()):
+        counted = any(i in seats and seats[i].counts for seats in h.seats.values())
+        if counted:
             with_counted += 1
         if with_counted < 2:
             continue
@@ -311,7 +313,7 @@ def _tables(h):
             parts = tuple(seats[j] for j in sorted(seats, reverse=True) if j <= i)
             if parts:
                 records.append(_record(h.users[user_id], parts))
-        yield i, {record.user_id: record.position for record in _place(records)}
+        yield i, counted, {record.user_id: record.position for record in _place(records)}
 
 
 FAME = ((C.HALL_OF_FAME_PODIUM, 3), (C.HALL_OF_FAMER, 10))
@@ -319,11 +321,14 @@ FAME = ((C.HALL_OF_FAME_PODIUM, 3), (C.HALL_OF_FAMER, 10))
 
 def _hall_of_fame(h):
     """goat, alone-at-the-top, hall-of-fame-podium and hall-of-famer (once each), reign
-    (once per streak), kingslayer and rocket (at every table earned)."""
+    (once per streak), kingslayer and rocket (at every table earned). A table after an
+    edition where no participation counts (nothing ranked yet) breaks every reign, as an
+    unranked edition breaks a place streak: missing data never counts. It is the previous
+    table unchanged, so it gives none of the other badges anyway."""
     reached = set()
     reign = Counter()
     previous = None
-    for i, positions in _tables(h):
+    for i, counted, positions in _tables(h):
         edition_id = h.sequence[i].id
         leaders = [user_id for user_id, position in positions.items() if position == 1]
         for user_id, position in positions.items():
@@ -336,7 +341,8 @@ def _hall_of_fame(h):
                     reached.add((user_id, code))
                     yield Earned(user_id, code, edition_id)
         for user_id in h.seats:
-            reign[user_id] = reign[user_id] + 1 if positions.get(user_id) == 1 else 0
+            on_top = counted and positions.get(user_id) == 1
+            reign[user_id] = reign[user_id] + 1 if on_top else 0
             if reign[user_id] == 3:
                 yield Earned(user_id, C.REIGN, edition_id)
         if previous is not None:
@@ -390,7 +396,7 @@ GODS = tuple(dict.fromkeys(FAMILIES.values()))  # the nine, in catalogue order
 
 # Mind or physical, for brains-and-brawn: the Athena disciplines and Blindtest are the mind
 # ones. Fair is neither.
-MINDS = {"General Culture Quizz", "Geography Quizz", "Geoguessr", "Burger Quizz", "Blindtest"}
+MINDS = {name for name, god in FAMILIES.items() if god == C.ATHENA} | {"Blindtest"}
 KINDS = {name: MIND if name in MINDS else PHYSICAL for name in FAMILIES if name != "Fair"}
 
 SPECIALIST_TIERS = {2: 1, 3: 2, 4: 3}

@@ -870,6 +870,17 @@ class TestHallOfFame(World, TestCase):
         self.assertEqual(years_of(tenth, C.HALL_OF_FAMER), [2022])
         self.assertEqual(years_of(eleventh, C.HALL_OF_FAMER), [])
 
+    def test_a_shared_position_on_the_cut_off_is_in(self):
+        # Cat and Dan share a team, so the same places: position 3 twice, then Eve 5th.
+        ana, bob, cat, dan, eve = (self.person(n) for n in ("Ana", "Bob", "Cat", "Dan", "Eve"))
+        for user, rank in zip((ana, bob, cat, dan, eve), (1, 2, 3, 3, 4)):
+            self.play(user, [rank, rank])
+
+        self.assertEqual(
+            [years_of(user, C.HALL_OF_FAME_PODIUM) for user in (ana, bob, cat, dan, eve)],
+            [[2022], [2022], [2022], [2022], []],
+        )
+
     def test_reign_after_three_tables_at_the_top(self):
         ana = self.person("Ana")
         self.play(ana, [1, 1, 1, 1, 1])  # tables 2022 to 2025
@@ -892,6 +903,29 @@ class TestHallOfFame(World, TestCase):
         self.assertEqual(years_of(ana, C.REIGN), [2024, 2028])
         self.assertEqual(years_of(bob, C.REIGN), [2024])
 
+    def unranked(self, user, year):
+        """Seat `user` on a team of a new finished edition of `year` where nothing ranks:
+        no final_rank and no discipline, so no participation counts."""
+        edition, teams = self.edition(year, ranked=False)
+        self.seat(user, edition, teams[0])
+
+    def test_an_edition_without_counted_places_breaks_the_reign(self):
+        # Ana tops the 2022, 2023 and 2024 tables, but 2023 and 2024 counted nothing.
+        ana = self.person("Ana")
+        self.play(ana, [1, 1])
+        self.unranked(ana, 2023)
+        self.unranked(ana, 2024)
+
+        self.assertEqual(years_of(ana, C.REIGN), [])
+
+    def test_the_reign_restarts_after_an_edition_without_counted_places(self):
+        # Tables 2022 (1), 2023 (broken), then 2024, 2025 and 2026 at the top again.
+        ana = self.person("Ana")
+        self.unranked(ana, 2023)
+        self.play(ana, [1, 1, None, 1, 1, 1])
+
+        self.assertEqual(years_of(ana, C.REIGN), [2026])
+
     def test_kingslayer_takes_the_top_from_someone_else(self):
         ana, bob = self.person("Ana"), self.person("Bob")
         self.play(ana, [1, 3, 4])  # 2022 table: (1, 3) 1st; 2023: (1, 3, 4) 2nd
@@ -899,6 +933,18 @@ class TestHallOfFame(World, TestCase):
 
         self.assertEqual(years_of(bob, C.KINGSLAYER), [2023])
         self.assertEqual(years_of(ana, C.KINGSLAYER), [])
+
+    def test_kingslayer_and_rocket_at_every_table_earned(self):
+        # Tables: 2022 Ana (1, 3) 1st, Bob (2, 2) 2nd; 2023 Bob (1, 2, 2) takes the top;
+        # 2024 Ana (1, 1, 3, 4) takes it back and keeps it in 2025; 2027 Bob
+        # (1, 1, 1, 2, 2, 4, 4) takes it again; 2028 Ana (1, 1, 1, 1, 3, 4) again.
+        ana, bob = self.person("Ana"), self.person("Bob")
+        self.play(ana, [1, 3, 4, 1, 1, None, None, 1])
+        self.play(bob, [2, 2, 1, 4, 4, 1, 1])
+
+        for code in (C.KINGSLAYER, C.ROCKET):
+            self.assertEqual(years_of(bob, code), [2023, 2027])
+            self.assertEqual(years_of(ana, code), [2024, 2028])
 
     def test_no_kingslayer_at_the_first_table(self):
         # Ana tops the 2021 ranking, Bob the 2022 table, but 2021 alone is not a table.
@@ -908,6 +954,7 @@ class TestHallOfFame(World, TestCase):
 
         self.assertEqual(years_of(bob, C.GOAT), [2022])
         self.assertEqual(years_of(bob, C.KINGSLAYER), [])
+        self.assertEqual(years_of(bob, C.ROCKET), [])
 
     def test_no_kingslayer_for_the_standing_leader(self):
         ana, bob = self.person("Ana"), self.person("Bob")
@@ -1073,6 +1120,12 @@ class TestDisciplines(World, TestCase):
 
         self.assertEqual(specialist_of(ana), [])
 
+    def test_a_discipline_won_twice_in_one_edition_counts_once(self):
+        ana = self.person("Ana")
+        self.win(ana, 2021, Relay, Relay)
+
+        self.assertEqual(specialist_of(ana), [])
+
     def test_all_rounder_at_the_third_discipline_won(self):
         ana = self.person("Ana")
         self.win(ana, 2021, Relay, Darts)
@@ -1088,6 +1141,12 @@ class TestDisciplines(World, TestCase):
         self.win(ana, 2023, Football, Handball, Basketball)  # 8
 
         self.assertEqual(tiers_of(ana, C.ALL_ROUNDER), [(2021, 1), (2022, 2), (2023, 3)])
+
+    def test_two_all_rounder_tiers_in_one_edition(self):
+        ana = self.person("Ana")
+        self.win(ana, 2021, Relay, Darts, Petanque, Frisbee, Dance)
+
+        self.assertEqual(tiers_of(ana, C.ALL_ROUNDER), [(2021, 1), (2021, 2)])
 
     def test_decathlete_at_the_tenth_discipline_on_the_podium(self):
         ana = self.person("Ana")
@@ -1227,6 +1286,25 @@ class TestDisciplines(World, TestCase):
         self.assertEqual(years_of(ana, C.UNCROWNED), [2021])
         self.assertEqual(years_of(cat, C.UNCROWNED), [])
 
+    def test_no_uncrowned_when_another_team_won_more(self):
+        # Wins: A 2, B 3. Totals: A 15, B 26, C 18, D 11: Ana is 3rd, Bob champion.
+        ana, bob, cat, dan = (self.person(n) for n in ("Ana", "Bob", "Cat", "Dan"))
+        self.four(
+            2021,
+            [ana, bob, cat, dan],
+            [
+                (Relay, [40, 30, 20, 10]),
+                (Darts, [40, 30, 20, 10]),
+                (Petanque, [10, 40, 30, 20]),
+                (Frisbee, [10, 40, 30, 20]),
+                (Dance, [10, 40, 30, 20]),
+            ],
+        )
+
+        self.assertEqual(years_of(ana, C.BRONZE), [2021])
+        self.assertEqual(years_of(ana, C.UNCROWNED), [])
+        self.assertEqual(years_of(bob, C.UNCROWNED), [])
+
     def test_one_win_is_not_uncrowned(self):
         # One win each; totals A 10, B 11, C 9: B is champion, A 2nd.
         ana = self.person("Ana")
@@ -1288,6 +1366,24 @@ class TestDisciplines(World, TestCase):
         edition, _ = self.computed(2021, ana, size=3)
         self.results(Relay, edition, [30, 20, 10])
 
+        self.assertEqual(years_of(ana, C.PHOTO_FINISH), [])
+
+    def test_no_photo_finish_on_a_time_discipline(self):
+        # A time result has no points: its rank-2 result never ties it on points. Totals:
+        # A 5, B 3, C 2, so the totals give nothing either.
+        ana = self.person("Ana")
+        edition, _ = self.computed(2021, ana, size=3)
+        self.results(Crossfit, edition, [60, 120, 180])
+
+        self.assertEqual(years_of(ana, C.PHOTO_FINISH), [])
+
+    def test_no_photo_finish_for_a_shared_first_place(self):
+        # Darts 10, 10, 5: A and B tie 1st without a tie-breaker, and on totals (5, 5, 2).
+        ana = self.person("Ana")
+        edition, _ = self.computed(2021, ana, size=3)
+        self.results(Darts, edition, [10, 10, 5])
+
+        self.assertEqual(years_of(ana, C.CHAMPION), [2021])
         self.assertEqual(years_of(ana, C.PHOTO_FINISH), [])
 
     def test_hidden_disciplines_give_nothing(self):
