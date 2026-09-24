@@ -13,7 +13,7 @@
  * `profileUnranked` has nothing counted, no discipline places and no badge.
  * `allTime` is /discipline/10/all-time/ (Relay, 2024 and 2025): Léa and Hugo tied 1st on a
  * 1st and a 2nd place each, Inès 3rd on a single 1st place, Xavier 4th on a 4th place.
- * `allTimeEmpty` is a discipline no finished edition has placed anyone in yet.
+ * `allTimeEmpty` is a discipline without any revealed result yet.
  */
 export const leaderboard = [
 	{ id: 12, first_name: 'Léa', last_name: 'Martin', played: 3, counted: 2, places: [{ year: 2024, rank: 1 }, { year: 2026, rank: 2 }], position: 1, average_rank: 1.5 },

@@ -229,7 +229,7 @@ export default {
 	'discipline.tab.edition': '{year} edition',
 	'discipline.tab.allTime': 'All time',
 	'discipline.allTime.years': { one: '{years} edition', other: '{years} editions' },
-	'discipline.allTime.empty': 'No finished edition for this discipline yet',
+	'discipline.allTime.empty': 'No revealed result for this discipline yet',
 	'game.played': 'played',
 	'game.referee': 'ref: {name}',
 	'team.overall': 'overall',

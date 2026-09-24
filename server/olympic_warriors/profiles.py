@@ -24,9 +24,10 @@ The rules (see the player profiles design spec under docs/superpowers/specs/):
   discipline name); a person's discipline places aggregate those by name across
   editions, sorted best first, and are ordered and positioned by the same medal-table
   rule as the leaderboard, with the name as tie-break.
-- a discipline's all-time table ranks every person with a place in it (by discipline
-  name, across editions) on those places, with the same medal-table rule; identical
-  places share a position and are listed by name.
+- a discipline's all-time table ranks every person on their team's revealed results in
+  it (by discipline name, across editions, running ones included, whether or not the
+  participation counts) with the same medal-table rule; identical places share a
+  position and are listed by name.
 """
 
 import math
@@ -366,13 +367,13 @@ def leaderboard(today=None):
 @dataclass(frozen=True)
 class DisciplineRow:
     """One person in a discipline's all-time table: their places there, best first, and
-    their shared position."""
+    their shared position (None only while the table is being ordered)."""
 
     user_id: int
     first_name: str
     last_name: str
     places: tuple[DisciplinePlace, ...]
-    position: int
+    position: int | None
 
 
 @dataclass(frozen=True)
@@ -385,29 +386,66 @@ class DisciplineTable:
     rows: tuple[DisciplineRow, ...]
 
 
-def discipline_table(name, today=None):
+def discipline_table(name):
     """
-    The all-time table of the discipline called `name`: every person with a place in it
-    (see PlayerRecord.disciplines), ordered like the leaderboard's medal table on those
-    places, identical places sharing a position and listed by name.
-    Same queries as leaderboard().
+    The all-time table of the discipline called `name`: every revealed, scored result of
+    it in an active edition, finished or still running, credited to its team's roster
+    (each person's one participation per edition, chosen as for the profiles), ordered
+    like the leaderboard's medal table on those places, identical places sharing a
+    position and listed by name. Unlike PlayerRecord.disciplines it does not wait for the
+    edition to end, nor ask the edition or the team to be ranked.
+    Queries: the active editions holding the discipline, their players, then three per
+    such edition with a player.
     """
-    entries = []
-    for user, parts in participations(today).values():
-        record = _record(user, parts)
-        entry = next((d for d in record.disciplines if d.name == name), None)
-        if entry is not None:
-            entries.append((record, entry.places))
-    entries.sort(key=lambda entry: (_places_key(entry[1]), *_by_name(entry[0])))
+    editions = {
+        edition.id: edition
+        for edition in Edition.objects.filter(
+            is_active=True, discipline__name=name, discipline__is_active=True
+        ).distinct()
+    }
+    players = (
+        Player.objects.filter(is_active=True, edition_id__in=editions)
+        .select_related("user", "team")
+        .order_by("id")
+    )
+    chosen = _one_row_per_edition(players)
+    standings = {
+        pk: compute_standings(editions[pk]) for pk in sorted({pk for _, pk in chosen})
+    }
+
+    people, places = {}, defaultdict(list)
+    for (user_id, edition_id), player in chosen.items():
+        team = _valid_team(player)
+        if team is None:
+            continue
+        for discipline in standings[edition_id].disciplines_of(team.id):
+            if discipline.discipline_name == name and discipline.standing.ranking > 0:
+                people[user_id] = player.user
+                places[user_id].append(
+                    DisciplinePlace(
+                        name,
+                        editions[edition_id].year,
+                        discipline.standing.ranking,
+                        discipline.discipline_id,
+                    )
+                )
+
+    rows = sorted(
+        (
+            DisciplineRow(
+                user_id=user_id,
+                first_name=user.first_name,
+                last_name=user.last_name,
+                places=tuple(sorted(places[user_id], key=lambda place: (place.rank, -place.year))),
+                position=None,
+            )
+            for user_id, user in people.items()
+        ),
+        key=lambda row: (_places_key(row.places), *_by_name(row)),
+    )
     rows = tuple(
-        DisciplineRow(
-            user_id=record.user_id,
-            first_name=record.first_name,
-            last_name=record.last_name,
-            places=places,
-            position=position,
-        )
-        for position, (record, places) in _positioned(entries, lambda entry: _places_key(entry[1]))
+        replace(row, position=position)
+        for position, row in _positioned(rows, lambda row: _places_key(row.places))
     )
     years = tuple(sorted({place.year for row in rows for place in row.places}))
     return DisciplineTable(name=name, years=years, rows=rows)

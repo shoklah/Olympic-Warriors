@@ -255,10 +255,10 @@ def getProfile(request, user_id):
 @extend_schema(
     summary="A discipline's all-time table of people",
     description=(
-        "Every person with a place in the discipline (matched by name across editions: "
-        "their team's rank there in a finished edition), ordered like the leaderboard's "
-        "medal table on those places; identical places share a position. The same table "
-        "for every edition's discipline of that name."
+        "Every person whose team has a revealed, scored result in the discipline (matched "
+        "by name across active editions, the running one included), ordered like the "
+        "leaderboard's medal table on those places; identical places share a position. "
+        "The same table for every edition's discipline of that name."
     ),
     responses={
         "200": DisciplineAllTimeSerializer,

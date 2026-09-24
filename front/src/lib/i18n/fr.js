@@ -242,7 +242,7 @@ export default {
 	'discipline.tab.edition': 'Édition {year}',
 	'discipline.tab.allTime': 'Palmarès',
 	'discipline.allTime.years': { one: 'Édition {years}', other: 'Éditions {years}' },
-	'discipline.allTime.empty': 'Aucune édition terminée pour cette épreuve',
+	'discipline.allTime.empty': 'Aucun résultat dévoilé pour cette épreuve',
 	'game.played': 'joué',
 	'game.referee': 'arbitre : {name}',
 	'team.overall': 'au général',

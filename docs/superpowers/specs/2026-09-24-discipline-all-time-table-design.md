@@ -21,24 +21,30 @@ Settled with Hugo on 2026-09-24:
    then more 2nd places, and so on; an extra lower place counts in a person's favour;
    identical places share a position. No weighting by the number of teams, no
    average-rank tie-break.
-3. **What counts: the profile's rule.** Only counted participations (finished, ranked,
-   at least 2 teams) and ranked results (revealed, scored). A running edition enters the
-   table the day after its `end_date`, when the profiles and the leaderboard pick it up. The
-   table lists only people with at least one place in the discipline: there is no
-   "not ranked yet" section.
-4. **Every discipline with a counted place has a table**, including one held once.
+3. **What counts: every revealed result.** Any revealed, scored result of the discipline
+   in an active edition, finished or still running, credited to its team's roster. The
+   edition does not have to be over, ranked or to have 2 teams, and the team does not
+   need an edition rank. The table lists only people with at least one place in the
+   discipline: there is no "not ranked yet" section.
+
+   Revised the same day. The first version applied the profile's rule (counted
+   participations only, so a running edition entered the day after its `end_date`).
+   Hugo chose to show revealed results as they come instead. The profile's « Par épreuve »,
+   the leaderboard and the badges keep the profile's rule, so during an edition the table
+   can show a place that a profile doesn't show yet.
+4. **Every discipline with a revealed result has a table**, including one held once.
 5. **Where: a tab on the edition's discipline page**, `/<year>/disciplines/<id>`, not a
    route of its own. The server resolves the discipline's name from the id, so no slug is
    needed.
 6. **Tabs separate the edition from all time**: « Édition 2026 » / « Palmarès ». The
    all-time table is fetched only on its tab, so the edition tab (the busiest page on
    event day) never pays for it.
-7. **The table is the same on every year's page**: every finished edition as of today,
-   not a snapshot up to the page's year.
+7. **The table is the same on every year's page**: every revealed result as of now, not a
+   snapshot up to the page's year.
 8. **A row reads like the profile's « Par épreuve » row**, with the person's name in
    place of the discipline's: position, name, places as a coloured rank and its year.
    No average rank.
-9. **The all-time tab is always shown**, with an empty state when nothing counts yet.
+9. **The all-time tab is always shown**, with an empty state while nothing is revealed.
 10. **The profile's « Par épreuve » rows link to the table**, without showing the
     person's all-time position.
 
@@ -46,12 +52,14 @@ Settled with Hugo on 2026-09-24:
 
 - **Discipline identity across editions.** `Discipline.name`, as for « Par épreuve »,
   the badges and scoring.
-- **Places of a person in a discipline.** The person's `DisciplinePlaces` entry for that
-  name (`PlayerRecord.disciplines`): their counted participations' ranked results in it,
-  best first (lower rank, then newer year).
-- **Table of a discipline.** Every person with a `DisciplinePlaces` entry for its name,
-  sorted by `_places_key(places)` and then by accent-insensitive name (`_by_name`), with
-  shared positions from `_positioned` (1, 1, 3, …).
+- **Places of a person in a discipline.** For each active edition holding the discipline,
+  take the person's one participation there (chosen as for the profiles:
+  `_one_row_per_edition`) and its valid team (`_valid_team`). The team's results in that
+  discipline with `standing.ranking > 0` (revealed, scored, in an active discipline) are
+  the person's places, best first (lower rank, then newer year).
+- **Table of a discipline.** Every person with at least one place in it, sorted by
+  `_places_key(places)` and then by accent-insensitive name (`_by_name`), with shared
+  positions from `_positioned` (1, 1, 3, …).
 - **Years of a table.** The distinct years of its places, oldest first. A year where the
   discipline was held but gave nobody a place (hidden, unscored) is not one of them.
 
@@ -63,12 +71,16 @@ Settled with Hugo on 2026-09-24:
   from the `DisciplineStanding` it is built from (no query).
 - `DisciplinePlaces` gains a `latest` property: its newest place (highest year), which the
   profile's link points to.
-- New `discipline_table(name, today=None)` returns
-  `DisciplineTable(name, years, rows)`, each row a
-  `DisciplineRow(user_id, first_name, last_name, places, position)`. It builds the records
-  as `leaderboard()` does (`_record` over `participations(today)`), keeps each record's
-  entry for `name`, and orders and positions the rows by the definition above. No new
-  query: `participations()` already loads everything.
+- New `discipline_table(name)` returns `DisciplineTable(name, years, rows)`, each row a
+  `DisciplineRow(user_id, first_name, last_name, places, position)`. It does not depend on
+  the date, so it doesn't go through `participations()`: that function computes standings for
+  finished editions only. It loads just what the table needs:
+  - the active editions holding an active discipline of that name;
+  - their active players (`_one_row_per_edition`);
+  - `compute_standings` for each of those editions that has a player.
+
+  That is `2 + 3 × editions holding the discipline with a player` queries, one query
+  when the discipline is held nowhere.
 
 ### API
 
@@ -77,8 +89,8 @@ New public view `getDisciplineAllTime`, route `discipline/<int:discipline_id>/al
 
 - 404 unless the discipline is active and its edition is active (one query for its
   name), then `discipline_table(name)`.
-- Queries: 1 + `PROFILES_QUERIES` (2 + 3 × finished editions with players), pinned as
-  `DISCIPLINE_TABLE_QUERIES`.
+- Queries: 1 + the table's (2 + 3 × editions holding the discipline with a player),
+  pinned as `DISCIPLINE_TABLE_QUERIES`.
 
 ```json
 {
@@ -138,8 +150,8 @@ newest place there. `GET /profiles/` is unchanged.
     followed by its year, small and muted, as in « Par épreuve ». The places are
     `aria-hidden` behind the spoken `spokenPlaces` sentence. Rows are styled like the
     leaderboard's: metal left border for positions 1–3, same hover and focus.
-  - without rows, « Aucune édition terminée pour cette épreuve » / "No finished edition
-    for this discipline yet" (`discipline.allTime.empty`) instead of the subtitle and the
+  - without rows, « Aucun résultat dévoilé pour cette épreuve » / "No revealed result for
+    this discipline yet" (`discipline.allTime.empty`) instead of the subtitle and the
     list.
 - **Year switch.** Unchanged: the header sends a discipline page to the other year's
   discipline list, dropping the tab.
@@ -164,10 +176,14 @@ Server (`test_profiles.py`, or a new `test_discipline_table.py`):
 - `discipline_table`:
   - aggregates places by name across editions, each row's places best first;
   - orders rows by the medal table, ties sharing a position and listed by name;
-  - leaves out a running edition, a hidden or unscored result, an inactive discipline,
-    team or edition, and a person without a place in the discipline;
+  - counts a revealed result of the running edition, and one whose participation does not
+    count (a team without a rank in a hand-ranked edition);
+  - leaves out a hidden or unscored result, an inactive discipline, team or edition, and
+    a person without a place in the discipline;
+  - revealing a result adds it, and hiding it takes it back;
   - `years` holds only the years that give a place, oldest first;
-  - gives an empty table for a discipline without any counted place.
+  - gives an empty table for a discipline without any revealed result;
+  - costs 2 + 3 queries per edition holding the discipline, one when none does.
 - `/discipline/<id>/all-time/`:
   - is public, and ids of the same discipline name in two editions give the same payload;
   - 404 for an unknown id, an inactive discipline, and a discipline of an inactive

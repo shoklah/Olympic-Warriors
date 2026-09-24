@@ -54,10 +54,10 @@ describe('AllTimeTable', () => {
 		expect(screen.getByRole('heading', { level: 2, name: 'All time' })).toHaveClass('visually-hidden');
 	});
 
-	it('says so when no finished edition placed anyone', () => {
+	it('says so when no result is revealed yet', () => {
 		renderWith(AllTimeTable, { table: allTimeEmpty });
 
-		expect(screen.getByText('No finished edition for this discipline yet')).toBeInTheDocument();
+		expect(screen.getByText('No revealed result for this discipline yet')).toBeInTheDocument();
 		expect(screen.queryAllByTestId('all-time-row')).toHaveLength(0);
 		expect(screen.queryByText(/edition$/)).toBeNull();
 	});
@@ -74,6 +74,6 @@ describe('AllTimeTable', () => {
 	it('words the empty state in French under fr', () => {
 		renderWith(AllTimeTable, { table: allTimeEmpty }, 'fr');
 
-		expect(screen.getByText('Aucune édition terminée pour cette épreuve')).toBeInTheDocument();
+		expect(screen.getByText('Aucun résultat dévoilé pour cette épreuve')).toBeInTheDocument();
 	});
 });

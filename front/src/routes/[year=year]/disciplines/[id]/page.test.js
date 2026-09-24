@@ -181,10 +181,10 @@ describe('discipline page tabs', () => {
 		);
 	});
 
-	it('shows the empty state when no finished edition placed anyone', () => {
+	it('shows the empty state when no result is revealed yet', () => {
 		renderWith(Page, { data: onAllTime(dataFor(summary, 11), allTimeEmpty) });
 
-		expect(screen.getByText('No finished edition for this discipline yet')).toBeInTheDocument();
+		expect(screen.getByText('No revealed result for this discipline yet')).toBeInTheDocument();
 		expect(screen.queryByText('Results not revealed yet')).toBeNull();
 	});
 
