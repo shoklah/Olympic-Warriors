@@ -4,12 +4,15 @@ Admin dashboard configuration for the Olympic Warriors app.
 
 import math
 
-from django.contrib.admin import action, site, ModelAdmin, TabularInline
+from django.contrib.admin import action, display, site, ModelAdmin, SimpleListFilter, TabularInline
 from django.contrib.admin.actions import delete_selected as stock_delete_selected
 from django.contrib.admin.forms import AdminAuthenticationForm
 from django.core.exceptions import ValidationError
 from django.forms import ModelChoiceField, ModelForm
 from django.http import HttpRequest
+from django.utils.html import format_html
+from django.utils.translation import gettext_lazy
+from .avatars import remove_photo
 from .badges import refresh
 from .profiles import PARIS
 from .throttling import LoginRateThrottle
@@ -17,6 +20,7 @@ from .models import (
     MANUAL_CODES,
     Badge,
     BadgeRefresh,
+    UserProfile,
     Player,
     PlayerRating,
     Team,
@@ -611,12 +615,137 @@ class BadgeAdmin(ModelAdmin):
         return super().changelist_view(request, extra_context)
 
 
+class HasPhotoFilter(SimpleListFilter):
+    """Profiles with or without a photo (an empty name is no photo)."""
+
+    title = "has photo"
+    parameter_name = "has_photo"
+
+    def lookups(self, request, model_admin):
+        return [("1", gettext_lazy("Yes")), ("0", gettext_lazy("No"))]
+
+    def queryset(self, request, queryset):
+        if self.value() == "1":
+            return queryset.exclude(photo="")
+        if self.value() == "0":
+            return queryset.filter(photo="")
+        return queryset
+
+
+class ClaimedFilter(SimpleListFilter):
+    """Profiles whose person did or did not set a password through a claim link."""
+
+    title = "claimed"
+    parameter_name = "claimed"
+
+    def lookups(self, request, model_admin):
+        return [("1", gettext_lazy("Yes")), ("0", gettext_lazy("No"))]
+
+    def queryset(self, request, queryset):
+        if self.value() in ("0", "1"):
+            return queryset.filter(claimed_at__isnull=self.value() == "0")
+        return queryset
+
+
+@action(description="Retirer la photo", permissions=["change"])
+def remove_photos(modeladmin, request, queryset):
+    """Take the selection's photos down (a person can upload another unless locked)."""
+    profiles = list(queryset)
+    removed = sum(remove_photo(profile) for profile in profiles)
+    modeladmin.message_user(
+        request,
+        f"Photo(s) retirée(s) : {removed} sur {len(profiles)} profil(s) sélectionné(s).",
+    )
+
+
+@action(description="Retirer et verrouiller", permissions=["change"])
+def remove_and_lock(modeladmin, request, queryset):
+    """Lock the selection out of uploading, then take their photos down."""
+    profiles = list(queryset)
+    removed = 0
+    for profile in profiles:
+        # Locked first, so no upload can land between the removal and the lock.
+        profile.photo_locked = True
+        profile.save(update_fields=["photo_locked", "updated_at"])
+        removed += remove_photo(profile)
+    modeladmin.message_user(
+        request,
+        f"Photo(s) retirée(s) : {removed} ; profil(s) verrouillé(s) : {len(profiles)}.",
+    )
+
+
+class UserProfileAdmin(ModelAdmin):
+    """
+    Photo moderation. Organisers never upload a photo (every face on the site was put there
+    by its owner), so no form here has a file input: the photo shows as a thumbnail linking
+    to the full size, and the pinned showcase is read-only too, since badges are earned.
+    Only the lock is edited, from the list or the change form, and the actions take photos
+    down. Rows are created lazily by the claim and edit flows, never here. The model has no
+    is_active, so the changelist does not go through request_only_active.
+    """
+
+    list_display = ["name", "thumbnail", "photo_locked", "claimed_at", "updated_at"]
+    list_editable = ["photo_locked"]
+    list_filter = ["photo_locked", HasPhotoFilter, ClaimedFilter]
+    list_select_related = ("user",)
+    search_fields = ["user__first_name", "user__last_name", "user__username"]
+    ordering = ["user__last_name", "user__first_name", "user__username"]
+    actions = [remove_photos, remove_and_lock]
+    fields = ["user", "photo_preview", "photo_locked", "pinned", "claimed_at", "updated_at"]
+    readonly_fields = ["user", "photo_preview", "pinned", "claimed_at", "updated_at"]
+
+    @display(description="name", ordering="user__last_name")
+    def name(self, obj):
+        """The person's full name, else the username."""
+        return str(obj)
+
+    @display(description="photo")
+    def thumbnail(self, obj):
+        """The small photo in the list, or the empty value without one."""
+        if not obj.photo_small:
+            return None
+        return format_html(
+            '<img src="{}" alt="" width="40" height="40" style="border-radius: 50%">',
+            obj.photo_small.url,
+        )
+
+    @display(description="photo")
+    def photo_preview(self, obj):
+        """The small photo, linking to the full size."""
+        if not obj.photo:
+            return None
+        return format_html(
+            '<a href="{}"><img src="{}" alt="Photo en taille réelle" width="128" '
+            'height="128"></a>',
+            obj.photo.url,
+            obj.photo_small.url if obj.photo_small else obj.photo.url,
+        )
+
+    @display(description="showcase")
+    def pinned(self, obj):
+        """The pinned badges by name, in the person's order (a code the catalogue lost
+        shows as is)."""
+        labels = dict(Badge.Codes.choices)
+        return ", ".join(labels.get(code, code) for code in obj.showcase) or None
+
+    def has_add_permission(self, request):
+        return False
+
+    def get_actions(self, request):
+        """Only the moderation actions: the stock bulk delete would drop the rows (pins and
+        claim date with them) and leave the files behind, next to « Retirer la photo »."""
+        actions = super().get_actions(request)
+        actions.pop("delete_selected", None)
+        return actions
+
+
 site.login_form = ThrottledAdminAuthenticationForm
 
 site.register(Player, PlayerAdmin)
 site.register(Team, TeamAdmin)
 site.register(Edition, EditionAdmin)
 site.register(Badge, BadgeAdmin)
+site.register(UserProfile, UserProfileAdmin)
 site.register(PlayerRating, PlayerRatingAdmin)
 site.register(Discipline, DisciplineAdmin)
 site.register(TeamResult, TeamResultAdmin)
