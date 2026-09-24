@@ -14,12 +14,23 @@ from rest_framework.test import APIClient
 
 from olympic_warriors import badges as badges_module
 from olympic_warriors.badges import badge_stats
-from olympic_warriors.models import Badge, Darts, Edition, Player, Relay, Team, TeamResult
+from olympic_warriors.models import (
+    Badge,
+    Darts,
+    Discipline,
+    Edition,
+    HideAndSeek,
+    Player,
+    Relay,
+    Team,
+    TeamResult,
+)
 from olympic_warriors.profiles import (
     DisciplinePlace,
     DisciplinePlaces,
     Participation,
     discipline_table,
+    held_disciplines,
     leaderboard,
     paris_today,
     participations,
@@ -1138,3 +1149,89 @@ class TestDisciplineTable(DisciplinesSetup, TestCase):
             self.assertEqual(
                 self.client.get(f"/discipline/{self.relay2024.id}/all-time/").status_code, 200
             )
+
+
+class TestHeldDisciplines(DisciplinesSetup, TestCase):
+    """profiles.held_disciplines and GET /disciplines/all-time/: every discipline name an
+    active edition held, with those editions, the index of the all-time tables."""
+
+    def setUp(self):
+        super().setUp()
+        self.client = APIClient()  # no credentials: the endpoint is public
+
+    @staticmethod
+    def held():
+        """(name, [(year, discipline id), ...]) per held discipline, for compact asserts."""
+        return [
+            (d.name, [(e.year, e.discipline_id) for e in d.editions]) for d in held_disciplines()
+        ]
+
+    def test_every_name_held_by_an_active_edition_in_name_order_editions_oldest_first(self):
+        # The hidden 2025 Darts and the running 2026 Darts are held all the same.
+        self.assertEqual(
+            self.held(),
+            [
+                (
+                    "Darts",
+                    [
+                        (2024, self.darts2024.id),
+                        (2025, self.hidden_darts.id),
+                        (2026, self.running_darts.id),
+                    ],
+                ),
+                ("Relay", [(2024, self.relay2024.id), (2025, self.relay2025.id)]),
+            ],
+        )
+
+    def test_a_discipline_without_any_result_is_held(self):
+        seek = HideAndSeek.objects.create(edition=self.y2026)
+
+        self.assertIn(("Hide and Seek", [(2026, seek.id)]), self.held())
+
+    def test_an_edition_holding_a_name_twice_gives_its_lowest_id(self):
+        Darts.objects.create(edition=self.y2024)
+
+        self.assertEqual(self.held()[0][1][0], (2024, self.darts2024.id))
+
+    def test_inactive_disciplines_and_editions_are_left_out(self):
+        Darts.objects.filter(pk=self.running_darts.pk).update(is_active=False)
+        Edition.objects.filter(pk=self.y2024.pk).update(is_active=False)
+
+        self.assertEqual(
+            self.held(),
+            [
+                ("Darts", [(2025, self.hidden_darts.id)]),
+                ("Relay", [(2025, self.relay2025.id)]),
+            ],
+        )
+
+    def test_a_row_without_a_name_is_left_out(self):
+        Discipline.objects.create(edition=self.y2026, name="")
+
+        self.assertEqual([name for name, _ in self.held()], ["Darts", "Relay"])
+
+    def test_endpoint_is_public_and_serves_the_index_in_one_query(self):
+        with self.assertNumQueries(1):
+            response = self.client.get("/disciplines/all-time/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.data,
+            [
+                {
+                    "name": "Darts",
+                    "editions": [
+                        {"year": 2024, "discipline": self.darts2024.id},
+                        {"year": 2025, "discipline": self.hidden_darts.id},
+                        {"year": 2026, "discipline": self.running_darts.id},
+                    ],
+                },
+                {
+                    "name": "Relay",
+                    "editions": [
+                        {"year": 2024, "discipline": self.relay2024.id},
+                        {"year": 2025, "discipline": self.relay2025.id},
+                    ],
+                },
+            ],
+        )

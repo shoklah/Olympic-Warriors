@@ -32,7 +32,10 @@ The rules (see the player profiles design spec under docs/superpowers/specs/):
 - a discipline's all-time table ranks every person on their team's revealed results in
   it (by discipline name, across editions, running ones included, whether or not the
   participation counts) with the same medal-table rule; identical places share a
-  position and are listed by name.
+  position and are listed by name;
+- the held disciplines are every discipline name an active edition held through an
+  active row, finished or not, each with the editions that held it: the index of the
+  all-time tables on the disciplines page.
 """
 
 import math
@@ -44,7 +47,7 @@ from zoneinfo import ZoneInfo
 
 from django.db.models import Count, Q
 
-from .models import Edition, Player
+from .models import Discipline, Edition, Player
 from .standings import compute_standings
 
 PARIS = ZoneInfo("Europe/Paris")
@@ -509,3 +512,45 @@ def discipline_table(name):
     )
     years = tuple(sorted({place.year for row in rows for place in row.places}))
     return DisciplineTable(name=name, years=years, rows=rows)
+
+
+@dataclass(frozen=True)
+class HeldEdition:
+    """An edition that held a discipline: its year and the lowest id of its active rows of
+    that discipline, whose page holds the discipline's all-time table."""
+
+    year: int
+    discipline_id: int
+
+
+@dataclass(frozen=True)
+class HeldDiscipline:
+    """A discipline name and the active editions that held it, oldest first."""
+
+    name: str
+    editions: tuple[HeldEdition, ...]
+
+
+def held_disciplines():
+    """
+    Every discipline name an active edition held through an active row, finished or not,
+    in accent-insensitive name order, whether or not any result is revealed (its all-time
+    table then shows its empty state). Names match across editions as for discipline_table;
+    a row without a name has no identity across editions and is left out. One query.
+    """
+    by_name = defaultdict(dict)
+    rows = (
+        Discipline.objects.filter(is_active=True, edition__is_active=True)
+        .exclude(name="")
+        .order_by("edition__year", "id")
+        .values_list("name", "edition__year", "id")
+    )
+    for name, year, discipline_id in rows:
+        by_name[name].setdefault(year, discipline_id)  # the lowest id of that year
+    return tuple(
+        HeldDiscipline(
+            name=name,
+            editions=tuple(HeldEdition(year, pk) for year, pk in by_name[name].items()),
+        )
+        for name in sorted(by_name, key=lambda name: (_sort_key(name), name))
+    )

@@ -522,6 +522,22 @@ class DisciplineAllTimeSerializer(serializers.Serializer):
     players = DisciplineAllTimeRowSerializer(source="rows", many=True)
 
 
+class HeldEditionSerializer(serializers.Serializer):
+    """An edition that held a discipline: its year and the Discipline row of that edition,
+    whose page holds the discipline's all-time table."""
+
+    year = serializers.IntegerField()
+    discipline = serializers.IntegerField(source="discipline_id")
+
+
+class HeldDisciplineSerializer(serializers.Serializer):
+    """A discipline held by at least one active edition (a profiles.HeldDiscipline). `name`
+    is the database Discipline.name, untranslated."""
+
+    name = serializers.CharField()
+    editions = HeldEditionSerializer(many=True, help_text="Oldest first")
+
+
 class LeaderboardRowSerializer(serializers.Serializer):
     """
     A person on the all-time leaderboard (a PlayerRecord, see olympic_warriors.profiles):

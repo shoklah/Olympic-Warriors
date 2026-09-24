@@ -39,9 +39,10 @@ from .serializer import (
     LeaderboardRowSerializer,
     ProfileSerializer,
     DisciplineAllTimeSerializer,
+    HeldDisciplineSerializer,
 )
 from .badges import badge_stats, profile_badges
-from .profiles import discipline_table, leaderboard, profile_record
+from .profiles import discipline_table, held_disciplines, leaderboard, profile_record
 from .permissions import IsOrganiser
 from .throttling import LoginRateThrottle
 from .models import (
@@ -277,6 +278,25 @@ def getDisciplineAllTime(request, discipline_id):
     if name is None:
         return Response({"error": "Discipline not found"}, status=404)
     return Response(DisciplineAllTimeSerializer(discipline_table(name)).data)
+
+
+@extend_schema(
+    summary="Every discipline an active edition ever held, with those editions",
+    description=(
+        "One entry per discipline name, in name order: the untranslated name and, oldest "
+        "first, each active edition that held it with the id of its discipline there, whose "
+        "page holds the discipline's all-time table. Finished or running editions alike, "
+        "revealed results or not."
+    ),
+    responses={
+        "200": HeldDisciplineSerializer(many=True),
+        "500": OpenApiResponse(description="Internal server error"),
+    },
+)
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def getHeldDisciplines(request):
+    return Response(HeldDisciplineSerializer(held_disciplines(), many=True).data)
 
 
 # Editions
