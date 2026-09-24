@@ -155,6 +155,59 @@ class TestRefresh(World, TestCase):
         self.assertEqual((report.added, report.removed), (0, 1))
         self.assertEqual(stored(), wanted())
 
+    def test_a_duplicate_keeps_the_revocation(self):
+        refresh(TODAY)
+        first = Badge.objects.get(user=self.ana, code=C.CHAMPION)
+        revoked = Badge.objects.create(
+            user=self.ana, code=C.CHAMPION, edition=self.e2024, is_active=False
+        )
+        self.assertGreater(revoked.pk, first.pk)
+
+        report = refresh(TODAY)
+
+        self.assertEqual(
+            list(
+                Badge.objects.filter(user=self.ana, code=C.CHAMPION).values_list(
+                    "id", "is_active"
+                )
+            ),
+            [(revoked.pk, False)],
+        )
+        self.assertEqual((report.added, report.removed), (0, 1))
+
+    def deactivate(self, active=False):
+        """Deactivate the 2024 edition (or reactivate it) as the admin would."""
+        self.e2024.is_active = active
+        self.e2024.save()
+
+    def test_an_inactive_edition_keeps_its_rows(self):
+        # Out of the sequence, the edition earns nothing: its rows, revoked or not, are
+        # left alone rather than deleted.
+        refresh(TODAY)
+        Badge.objects.filter(user=self.ana, code=C.CHAMPION).update(is_active=False)
+        before = rows()
+        self.deactivate()
+
+        report = refresh(TODAY)
+
+        self.assertEqual((report.added, report.removed, report.kept), (0, 0, 0))
+        self.assertEqual(rows(), before)
+        self.assertFalse(Badge.objects.get(user=self.ana, code=C.CHAMPION).is_active)
+
+    def test_a_reactivated_edition_gets_its_rows_back_as_they_were(self):
+        refresh(TODAY)
+        Badge.objects.filter(user=self.ana, code=C.CHAMPION).update(is_active=False)
+        before = rows()
+        self.deactivate()
+        refresh(TODAY)
+        self.deactivate(active=True)
+
+        report = refresh(TODAY)
+
+        self.assertEqual((report.added, report.removed, report.kept), (0, 0, len(before)))
+        self.assertEqual(rows(), before)  # created_at and the revocation included
+        self.assertFalse(Badge.objects.get(user=self.ana, code=C.CHAMPION).is_active)
+
     def test_the_lock_row_comes_back(self):
         BadgeRefresh.objects.all().delete()
 

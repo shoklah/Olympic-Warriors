@@ -903,6 +903,17 @@ class TestHallOfFame(World, TestCase):
         self.assertEqual(years_of(ana, C.REIGN), [2024, 2028])
         self.assertEqual(years_of(bob, C.REIGN), [2024])
 
+    def test_the_reign_needs_the_edition_to_count_not_the_person(self):
+        # Ana wins 2021, 2022 and 2024 and misses 2023, where Bob is 2nd. Tables: 2022 Ana
+        # (1, 1) 1st; 2023 Ana (1, 1) 1st, Bob (2) 2nd, since two titles beat a 2nd place;
+        # 2024 Ana (1, 1, 1) 1st. Bob's place makes 2023 an edition that counts, so Ana's
+        # absence does not break her reign.
+        ana, bob = self.person("Ana"), self.person("Bob")
+        self.play(ana, [1, 1, None, 1])
+        self.play(bob, [None, None, 2])
+
+        self.assertEqual(years_of(ana, C.REIGN), [2024])
+
     def unranked(self, user, year):
         """Seat `user` on a team of a new finished edition of `year` where nothing ranks:
         no final_rank and no discipline, so no participation counts."""
@@ -1166,6 +1177,12 @@ class TestDisciplines(World, TestCase):
     def test_brains_and_brawn(self):
         ana = self.person("Ana")
         self.win(ana, 2021, GeneralCultureQuizz, Relay)
+
+        self.assertEqual(years_of(ana, C.BRAINS_AND_BRAWN), [2021])
+
+    def test_blindtest_is_a_mind_discipline(self):
+        ana = self.person("Ana")
+        self.win(ana, 2021, Blindtest, Relay)
 
         self.assertEqual(years_of(ana, C.BRAINS_AND_BRAWN), [2021])
 
@@ -1570,9 +1587,10 @@ class TestGames(World, TestCase):
 
         self.assertEqual(games_of(self.ana), [(C.GOLDEN_WHISTLE, 2021, 1, "", None)])
 
-    def test_unplayed_games_inactive_rounds_and_inactive_games_count_for_nothing(self):
+    def test_unplayed_games_and_inactive_rounds_games_and_disciplines_count_for_nothing(self):
         # Two wins count for Ana's team and four refereed games for Bob's: any one excluded
-        # game would make a third win (a perfect run, a shutout) and a fifth whistle.
+        # Rugby game would make a third win (a perfect run, a shutout) and a fifth whistle,
+        # and the win of the deactivated Football a shutout and a fifth whistle.
         edition, (a, b, c, d) = self.four()
         rugby = self.sport(edition)
         self.game(rugby, a, 12, c, 3, b)
@@ -1585,6 +1603,9 @@ class TestGames(World, TestCase):
         self.game(rugby, a, 12, c, 0, b, is_played=False)
         self.game(inactive, a, 12, d, 0, b)
         self.game(rugby, a, 12, c, 0, b, is_active=False)
+        football = self.sport(edition, Football)
+        self.game(football, a, 12, c, 0, b)
+        Discipline.objects.filter(pk=football.discipline_id).update(is_active=False)
 
         self.assertEqual(games_of(self.ana, C.UNBEATEN, C.PERFECT_RUN, C.SHUTOUT), [])
         self.assertEqual(games_of(self.bob, C.GOLDEN_WHISTLE), [])
@@ -1673,6 +1694,24 @@ class TestGames(World, TestCase):
 
         self.assertEqual(tiers_of(self.ana, C.GOLDEN_WHISTLE), [(2021, 1), (2022, 2), (2024, 3)])
 
+    def test_golden_whistle_crossing_two_tiers_in_one_edition(self):
+        self.whistle(2021, 10)
+
+        self.assertEqual(tiers_of(self.ana, C.GOLDEN_WHISTLE), [(2021, 1), (2021, 2)])
+
+    def test_a_playing_team_in_the_referee_slot_referees_nothing(self):
+        # The schedulers leave a playing team as a placeholder referee (Swiss rounds put
+        # team1 there). Four real refereed games, then Ana's team in the slot of a game it
+        # plays as team1 and of one it plays as team2: either would make a fifth whistle.
+        edition, (a, b, c, _) = self.four()
+        rugby = self.sport(edition)
+        for _ in range(4):
+            self.game(rugby, b, 2, c, 1, a)
+        self.game(rugby, a, 2, b, 1, a)
+        self.game(rugby, c, 2, a, 1, a)
+
+        self.assertEqual(tiers_of(self.ana, C.GOLDEN_WHISTLE), [])
+
     def test_refereeing_in_a_hidden_discipline_counts(self):
         # Three games refereed in a revealed Rugby and two in a hidden Football.
         edition, (a, b, c, _) = self.four()
@@ -1727,6 +1766,28 @@ class TestGames(World, TestCase):
 
         self.assertEqual(games_of(self.ana, C.PERFECT_PITCH), [])
 
+    def test_a_round_without_the_teams_guess_is_not_found(self):
+        # The other teams still guessed round 4, so it is a round to find.
+        _, team = self.blindtest()
+        BlindtestGuess.objects.filter(team=team, blindtest_round__order=4).delete()
+
+        self.assertEqual(games_of(self.ana, C.PERFECT_PITCH), [])
+
+    def test_a_deactivated_guess_is_not_found(self):
+        # Right on artist and song, but deactivated: round 4 is not found.
+        _, team = self.blindtest()
+        BlindtestGuess.objects.filter(team=team, blindtest_round__order=4).update(
+            is_active=False
+        )
+
+        self.assertEqual(games_of(self.ana, C.PERFECT_PITCH), [])
+
+    def test_a_deactivated_blindtest_gives_nothing(self):
+        blindtest, _ = self.blindtest()
+        Discipline.objects.filter(pk=blindtest.pk).update(is_active=False)
+
+        self.assertEqual(games_of(self.ana, C.PERFECT_PITCH), [])
+
 
 # profiles._load (2 + 3 per sequence edition), then results, games and blindtest guesses.
 BADGES_QUERIES = lambda editions: 5 + 3 * editions  # noqa: E731
@@ -1734,8 +1795,31 @@ BADGES_QUERIES = lambda editions: 5 + 3 * editions  # noqa: E731
 
 class TestQueries(World, TestCase):
     def test_earned_runs_a_fixed_number_of_queries(self):
+        # 2021 holds rows for each of the three queries, so a foreign key read per result,
+        # game or guess would add queries: a revealed Relay with results, a revealed Rugby
+        # round of two played games, and a revealed Blindtest (its save makes the rounds
+        # and a guess per team).
+        editions = {}
         for year in (2021, 2022, 2023):
             edition, teams = self.edition(year)
             self.seat(self.person(f"P{year}"), edition, teams[0])
+            editions[year] = (edition, teams)
+        edition, (a, b, c, d) = editions[2021]
+        relay = Relay.objects.create(edition=edition, reveal_score=True)
+        for team, points in zip((a, b, c, d), (40, 30, 20, 10)):
+            TeamResult.objects.filter(discipline=relay, team=team).update(points=points)
+        rugby = Rugby.objects.create(edition=edition, reveal_score=True)
+        round_ = TeamSportRound.objects.create(discipline=rugby, order=1)
+        for team1, team2, referees in ((a, b, c), (c, d, a)):
+            Game.objects.create(
+                discipline=rugby, round=round_, team1=team1, score1=12, team2=team2,
+                score2=3, referees=referees, edition=edition, is_played=True,
+            )
+        Blindtest.objects.create(edition=edition, reveal_score=True)
+        BlindtestGuess.objects.filter(team=a).update(is_artist_correct=True, is_song_correct=True)
+        self.assertEqual(BlindtestGuess.objects.count(), 40)
+
         with self.assertNumQueries(BADGES_QUERIES(3)):
-            earned(TODAY)
+            found = earned(TODAY)
+
+        self.assertIn(C.PERFECT_PITCH, {badge.code for badge in found})

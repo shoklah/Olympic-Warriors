@@ -551,7 +551,7 @@ class GameFacts:
     records: dict  # team id -> {discipline name: (played, won, lost)}, revealed games only
     shutouts: frozenset
     steamrollers: frozenset
-    refereed: dict  # team id -> games refereed, revealed or not
+    refereed: dict  # team id -> games refereed by a team not playing them, revealed or not
 
 
 def _game_rows(h):
@@ -575,10 +575,14 @@ def _game_rows(h):
 
 
 def _game_facts(games):
+    """The GameFacts of one edition's games. A game counts as refereed only when the referee
+    team is neither of the two playing: the schedulers leave a playing team in the slot as a
+    placeholder (Swiss rounds put team1 there)."""
     records = defaultdict(lambda: defaultdict(lambda: [0, 0, 0]))
     shutouts, margins, refereed = set(), [], Counter()
     for game in games:
-        refereed[game.referees_id] += 1
+        if game.referees_id not in (game.team1_id, game.team2_id):
+            refereed[game.referees_id] += 1
         if not game.revealed:  # a badge never leaks a hidden score
             continue
         for team_id, mine, theirs in (
@@ -607,8 +611,12 @@ def _game_facts(games):
 
 
 def _perfect_pitch(h):
-    """{sequence index: team ids} that found artist and song in every active round of a
-    revealed, active blindtest (1 query)."""
+    """
+    {sequence index: team ids} that found artist and song in every round of a revealed,
+    active blindtest (1 query): every active round that has at least one active guess. A
+    round without any is left out rather than missed, which only matters for data made
+    outside Blindtest.save(): it creates a guess per team for every round.
+    """
     index = {edition.id: i for i, edition in enumerate(h.sequence)}
     rows = BlindtestGuess.objects.filter(
         blindtest_round__blindtest__edition_id__in=index,
@@ -694,20 +702,28 @@ def refresh(today=None):
     Store earned(today) in the Badge table, in one transaction under the BadgeRefresh row
     lock: delete the computed rows no longer earned (active or not), bulk-create the new
     ones, and leave the others alone, so created_at and a revoked row's is_active survive.
+    Of the duplicates of a key still earned, one row stays: an inactive one first, so a
+    revocation is never lost, else the lowest id.
+
+    Only the rows of active editions are read. An inactive edition is out of the sequence
+    and earns nothing, so its rows are left as they are (profiles already hide them) and
+    come back unchanged, revocations and created_at included, once it is reactivated.
     Manual rows are never read or written.
     """
     with transaction.atomic():
         BadgeRefresh.objects.get_or_create(pk=1)  # a flushed test database loses the row
         state = BadgeRefresh.objects.select_for_update().get(pk=1)
         wanted = {tuple(getattr(e, f) for f in KEY_FIELDS): e for e in earned(today)}
-        stored = defaultdict(list)
-        for pk, *key in Badge.objects.filter(is_manual=False).values_list("id", *KEY_FIELDS):
+        stored, active = defaultdict(list), {}
+        computed = Badge.objects.filter(is_manual=False, edition__is_active=True)
+        for pk, is_active, *key in computed.values_list("id", "is_active", *KEY_FIELDS):
             stored[tuple(key)].append(pk)
-        gone = [
-            pk
-            for key, pks in stored.items()
-            for pk in (pks if key not in wanted else sorted(pks)[1:])
-        ]
+            active[pk] = is_active
+        gone = []
+        for key, pks in stored.items():
+            if key in wanted:  # one row stays: an inactive one first, else the lowest id
+                pks = sorted(pks, key=lambda pk: (active[pk], pk))[1:]
+            gone += pks
         new = [
             Badge(
                 user_id=e.user_id, code=e.code, edition_id=e.edition_id, tier=e.tier,
