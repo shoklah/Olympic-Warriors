@@ -40,6 +40,14 @@ describe('player profile page', () => {
 		expect(within(rows[2]).queryAllByRole('link').map((a) => a.textContent.trim())).toEqual(['2024']);
 	});
 
+	it('underlines the links sitting among text: the edition year and team, the badge partner', () => {
+		renderWith(Page, { data: { profile } });
+
+		const row = screen.getAllByTestId('edition-row')[1];
+		for (const link of within(row).getAllByRole('link')) expect(link).toHaveClass('quiet-link');
+		expect(screen.getByRole('link', { name: 'Léa Martin' })).toHaveClass('quiet-link');
+	});
+
 	it('lists the badges with their detail and rule, skipping unknown codes', () => {
 		renderWith(Page, { data: { profile } });
 

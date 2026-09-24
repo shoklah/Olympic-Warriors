@@ -82,7 +82,7 @@
 						<span class="detail" data-testid="badge-detail">
 							{#if badge.partner}
 								{t('badge.with')}
-								<a href="/players/{badge.partner.id}">{fullName(badge.partner)}</a>
+								<a class="quiet-link" href="/players/{badge.partner.id}">{fullName(badge.partner)}</a>
 							{/if}
 							{#each parts as part, i}{#if i > 0 || badge.partner}{' '}<span
 										class="sep"
@@ -101,9 +101,9 @@
 		{#each profile.editions as edition}
 			{@const status = editionStatus(edition)}
 			<li class="edition" data-testid="edition-row">
-				<a class="year num" href="/{edition.year}">{edition.year}</a>
+				<a class="year num quiet-link" href="/{edition.year}">{edition.year}</a>
 				{#if edition.team}
-					<a class="team" href="/{edition.year}/teams/{edition.team.id}">{edition.team.name}</a>
+					<a class="team quiet-link" href="/{edition.year}/teams/{edition.team.id}">{edition.team.name}</a>
 				{:else}
 					<span class="team muted">{t('profile.noTeam')}</span>
 				{/if}
@@ -234,6 +234,7 @@
 		width: 20px;
 		height: 20px;
 		flex-shrink: 0;
+		filter: var(--icon-filter);
 	}
 
 	.more {
@@ -317,11 +318,6 @@
 		font-size: 1.3rem;
 		letter-spacing: 0.06em;
 		color: var(--accent);
-		text-decoration: none;
-	}
-
-	.year:hover {
-		text-decoration: underline;
 	}
 
 	.year:focus-visible,
@@ -379,6 +375,7 @@
 	.discipline img {
 		width: 20px;
 		height: 20px;
+		filter: var(--icon-filter);
 	}
 
 	.discipline .name {

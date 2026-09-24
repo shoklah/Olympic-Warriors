@@ -39,7 +39,16 @@
 	src: url('/fonts/inter-700.woff2') format('woff2');
 }
 
+/*
+ * Two themes. Dark is the default and the brand: `:root` holds it, and a browser without
+ * `:has()` never leaves it. Light applies when the `theme` cookie says so, or when there is
+ * no choice (`data-theme="system"`, set by hooks.server.js) and the device prefers light.
+ * The two light blocks are identical (styles.test.js checks it and the contrast of every
+ * text token); neither applies to a page holding `[data-always-dark]`, the hub, whose
+ * eclipse is a photograph on black.
+ */
 :root {
+	color-scheme: dark;
 	--bg: #000000;            /* page, same black as the eclipse image */
 	--bg-raised: #141414;     /* rows, cards, tiles */
 	--bg-sunken: #121212;     /* schedule rows */
@@ -54,11 +63,61 @@
 	--accent: #F9F3C1;        /* brand */
 	--gold: #e6b800;  --silver: #c9c9c9;  --bronze: #cd7f32;
 	--win: #7bd88f;   --loss: #d87b7b;    --todo: #4f8cff;
+	--icon-filter: none;                /* the discipline icons are white SVGs */
+	--icon-filter-on-accent: invert(1); /* on an accent fill, such as the current rail tile */
+	--switch-to-light: flex;  /* display of the header's two theme buttons: */
+	--switch-to-dark: none;   /* only the one leading away from the theme on screen */
 	--font-display: 'Bebas Neue', 'Arial Narrow', Impact, sans-serif;
 	--font-body: Inter, -apple-system, 'Segoe UI', Roboto, sans-serif;
 	--radius: 6px;  --radius-lg: 10px;  --radius-pill: 999px;
 	--page: min(100% - 2rem, 900px);  /* content column, 1rem phone gutter */
 	--tabbar: 64px;           /* bottom tab bar height on phones */
+}
+
+:root[data-theme='light']:not(:has([data-always-dark])) {
+	color-scheme: light;
+	--bg: #f5f2e8;
+	--bg-raised: #ffffff;
+	--bg-sunken: #fbfaf5;
+	--scrim: rgba(20, 18, 8, 0.45);
+	--line: #e3dece;
+	--line-strong: #d2ccb9;
+	--ink: #0b0a05;
+	--text: #2a2718;
+	--muted: #686350;
+	--faint: #7d7865;
+	--ghost: #a19b86;
+	--accent: #1c1a0f;
+	--gold: #8a6500;  --silver: #6b6b6b;  --bronze: #9a5418;
+	--win: #1f7a38;   --loss: #b3383a;    --todo: #1d5fd6;
+	--icon-filter: invert(1);
+	--icon-filter-on-accent: none;
+	--switch-to-light: none;
+	--switch-to-dark: flex;
+}
+
+@media (prefers-color-scheme: light) {
+	:root[data-theme='system']:not(:has([data-always-dark])) {
+		color-scheme: light;
+		--bg: #f5f2e8;
+		--bg-raised: #ffffff;
+		--bg-sunken: #fbfaf5;
+		--scrim: rgba(20, 18, 8, 0.45);
+		--line: #e3dece;
+		--line-strong: #d2ccb9;
+		--ink: #0b0a05;
+		--text: #2a2718;
+		--muted: #686350;
+		--faint: #7d7865;
+		--ghost: #a19b86;
+		--accent: #1c1a0f;
+		--gold: #8a6500;  --silver: #6b6b6b;  --bronze: #9a5418;
+		--win: #1f7a38;   --loss: #b3383a;    --todo: #1d5fd6;
+		--icon-filter: invert(1);
+		--icon-filter-on-accent: none;
+		--switch-to-light: none;
+		--switch-to-dark: flex;
+	}
 }
 
 *,
@@ -137,6 +196,22 @@ button:focus:not(:focus-visible) {
 .num {
 	font-family: var(--font-display);
 	font-variant-numeric: tabular-nums;
+}
+
+/*
+ * A link sitting among plain text, such as a team name in a game row. The accent is too
+ * close to the body text to mark a link by colour alone (1.06:1 dark, 1.16:1 light), so
+ * it carries a quiet underline, --faint (3:1 on every surface), accent on hover.
+ */
+.quiet-link {
+	text-decoration: underline;
+	text-decoration-color: var(--faint);
+	text-decoration-thickness: 1px;
+	text-underline-offset: 0.22em;
+}
+
+.quiet-link:hover {
+	text-decoration-color: var(--accent);
 }
 
 .dimmed {

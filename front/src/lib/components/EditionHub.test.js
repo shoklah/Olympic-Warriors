@@ -51,6 +51,13 @@ describe('EditionHub', () => {
 		expect(screen.getByRole('link', { name: '2025' })).not.toHaveAttribute('aria-current');
 	});
 
+	it('marks itself always dark, the selector styles.css keeps the dark tokens on', () => {
+		vi.setSystemTime(new Date('2026-09-19T08:00:00Z'));
+		const { container } = renderWith(EditionHub, { summary, editions });
+
+		expect(container.querySelector('[data-always-dark]')).not.toBeNull();
+	});
+
 	it('hides the edition pills when there is a single edition', () => {
 		vi.setSystemTime(new Date('2026-09-19T08:00:00Z'));
 		renderWith(EditionHub, { summary, editions: [editions[0]] });
