@@ -40,6 +40,62 @@ export default {
 	'profile.byDiscipline': 'Par épreuve',
 	'profile.moreDisciplines': { one: 'et {n} autre épreuve', other: 'et {n} autres épreuves' },
 	'profile.badges': 'Badges',
+	'profile.tabs': 'Sections du profil',
+	'profile.tab.profile': 'Profil',
+	'profile.tab.badges': 'Badges · {earned}/{total}',
+	'profile.seeCollection': 'voir la collection',
+	'badge.progress': '{earned} badges sur {total}',
+	'badge.family.podiums': 'Palmarès',
+	'badge.family.streaks': 'Séries',
+	'badge.family.loyalty': 'Fidélité',
+	'badge.family.teammates': 'Coéquipiers',
+	'badge.family.hall-of-fame': 'Panthéon',
+	'badge.family.disciplines': 'Épreuves',
+	'badge.family.olympus': 'Olympe',
+	'badge.family.games': 'Matchs',
+	'badge.family.awards': 'Distinctions',
+	'badge.earned': 'badge obtenu',
+	'badge.locked': 'badge à débloquer',
+	'badge.statusEarned': 'Badge obtenu',
+	'badge.statusLocked': 'Badge à débloquer',
+	'badge.next.veteran': { one: 'Prochain niveau : {n} édition', other: 'Prochain niveau : {n} éditions' },
+	'badge.first.veteran': { one: 'Premier niveau : {n} édition', other: 'Premier niveau : {n} éditions' },
+	'badge.next.ever-present': {
+		one: 'Prochain niveau : {n} édition de suite',
+		other: 'Prochain niveau : {n} éditions de suite'
+	},
+	'badge.first.ever-present': {
+		one: 'Premier niveau : {n} édition de suite',
+		other: 'Premier niveau : {n} éditions de suite'
+	},
+	'badge.next.networker': { one: 'Prochain niveau : {n} coéquipier', other: 'Prochain niveau : {n} coéquipiers' },
+	'badge.first.networker': { one: 'Premier niveau : {n} coéquipier', other: 'Premier niveau : {n} coéquipiers' },
+	'badge.next.specialist': {
+		one: "Prochain niveau : {n} titre dans l'épreuve",
+		other: "Prochain niveau : {n} titres dans l'épreuve"
+	},
+	'badge.first.specialist': {
+		one: "Premier niveau : {n} titre dans l'épreuve",
+		other: "Premier niveau : {n} titres dans l'épreuve"
+	},
+	'badge.next.all-rounder': {
+		one: 'Prochain niveau : {n} épreuve gagnée',
+		other: 'Prochain niveau : {n} épreuves gagnées'
+	},
+	'badge.first.all-rounder': {
+		one: 'Premier niveau : {n} épreuve gagnée',
+		other: 'Premier niveau : {n} épreuves gagnées'
+	},
+	'badge.next.golden-whistle': {
+		one: 'Prochain niveau : {n} match arbitré',
+		other: 'Prochain niveau : {n} matchs arbitrés'
+	},
+	'badge.first.golden-whistle': {
+		one: 'Premier niveau : {n} match arbitré',
+		other: 'Premier niveau : {n} matchs arbitrés'
+	},
+	'badge.topTier': 'Niveau maximum',
+	'badge.close': 'Fermer',
 	'badge.level': 'Niveau {tier}',
 	'badge.times': '×{n}',
 	'badge.with': 'avec',

@@ -46,4 +46,11 @@ describe('Badge', () => {
 		});
 		expect(container.querySelector('img').getAttribute('src')).toMatch(/rugby\.svg$/);
 	});
+
+	it('draws a locked medallion with a dashed ring and no lit pip', () => {
+		const { container } = renderWith(Badge, { badge: { code: 'veteran', tier: 0, years: [] }, locked: true });
+		const root = container.querySelector('[data-metal]');
+		expect(root).toHaveClass('locked');
+		expect(root.querySelectorAll('.pip.on')).toHaveLength(0);
+	});
 });
