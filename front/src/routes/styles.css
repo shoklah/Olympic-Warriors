@@ -120,11 +120,6 @@
 	}
 }
 
-/* The hub stays dark whatever the choice, so it offers no switch. */
-:root:has([data-always-dark]) {
-	--switch-to-light: none;
-}
-
 *,
 *::before,
 *::after {

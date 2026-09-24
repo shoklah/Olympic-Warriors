@@ -45,10 +45,11 @@ visitor must be able to pick light even when their phone is set to dark.
     selector and a media query without `light-dark()`, which would break every
     token in browsers from before 2024, so the block is duplicated and a test
     keeps the copies equal.
-  - `:root:has([data-always-dark])` sets `--switch-to-light: none`.
 - `EditionHub` puts `data-always-dark` on its hero. Because the selector is
   evaluated live, a client-side navigation into or out of the hub flips the
-  theme with no script.
+  theme with no script. `Header` hides its whole theme form there with
+  `:global(:root:has([data-always-dark])) .theme`, so the phone menu drops the
+  row, label included.
 - The discipline icons are white SVGs in `<img>`: every icon on a page surface
   (rail tile, disciplines card, discipline title, team result tile) sets
   `filter: var(--icon-filter)`; the current rail tile, on the accent fill, sets
@@ -99,10 +100,10 @@ one leading away from the current theme, and the hidden one leaves the
 accessibility tree. Quiet like the login pill: `--line-strong` border, `--muted`
 icon, accent on hover and focus.
 
-Five controls now share the phone top bar. Below 400 px the header padding,
-gaps, letter-spacing and pill paddings tighten again, every control keeping its
-44 px height, so nothing overflows down to 320 px in either language, as a
-visitor or an organiser.
+Below 600 px the switch sits in the header's menu panel with the account slot
+and the language (see the phone header menu spec), where it reads as a pill
+naming the theme it leads to (« Sombre » / « Clair ») beside its icon; the
+accessible name keeps the full action, which contains that word.
 
 ## Tests
 
