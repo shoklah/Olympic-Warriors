@@ -23,7 +23,7 @@ const post = (fields) => {
 
 const claim = ({
 	response = json(200, { token: 'fresh', user_id: 34 }),
-	fields = { password: 'pw-demo', confirmation: 'pw-demo' },
+	fields = { password: 'x', confirmation: 'x' },
 	getClientAddress = address,
 	linkParams = params
 } = {}) => {
@@ -118,7 +118,7 @@ describe('claim action', () => {
 		expect(fetch).toHaveBeenCalledWith(API_PATH, {
 			method: 'POST',
 			headers: { 'content-type': 'application/json', 'x-forwarded-for': '203.0.113.7' },
-			body: JSON.stringify({ password: 'pw-demo' })
+			body: JSON.stringify({ password: 'x' })
 		});
 		expect(cookies.set).toHaveBeenCalledWith('token', 'fresh', tokenCookieOptions());
 		expect(tokenCookieOptions()).toMatchObject({ httpOnly: true, sameSite: 'lax', path: '/' });
@@ -146,7 +146,7 @@ describe('claim action', () => {
 		});
 		expect(fetch).not.toHaveBeenCalled();
 
-		({ result, fetch } = claim({ fields: { password: 'pw-demo' } }));
+		({ result, fetch } = claim({ fields: { password: 'x' } }));
 		const { data } = await result;
 		expect(data).toEqual({ confirmation: ['claim.error.confirmation_missing'] });
 		expect(fetch).not.toHaveBeenCalled();
@@ -154,12 +154,12 @@ describe('claim action', () => {
 
 	it('refuses two different passwords before calling the API', async () => {
 		const { result, fetch, cookies } = claim({
-			fields: { password: 'pw-demo', confirmation: 'pw-typo' }
+			fields: { password: 'x', confirmation: 'y' }
 		});
 
 		const failure = await result;
 		expect(failure).toMatchObject({ status: 400, data: { confirmation: ['claim.error.mismatch'] } });
-		expect(JSON.stringify(failure.data)).not.toContain('pw-typo');
+		expect(JSON.stringify(failure.data)).not.toContain('"y"');
 		expect(fetch).not.toHaveBeenCalled();
 		expect(cookies.set).not.toHaveBeenCalled();
 	});
@@ -179,7 +179,7 @@ describe('claim action', () => {
 			status: 400,
 			data: { password: codes.map((code) => `claim.error.${code}`) }
 		});
-		expect(JSON.stringify(failure.data)).not.toContain('pw-demo');
+		expect(JSON.stringify(failure.data)).not.toContain('"x"');
 		expect(cookies.set).not.toHaveBeenCalled();
 	});
 
