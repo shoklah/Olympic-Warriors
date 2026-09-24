@@ -26,7 +26,9 @@ from olympic_warriors.tests.test_profiles import TODAY, EndpointSetup, ProfilesS
 C = Badge.Codes
 # Every dict key a public payload must never carry: /me/ alone serves the login name, the
 # lock and the stored pins (`codes`), to their owner; the rest never leaves the admin.
-PRIVATE_KEYS = {"username", "email", "photo_locked", "claimed_at", "updated_at", "codes"}
+PRIVATE_KEYS = {
+    "username", "email", "photo_locked", "claimed_at", "updated_at", "codes", "pins",
+}
 
 
 def keys_in(data):
@@ -474,6 +476,22 @@ class TestPhotosAndShowcases(EndpointSetup, TestCase):
         UserProfile.objects.create(user=self.ana, showcase=[C.ROOKIE])
 
         for row in self.client.get("/profiles/").data:
+            with self.subTest(name=row["first_name"]):
+                profile = self.client.get(f"/profile/{row['id']}/").data
+                self.assertEqual(row["showcase"], profile["showcase"]["badges"])
+
+    def test_row_rarity_counts_everyone_listed_not_only_the_ranked(self):
+        # Eve has nothing counted yet (2026 is running) and no position, but she is on the
+        # leaderboard like everyone else: her rookie counts, so rookie ties champion at 3
+        # holders and Bob's two badges go by catalogue order.
+        self.rarity_setup()
+        self.badge(self.eve, C.ROOKIE, self.y2026)
+
+        rows = self.rows()
+
+        self.assertIsNone(rows["Eve"]["position"])
+        self.assertEqual(rows["Bob"]["showcase"], [shown(C.CHAMPION), shown(C.ROOKIE)])
+        for row in rows.values():
             with self.subTest(name=row["first_name"]):
                 profile = self.client.get(f"/profile/{row['id']}/").data
                 self.assertEqual(row["showcase"], profile["showcase"]["badges"])

@@ -32,7 +32,7 @@ The rules (see the player profiles design spec under docs/superpowers/specs/):
 import math
 import unicodedata
 from collections import defaultdict
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -265,7 +265,8 @@ class PlayerRecord:
     average_rank: float | None
     disciplines: tuple[DisciplinePlaces, ...] = ()
     position: int | None = None
-    photo: dict | None = None
+    # A dict, so left out of the hash (still compared): a record stays hashable.
+    photo: dict | None = field(default=None, hash=False)
     pins: tuple[str, ...] = ()
 
     @property

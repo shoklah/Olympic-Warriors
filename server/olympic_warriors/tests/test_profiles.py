@@ -359,6 +359,14 @@ class TestLeaderboard(ProfilesSetup, TestCase):
                 self.assertIsNone(rows[name].photo)
                 self.assertEqual(rows[name].pins, ())
 
+    def test_a_record_with_a_photo_and_pins_stays_hashable(self):
+        self.give_photo(self.ana, showcase=[Badge.Codes.GOAT])
+
+        record = self.rows()["Ana"]
+
+        self.assertIsNotNone(record.photo)
+        self.assertIn(record, {record})  # a frozen dataclass, usable as a key
+
     def test_a_record_built_from_a_bare_user_has_no_photo_and_no_pins(self):
         # Records rebuilt from plain values (the hall of fame's tables, unit tests) read a
         # missing profile as none, never as an error.
@@ -555,7 +563,7 @@ class TestDisciplinePlacesGrouping(SimpleTestCase):
 
 class TestBadgeStats(ProfilesSetup, TestCase):
     """badges.badge_stats: how many of the given people hold each badge code, once per
-    person, and for the six tiered codes, how many hold at least each tier."""
+    person, and for the five tiered codes, how many hold at least each tier."""
 
     def badge(self, code, edition, user=None, **kwargs):
         """A stored Badge row, Ana's unless `user` is given."""

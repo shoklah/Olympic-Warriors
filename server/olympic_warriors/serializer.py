@@ -585,7 +585,7 @@ class ProfileBadgeSerializer(serializers.Serializer):
 
 class BadgeStatsSerializer(serializers.Serializer):
     """badges.badge_stats: how many of the leaderboard's people hold each badge code
-    (holders), and for the six tiered codes, how many hold at least each tier (tiers,
+    (holders), and for the five tiered codes, how many hold at least each tier (tiers,
     [tier-1, tier-2, tier-3] counts). See the "Rarity" design spec."""
 
     players = serializers.IntegerField(help_text="Size of the leaderboard the stats are computed over")

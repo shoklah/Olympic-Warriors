@@ -876,7 +876,7 @@ def badge_stats(user_ids):
     """
     Rarity stats for the profile and the showcases (1 query, none for no id), over the given
     user ids (the leaderboard's people): how many hold each badge code (any tier, discipline,
-    partner or year, each counted once) and, for the six tiered codes, how many hold at least
+    partner or year, each counted once) and, for the five tiered codes, how many hold at least
     each tier (the person's own highest tier of that code). Same filter as profile_badges:
     active rows of active editions only. `holders` only lists codes with at least one holder;
     `tiers` only lists the tiered codes with one. See the "Rarity" design spec.
