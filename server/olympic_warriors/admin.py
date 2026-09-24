@@ -773,9 +773,11 @@ class UserProfileAdmin(ClaimLinksPermission, ModelAdmin):
 
     @display(description="photo")
     def photo_preview(self, obj):
-        """The small photo, linking to the full size."""
+        """The small photo, linking to the full size. The change form prints a readonly
+        method's None as "None" (only the changelist maps it to the empty value), hence
+        the explicit empty value here and in `pinned`."""
         if not obj.photo:
-            return None
+            return self.get_empty_value_display()
         return format_html(
             '<a href="{}"><img src="{}" alt="Photo en taille réelle" width="128" '
             'height="128"></a>',
@@ -788,7 +790,10 @@ class UserProfileAdmin(ClaimLinksPermission, ModelAdmin):
         """The pinned badges by name, in the person's order (a code the catalogue lost
         shows as is)."""
         labels = dict(Badge.Codes.choices)
-        return ", ".join(labels.get(code, code) for code in obj.showcase) or None
+        return (
+            ", ".join(labels.get(code, code) for code in obj.showcase)
+            or self.get_empty_value_display()
+        )
 
     def has_add_permission(self, request):
         return False

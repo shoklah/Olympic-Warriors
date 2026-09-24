@@ -160,6 +160,19 @@ class TestUserProfileAdmin(MediaRootTestCase):
         form = response.context["adminform"].form
         self.assertEqual(list(form.fields), ["photo_locked"])
 
+    def test_the_change_form_shows_the_empty_value_without_a_photo_or_pins(self):
+        response = self.client.get(f"{PROFILES}{self.bob.pk}/change/")
+
+        self.assertEqual(response.status_code, 200)
+        readonly = [
+            field
+            for fieldset in response.context["adminform"]
+            for line in fieldset
+            for field in line
+            if field.is_readonly and field.field["name"] in ("photo_preview", "pinned")
+        ]
+        self.assertEqual([field.contents() for field in readonly], ["-", "-"])
+
     def test_the_change_form_only_changes_the_lock(self):
         url = f"{PROFILES}{self.ana.pk}/change/"
         photo = self.ana.photo.name
