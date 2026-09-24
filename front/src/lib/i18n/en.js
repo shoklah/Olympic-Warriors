@@ -191,7 +191,7 @@ export default {
 	'badge.shutout.name': 'Shutout',
 	'badge.shutout.rule': 'Win a game without conceding a point',
 	'badge.steamroller.name': 'Steamroller',
-	'badge.steamroller.rule': 'Win by the biggest margin of the edition',
+	'badge.steamroller.rule': 'Win by the biggest margin of a discipline',
 	'badge.golden-whistle.name': 'Golden whistle',
 	'badge.golden-whistle.rule': 'Referee 5, 10, then 20 games',
 	'badge.perfect-pitch.name': 'Perfect pitch',

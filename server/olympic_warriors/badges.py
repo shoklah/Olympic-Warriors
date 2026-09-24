@@ -551,7 +551,7 @@ class GameFacts:
 
     records: dict  # team id -> {discipline name: (played, won, lost)}, revealed games only
     shutouts: frozenset
-    steamrollers: frozenset
+    steamrollers: dict  # team id -> discipline names of that team's biggest margin there
     refereed: dict  # team id -> games refereed by a team not playing them, revealed or not
 
 
@@ -578,9 +578,12 @@ def _game_rows(h):
 def _game_facts(games):
     """The GameFacts of one edition's games. A game counts as refereed only when the referee
     team is neither of the two playing: the schedulers leave a playing team in the slot as a
-    placeholder (Swiss rounds put team1 there)."""
+    placeholder (Swiss rounds put team1 there). Steamroller margins are judged discipline by
+    discipline, so raw scores never compare across sports: a darts leg's 301-141 does not
+    outweigh a rugby 13-0."""
     records = defaultdict(lambda: defaultdict(lambda: [0, 0, 0]))
-    shutouts, margins, refereed = set(), [], Counter()
+    shutouts, refereed = set(), Counter()
+    margins = defaultdict(list)  # discipline name -> [(margin, team id)], revealed wins only
     for game in games:
         if game.referees_id not in (game.team1_id, game.team2_id):
             refereed[game.referees_id] += 1
@@ -594,19 +597,24 @@ def _game_facts(games):
             record[0] += 1
             if mine > theirs:
                 record[1] += 1
-                margins.append((mine - theirs, team_id))
+                margins[game.discipline_name].append((mine - theirs, team_id))
                 if theirs == 0:
                     shutouts.add(team_id)
             elif mine < theirs:
                 record[2] += 1
-    best = max((margin for margin, _ in margins), default=0)
+    steamrollers = defaultdict(set)
+    for name, entries in margins.items():
+        best = max(margin for margin, _ in entries)
+        for margin, team_id in entries:
+            if margin == best:
+                steamrollers[team_id].add(name)
     return GameFacts(
         records={
             team_id: {name: tuple(r) for name, r in by_name.items()}
             for team_id, by_name in records.items()
         },
         shutouts=frozenset(shutouts),
-        steamrollers=frozenset(team_id for margin, team_id in margins if margin == best),
+        steamrollers={team_id: frozenset(names) for team_id, names in steamrollers.items()},
         refereed=dict(refereed),
     )
 
@@ -662,8 +670,8 @@ def _games(h):
                     yield Earned(user_id, code, edition_id, discipline=name)
             if team_id in fact.shutouts:
                 yield Earned(user_id, C.SHUTOUT, edition_id)
-            if team_id in fact.steamrollers:
-                yield Earned(user_id, C.STEAMROLLER, edition_id)
+            for name in sorted(fact.steamrollers.get(team_id, ())):
+                yield Earned(user_id, C.STEAMROLLER, edition_id, discipline=name)
             if team_id in pitch.get(i, ()):
                 yield Earned(user_id, C.PERFECT_PITCH, edition_id)
             before = refereed

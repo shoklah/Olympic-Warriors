@@ -210,7 +210,7 @@ export default {
 	'badge.shutout.name': 'Cadenas',
 	'badge.shutout.rule': 'Gagner un match sans encaisser de point',
 	'badge.steamroller.name': 'Rouleau compresseur',
-	'badge.steamroller.rule': "Gagner avec le plus large écart de l'édition",
+	'badge.steamroller.rule': "Gagner avec le plus large écart d'une épreuve",
 	'badge.golden-whistle.name': "Sifflet d'or",
 	'badge.golden-whistle.rule': 'Arbitrer 5, 10 puis 20 matchs',
 	'badge.perfect-pitch.name': 'Oreille absolue',

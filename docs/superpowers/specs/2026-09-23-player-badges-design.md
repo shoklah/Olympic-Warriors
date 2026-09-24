@@ -199,7 +199,7 @@ discipline means picking its god and its kind.
 | `unbeaten` | Invaincu | Unbeaten | No loss in a discipline's games, at least 3 played, not all won | each, per discipline | silver | Shield |
 | `perfect-run` | Sans faute | Perfect run | Won every game of a discipline, at least 3 played. Replaces `unbeaten` for that discipline and edition | each, per discipline | gold | Shield with a star |
 | `shutout` | Cadenas | Shutout | Won a game without conceding a point | once per edition | bronze | Padlock |
-| `steamroller` | Rouleau compresseur | Steamroller | The biggest winning margin of the edition's games (ties share it) | once per edition | silver | Road roller |
+| `steamroller` | Rouleau compresseur | Steamroller | The biggest winning margin among a discipline's games of the edition (ties share it) | each, per discipline | silver | Road roller |
 | `golden-whistle` | Sifflet d'or | Golden whistle | The person's teams refereed 5 / 10 / 20 games in total. A game counts as refereed only when the referee team is neither of the two teams playing (the schedulers put a playing team there as a placeholder) | tiers | tiers | Whistle ✓ |
 | `perfect-pitch` | Oreille absolue | Perfect pitch | Artist and song both right on every round of the edition's blindtest, which must be revealed: every active round that has at least one active guess (`Blindtest.save()` creates a guess per team for every round) | once per edition | gold | Tuning fork |
 
@@ -230,7 +230,7 @@ class Badge(models.Model):
     code = models.CharField(max_length=32, choices=Codes.choices)
     edition = models.ForeignKey("Edition", on_delete=models.CASCADE)  # earned at
     tier = models.PositiveSmallIntegerField(default=0)                # 0 untiered, 1 to 3
-    discipline = models.CharField(max_length=100, blank=True, default="")  # specialist, unbeaten, perfect-run
+    discipline = models.CharField(max_length=100, blank=True, default="")  # specialist, unbeaten, perfect-run, steamroller
     partner = models.ForeignKey(User, null=True, blank=True, on_delete=models.CASCADE, related_name="+")  # comrades
     is_manual = models.BooleanField(default=False)
     note = models.CharField(max_length=200, blank=True)  # organiser memo, never public
@@ -452,8 +452,8 @@ and each tile shows:
 - the name, `badge.<code>.name`, in `.label` style;
 - a detail line in `--muted`, its parts joined by ` · ` (the dots in `--ghost` and hidden
   from screen readers), starting with the translated discipline name whenever the badge
-  has one (`specialist`, `unbeaten`, `perfect-run`), so two tiles of one code tell their
-  disciplines apart:
+  has one (`specialist`, `unbeaten`, `perfect-run`, `steamroller`), so two tiles of one code
+  tell their disciplines apart:
   - a tiered badge: « Niveau 2 » / "Tier 2", then the year that tier was reached
     (`Rugby · Tier 1 · 2026`);
   - `comrades`: « avec » / "with" and the partner as a link to their profile, then the

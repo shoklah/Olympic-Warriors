@@ -1632,23 +1632,31 @@ class TestGames(World, TestCase):
         self.assertEqual(games_of(self.ana, C.SHUTOUT), [])
         self.assertEqual(games_of(self.cat, C.SHUTOUT), [])
 
-    def test_steamroller_for_the_biggest_margin(self):
-        # Rugby: Ana's team wins by 12, Cat's by 2. Dan's 30 to 0 in a hidden Football is
-        # left out, so it takes the badge from no one.
+    def test_steamroller_is_judged_per_discipline(self):
+        # Raw margins aren't comparable across sports: Darts' 301-141 (margin 160) dwarfs any
+        # Rugby score, but each discipline judges only its own games. Rugby: Ana's team wins
+        # by 13, Cat's by 2, so Ana's the biggest Rugby margin. Darts: Bob's team wins by 160,
+        # Dan's by 10, so Bob's the biggest Darts margin. Both earn steamroller, each with
+        # their own discipline.
         edition, (a, b, c, d) = self.four()
         rugby = self.sport(edition)
-        self.game(rugby, a, 12, b, 0, c)
+        self.game(rugby, a, 13, b, 0, c)
         self.game(rugby, c, 5, d, 3, a)
-        football = self.sport(edition, Football, reveal=False)
-        self.game(football, d, 30, b, 0, a)
+        darts = self.sport(edition, Darts)
+        self.game(darts, b, 301, c, 141, d)
+        self.game(darts, a, 100, d, 90, b)
 
-        self.assertEqual(years_of(self.ana, C.STEAMROLLER), [2021])
         self.assertEqual(
-            [years_of(user, C.STEAMROLLER) for user in (self.bob, self.cat, self.dan)],
-            [[], [], []],
+            games_of(self.ana, C.STEAMROLLER), [(C.STEAMROLLER, 2021, 0, "Rugby", None)]
+        )
+        self.assertEqual(
+            games_of(self.bob, C.STEAMROLLER), [(C.STEAMROLLER, 2021, 0, "Darts", None)]
+        )
+        self.assertEqual(
+            [games_of(user, C.STEAMROLLER) for user in (self.cat, self.dan)], [[], []]
         )
 
-    def test_a_tied_biggest_margin_gives_it_to_both_winners(self):
+    def test_a_tied_biggest_margin_gives_it_to_both_winners_of_that_discipline(self):
         edition, (a, b, c, d) = self.four()
         rugby = self.sport(edition)
         self.game(rugby, a, 12, b, 0, c)
@@ -1656,8 +1664,13 @@ class TestGames(World, TestCase):
         self.game(rugby, a, 5, d, 4, b)
 
         self.assertEqual(
-            [years_of(user, C.STEAMROLLER) for user in self.people],
-            [[2021], [], [2021], []],
+            [games_of(user, C.STEAMROLLER) for user in self.people],
+            [
+                [(C.STEAMROLLER, 2021, 0, "Rugby", None)],
+                [],
+                [(C.STEAMROLLER, 2021, 0, "Rugby", None)],
+                [],
+            ],
         )
 
     def test_a_draw_is_never_a_steamroller(self):
@@ -1667,6 +1680,32 @@ class TestGames(World, TestCase):
         self.game(rugby, c, 0, d, 0, a)
 
         self.assertEqual([years_of(user, C.STEAMROLLER) for user in self.people], [[]] * 4)
+
+    def test_a_hidden_disciplines_games_give_no_steamroller(self):
+        # Dan's 30-0 win is the only game of the edition, but its Football is hidden: no one
+        # earns the badge, not even at a smaller margin elsewhere.
+        edition, (a, b, c, d) = self.four()
+        football = self.sport(edition, Football, reveal=False)
+        self.game(football, d, 30, b, 0, a)
+
+        self.assertEqual([years_of(user, C.STEAMROLLER) for user in self.people], [[]] * 4)
+
+    def test_one_team_earns_steamroller_in_two_disciplines(self):
+        # Ana's team has the biggest margin in both Rugby and Darts, so it earns steamroller
+        # twice: one badge per discipline, not one for the edition.
+        edition, (a, b, c, d) = self.four()
+        rugby = self.sport(edition)
+        self.game(rugby, a, 13, b, 0, c)
+        darts = self.sport(edition, Darts)
+        self.game(darts, a, 301, b, 100, c)
+
+        self.assertEqual(
+            games_of(self.ana, C.STEAMROLLER),
+            [
+                (C.STEAMROLLER, 2021, 0, "Darts", None),
+                (C.STEAMROLLER, 2021, 0, "Rugby", None),
+            ],
+        )
 
     def whistle(self, year, count, reveal=True):
         """A new edition of `year` where Ana's team referees `count` games of Bob's and

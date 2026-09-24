@@ -110,9 +110,9 @@ export function badgeGlyph(badge) {
 
 /**
  * The text parts of a profile tile's detail line, which the page joins with ' · '. The
- * discipline comes first whenever the badge has one (specialist, unbeaten, perfect-run),
- * so two tiles of one code tell their disciplines apart. Then a tiered badge gives
- * ['Tier 2', year reached]; comrades gives [year], the page writing the partner link
+ * discipline comes first whenever the badge has one (specialist, unbeaten, perfect-run,
+ * steamroller), so two tiles of one code tell their disciplines apart. Then a tiered badge
+ * gives ['Tier 2', year reached]; comrades gives [year], the page writing the partner link
  * before it; any other badge gives ['×2', ...years] when earned more than once, else
  * [year]. No year gives no part (the page then leaves the line, or its separator, out).
  */
