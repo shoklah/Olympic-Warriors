@@ -75,7 +75,7 @@ export default {
 	'badge.icarus.name': 'Icare',
 	'badge.icarus.rule': 'Tomber dans la seconde moitié du classement juste après un titre',
 	'badge.lucky-charm.name': 'Porte-bonheur',
-	'badge.lucky-charm.rule': 'Monter sur le podium à ses trois premières éditions',
+	'badge.lucky-charm.rule': 'Monter sur le podium à ses trois premières éditions classées',
 	'badge.rookie.name': 'Bizut',
 	'badge.rookie.rule': 'Jouer sa première édition',
 	'badge.veteran.name': 'Vétéran',

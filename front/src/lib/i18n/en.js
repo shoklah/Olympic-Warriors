@@ -71,7 +71,7 @@ export default {
 	'badge.icarus.name': 'Icarus',
 	'badge.icarus.rule': 'Drop to the bottom half right after a title',
 	'badge.lucky-charm.name': 'Lucky charm',
-	'badge.lucky-charm.rule': 'Reach the podium in each of your first three editions',
+	'badge.lucky-charm.rule': 'Reach the podium in each of your first three ranked editions',
 	'badge.rookie.name': 'Rookie',
 	'badge.rookie.rule': 'Play your first edition',
 	'badge.veteran.name': 'Veteran',

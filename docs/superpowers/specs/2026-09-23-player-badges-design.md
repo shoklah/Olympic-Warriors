@@ -309,7 +309,10 @@ deletes whatever it no longer earns.
 **`BadgeRefresh`** is a one-row model (`refreshed_at`, a nullable datetime), created by
 the migration and not registered in the admin. Its row lock makes a cron run and an admin
 action that start together run one after the other, and `refreshed_at` shows when the last
-run finished, so anyone can check that the cron job is running.
+run finished, so anyone can check that the cron job is running: the Badge changelist reads
+« Dernier calcul des badges : 24/09/2026 à 03:00 (heure de Paris) » at the top (« jamais »
+before the first run), the admin action's message gives the time, and the command prints
+it.
 
 ### When the badges refresh
 
@@ -324,9 +327,13 @@ run finished, so anyone can check that the cron job is running.
   a past edition also shows after the next night. The profile view only reads.
 - **On demand.** An Edition changelist action, « Recalculer les badges (toutes les
   éditions) », runs `refresh()`. The selection does not matter, because streaks and tables
-  span editions.
+  span editions. It needs the change permission on Edition, so a view-only staff user does
+  not get it, and its message reads « Badges recalculés à 03:00 (heure de Paris) :
+  ajout(s) 3, retrait(s) 1, inchangé(s) 2. ».
 - **After an import.** `import_edition` runs `refresh()` after a real (not `--dry-run`)
-  import, once the import's transaction has committed.
+  import, once the import's transaction has committed. If the refresh fails, the import
+  stays committed: the command writes « Import committed; badges not refreshed: run
+  manage.py refresh_badges. » to stderr and ends with a `CommandError`.
 - **From the command line.** The `refresh_badges` management command, which the cron
   job calls, runs `refresh()` and prints the rows added, removed and kept, and
   `refreshed_at`.
@@ -367,8 +374,19 @@ The leaderboard (`/profiles/`) does not change in this step.
 - **Adding** offers only the "given by hand" codes, and sets `is_manual`. The form's
   `code` choices are restricted, so this is not `save()` logic.
 - **A computed row** is read-only except for `is_active` (`get_readonly_fields`), and its
-  page leaves `note` out.
-- **The Edition changelist** gets the refresh action above.
+  page leaves `note` out. It cannot be deleted either: deleting is not revoking, since the
+  next refresh would recreate the row. `has_delete_permission` is false for a computed row
+  (no delete link, a 403 on its delete URL), and the « delete selected » action and
+  `delete_queryset` keep only the selection's manual rows, so a mixed selection deletes
+  its manual rows and lists only those on the confirmation page. A manual row deletes as
+  usual. The refusal holds on the Badge admin's own pages only: a user's or an edition's
+  delete page asks the same permission for every badge the cascade takes, and still
+  deletes them, since nothing recreates them.
+- **The Badge changelist** shows when the badges were last refreshed (see `BadgeRefresh`),
+  through `changelist_view`'s `extra_context` and a template override,
+  `templates/admin/olympic_warriors/badge/change_list.html`.
+- **The Edition changelist** gets the refresh action above, for staff with the change
+  permission on Edition.
 
 ## Front
 
@@ -489,7 +507,14 @@ and the profile payload in `tests/test_profiles.py`:
   - manual rows are untouched;
   - `refresh_badges` calls it and prints the rows added and removed, and
     `refreshed_at` is set;
-- the query count (`BADGES_QUERIES`);
+  - a run that writes no badge row costs `earned()` plus a fixed number of queries;
+- the admin: a computed row has no delete link and its delete URL answers 403, a mixed
+  « delete selected » deletes only the manual rows, deleting an edition or a user still
+  takes their computed badges, a view-only staff user does not get the Edition action,
+  the action's message, and the last refresh on the Badge changelist;
+- the import hook: `refresh()` runs outside the import's transaction, and a failed refresh
+  leaves the import committed and ends in a `CommandError`;
+- the query count (`BADGES_QUERIES`, and just `_load`'s 2 queries on an empty sequence);
 - the family and kind maps cover every `Discipline` subclass;
 - the profile payload: grouping, catalogue order, `years`, `tier`, the partner's shape,
   and no username or email.
