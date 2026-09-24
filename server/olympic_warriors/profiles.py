@@ -29,6 +29,9 @@ The rules (see the player profiles design spec under docs/superpowers/specs/):
   editions, sorted best first, and are ordered and positioned by the same medal-table
   rule as the leaderboard, with the name as tie-break. The leaderboard, the average
   rank and the badges never read them.
+- a record also carries what the person added to their profile (UserProfile): the photo
+  URLs and the stored showcase pins, read from the profile row joined into the players
+  query, so they cost no query; a missing row reads as no photo and no pin.
 - a discipline's all-time table ranks every person on their team's revealed results in
   it (by discipline name, across editions, running ones included, whether or not the
   participation counts) with the same medal-table rule; identical places share a
@@ -41,12 +44,13 @@ The rules (see the player profiles design spec under docs/superpowers/specs/):
 import math
 import unicodedata
 from collections import defaultdict
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from django.db.models import Count, Q
 
+from .avatars import photo_urls
 from .models import Discipline, Edition, Player
 from .standings import compute_standings
 
@@ -111,6 +115,29 @@ class Participation:
         return self.finished and self.rank is not None and self.teams >= 2
 
 
+def person_players():
+    """
+    The Player rows that make their user a person: active, of an active edition. Their users
+    are exactly the leaderboard's people (_load reaches the same rows through the active
+    editions it loads first; test_showcase checks the two agree), so a question about who
+    is a person asks this queryset rather than computing the leaderboard.
+    """
+    return Player.objects.filter(is_active=True, edition__is_active=True)
+
+
+def is_person(user):
+    """Whether `user` (a User or a user id) is a person (1 query)."""
+    return person_players().filter(user=user).exists()
+
+
+def person_ids():
+    """The user id of every person, sorted, each once (1 query): the leaderboard's people
+    without the leaderboard, for badge_stats() when only the denominator is needed."""
+    return list(
+        person_players().order_by("user_id").values_list("user_id", flat=True).distinct()
+    )
+
+
 def _valid_team(player):
     """The player's team when it is active and belongs to the player's edition."""
     team = player.team
@@ -160,8 +187,9 @@ class Loaded:
     """
     What participations() and badges.earned() both read, from 2 + 3 per finished edition with
     a player queries: the active editions by id (annotated with `team_count`, their active
-    teams), the chosen Player row per (user id, edition id), the finished edition ids, the
-    standings of the finished editions that have a player, and which of those rank.
+    teams), the chosen Player row per (user id, edition id), with its user and the user's
+    profile row joined in, the finished edition ids, the standings of the finished editions
+    that have a player, and which of those rank.
     """
 
     editions: dict
@@ -181,7 +209,9 @@ def _load(today):
     }
     players = (
         Player.objects.filter(is_active=True, edition_id__in=editions)
-        .select_related("user", "team")
+        # The profile row (photo and pins) for the leaderboard: a join, not a query, and a
+        # missing row is cached as None, so reading it later costs no query either.
+        .select_related("user__profile", "team")
         .order_by("id")
     )
     chosen = _one_row_per_edition(players)
@@ -270,7 +300,9 @@ def participations(today=None):
 @dataclass(frozen=True)
 class PlayerRecord:
     """A person's editions, places, discipline places and average rank, with their place
-    on the leaderboard."""
+    on the leaderboard, their photo ({"large", "small"} URLs, see avatars.photo_urls, or
+    None) and their stored showcase pins (UserProfile.showcase, earned or not: the showcase
+    shown filters them, see badges.showcase)."""
 
     user_id: int
     first_name: str
@@ -281,6 +313,9 @@ class PlayerRecord:
     average_rank: float | None
     disciplines: tuple[DisciplinePlaces, ...] = ()
     position: int | None = None
+    # A dict, so left out of the hash (still compared): a record stays hashable.
+    photo: dict | None = field(default=None, hash=False)
+    pins: tuple[str, ...] = ()
 
     @property
     def played(self):
@@ -288,13 +323,25 @@ class PlayerRecord:
         return len(self.participations)
 
 
+def _profile(user):
+    """
+    The user's UserProfile, or None without a row. _load() joins it into the players query,
+    and select_related caches a missing row as None, so this reads no query; a user built
+    from plain values (the unit tests) has no such attribute and reads as None too. Every
+    Player row of a person points at the same user, so whichever one _participations()
+    kept, the profile is the same.
+    """
+    return getattr(user, "profile", None)
+
+
 def _record(user, parts):
-    """A person's record without a position: counted editions, places, discipline places
-    and average rank."""
+    """A person's record without a position: counted editions, places, discipline places,
+    average rank, photo and pins."""
     counted_parts = [part for part in parts if part.counts]
     average_rank = None
     if counted_parts:
         average_rank = round(sum(part.rank for part in counted_parts) / len(counted_parts), 1)
+    profile = _profile(user)
     return PlayerRecord(
         user_id=user.id,
         first_name=user.first_name,
@@ -304,6 +351,8 @@ def _record(user, parts):
         counted=len(counted_parts),
         average_rank=average_rank,
         disciplines=_discipline_places(parts),
+        photo=photo_urls(profile),
+        pins=tuple(profile.showcase) if profile is not None else (),
     )
 
 

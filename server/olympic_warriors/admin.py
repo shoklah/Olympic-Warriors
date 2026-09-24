@@ -4,19 +4,27 @@ Admin dashboard configuration for the Olympic Warriors app.
 
 import math
 
-from django.contrib.admin import action, site, ModelAdmin, TabularInline
+from django.contrib import messages
+from django.contrib.admin import action, display, site, ModelAdmin, SimpleListFilter, TabularInline
 from django.contrib.admin.actions import delete_selected as stock_delete_selected
 from django.contrib.admin.forms import AdminAuthenticationForm
-from django.core.exceptions import ValidationError
+from django.contrib.auth import get_user_model
+from django.core.exceptions import ImproperlyConfigured, ValidationError
+from django.db import transaction
 from django.forms import ModelChoiceField, ModelForm
 from django.http import HttpRequest
+from django.utils.html import format_html
+from django.utils.translation import gettext_lazy
+from .avatars import remove_photo
 from .badges import refresh
+from .claims import INACTIVE, NOT_A_PERSON, STAFF, Unclaimable, claim_link, public_url
 from .profiles import PARIS
 from .throttling import LoginRateThrottle
 from .models import (
     MANUAL_CODES,
     Badge,
     BadgeRefresh,
+    UserProfile,
     Player,
     PlayerRating,
     Team,
@@ -175,7 +183,59 @@ class TeamWithYearChoiceField(ModelChoiceField):
         return f"{obj.name} ({obj.edition.year})"
 
 
-class PlayerAdmin(ModelAdmin):
+# Why no link was generated, after « Prénom Nom (identifiant) : pas de lien, ».
+CLAIM_REFUSALS = {
+    STAFF: "un organisateur garde son propre mot de passe",
+    INACTIVE: "ce compte est désactivé",
+    NOT_A_PERSON: "aucune participation active à une édition active",
+}
+
+
+@action(description="Générer un lien d'activation", permissions=["claim"])
+def generate_claim_links(modeladmin, request, queryset):
+    """
+    One message per user of the selection (several players of one person make one line), by
+    name: the claim link to send them, or a warning saying why there is none; or a single
+    error when PUBLIC_URL cannot make a link. A new link does not revoke older unused ones:
+    they all die when any of them is used. The links travel to the page in Django's
+    messages, and are never logged or kept once shown.
+    """
+    try:
+        public_url()
+    except ImproperlyConfigured:
+        modeladmin.message_user(
+            request,
+            "Aucun lien généré : PUBLIC_URL (l'adresse publique du site) n'est pas configuré.",
+            messages.ERROR,
+        )
+        return
+    users = get_user_model().objects.filter(pk__in=queryset.values("user_id")).order_by(
+        "last_name", "first_name", "username"
+    )
+    for user in users:
+        label = f"{user.get_full_name() or user.username} ({user.username})"
+        try:
+            link = claim_link(user)
+        except Unclaimable as refusal:
+            modeladmin.message_user(
+                request,
+                f"{label} : pas de lien, {CLAIM_REFUSALS[refusal.reason]}.",
+                messages.WARNING,
+            )
+        else:
+            modeladmin.message_user(request, f"{label} : {link}", messages.INFO)
+
+
+class ClaimLinksPermission:  # pylint: disable=too-few-public-methods
+    """The permission generate_claim_links asks of an admin mixing this in."""
+
+    def has_claim_permission(self, request):
+        """A link lets whoever opens it set the person's password: only a user who may
+        change users gets the action, whatever their rights on the admin's own model."""
+        return request.user.has_perm("auth.change_user")
+
+
+class PlayerAdmin(ClaimLinksPermission, ModelAdmin):
     """
     Admin dashboard configuration for the Player model.
     """
@@ -192,6 +252,7 @@ class PlayerAdmin(ModelAdmin):
         "edition__year",
     ]
     inlines = [PlayerRatingInline]
+    actions = [generate_claim_links]
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         """Teams labelled `name (year)`, newest edition first."""
@@ -611,12 +672,149 @@ class BadgeAdmin(ModelAdmin):
         return super().changelist_view(request, extra_context)
 
 
+class HasPhotoFilter(SimpleListFilter):
+    """Profiles with or without a photo (an empty name is no photo)."""
+
+    title = "has photo"
+    parameter_name = "has_photo"
+
+    def lookups(self, request, model_admin):
+        return [("1", gettext_lazy("Yes")), ("0", gettext_lazy("No"))]
+
+    def queryset(self, request, queryset):
+        if self.value() == "1":
+            return queryset.exclude(photo="")
+        if self.value() == "0":
+            return queryset.filter(photo="")
+        return queryset
+
+
+class ClaimedFilter(SimpleListFilter):
+    """Profiles whose person did or did not set a password through a claim link."""
+
+    title = "claimed"
+    parameter_name = "claimed"
+
+    def lookups(self, request, model_admin):
+        return [("1", gettext_lazy("Yes")), ("0", gettext_lazy("No"))]
+
+    def queryset(self, request, queryset):
+        if self.value() in ("0", "1"):
+            return queryset.filter(claimed_at__isnull=self.value() == "0")
+        return queryset
+
+
+@action(description="Retirer la photo", permissions=["change"])
+def remove_photos(modeladmin, request, queryset):
+    """Take the selection's photos down (a person can upload another unless locked)."""
+    profiles = list(queryset)
+    removed = sum(remove_photo(profile) for profile in profiles)
+    modeladmin.message_user(
+        request,
+        f"Photo(s) retirée(s) : {removed} sur {len(profiles)} profil(s) sélectionné(s).",
+    )
+
+
+@action(description="Retirer et verrouiller", permissions=["change"])
+def remove_and_lock(modeladmin, request, queryset):
+    """Lock the selection out of uploading, then take their photos down."""
+    profiles = list(queryset)
+    removed = 0
+    for profile in profiles:
+        # Locked first, in the same transaction as the removal: the UPDATE holds the row
+        # until both are done, so an upload waiting on it finds the lock once it gets the
+        # row (store_photo re-reads it under select_for_update), and an upload that had
+        # the row first is the photo this removes.
+        with transaction.atomic():
+            profile.photo_locked = True
+            profile.save(update_fields=["photo_locked", "updated_at"])
+            removed += remove_photo(profile)
+    modeladmin.message_user(
+        request,
+        f"Photo(s) retirée(s) : {removed} ; profil(s) verrouillé(s) : {len(profiles)}.",
+    )
+
+
+class UserProfileAdmin(ClaimLinksPermission, ModelAdmin):
+    """
+    Photo moderation. Organisers never upload a photo (every face on the site was put there
+    by its owner), so no form here has a file input: the photo shows as a thumbnail linking
+    to the full size, and the pinned showcase is read-only too, since badges are earned.
+    Only the lock is edited, from the list or the change form, and the actions take photos
+    down or re-issue claim links. Rows are created lazily by the claim and edit flows, never
+    here. The model has no is_active, so the changelist does not go through
+    request_only_active.
+    """
+
+    list_display = ["name", "thumbnail", "photo_locked", "claimed_at", "updated_at"]
+    list_editable = ["photo_locked"]
+    list_filter = ["photo_locked", HasPhotoFilter, ClaimedFilter]
+    list_select_related = ("user",)
+    search_fields = ["user__first_name", "user__last_name", "user__username"]
+    ordering = ["user__last_name", "user__first_name", "user__username"]
+    actions = [remove_photos, remove_and_lock, generate_claim_links]
+    fields = ["user", "photo_preview", "photo_locked", "pinned", "claimed_at", "updated_at"]
+    readonly_fields = ["user", "photo_preview", "pinned", "claimed_at", "updated_at"]
+
+    @display(description="name", ordering="user__last_name")
+    def name(self, obj):
+        """The person's full name, else the username."""
+        return str(obj)
+
+    @display(description="photo")
+    def thumbnail(self, obj):
+        """The small photo in the list, or the empty value without one."""
+        if not obj.photo_small:
+            return None
+        return format_html(
+            '<img src="{}" alt="" width="40" height="40" style="border-radius: 50%">',
+            obj.photo_small.url,
+        )
+
+    @display(description="photo")
+    def photo_preview(self, obj):
+        """The small photo, linking to the full size. The change form prints a readonly
+        method's None as "None" (only the changelist maps it to the empty value), hence
+        the explicit empty value here and in `pinned`."""
+        if not obj.photo:
+            return self.get_empty_value_display()
+        return format_html(
+            '<a href="{}"><img src="{}" alt="Photo en taille réelle" width="128" '
+            'height="128"></a>',
+            obj.photo.url,
+            obj.photo_small.url if obj.photo_small else obj.photo.url,
+        )
+
+    @display(description="showcase")
+    def pinned(self, obj):
+        """The pinned badges by name, in the person's order (a code the catalogue lost
+        shows as is)."""
+        labels = dict(Badge.Codes.choices)
+        return (
+            ", ".join(labels.get(code, code) for code in obj.showcase)
+            or self.get_empty_value_display()
+        )
+
+    def has_add_permission(self, request):
+        return False
+
+    def get_actions(self, request):
+        """Only this admin's own actions: next to « Retirer la photo », the stock bulk delete
+        would drop the whole rows, pins and claim date with them, which taking a photo down
+        never means. A profile can still be deleted from its own page (its files go with
+        it, signals.py)."""
+        actions = super().get_actions(request)
+        actions.pop("delete_selected", None)
+        return actions
+
+
 site.login_form = ThrottledAdminAuthenticationForm
 
 site.register(Player, PlayerAdmin)
 site.register(Team, TeamAdmin)
 site.register(Edition, EditionAdmin)
 site.register(Badge, BadgeAdmin)
+site.register(UserProfile, UserProfileAdmin)
 site.register(PlayerRating, PlayerRatingAdmin)
 site.register(Discipline, DisciplineAdmin)
 site.register(TeamResult, TeamResultAdmin)

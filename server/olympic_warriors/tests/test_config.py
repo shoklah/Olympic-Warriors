@@ -55,3 +55,17 @@ class TestConfigFromEnvironment(SimpleTestCase):
             env_file.write("NUM_PROXIES=4\n")
         self.addCleanup(os.remove, env_file.name)
         self.assertEqual(self.config(REQUIRED, env_file.name).NUM_PROXIES, 4)
+
+    def test_optional_strings_come_from_the_environment_too(self):
+        # PUBLIC_URL overrides DevConfig's own default (the Vite dev server), and neither
+        # setting is required: CI's job variables leave both out.
+        config = self.config({
+            **REQUIRED,
+            "PUBLIC_URL": "https://ow.example",
+            "PHOTO_THROTTLE_RATE": "3/hour",
+        })
+        self.assertEqual(config.PUBLIC_URL, "https://ow.example")
+        self.assertEqual(config.PHOTO_THROTTLE_RATE, "3/hour")
+        defaults = self.config(REQUIRED)
+        self.assertEqual(defaults.PUBLIC_URL, "http://localhost:5173")
+        self.assertEqual(defaults.PHOTO_THROTTLE_RATE, "10/hour")

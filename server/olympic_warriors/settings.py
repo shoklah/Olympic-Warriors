@@ -107,7 +107,7 @@ else:
 
 
 # Cache
-# Only the login throttle uses it. Gunicorn workers are separate processes, and the
+# Only the throttles use it. Gunicorn workers are separate processes, and the
 # local-memory default is per process, so each worker would keep its own count: files are
 # shared by every worker of the container. Losing them on a restart only resets the counts.
 
@@ -136,6 +136,15 @@ AUTH_PASSWORD_VALIDATORS = [
         "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
     },
 ]
+
+# Claim links (claims.py) are Django password-reset tokens, so this is how long one lasts:
+# a week, time for an organiser to send it over WhatsApp or Messenger and for the person to
+# open it. A link dies sooner once any claim link of the same person is used.
+PASSWORD_RESET_TIMEOUT = 7 * 24 * 3600
+
+# The front's public address, the base of every claim link (config.PUBLIC_URL; empty in
+# production until set, and then the admin makes no link).
+PUBLIC_URL = settings.PUBLIC_URL
 
 
 # Internationalization
@@ -230,13 +239,18 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.TokenAuthentication',
     ],
+    # Staff-only by default: a view opens to visitors (AllowAny) or to any token
+    # (IsAuthenticated) only through its own @permission_classes, which test_permissions.py
+    # checks route by route against its PUBLIC and PLAYER lists.
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
+        'olympic_warriors.permissions.IsOrganiser',
     ],
-    # No DEFAULT_THROTTLE_CLASSES: only the token view throttles (LoginRateThrottle, which the
-    # admin login form shares from admin.py).
+    # No DEFAULT_THROTTLE_CLASSES: only the token view and a claim link's POST throttle with
+    # LoginRateThrottle, which the admin login form shares from admin.py, and a photo upload
+    # with PhotoRateThrottle.
     'DEFAULT_THROTTLE_RATES': {
         'login': settings.LOGIN_THROTTLE_RATE,
+        'photo': settings.PHOTO_THROTTLE_RATE,
     },
     'NUM_PROXIES': settings.NUM_PROXIES,
 }

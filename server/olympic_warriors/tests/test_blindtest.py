@@ -320,8 +320,9 @@ class TestBlindtestGuessEndpoints(BlindtestSetup):
     def setUp(self):
         super().setUp()
         self.client = APIClient()
+        # The guess views are staff-only, like the rest of the API outside the reveal-aware reads.
         self.client.force_authenticate(
-            user=User.objects.create_user("player", "player@example.com", "pw")
+            user=User.objects.create_user("orga", "orga@example.com", "pw", is_staff=True)
         )
         self.other_blindtest = Blindtest.objects.create(edition=self.edition)
         self.hidden = self.guess(self.red)

@@ -1,7 +1,8 @@
 """
 Tests for olympic_warriors.profiles: a person's editions, places, averages and leaderboard place,
 computed from the edition standings, and the two public endpoints serving them, the profile
-with its badges (badges.profile_badges) and rarity stats (badges.badge_stats).
+with its badges (badges.profile_badges) and rarity stats (badges.badge_stats). The photos and
+showcases these endpoints carry are tested in test_showcase.py.
 """
 
 from datetime import date, datetime, timezone
@@ -24,6 +25,7 @@ from olympic_warriors.models import (
     Relay,
     Team,
     TeamResult,
+    UserProfile,
 )
 from olympic_warriors.profiles import (
     DisciplinePlace,
@@ -42,9 +44,16 @@ from olympic_warriors.profiles import (
 )
 
 TODAY = date(2026, 9, 23)
-# The editions query, the players query, then three per finished edition with players
-# (2024 and 2025 in ProfilesSetup; 2026 is still running).
-PROFILES_QUERIES = 2 + 3 * 2
+# participations() and leaderboard(): the editions query, the players query (each user's
+# profile row joined in), then three per finished edition with players (2024 and 2025 in
+# ProfilesSetup; 2026 is still running). profile_record() runs the same, plus three per
+# running edition in which the person has a team (the standings of its revealed places).
+LEADERBOARD_QUERIES = 2 + 3 * 2
+# Either endpoint: the leaderboard, then the badges (every person's in one query on
+# /profiles/, the one person's on /profile/<id>/) and the rarity stats: 4 + 3 per finished
+# edition with players. The photos, the pins and a comrades partner's photo ride on joins.
+# /profile/<id>/ adds profile_record()'s three per running edition the person has a team in.
+PROFILES_QUERIES = 4 + 3 * 2
 # The discipline's name, the active editions holding it, their players, then three per such
 # edition with players (2024 and 2025 for DisciplinesSetup's Relay).
 DISCIPLINE_TABLE_QUERIES = 1 + 2 + 3 * 2
@@ -121,6 +130,21 @@ class ProfilesSetup:
     @staticmethod
     def play(user, edition, team=None, **kwargs):
         return Player.objects.create(user=user, edition=edition, team=team, rating=5, **kwargs)
+
+    @staticmethod
+    def give_photo(user, **fields):
+        """A profile row with a photo (its file names only: nothing reads the files), plus
+        any other `fields`."""
+        base = f"avatars/{user.id}-0123456789ab"
+        return UserProfile.objects.create(
+            user=user, photo=f"{base}.webp", photo_small=f"{base}-sm.webp", **fields
+        )
+
+    @staticmethod
+    def photo_of(user):
+        """The URLs of the photo give_photo() stores for `user`."""
+        base = f"/media/avatars/{user.id}-0123456789ab"
+        return {"large": f"{base}.webp", "small": f"{base}-sm.webp"}
 
 
 def summary_of(parts):
@@ -219,7 +243,7 @@ class TestParticipations(ProfilesSetup, TestCase):
         )
         Team.objects.create(name="Vide", edition=empty)
 
-        with self.assertNumQueries(PROFILES_QUERIES):
+        with self.assertNumQueries(LEADERBOARD_QUERIES):
             participations(TODAY)
 
 
@@ -325,8 +349,40 @@ class TestLeaderboard(ProfilesSetup, TestCase):
         self.assertEqual(rows["Ana"].counted, 2)
 
     def test_query_budget_matches_participations(self):
-        with self.assertNumQueries(PROFILES_QUERIES):
+        with self.assertNumQueries(LEADERBOARD_QUERIES):
             leaderboard(TODAY)
+
+    def test_records_carry_the_photo_and_the_pins_from_the_players_query(self):
+        # Ana plays three editions (three Player rows, one user) and has both; Bob has a
+        # row without a photo or a pin, and two rows in 2025; Chloé has no row at all.
+        self.give_photo(self.ana, showcase=[Badge.Codes.GOAT, Badge.Codes.CHAMPION])
+        UserProfile.objects.create(user=self.bob)
+        self.play(self.bob, self.y2025)
+
+        with self.assertNumQueries(LEADERBOARD_QUERIES):
+            rows = self.rows()
+
+        self.assertEqual(rows["Ana"].photo, self.photo_of(self.ana))
+        self.assertEqual(rows["Ana"].pins, (Badge.Codes.GOAT, Badge.Codes.CHAMPION))
+        for name in ("Bob", "Chloé"):
+            with self.subTest(name=name):
+                self.assertIsNone(rows[name].photo)
+                self.assertEqual(rows[name].pins, ())
+
+    def test_a_record_with_a_photo_and_pins_stays_hashable(self):
+        self.give_photo(self.ana, showcase=[Badge.Codes.GOAT])
+
+        record = self.rows()["Ana"]
+
+        self.assertIsNotNone(record.photo)
+        self.assertIn(record, {record})  # a frozen dataclass, usable as a key
+
+    def test_a_record_built_from_a_bare_user_has_no_photo_and_no_pins(self):
+        # Records rebuilt from plain values (the hall of fame's tables, unit tests) read a
+        # missing profile as none, never as an error.
+        record = _record(SimpleNamespace(id=1, first_name="A", last_name="Aa"), ())
+
+        self.assertEqual((record.photo, record.pins), (None, ()))
 
 
 class DisciplinesSetup(ProfilesSetup):
@@ -463,11 +519,11 @@ class TestDisciplinePlaces(DisciplinesSetup, TestCase):
     def test_query_budget(self):
         # The leaderboard's, plus three per running edition the person has a team in:
         # Ana plays 2026, Bob does not.
-        with self.assertNumQueries(PROFILES_QUERIES):
+        with self.assertNumQueries(LEADERBOARD_QUERIES):
             leaderboard(TODAY)
-        with self.assertNumQueries(PROFILES_QUERIES + 3):
+        with self.assertNumQueries(LEADERBOARD_QUERIES + 3):
             profile_record(self.ana.id, TODAY)
-        with self.assertNumQueries(PROFILES_QUERIES):
+        with self.assertNumQueries(LEADERBOARD_QUERIES):
             profile_record(self.bob.id, TODAY)
 
 
@@ -608,7 +664,7 @@ class TestDisciplinePlacesGrouping(SimpleTestCase):
 
 class TestBadgeStats(ProfilesSetup, TestCase):
     """badges.badge_stats: how many of the given people hold each badge code, once per
-    person, and for the six tiered codes, how many hold at least each tier."""
+    person, and for the five tiered codes, how many hold at least each tier."""
 
     def badge(self, code, edition, user=None, **kwargs):
         """A stored Badge row, Ana's unless `user` is given."""
@@ -719,14 +775,18 @@ class TestBadgeStats(ProfilesSetup, TestCase):
         self.assertEqual(derived, set(badges_module.TIERED_CODES))
 
 
-class TestProfileEndpoints(ProfilesSetup, TestCase):
+class EndpointSetup(ProfilesSetup):
+    """ProfilesSetup seen on TODAY through the public endpoints, with no credentials."""
+
     def setUp(self):
         super().setUp()
         patcher = mock.patch("olympic_warriors.profiles.paris_today", return_value=TODAY)
         patcher.start()
-        self.addCleanup(patcher.stop)
+        self.addCleanup(patcher.stop)  # pylint: disable=no-member
         self.client = APIClient()  # no credentials: both endpoints are public
 
+
+class TestProfileEndpoints(EndpointSetup, TestCase):
     def test_leaderboard_is_public_and_ordered(self):
         response = self.client.get("/profiles/")
 
@@ -746,6 +806,8 @@ class TestProfileEndpoints(ProfilesSetup, TestCase):
                 "average_rank": 1.0,
                 "places": [{"year": 2025, "rank": 1}, {"year": 2024, "rank": 1}],
                 "position": 1,
+                "photo": None,
+                "showcase": [],
             },
         )
         self.assertNotIn("average_beaten", response.data[0])
@@ -770,6 +832,8 @@ class TestProfileEndpoints(ProfilesSetup, TestCase):
                 "average_rank": 1.0,
                 "badges": [],
                 "badge_stats": {"players": 6, "holders": {}, "tiers": {}},
+                "photo": None,
+                "showcase": {"auto": True, "badges": []},
             },
         )
         self.assertNotIn("average_beaten", response.data)
@@ -838,20 +902,41 @@ class TestProfileEndpoints(ProfilesSetup, TestCase):
             self.assertNotIn(b"email", content)
 
     def test_both_endpoints_run_in_a_fixed_number_of_queries(self):
-        # Badges over two editions, one with a partner: the profile reads them in one query,
-        # plus one more for the rarity stats.
+        # Badges over two editions, one with a partner, for two people: either endpoint reads
+        # them in one query, plus one more for the rarity stats. The photos, Ana's pins and
+        # the partner's photo cost none.
         self.badge(Badge.Codes.CHAMPION, self.y2024)
         self.badge(Badge.Codes.CHAMPION, self.y2025)
         self.badge(Badge.Codes.COMRADES, self.y2025, partner=self.chloe)
+        self.badge(Badge.Codes.COMRADES, self.y2025, user=self.chloe, partner=self.ana)
+        self.badge(Badge.Codes.ROOKIE, self.y2024, user=self.bob)
+        self.give_photo(self.ana, showcase=[Badge.Codes.COMRADES])
+        self.give_photo(self.chloe)
+        UserProfile.objects.create(user=self.bob)
 
         with self.assertNumQueries(PROFILES_QUERIES):
-            self.assertEqual(self.client.get("/profiles/").status_code, 200)
-        # Plus three for the standings of the running 2026, where Ana has a team.
-        with self.assertNumQueries(PROFILES_QUERIES + 2 + 3):
-            self.assertEqual(self.client.get(f"/profile/{self.ana.id}/").status_code, 200)
+            response = self.client.get("/profiles/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data[0]["photo"], self.photo_of(self.ana)["small"])
+        # Plus three for the standings of the running 2026, where Ana has a team; the
+        # photos, the pins and the partner's photo still cost nothing.
+        with self.assertNumQueries(PROFILES_QUERIES + 3):
+            response = self.client.get(f"/profile/{self.ana.id}/")
+        self.assertEqual(response.status_code, 200)
+        comrades = next(b for b in response.data["badges"] if b["code"] == "comrades")
+        self.assertEqual(comrades["partner"]["photo"], self.photo_of(self.chloe)["small"])
         # Bob plays no running edition.
-        with self.assertNumQueries(PROFILES_QUERIES + 2):
+        with self.assertNumQueries(PROFILES_QUERIES):
             self.assertEqual(self.client.get(f"/profile/{self.bob.id}/").status_code, 200)
+
+    def test_nobody_to_list_costs_no_badge_query(self):
+        Player.objects.all().delete()
+
+        # The editions and the players; no badges or rarity stats for nobody.
+        with self.assertNumQueries(2):
+            response = self.client.get("/profiles/")
+
+        self.assertEqual((response.status_code, response.data), (200, []))
 
     def test_profile_carries_badge_stats(self):
         self.badge(Badge.Codes.CHAMPION, self.y2024)
@@ -934,7 +1019,10 @@ class TestProfileEndpoints(ProfilesSetup, TestCase):
                 self.entry(
                     "comrades",
                     [2025],
-                    partner={"id": self.chloe.id, "first_name": "Chloé", "last_name": "Dupont"},
+                    partner={
+                        "id": self.chloe.id, "first_name": "Chloé", "last_name": "Dupont",
+                        "photo": None,
+                    },
                 )
             ],
         )

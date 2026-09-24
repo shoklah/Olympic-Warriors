@@ -7,6 +7,7 @@ import {
 	formatAverage,
 	fullName,
 	listYears,
+	showcaseLabel,
 	shownPlaces,
 	spokenPlaces
 } from './players.js';
@@ -124,6 +125,37 @@ describe('spokenPlaces', () => {
 
 	it('reads places best first, in French', () => {
 		expect(spokenPlaces(places, 'fr')).toBe('1re place en 2026, 2e place en 2023');
+	});
+});
+
+describe('showcaseLabel', () => {
+	const showcase = [
+		{ code: 'champion', tier: 0, discipline: null },
+		{ code: 'veteran', tier: 2, discipline: null },
+		{ code: 'networker', tier: 1, discipline: null }
+	];
+
+	it('names the badges in display order, in English', () => {
+		expect(showcaseLabel(showcase, 'en')).toBe('showcase: Champion, Veteran, Networker');
+	});
+
+	it('names the badges in display order, in French', () => {
+		expect(showcaseLabel(showcase, 'fr')).toBe('vitrine : Champion, Vétéran, Rassembleur');
+	});
+
+	it('names a specialist by the badge, not its discipline', () => {
+		expect(showcaseLabel([{ code: 'specialist', tier: 1, discipline: 'Relay' }], 'fr')).toBe('vitrine : Spécialiste');
+	});
+
+	it('skips a code the front does not know, from a newer server', () => {
+		const withUnknown = [showcase[0], { code: 'future-badge', tier: 0, discipline: null }, showcase[2]];
+		expect(showcaseLabel(withUnknown, 'en')).toBe('showcase: Champion, Networker');
+	});
+
+	it('adds nothing for an empty showcase, one of unknown codes only, or none at all', () => {
+		expect(showcaseLabel([], 'en')).toBe('');
+		expect(showcaseLabel([{ code: 'future-badge', tier: 0, discipline: null }], 'fr')).toBe('');
+		expect(showcaseLabel(undefined, 'en')).toBe('');
 	});
 });
 

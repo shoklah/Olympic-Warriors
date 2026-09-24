@@ -1,6 +1,7 @@
 """
 The login throttle on /auth/token/: attempts counted per client IP, whatever their outcome
-and whatever token the caller carries; the rest of the API is never throttled.
+and whatever token the caller carries; the rest of the API is never throttled, but for a
+claim link's POST, which shares the bucket (test_claims.py).
 """
 
 from django.contrib.auth.models import User

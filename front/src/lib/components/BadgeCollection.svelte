@@ -1,12 +1,19 @@
 <script>
+	import { tick } from 'svelte';
+	import { enhance } from '$app/forms';
 	import Badge from './Badge.svelte';
 	import BadgeSheet from './BadgeSheet.svelte';
+	import { slotLabel } from '$lib/badges';
 	import { useT } from '$lib/i18n';
 
 	/** badgeCollection(profile.badges ?? []); the page computes it once and passes it down. */
 	export let collection;
 	/** profile.badge_stats ({ players, holders, tiers }), or null (an older API). */
 	export let badgeStats = null;
+	/** The viewer's own profile: « Choisir ma vitrine » offers the selection mode below. */
+	export let editable = false;
+	/** profile.showcase ({ auto, badges }), or null (an older API): the pins a selection starts from. */
+	export let showcase = null;
 
 	const t = useT();
 
@@ -34,17 +41,6 @@
 		// treat it as already dismissed, the same way Escape does.
 		if (code) dismissedCode = code;
 		openButton = null;
-	}
-
-	/**
-	 * The button's accessible name: "<name>, <earned|locked>" or, above ×1,
-	 * "<name>, badge earned N times" (a plural key, so a screen reader never hears "×2").
-	 */
-	function slotLabel(slot) {
-		const name = t(`badge.${slot.code}.name`);
-		if (!slot.earned) return `${name}, ${t('badge.locked')}`;
-		if (slot.count > 1) return `${name}, ${t('badge.earnedTimes', { n: slot.count })}`;
-		return `${name}, ${t('badge.earned')}`;
 	}
 
 	// --- Hover/focus tooltip (desktop only: gated by @media (hover: hover) and (pointer:
@@ -121,6 +117,163 @@
 		if (event.key !== 'Escape' || openCode !== null) return;
 		if (tooltipCode !== null) dismissedCode = tooltipCode;
 	}
+
+	// --- Showcase selection (the owner only). « Choisir ma vitrine » turns the earned slots
+	// into toggles numbered in pick order and disables the locked ones; the bar at the bottom
+	// saves or cancels, and « Revenir à l'automatique » under the intro drops the pins. The
+	// forms post to the page's `showcase` action, which puts the codes to the API.
+
+	/** A showcase holds this many badges, as the API checks. */
+	const SHOWCASE_SIZE = 3;
+	const FAILED = 'showcase.error.failed';
+
+	/** The selection mode is on: a slot click toggles the slot instead of opening its sheet. */
+	let selecting = false;
+	/** The codes picked, in pick order: a slot's place in the showcase is its index plus one. */
+	let picks = [];
+	/** Fourth picks refused since the last change: the status line then states the limit.
+	    A count, not a flag, so a second refusal re-renders the line and is read out again. */
+	let refused = 0;
+	/** A save (or the return to automatic) is on its way: every control holds until it answers. */
+	let busy = false;
+	/** A dictionary key for the alert line, or null. */
+	let error = null;
+	/** « Choisir ma vitrine », given focus back when the mode ends. */
+	let chooseButton = null;
+	/** The intro line, focused when the mode starts: it says what the toggles are for. */
+	let introEl = null;
+
+	// The page stops being the viewer's own (another profile, a logout), or leaves nothing to
+	// choose from: the mode ends with it.
+	$: if (!editable || collection.earned === 0) selecting = false;
+
+	/** The current pins still earned, in pin order; none while the showcase is automatic. */
+	function currentPins() {
+		if (!showcase || showcase.auto) return [];
+		const earned = new Set(
+			collection.families.flatMap((f) => f.slots).filter((slot) => slot.earned).map((slot) => slot.code)
+		);
+		const codes = (showcase.badges ?? []).map((badge) => badge.code).filter((code) => earned.has(code));
+		return [...new Set(codes)].slice(0, SHOWCASE_SIZE);
+	}
+
+	async function startSelecting() {
+		picks = currentPins();
+		refused = 0;
+		error = null;
+		selecting = true;
+		await tick();
+		introEl?.focus();
+	}
+
+	/** Leave the mode, the picks dropped (the next one starts from the pins again), and give
+	    focus back to « Choisir ma vitrine », which comes back in place of the intro. */
+	async function stopSelecting() {
+		selecting = false;
+		picks = [];
+		refused = 0;
+		error = null;
+		await tick();
+		chooseButton?.focus();
+	}
+
+	/** Annuler: nothing is sent, the pins stay as they were. */
+	function cancel() {
+		if (!busy) stopSelecting();
+	}
+
+	/** Pick or unpick an earned slot; taking one back renumbers the ones after it. A change
+	    clears the alert of a failed save: it was about the picks as they were. */
+	function toggle(slot) {
+		if (busy || !slot.earned) return;
+		if (picks.includes(slot.code)) {
+			picks = picks.filter((code) => code !== slot.code);
+		} else if (picks.length < SHOWCASE_SIZE) {
+			picks = [...picks, slot.code];
+		} else {
+			refused += 1;
+			return;
+		}
+		refused = 0;
+		error = null;
+	}
+
+	/**
+	 * A slot's click: its sheet, or in the selection mode a toggle. A pointer pick (`detail`
+	 * counts the clicks; Enter or Space gives 0) also dismisses the slot's tooltip, as closing
+	 * the sheet does: its rule has been read, and it would hide the slots around it while the
+	 * pointer stays. A keyboard pick keeps it, as focus does.
+	 */
+	function onSlotClick(slot, event) {
+		if (!selecting) {
+			openSheet(slot, event);
+			return;
+		}
+		toggle(slot);
+		if (event.detail > 0) dismissedCode = slot.code;
+	}
+
+	/**
+	 * use:action on the bar: while it shows, the page keeps its height (plus its offset from
+	 * the bottom and the focus ring's margin) as scroll-padding-bottom, so a slot Tab
+	 * reaches is scrolled clear of the bar instead of behind it (WCAG 2.4.11). Measured, not
+	 * guessed: the bar grows with the alert line and wraps on a phone. Removed with the bar.
+	 */
+	function reserveRoom(bar) {
+		const root = document.documentElement;
+		const previous = root.style.scrollPaddingBottom;
+		const measure = () => {
+			const offset = parseFloat(getComputedStyle(bar).bottom) || 0;
+			root.style.scrollPaddingBottom = `${Math.ceil(bar.offsetHeight + offset + 8)}px`;
+		};
+		measure();
+		// jsdom and older engines have no ResizeObserver: the first measure stands then.
+		const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null;
+		observer?.observe(bar);
+		// Crossing 1000px moves the bar above or below the tab bar without resizing it.
+		window.addEventListener('resize', measure);
+		return {
+			destroy() {
+				observer?.disconnect();
+				window.removeEventListener('resize', measure);
+				root.style.scrollPaddingBottom = previous;
+			}
+		};
+	}
+
+	/** The key of a fail() from the page's own action, or the generic one. */
+	const failureKey = (data) =>
+		typeof data?.error === 'string' && data.error.startsWith('showcase.error.') ? data.error : FAILED;
+
+	/**
+	 * use:enhance for Save and « Revenir à l'automatique », whose form posts no code. A success
+	 * re-runs the loads (reset: false: the hidden fields are the picks, nothing to blank), so
+	 * the header's showcase and `showcase` here follow, then the mode ends. A failure keeps
+	 * the mode and the picks, with the alert. A thrown error is only worded, never applied:
+	 * SvelteKit would swap the whole page for its error page.
+	 */
+	const submit = ({ cancel: drop }) => {
+		if (busy) {
+			drop();
+			return;
+		}
+		busy = true;
+		error = null;
+		return async ({ result, update }) => {
+			if (result.type === 'success') {
+				try {
+					await update({ reset: false });
+				} catch {
+					// A load failing shows its own error page: nothing to add here.
+				}
+				busy = false;
+				await stopSelecting();
+				return;
+			}
+			busy = false;
+			error = result.type === 'failure' ? failureKey(result.data) : FAILED;
+		};
+	};
 </script>
 
 <svelte:window on:keydown={onWindowKey} />
@@ -132,6 +285,29 @@
 	<div class="bar" aria-hidden="true"><div class="fill" style="width: {pct}%"></div></div>
 	<span class="pct num" aria-hidden="true">{pct}%</span>
 </div>
+
+<!-- Nothing to choose from without an earned badge. -->
+{#if editable && collection.earned > 0}
+	{#if selecting}
+		<div class="picker-intro">
+			<!-- Focused when the mode starts, only to be read out: not a control. -->
+			<p tabindex="-1" bind:this={introEl}>{t('showcase.intro', { max: SHOWCASE_SIZE })}</p>
+			{#if showcase && !showcase.auto}
+				<!-- No codes: the action puts [], back to the rarest badges. aria-disabled rather
+				     than disabled while saving, so the focused button keeps focus. -->
+				<form method="POST" action="?/showcase" use:enhance={submit}>
+					<button type="submit" class="action" aria-disabled={busy ? 'true' : undefined}
+						>{t('showcase.automatic')}</button
+					>
+				</form>
+			{/if}
+		</div>
+	{:else}
+		<button type="button" class="action choose" bind:this={chooseButton} on:click={startSelecting}
+			>{t('showcase.choose')}</button
+		>
+	{/if}
+{/if}
 
 {#each collection.families as family (family.key)}
 	<section class="family">
@@ -146,27 +322,42 @@
 		</h3>
 		<div class="slots">
 			{#each family.slots as slot (slot.code)}
+				<!-- The slot's place in the showcase being chosen, 1 to 3, or 0. -->
+				{@const place = selecting ? picks.indexOf(slot.code) + 1 : 0}
+				<!-- Outside the selection mode, aria-pressed, aria-disabled and disabled are all
+				     left out: the slot is the plain button opening its sheet. -->
 				<button
 					type="button"
 					class="slot"
 					class:tooltip-shown={tooltipShown && tooltipCode === slot.code}
 					class:align-left={tooltipCode === slot.code && tooltipAlign === 'left'}
 					class:align-right={tooltipCode === slot.code && tooltipAlign === 'right'}
-					on:click={(event) => openSheet(slot, event)}
+					on:click={(event) => onSlotClick(slot, event)}
 					on:mouseenter={(event) => onHoverEnter(slot, event)}
 					on:mouseleave={() => onHoverLeave(slot)}
 					on:focus={(event) => onFocusIn(slot, event)}
 					on:blur={() => onFocusOut(slot)}
-					aria-label={slotLabel(slot)}
-					aria-describedby="rule-{slot.code}"
+					aria-label={slotLabel(slot, t)}
+					aria-describedby={place > 0 ? `place-${slot.code} rule-${slot.code}` : `rule-${slot.code}`}
+					aria-pressed={selecting && slot.earned ? String(place > 0) : undefined}
+					aria-disabled={selecting && slot.earned && busy ? 'true' : undefined}
+					disabled={selecting && !slot.earned}
 				>
 					<span class="medallion">
 						<Badge badge={slot.medal} locked={!slot.earned} />
 						{#if slot.earned && slot.count > 1}
 							<span class="chip num" aria-hidden="true">{t('badge.times', { n: slot.count })}</span>
 						{/if}
+						{#if place > 0}
+							<span class="place num" aria-hidden="true" data-testid="order">{place}</span>
+						{/if}
 					</span>
 					<span class="name" class:muted={!slot.earned} aria-hidden="true">{t(`badge.${slot.code}.name`)}</span>
+					{#if place > 0}
+						<!-- The place is the description's first part: the name stays the same
+						     whether the toggle is pressed or not. -->
+						<span id="place-{slot.code}" class="visually-hidden">{t('showcase.place', { n: place })}</span>
+					{/if}
 					<!-- Always in the DOM (just visually hidden), so every device's screen
 					     reader gets the rule as the button's description, not only a mouse. -->
 					<span id="rule-{slot.code}" class="visually-hidden">{t(`badge.${slot.code}.rule`)}</span>
@@ -183,6 +374,36 @@
 		</div>
 	</section>
 {/each}
+
+{#if selecting}
+	<!-- After the slots, so the keyboard reaches it last, and held at the bottom of the screen
+	     while they scroll by, so Save is at hand from the first family to the last. -->
+	<div class="picker" data-testid="showcase-picker" use:reserveRoom>
+		{#if error}
+			<p class="picker-error" role="alert">{t(error)}</p>
+		{/if}
+		<p class="picker-status" role="status">
+			{#if busy}
+				{t('showcase.saving')}
+			{:else if refused > 0}
+				{#key refused}<span class="limit">{t('showcase.limit', { max: SHOWCASE_SIZE })}</span>{/key}
+			{:else}
+				<span class="label" aria-hidden="true">{t('showcase.label')}</span>
+				<span class="num count" aria-hidden="true">{picks.length}/{SHOWCASE_SIZE}</span>
+				<span class="visually-hidden">{t('showcase.picked', { n: picks.length, max: SHOWCASE_SIZE })}</span>
+			{/if}
+		</p>
+		<button type="button" class="action" disabled={busy} on:click={cancel}>{t('showcase.cancel')}</button>
+		<form method="POST" action="?/showcase" use:enhance={submit}>
+			{#each picks as code (code)}
+				<input type="hidden" name="codes" value={code} />
+			{/each}
+			<button type="submit" class="action primary" aria-disabled={busy ? 'true' : undefined}
+				>{t('showcase.save')}</button
+			>
+		</form>
+	</div>
+{/if}
 
 <BadgeSheet slot={activeSlot} open={activeSlot !== null} {badgeStats} on:close={closeSheet} />
 
@@ -352,5 +573,180 @@
 
 	.name.muted {
 		color: var(--muted);
+	}
+
+	/* --- Showcase selection. */
+
+	.action {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-height: 44px;
+		padding: 0 1rem;
+		border: 1px solid var(--accent);
+		border-radius: var(--radius);
+		background: transparent;
+		color: var(--accent);
+		font-family: var(--font-display);
+		font-size: 1.1rem;
+		letter-spacing: 0.1em;
+		cursor: pointer;
+	}
+
+	.action.primary {
+		background: var(--accent);
+		color: var(--bg);
+	}
+
+	.action:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
+	}
+
+	.action:disabled,
+	.action[aria-disabled='true'] {
+		opacity: 0.35;
+		cursor: default;
+	}
+
+	.choose {
+		margin: 0 0 1.4rem;
+	}
+
+	.picker-intro {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 8px 16px;
+		margin: 0 0 1.4rem;
+	}
+
+	.picker-intro p {
+		flex: 1 1 14rem;
+		margin: 0;
+		color: var(--text);
+	}
+
+	.picker-intro p:focus {
+		outline: none;
+	}
+
+	/* A picked slot: ringed in the accent, its place on the medallion's upper left (the ×N
+	   chip keeps the lower right). */
+	.slot[aria-pressed='true'] {
+		background: var(--bg-raised);
+		box-shadow: inset 0 0 0 1px var(--accent);
+	}
+
+	.place {
+		position: absolute;
+		left: -6px;
+		top: -4px;
+		display: grid;
+		place-items: center;
+		min-width: 1.4rem;
+		height: 1.4rem;
+		padding: 0 4px;
+		border-radius: var(--radius-pill);
+		background: var(--accent);
+		color: var(--bg);
+		font-size: 0.95rem;
+		line-height: 1;
+	}
+
+	/* A locked slot cannot be picked: fainter still, and no hover colour. */
+	.slot:disabled {
+		cursor: default;
+	}
+
+	.slot:disabled .medallion,
+	.slot:disabled .name {
+		opacity: 0.5;
+	}
+
+	.slot:disabled:hover .name {
+		color: var(--muted);
+	}
+
+	/* Above the phones' bottom tab bar, and clear of the screen's edge everywhere. On a phone
+	   the status takes a line of its own and the two buttons share the next, so a longer
+	   status (« 3 badges maximum », « Enregistrement… ») never pushes a button off the row;
+	   from 480px everything sits on one line. The shadow paints the page colour 8px around
+	   the sides and down to the tab bar (or the screen's edge), so the slots scrolling under
+	   never show through the gap. */
+	.picker {
+		position: sticky;
+		bottom: 8px;
+		z-index: 10;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 8px;
+		margin: 0 0 1.6rem;
+		padding: 10px 12px;
+		background: var(--bg-raised);
+		border: 1px solid var(--line-strong);
+		border-radius: var(--radius-lg);
+		box-shadow: 0 8px 0 8px var(--bg);
+	}
+
+	@media (max-width: 999.98px) {
+		:global(.app.has-tabbar) .picker {
+			bottom: calc(var(--tabbar) + 8px);
+		}
+	}
+
+	.picker-error {
+		flex: 1 1 100%;
+		margin: 0;
+		color: var(--loss);
+		font-size: 0.85rem;
+	}
+
+	.picker-status {
+		display: flex;
+		align-items: baseline;
+		gap: 8px;
+		flex: 1 1 100%;
+		min-height: 1.3rem;
+		margin: 0;
+		font-size: 0.85rem;
+		color: var(--text);
+	}
+
+	.picker > .action,
+	.picker form {
+		flex: 1 1 0;
+	}
+
+	.picker form {
+		display: flex;
+	}
+
+	.picker form .action {
+		flex: 1;
+	}
+
+	@media (min-width: 480px) {
+		.picker-status {
+			flex: 1 1 auto;
+		}
+
+		.picker > .action,
+		.picker form {
+			flex: none;
+		}
+	}
+
+	.count {
+		font-size: 1.3rem;
+		line-height: 1;
+		color: var(--ink);
+	}
+
+	.limit {
+		color: var(--accent);
+		font-weight: 600;
 	}
 </style>

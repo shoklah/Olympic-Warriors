@@ -58,12 +58,20 @@ class BaseConfig(BaseSettings):
 
     BASE_URL: str = "localhost"
 
+    # The front's public address (a trailing slash is ignored), the base of the claim links
+    # organisers hand out from the admin (claims.claim_link). Optional, so a deploy never
+    # fails on it: without an absolute http(s) address the admin refuses to make links.
+    PUBLIC_URL: str = ""
+
     ALLOWED_HOSTS: list = ["*"]
     CSRF_TRUSTED_ORIGINS: list = ["https://*", "http://*"]
 
-    # Login attempts per client IP, /auth/token/ and /admin/login/ together, in DRF's
-    # "<count>/<sec|min|hour|day>".
+    # Login attempts per client IP, /auth/token/, /admin/login/ and a claim link's POST
+    # together, in DRF's "<count>/<sec|min|hour|day>".
     LOGIN_THROTTLE_RATE: str = "5/min"
+    # Photo uploads per user (PUT /me/photo/), in the same format: each one is decoded and
+    # re-encoded, and a person needs only a few.
+    PHOTO_THROTTLE_RATE: str = "10/hour"
     # Proxies in front of Django that append the client IP to X-Forwarded-For: nginx for a
     # direct API call, the front for a login through the site. DRF trusts that many entries
     # from the right; only correct if nothing reaches Django without passing one of them.
@@ -99,6 +107,8 @@ class DevConfig(BaseConfig):
     """
     Development configuration class.
     """
+
+    PUBLIC_URL: str = "http://localhost:5173"  # the Vite dev server
 
     class Config:
         """

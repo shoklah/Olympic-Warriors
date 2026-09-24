@@ -1,22 +1,8 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { apiPost } from '$lib/api';
+import { forwardedFor } from '$lib/server/forwarded-for';
 import { api } from '$lib/server/urls';
 import { TOKEN_COOKIE, tokenCookieOptions } from '$lib/session';
-
-/**
- * The visitor's address for the API's login throttle, which counts attempts per client IP.
- * This server calls the API itself, so without the header every visitor would share its
- * address. Behind nginx, adapter-node needs ADDRESS_HEADER to see past the proxy, and throws
- * when that header is missing from a request: the API then falls back to this server's address.
- */
-function forwardedFor(getClientAddress) {
-	try {
-		const address = getClientAddress();
-		return address ? { 'x-forwarded-for': address } : {};
-	} catch {
-		return {};
-	}
-}
 
 export const actions = {
 	login: async ({ cookies, request, fetch, getClientAddress }) => {

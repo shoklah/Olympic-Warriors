@@ -38,7 +38,9 @@ class TestPlayersAPI(TestPlayerSetup):
         self.assertEqual(response.status_code, 401)
 
     def test_get_players(self):
-        self.client.force_authenticate(user=self.user)
+        # Staff-only, like the rest of the API outside the reveal-aware reads.
+        orga = User.objects.create_user(username="orga", password="x", is_staff=True)
+        self.client.force_authenticate(user=orga)
         response = self.client.get("/players/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 1)
