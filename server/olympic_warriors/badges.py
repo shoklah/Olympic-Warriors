@@ -18,6 +18,7 @@ from itertools import combinations
 from django.db import transaction
 from django.utils import timezone
 
+from .avatars import small_photo_url
 from .models import Badge, BadgeRefresh, BlindtestGuess, Game
 from .models.ResultTypes import ResultTypes
 from .profiles import _load, _participations, _place, _record, _sort_key, paris_today
@@ -737,9 +738,10 @@ CATALOGUE_ORDER = {code: n for n, code in enumerate(Badge.Codes.values)}
 
 def _shown_rows():
     """The badge rows a profile shows: active rows of active editions, with what grouping
-    them reads (the edition's year, the partner's names)."""
+    them reads (the edition's year, the partner's names and profile row, for the photo),
+    all joined in: a partner without a profile row is cached as None, so still no query."""
     return Badge.objects.filter(is_active=True, edition__is_active=True).select_related(
-        "edition", "partner"
+        "edition", "partner__profile"
     )
 
 
@@ -747,7 +749,8 @@ def profile_badges(user_id):
     """
     The person's active badges of active editions for GET /profile/<id>/ (1 query), grouped
     by (code, discipline, partner) in catalogue order: [{code, tier, years, discipline,
-    partner}], `tier` the highest, `years` sorted, names only for the partner.
+    partner}], `tier` the highest, `years` sorted, the partner as {id, first_name,
+    last_name, photo} (the small photo URL or None; never the login name).
     """
     return _grouped(_shown_rows().filter(user_id=user_id))
 
@@ -784,6 +787,8 @@ def _grouped(rows):
                     "id": partner.id,
                     "first_name": partner.first_name,
                     "last_name": partner.last_name,
+                    # select_related: no query, and no row reads as no photo.
+                    "photo": small_photo_url(getattr(partner, "profile", None)),
                 },
             },
         )
@@ -869,12 +874,12 @@ TIERED_CODES = frozenset({C.VETERAN, C.EVER_PRESENT, C.NETWORKER, C.SPECIALIST, 
 
 def badge_stats(user_ids):
     """
-    Rarity stats for GET /profile/<id>/ (1 query), over the given user ids (the leaderboard's
-    people): how many hold each badge code (any tier, discipline, partner or year, each
-    counted once) and, for the six tiered codes, how many hold at least each tier (the
-    person's own highest tier of that code). Same filter as profile_badges: active rows of
-    active editions only. `holders` only lists codes with at least one holder; `tiers` only
-    lists the tiered codes with one. See the "Rarity" design spec.
+    Rarity stats for the profile and the showcases (1 query, none for no id), over the given
+    user ids (the leaderboard's people): how many hold each badge code (any tier, discipline,
+    partner or year, each counted once) and, for the six tiered codes, how many hold at least
+    each tier (the person's own highest tier of that code). Same filter as profile_badges:
+    active rows of active editions only. `holders` only lists codes with at least one holder;
+    `tiers` only lists the tiered codes with one. See the "Rarity" design spec.
 
     {"players": 47, "holders": {"champion": 12, "veteran": 20}, "tiers": {"veteran": [20, 6, 1]}}
     """

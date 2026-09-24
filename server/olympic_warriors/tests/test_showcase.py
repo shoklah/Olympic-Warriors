@@ -5,20 +5,37 @@ stored pins and the rarity counts into the three badges their profile shows, wit
 badges.badges_by_user() reads many people's badges in the shape profile_badges() gives one
 person; profiles.person_ids() is the leaderboard's people without computing the leaderboard,
 the denominator of the rarity counts the automatic showcase reads.
+
+The public payloads (§6 of the spec): /profiles/ and /profile/<id>/ carry each person's photo
+and showcase, a comrades partner their photo, the summary's rosters the photo too, and none
+of them carries what only /me/ may (the login name, the email, the lock, the claim date, the
+raw pins).
 """
 
-from datetime import date
+from datetime import date, datetime, timezone
 from unittest import mock
 
 from django.contrib.auth.models import User
 from django.test import SimpleTestCase, TestCase
 
 from olympic_warriors.badges import badges_by_user, profile_badges, showcase
-from olympic_warriors.models import Badge, Edition
+from olympic_warriors.models import Badge, Edition, UserProfile
 from olympic_warriors.profiles import is_person, leaderboard, person_ids
-from olympic_warriors.tests.test_profiles import TODAY, ProfilesSetup
+from olympic_warriors.tests.test_profiles import TODAY, EndpointSetup, ProfilesSetup
 
 C = Badge.Codes
+# Every dict key a public payload must never carry: /me/ alone serves the login name, the
+# lock and the stored pins (`codes`), to their owner; the rest never leaves the admin.
+PRIVATE_KEYS = {"username", "email", "photo_locked", "claimed_at", "updated_at", "codes"}
+
+
+def keys_in(data):
+    """Every dict key anywhere in a JSON-like payload (dicts, lists, scalars)."""
+    if isinstance(data, dict):
+        return set(data).union(*(keys_in(value) for value in data.values()))
+    if isinstance(data, list):
+        return set().union(*(keys_in(value) for value in data))
+    return set()
 
 
 def entry(code, tier=0, years=(2024,), discipline=None, partner=None):
@@ -255,9 +272,28 @@ class TestBadgesByUser(TestCase):
         with self.assertNumQueries(1):  # the partner's names included
             partner = badges_by_user(ids)[self.ana.id][2]["partner"]
 
-        self.assertEqual(partner, {"id": self.bob.id, "first_name": "Bob", "last_name": "Martin"})
+        self.assertEqual(
+            partner, {"id": self.bob.id, "first_name": "Bob", "last_name": "Martin", "photo": None}
+        )
         with self.assertNumQueries(1):
             profile_badges(self.ana.id)
+
+    def test_a_partner_carries_their_small_photo_in_the_same_query(self):
+        base = f"avatars/{self.bob.id}-0123456789ab"
+        UserProfile.objects.create(
+            user=self.bob, photo=f"{base}.webp", photo_small=f"{base}-sm.webp"
+        )
+        UserProfile.objects.create(user=self.ana)  # a row without a photo
+
+        with self.assertNumQueries(1):
+            by_user = badges_by_user([self.ana.id, self.bob.id])
+        with self.assertNumQueries(1):
+            mine = profile_badges(self.ana.id)
+
+        self.assertEqual(by_user[self.ana.id][2]["partner"]["photo"], f"/media/{base}-sm.webp")
+        self.assertEqual(mine, by_user[self.ana.id])
+        bobs = next(entry for entry in by_user[self.bob.id] if entry["code"] == C.COMRADES)
+        self.assertIsNone(bobs["partner"]["photo"])  # Ana's row has no photo
 
     def test_no_one_asked_for_is_no_one_answered(self):
         self.assertEqual(badges_by_user([]), {})
@@ -312,3 +348,194 @@ class TestPersonIds(ProfilesSetup, TestCase):
 
         self.assertIn(self.stranger.id, person_ids())
         self.assertEqual(person_ids(), sorted(r.user_id for r in leaderboard(date(2027, 1, 1))))
+
+
+class TestPhotosAndShowcases(EndpointSetup, TestCase):
+    """
+    The photo and the badge showcase on both public endpoints (see §6 of the player profile
+    customization design spec): a leaderboard row carries the small photo and the showcase's
+    badges, the profile both photo sizes and the whole showcase, and a comrades partner their
+    small photo. A person without a profile row, a photo or a badge still gets every key.
+    """
+
+    @staticmethod
+    def badge(user, code, edition, **kwargs):
+        """A stored Badge row."""
+        return Badge.objects.create(user=user, code=code, edition=edition, **kwargs)
+
+    def rarity_setup(self):
+        """Holders over the leaderboard: champion 3, rookie 2, veteran 2, goat 1."""
+        self.badge(self.ana, C.CHAMPION, self.y2024)
+        self.badge(self.ana, C.ROOKIE, self.y2024)
+        self.badge(self.ana, C.GOAT, self.y2025)
+        self.badge(self.ana, C.VETERAN, self.y2025, tier=2)
+        self.badge(self.bob, C.CHAMPION, self.y2024)
+        self.badge(self.bob, C.ROOKIE, self.y2024)
+        self.badge(self.chloe, C.CHAMPION, self.y2025)
+        self.badge(self.dan, C.VETERAN, self.y2024, tier=1)
+
+    def rows(self):
+        """The /profiles/ rows by first name."""
+        response = self.client.get("/profiles/")
+        self.assertEqual(response.status_code, 200)
+        return {row["first_name"]: row for row in response.data}
+
+    def profile(self, user):
+        """The user's /profile/<id>/ payload."""
+        response = self.client.get(f"/profile/{user.id}/")
+        self.assertEqual(response.status_code, 200)
+        return response.data
+
+    # Photos
+
+    def test_a_leaderboard_row_carries_the_small_photo_or_null(self):
+        self.give_photo(self.ana)
+        UserProfile.objects.create(user=self.bob)  # a row, but no photo
+
+        rows = self.rows()
+
+        self.assertEqual(rows["Ana"]["photo"], self.photo_of(self.ana)["small"])
+        self.assertIsNone(rows["Bob"]["photo"])
+        self.assertIsNone(rows["Chloé"]["photo"])  # no row at all
+
+    def test_the_profile_carries_both_sizes_or_null(self):
+        self.give_photo(self.ana)
+        UserProfile.objects.create(user=self.bob)
+
+        self.assertEqual(self.profile(self.ana)["photo"], self.photo_of(self.ana))
+        self.assertIsNone(self.profile(self.bob)["photo"])
+        self.assertIsNone(self.profile(self.chloe)["photo"])
+
+    def test_a_comrades_partner_carries_their_small_photo_or_null(self):
+        self.give_photo(self.chloe)
+        UserProfile.objects.create(user=self.bob)
+        self.badge(self.ana, C.COMRADES, self.y2025, partner=self.chloe)
+        self.badge(self.ana, C.COMRADES, self.y2024, partner=self.dan)
+        self.badge(self.ana, C.COMRADES, self.y2025, partner=self.bob)
+
+        partners = {
+            entry["partner"]["first_name"]: entry["partner"]
+            for entry in self.profile(self.ana)["badges"]
+        }
+
+        self.assertEqual(
+            partners["Chloé"],
+            {
+                "id": self.chloe.id, "first_name": "Chloé", "last_name": "Dupont",
+                "photo": self.photo_of(self.chloe)["small"],
+            },
+        )
+        self.assertIsNone(partners["Dan"]["photo"])  # no row
+        self.assertIsNone(partners["Bob"]["photo"])  # a row without a photo
+
+    # Showcases
+
+    def test_without_pins_a_row_shows_the_three_rarest_badges(self):
+        self.rarity_setup()
+
+        rows = self.rows()
+
+        # goat has 1 holder; veteran and rookie 2 each, veteran held at a higher tier.
+        self.assertEqual(
+            rows["Ana"]["showcase"],
+            [shown(C.GOAT), shown(C.VETERAN, 2), shown(C.ROOKIE)],
+        )
+        self.assertEqual(rows["Bob"]["showcase"], [shown(C.ROOKIE), shown(C.CHAMPION)])
+        self.assertEqual(rows["Dan"]["showcase"], [shown(C.VETERAN, 1)])
+        self.assertEqual(rows["Eve"]["showcase"], [])
+
+    def test_a_row_shows_the_pins_still_earned_in_the_persons_order(self):
+        self.rarity_setup()
+        UserProfile.objects.create(user=self.ana, showcase=[C.CHAMPION, C.LEGEND, C.ROOKIE])
+        UserProfile.objects.create(user=self.bob, showcase=[C.LEGEND])  # none still earned
+
+        rows = self.rows()
+
+        self.assertEqual(rows["Ana"]["showcase"], [shown(C.CHAMPION), shown(C.ROOKIE)])
+        self.assertEqual(rows["Bob"]["showcase"], [shown(C.ROOKIE), shown(C.CHAMPION)])
+
+    def test_the_profile_showcase_says_whether_it_is_automatic(self):
+        self.rarity_setup()
+        UserProfile.objects.create(user=self.ana, showcase=[C.VETERAN, C.CHAMPION])
+        UserProfile.objects.create(user=self.bob, showcase=[C.LEGEND])
+
+        self.assertEqual(
+            self.profile(self.ana)["showcase"],
+            {"auto": False, "badges": [shown(C.VETERAN, 2), shown(C.CHAMPION)]},
+        )
+        self.assertEqual(
+            self.profile(self.bob)["showcase"],
+            {"auto": True, "badges": [shown(C.ROOKIE), shown(C.CHAMPION)]},
+        )
+        self.assertEqual(self.profile(self.eve)["showcase"], {"auto": True, "badges": []})
+
+    def test_the_leaderboard_and_the_profile_show_the_same_badges(self):
+        self.rarity_setup()
+        UserProfile.objects.create(user=self.ana, showcase=[C.ROOKIE])
+
+        for row in self.client.get("/profiles/").data:
+            with self.subTest(name=row["first_name"]):
+                profile = self.client.get(f"/profile/{row['id']}/").data
+                self.assertEqual(row["showcase"], profile["showcase"]["badges"])
+
+    def test_a_showcase_follows_the_badges_the_profile_shows(self):
+        # A revoked row and a row of an inactive edition are not shown on the profile, so
+        # they neither show in a showcase nor count towards its rarity.
+        hidden = Edition.objects.create(
+            year=2023, host="Brest", start_date="2023-09-23", end_date="2023-09-24",
+            is_active=False,
+        )
+        self.badge(self.ana, C.CHAMPION, self.y2024)
+        self.badge(self.ana, C.GOAT, self.y2025, is_active=False)
+        self.badge(self.ana, C.LEGEND, hidden)
+        UserProfile.objects.create(user=self.bob, showcase=[C.GOAT])
+        self.badge(self.bob, C.GOAT, self.y2025, is_active=False)
+
+        self.assertEqual(self.rows()["Ana"]["showcase"], [shown(C.CHAMPION)])
+        self.assertEqual(self.profile(self.bob)["showcase"], {"auto": True, "badges": []})
+
+    # Shapes
+
+    def test_every_key_is_there_for_someone_without_a_profile_row_or_a_badge(self):
+        # An older client reads the same keys whatever a person has: null or empty.
+        for row in self.client.get("/profiles/").data:
+            with self.subTest(name=row["first_name"]):
+                self.assertIsNone(row["photo"])
+                self.assertEqual(row["showcase"], [])
+        profile = self.profile(self.fay)
+        self.assertIsNone(profile["photo"])
+        self.assertEqual(profile["showcase"], {"auto": True, "badges": []})
+
+    def test_a_row_showcase_is_a_plain_list_of_badges(self):
+        self.rarity_setup()
+
+        row = self.rows()["Ana"]
+
+        self.assertIsInstance(row["showcase"], list)  # no `auto`: nobody edits from here
+        for badge in row["showcase"]:
+            self.assertEqual(set(badge), {"code", "tier", "discipline"})
+
+    def test_no_public_payload_carries_the_lock_the_claim_the_login_or_the_raw_pins(self):
+        claimed = datetime(2026, 9, 1, 12, tzinfo=timezone.utc)
+        # Ana's pins include one she has not earned: the raw list must not leak it.
+        self.give_photo(
+            self.ana, photo_locked=True, claimed_at=claimed, showcase=[C.LEGEND, C.CHAMPION]
+        )
+        self.give_photo(self.chloe, claimed_at=claimed)
+        self.badge(self.ana, C.CHAMPION, self.y2024)
+        self.badge(self.ana, C.COMRADES, self.y2025, partner=self.chloe)
+        self.badge(self.chloe, C.COMRADES, self.y2025, partner=self.ana)
+
+        for url in (
+            "/profiles/",
+            f"/profile/{self.ana.id}/",
+            f"/profile/{self.chloe.id}/",
+            "/edition/year/2025/summary/",  # Ana's and Chloé's roster
+        ):
+            with self.subTest(url=url):
+                response = self.client.get(url)
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(keys_in(response.json()) & PRIVATE_KEYS, set())
+                self.assertNotIn(b"login-", response.content)
+                self.assertNotIn(b"mail.example", response.content)
+                self.assertNotIn(C.LEGEND.encode(), response.content)

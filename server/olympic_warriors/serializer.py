@@ -20,6 +20,7 @@ from olympic_warriors.models import (
     BlindtestGuess,
     ResultTypes,
 )
+from .avatars import small_photo_url
 from .standings import compute_standings
 
 
@@ -186,6 +187,36 @@ class BlindtestRoundSerializer(serializers.ModelSerializer):
         return BlindtestGuessSerializer(guesses, many=True).data
 
 
+# A person's photo and showcase: the public payloads and /me/ share them.
+
+
+class PhotoSerializer(serializers.Serializer):
+    """A person's photo: the site-relative URLs of its two WebP squares
+    (avatars.photo_urls), under MEDIA_URL (/media/avatars/...)."""
+
+    large = serializers.CharField(help_text="512 px, the profile header")
+    small = serializers.CharField(help_text="128 px, everywhere else")
+
+
+class ShowcaseBadgeSerializer(serializers.Serializer):
+    """One badge of a showcase, drawn like its collection slot's medallion (see
+    badges.showcase)."""
+
+    code = serializers.CharField()
+    tier = serializers.IntegerField(help_text="0 untiered, 1 to 3 (bronze, silver, gold)")
+    discipline = serializers.CharField(
+        allow_null=True, help_text="The database Discipline.name for specialist, else null"
+    )
+
+
+class ShowcaseSerializer(serializers.Serializer):
+    """The badges a profile shows (badges.showcase): the pins still earned, in the person's
+    order, or the rarest earned badges when `auto`."""
+
+    auto = serializers.BooleanField(help_text="No pin still earned: the rarest badges")
+    badges = ShowcaseBadgeSerializer(many=True, help_text="At most 3, in the order shown")
+
+
 # Edition summary: everything the public front needs for one edition in one payload.
 
 
@@ -202,12 +233,22 @@ class SummaryDisciplineSerializer(serializers.ModelSerializer):
 
 
 class SummaryPlayerSerializer(serializers.ModelSerializer):
+    """A roster line: the Player id, the user id (the profile link), the names and the
+    small photo. EditionSummarySerializer joins each user's profile row into the players
+    query, so the photo costs no query."""
+
     first_name = serializers.CharField(source="user.first_name")
     last_name = serializers.CharField(source="user.last_name")
+    photo = serializers.SerializerMethodField()
 
     class Meta:
         model = Player
-        fields = ("id", "user", "first_name", "last_name")
+        fields = ("id", "user", "first_name", "last_name", "photo")
+
+    @extend_schema_field(serializers.CharField(allow_null=True, help_text="128 px, or null"))
+    def get_photo(self, obj):
+        """The small URL, or None without a profile row or a photo."""
+        return small_photo_url(getattr(obj.user, "profile", None))
 
 
 class SummaryTeamSerializer(serializers.ModelSerializer):
@@ -377,7 +418,7 @@ class EditionSummarySerializer(serializers.Serializer):
                 Prefetch(
                     "player_set",
                     queryset=Player.objects.filter(is_active=True, edition=instance)
-                    .select_related("user")
+                    .select_related("user__profile")  # the photo, joined: no query more
                     .order_by("user__last_name", "user__first_name"),
                     to_attr="active_players",
                 )
@@ -491,8 +532,12 @@ class DisciplinePlacesSerializer(serializers.Serializer):
 class LeaderboardRowSerializer(serializers.Serializer):
     """
     A person on the all-time leaderboard (a PlayerRecord, see olympic_warriors.profiles):
-    places and average rank; the order comes from the places only.
-    Public: names only, never the username (the login name) nor the email.
+    places and average rank; the order comes from the places only. The small photo, and
+    the showcase's badges without its `auto` flag (nobody edits from the leaderboard): the
+    view computes them for every row at once and passes them as context["showcases"], by
+    user id.
+    Public: names only, never the username (the login name) nor the email, nor the stored
+    pins or anything else only /me/ carries.
     """
 
     id = serializers.IntegerField(source="user_id", help_text="The user id, not a Player id")
@@ -503,14 +548,28 @@ class LeaderboardRowSerializer(serializers.Serializer):
     average_rank = serializers.FloatField(allow_null=True)
     places = PlaceSerializer(many=True, help_text="Counted editions, best rank first")
     position = serializers.IntegerField(allow_null=True)
+    photo = serializers.SerializerMethodField()
+    showcase = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.CharField(allow_null=True, help_text="128 px, or null"))
+    def get_photo(self, obj):
+        """The record's small URL, or None without a photo."""
+        return obj.photo["small"] if obj.photo else None
+
+    @extend_schema_field(ShowcaseBadgeSerializer(many=True, help_text="At most 3, in order"))
+    def get_showcase(self, obj):
+        """The showcase's badges from context["showcases"], [] for someone without one."""
+        badges = self.context.get("showcases", {}).get(obj.user_id, [])
+        return ShowcaseBadgeSerializer(badges, many=True).data
 
 
 class ProfileBadgePartnerSerializer(serializers.Serializer):
-    """The other person of a comrades badge: names only."""
+    """The other person of a comrades badge: names and small photo only."""
 
     id = serializers.IntegerField(help_text="The user id")
     first_name = serializers.CharField()
     last_name = serializers.CharField()
+    photo = serializers.CharField(allow_null=True, help_text="128 px, or null")
 
 
 class ProfileBadgeSerializer(serializers.Serializer):
@@ -542,7 +601,8 @@ class BadgeStatsSerializer(serializers.Serializer):
 class ProfileSerializer(serializers.Serializer):
     """A person's profile: position, counted editions and average rank, every edition
     newest first, the person's places per discipline, ordered like a medal table, the
-    badges in catalogue order, and badge rarity stats."""
+    badges in catalogue order, badge rarity stats, the photo in both sizes and the
+    showcase (never the stored pins as such: /me/ alone carries those)."""
 
     id = serializers.IntegerField(source="user_id", help_text="The user id, not a Player id")
     first_name = serializers.CharField()
@@ -557,6 +617,10 @@ class ProfileSerializer(serializers.Serializer):
     # The view passes them as context["badge_stats"] (from badges.badge_stats): how many
     # people on /players hold each badge code, and for the tiered codes, at least each tier.
     badge_stats = serializers.SerializerMethodField()
+    photo = PhotoSerializer(allow_null=True)
+    # The view passes it as context["showcase"] (from badges.showcase, with the person's
+    # pins and the rarity counts of badge_stats).
+    showcase = serializers.SerializerMethodField()
 
     @extend_schema_field(ProfileBadgeSerializer(many=True))
     def get_badges(self, obj):  # pylint: disable=unused-argument
@@ -566,32 +630,11 @@ class ProfileSerializer(serializers.Serializer):
     def get_badge_stats(self, obj):  # pylint: disable=unused-argument
         return self.context.get("badge_stats")
 
-
-class PhotoSerializer(serializers.Serializer):
-    """A person's photo: the site-relative URLs of its two WebP squares
-    (avatars.photo_urls), under MEDIA_URL (/media/avatars/...)."""
-
-    large = serializers.CharField(help_text="512 px, the profile header")
-    small = serializers.CharField(help_text="128 px, everywhere else")
-
-
-class ShowcaseBadgeSerializer(serializers.Serializer):
-    """One badge of a showcase, drawn like its collection slot's medallion (see
-    badges.showcase)."""
-
-    code = serializers.CharField()
-    tier = serializers.IntegerField(help_text="0 untiered, 1 to 3 (bronze, silver, gold)")
-    discipline = serializers.CharField(
-        allow_null=True, help_text="The database Discipline.name for specialist, else null"
-    )
-
-
-class ShowcaseSerializer(serializers.Serializer):
-    """The badges a profile shows (badges.showcase): the pins still earned, in the person's
-    order, or the rarest earned badges when `auto`."""
-
-    auto = serializers.BooleanField(help_text="No pin still earned: the rarest badges")
-    badges = ShowcaseBadgeSerializer(many=True, help_text="At most 3, in the order shown")
+    @extend_schema_field(ShowcaseSerializer())
+    def get_showcase(self, obj):  # pylint: disable=unused-argument
+        """context["showcase"], or an empty automatic one when none is given."""
+        shown = self.context.get("showcase", {"auto": True, "badges": []})
+        return ShowcaseSerializer(shown).data
 
 
 class MeShowcaseSerializer(serializers.Serializer):

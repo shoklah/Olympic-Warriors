@@ -24,6 +24,9 @@ The rules (see the player profiles design spec under docs/superpowers/specs/):
   discipline name); a person's discipline places aggregate those by name across
   editions, sorted best first, and are ordered and positioned by the same medal-table
   rule as the leaderboard, with the name as tie-break.
+- a record also carries what the person added to their profile (UserProfile): the photo
+  URLs and the stored showcase pins, read from the profile row joined into the players
+  query, so they cost no query; a missing row reads as no photo and no pin.
 """
 
 import math
@@ -35,6 +38,7 @@ from zoneinfo import ZoneInfo
 
 from django.db.models import Count, Q
 
+from .avatars import photo_urls
 from .models import Edition, Player
 from .standings import compute_standings
 
@@ -163,8 +167,9 @@ class Loaded:
     """
     What participations() and badges.earned() both read, from 2 + 3 per finished edition with
     a player queries: the active editions by id (annotated with `team_count`, their active
-    teams), the chosen Player row per (user id, edition id), the finished edition ids, the
-    standings of the finished editions that have a player, and which of those rank.
+    teams), the chosen Player row per (user id, edition id), with its user and the user's
+    profile row joined in, the finished edition ids, the standings of the finished editions
+    that have a player, and which of those rank.
     """
 
     editions: dict
@@ -184,7 +189,9 @@ def _load(today):
     }
     players = (
         Player.objects.filter(is_active=True, edition_id__in=editions)
-        .select_related("user", "team")
+        # The profile row (photo and pins) for the leaderboard: a join, not a query, and a
+        # missing row is cached as None, so reading it later costs no query either.
+        .select_related("user__profile", "team")
         .order_by("id")
     )
     chosen = _one_row_per_edition(players)
@@ -245,7 +252,9 @@ def participations(today=None):
 @dataclass(frozen=True)
 class PlayerRecord:
     """A person's editions, places, discipline places and average rank, with their place
-    on the leaderboard."""
+    on the leaderboard, their photo ({"large", "small"} URLs, see avatars.photo_urls, or
+    None) and their stored showcase pins (UserProfile.showcase, earned or not: the showcase
+    shown filters them, see badges.showcase)."""
 
     user_id: int
     first_name: str
@@ -256,6 +265,8 @@ class PlayerRecord:
     average_rank: float | None
     disciplines: tuple[DisciplinePlaces, ...] = ()
     position: int | None = None
+    photo: dict | None = None
+    pins: tuple[str, ...] = ()
 
     @property
     def played(self):
@@ -263,13 +274,25 @@ class PlayerRecord:
         return len(self.participations)
 
 
+def _profile(user):
+    """
+    The user's UserProfile, or None without a row. _load() joins it into the players query,
+    and select_related caches a missing row as None, so this reads no query; a user built
+    from plain values (the unit tests) has no such attribute and reads as None too. Every
+    Player row of a person points at the same user, so whichever one _participations()
+    kept, the profile is the same.
+    """
+    return getattr(user, "profile", None)
+
+
 def _record(user, parts):
-    """A person's record without a position: counted editions, places, discipline places
-    and average rank."""
+    """A person's record without a position: counted editions, places, discipline places,
+    average rank, photo and pins."""
     counted_parts = [part for part in parts if part.counts]
     average_rank = None
     if counted_parts:
         average_rank = round(sum(part.rank for part in counted_parts) / len(counted_parts), 1)
+    profile = _profile(user)
     return PlayerRecord(
         user_id=user.id,
         first_name=user.first_name,
@@ -279,6 +302,8 @@ def _record(user, parts):
         counted=len(counted_parts),
         average_rank=average_rank,
         disciplines=_discipline_places(counted_parts),
+        photo=photo_urls(profile),
+        pins=tuple(profile.showcase) if profile is not None else (),
     )
 
 

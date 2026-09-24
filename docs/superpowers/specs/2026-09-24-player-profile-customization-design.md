@@ -232,12 +232,28 @@ rules.
   come from a new bulk `badges_by_user(user_ids)` (1 query) plus the `badge_stats` the
   profile already uses (1 query). `PROFILES_QUERIES` becomes `4 + 3 × finished editions
   with players`, and `leaderboard()`'s players query gains `select_related("user__profile")`.
+  Pinned while implementing (2026-09-24):
+  - A row's `showcase` is exactly the `badges` of that person's profile showcase: the same
+    pins, and rarity counted over the same people.
+  - Both endpoints now run `PROFILES_QUERIES`: the profile already ran two queries on top
+    of `leaderboard()`, and still does. `leaderboard()` alone stays at `2 + 3 × finished
+    editions with players` (`LEADERBOARD_QUERIES` in `test_profiles.py`). The players query
+    is `profiles._load`'s, shared with `badges.earned()`, whose count is unchanged too.
+  - `PlayerRecord` carries `photo` (`{large, small}` or `None`) and `pins` (the stored
+    codes, earned or not), read from the joined profile row. Every Player row of a person
+    points at the same user, so it does not matter which one stands for an edition.
+  - With nobody on the leaderboard, `/profiles/` runs no badge or rarity query.
 - The summary's roster players gain `photo` (the small URL or `null`) through
   `select_related("user__profile")` on the existing players query, so `SUMMARY_QUERIES`
   is unchanged.
+- The keys are always there, so an older client reads one shape: `photo` is `null` without
+  a profile row or a photo, a row's `showcase` is `[]` and the profile's is `{auto: true,
+  badges: []}` without a badge.
 - URLs are site-relative (`/media/avatars/…`). nginx serves them on the public host. In
   dev, `vite.config.js` proxies `/media` to `API_URL`.
-- No payload carries `photo_locked`, `claimed_at` or `username`, except `/me/`.
+- No payload carries `photo_locked`, `claimed_at` or `username`, except `/me/`. The stored
+  pins as such (`codes`) go to `/me/` only: a pin no longer earned never shows elsewhere.
+  `test_showcase.py` walks the three public payloads for these keys and for the email.
 
 ### 7. Admin (`UserProfileAdmin`)
 

@@ -25,13 +25,23 @@ from olympic_warriors.models import (
     Team,
     TeamResult,
     TeamSportRound,
+    UserProfile,
 )
 from olympic_warriors.models.Edition import latest_edition
 from olympic_warriors.serializer import EditionSummarySerializer
 
-# Queries of one summary: disciplines, teams, players prefetch, the three of the
-# standings, results, rounds, games. Pin it so a per-row fan-out cannot come back.
+# Queries of one summary: disciplines, teams, players prefetch (their users' profile rows,
+# for the photos, joined in), the three of the standings, results, rounds, games. Pin it so
+# a per-row fan-out cannot come back.
 SUMMARY_QUERIES = 9
+
+
+def give_photo(user):
+    """A profile row with a photo (its file names only: nothing reads the files); returns
+    the small URL the payloads serve."""
+    base = f"avatars/{user.id}-0123456789ab"
+    UserProfile.objects.create(user=user, photo=f"{base}.webp", photo_small=f"{base}-sm.webp")
+    return f"/media/{base}-sm.webp"
 
 
 class TestEditionModel(TestCase):
@@ -237,6 +247,26 @@ class TestEditionSummarySerializer(SummarySetup, TestCase):
         users = {u.username: u.id for u in User.objects.filter(username__in=["ana", "bob"])}
 
         self.assertEqual([p["user"] for p in aigles["players"]], [users["ana"], users["bob"]])
+
+    def test_roster_players_carry_their_small_photo_or_null(self):
+        users = {u.username: u for u in User.objects.filter(username__in=["ana", "bob", "old"])}
+        small = give_photo(users["ana"])
+        UserProfile.objects.create(user=users["bob"])  # a row, but no photo
+        give_photo(users["old"])  # inactive: not on the roster at all
+
+        aigles = self.summary()["teams"][0]
+
+        self.assertEqual(
+            [(p["first_name"], p["photo"]) for p in aigles["players"]],
+            [("Ana", small), ("Bob", None)],
+        )
+
+    def test_roster_players_keep_every_key_without_a_profile_row(self):
+        players = self.summary()["teams"][0]["players"]
+
+        for player in players:
+            self.assertEqual(set(player), {"id", "user", "first_name", "last_name", "photo"})
+            self.assertIsNone(player["photo"])
 
     def test_inactive_team_excluded(self):
         self.team_c.is_active = False
@@ -743,6 +773,10 @@ class TestSummaryQueryCount(SummarySetup, TestCase):
     def test_summary_runs_in_a_fixed_number_of_queries(self):
         for _ in range(3):  # more results must not mean more queries
             Relay.objects.create(edition=self.edition, reveal_score=True)
+        # Nor do photos: the profile rows come with the players.
+        give_photo(User.objects.get(username="ana"))
+        UserProfile.objects.create(user=User.objects.get(username="bob"))
 
         with self.assertNumQueries(SUMMARY_QUERIES):
-            self.summary()
+            teams = self.summary()["teams"]
+        self.assertIsNotNone(teams[0]["players"][0]["photo"])

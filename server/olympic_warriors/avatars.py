@@ -157,6 +157,13 @@ def photo_urls(profile):
     return {"large": profile.photo.url, "small": profile.photo_small.url}
 
 
+def small_photo_url(profile):
+    """The small (128 px) URL of the profile's photo, or None: what every list shows (the
+    leaderboard rows, the rosters, a comrades partner). No query."""
+    urls = photo_urls(profile)
+    return urls["small"] if urls else None
+
+
 def photo_names(profile):
     """The stored file names of the profile's photo, if any."""
     return [getattr(profile, field).name for field in PHOTO_FIELDS if getattr(profile, field)]

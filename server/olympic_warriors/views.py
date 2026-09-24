@@ -53,7 +53,7 @@ from .serializer import (
     ShowcaseSerializer,
 )
 from .avatars import MAX_BYTES, PhotoError, photo_urls, remove_photo, store_photo
-from .badges import badge_stats, profile_badges, showcase, valid_pins
+from .badges import badge_stats, badges_by_user, profile_badges, showcase, valid_pins
 from .claims import check_claim, complete_claim
 from .profiles import is_person, leaderboard, person_ids, person_players
 from .permissions import IsOrganiser
@@ -472,7 +472,8 @@ def getPlayersByTeam(request, team_id):
         "Ranked people first, like a medal table on their places (more 1st places, then "
         "more 2nd places, and so on; identical places share a position), then the ones "
         "with no counted edition yet (finished, ranked, at least two teams), by name and "
-        "without a position."
+        "without a position. Each row carries the small photo and the badges its profile's "
+        "showcase shows."
     ),
     responses={
         "200": LeaderboardRowSerializer(many=True),
@@ -482,13 +483,28 @@ def getPlayersByTeam(request, team_id):
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def getProfiles(request):
-    return Response(LeaderboardRowSerializer(leaderboard(), many=True).data)
+    """
+    Each row's showcase is the one its profile shows (the same badges, pins and rarity
+    counts, see getProfile), for everyone at once: every person's badges in one query and
+    the rarity stats in one more, neither run when nobody is listed.
+    """
+    records = leaderboard()
+    user_ids = [record.user_id for record in records]
+    by_user = badges_by_user(user_ids)
+    holders = badge_stats(user_ids)["holders"]
+    showcases = {
+        record.user_id: showcase(by_user[record.user_id], record.pins, holders)["badges"]
+        for record in records
+    }
+    return Response(
+        LeaderboardRowSerializer(records, many=True, context={"showcases": showcases}).data
+    )
 
 
 @extend_schema(
     summary=(
-        "One person's editions, average rank, discipline places, position, badges and "
-        "badge rarity stats"
+        "One person's editions, average rank, discipline places, position, badges, "
+        "badge rarity stats, photo and showcase"
     ),
     responses={
         "200": ProfileSerializer,
@@ -500,14 +516,19 @@ def getProfiles(request):
 @permission_classes([AllowAny])
 def getProfile(request, user_id):
     # The same leaderboard as /profiles/, so a profile can never disagree on a position; its
-    # user ids are also the rarity stats' denominator (everyone on /players).
+    # user ids are also the rarity stats' denominator (everyone on /players). The record
+    # carries the photo and the pins, and the showcase reuses the badges and the stats, so
+    # neither costs a query.
     records = leaderboard()
     record = next((r for r in records if r.user_id == user_id), None)
     if record is None:
         return Response({"error": "Player not found"}, status=404)
+    badges = profile_badges(user_id)
+    stats = badge_stats([r.user_id for r in records])
     context = {
-        "badges": profile_badges(user_id),
-        "badge_stats": badge_stats([r.user_id for r in records]),
+        "badges": badges,
+        "badge_stats": stats,
+        "showcase": showcase(badges, record.pins, stats["holders"]),
     }
     return Response(ProfileSerializer(record, context=context).data)
 
