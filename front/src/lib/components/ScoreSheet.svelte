@@ -2,6 +2,7 @@
 	import { createEventDispatcher, tick } from 'svelte';
 	import { enhance } from '$app/forms';
 	import { useT } from '$lib/i18n';
+	import { modal } from '$lib/modal';
 
 	/** A game as `disciplineSchedule` shapes it (ids, names, scores, isPlayed, refereeName). */
 	export let game;
@@ -40,9 +41,6 @@
 
 	const clamp = (n) => Math.max(0, Number.isFinite(n) ? n : 0);
 	const close = () => dispatch('close');
-	const onKey = (event) => {
-		if (open && event.key === 'Escape') close();
-	};
 	// After a successful save the page's data reloads; the sheet closes on that success.
 	// reset: false, so SvelteKit does not blank the fields and the switch before the
 	// reloaded summary brings the saved values back.
@@ -53,11 +51,17 @@
 	$: title = `${t('discipline.round', { n: roundNumber })} · ${t('game.referee', { name: game.refereeName ?? t('team.unknown') })}`;
 </script>
 
-<svelte:window on:keydown={onKey} />
-
 {#if open}
 	<div class="backdrop" data-testid="backdrop" on:click={close} aria-hidden="true"></div>
-	<div class="sheet" role="dialog" aria-modal="true" aria-label={title} tabindex="-1" bind:this={sheetEl}>
+	<div
+		class="sheet"
+		role="dialog"
+		aria-modal="true"
+		aria-label={title}
+		tabindex="-1"
+		bind:this={sheetEl}
+		use:modal={{ onClose: close }}
+	>
 		<form method="POST" action="?/score" use:enhance={afterSubmit}>
 			<input type="hidden" name="game" value={game.id} />
 			<p class="label">{title}</p>
@@ -119,6 +123,7 @@
 		max-height: 90vh;
 		max-height: 90dvh;
 		overflow-y: auto;
+		overscroll-behavior: contain;
 	}
 
 	.line {
