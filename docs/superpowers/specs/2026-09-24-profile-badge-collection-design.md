@@ -70,7 +70,7 @@ This is front-end only. `/profile/<id>/` already carries the earned badges, and
   |---|---|---|
   | `veteran` | 3, 5, 10 | editions |
   | `ever-present` | 4, 6, 8 | editions in a row |
-  | `networker` | 20, 40, 60 | teammates |
+  | `networker` | 5, 10, 20 | teammates |
   | `specialist` | 2, 3, 4 | titles in the discipline |
   | `all-rounder` | 3, 5, 8 | disciplines won |
   | `golden-whistle` | 5, 10, 20 | games refereed |
@@ -132,6 +132,16 @@ Each slot is a `<button type="button">`:
 
 Tapping a slot opens `BadgeSheet` for it. Closing the sheet returns focus to that slot.
 
+On a device with a real pointer (`@media (hover: hover) and (pointer: fine)`), hovering
+or focusing a slot shows a tooltip with the name and the rule (Hugo, 2026-09-24). The
+click still opens the sheet.
+- It follows WCAG 1.4.13: the tooltip stays while the pointer is on it, and Escape hides
+  it without moving focus.
+- On an edge slot, the tooltip is aligned inward so it stays on screen.
+- The rule is always the slot's `aria-describedby`, on every device.
+
+Touch devices only get the sheet.
+
 ### `BadgeSheet.svelte`
 
 The same shell as the organiser `ScoreSheet`: a backdrop, `role="dialog"`,
@@ -145,6 +155,7 @@ Content:
 - the medallion at 64px, the name as the title (`h2`), and the status line:
   « Badge obtenu · ×2 » or « Badge à débloquer »;
 - the rule, `badge.<code>.rule`;
+- every text line of the sheet is centred, like the title and the status (Hugo, 2026-09-24);
 - **earned:** one line per entry:
   - the discipline and partner (a link to their profile) when there is one;
   - the tier and years, as `badgeDetail` gives them, without its `×N` part: the status
@@ -203,10 +214,71 @@ Content:
 - `badge.next.<code>` and `badge.first.<code>` as plural messages over `{n}` for the six
   tiered codes, for example « Prochain niveau : {n} éditions » and « Premier niveau :
   {n} éditions ».
+- `badge.familyProgress`: the spoken « {earned} sur {total} » / "{earned} of {total}" next to a
+  family heading's hidden fraction.
+- `badge.earnedTimes`: a plural, « badge obtenu {n} fois » / "badge earned {n} times", in
+  slot names and the sheet's spoken status.
 - `badge.topTier`: « Niveau maximum » / "Top tier".
 - `badge.close`: « Fermer » / "Close".
 
 `profile.badges` stays: it is the card label.
+
+## Rarity (added 2026-09-24)
+
+The sheet tells how many players hold the badge, for earned and locked badges alike.
+
+- **Denominator:** everyone on `/players` (every person with a profile), as the
+  leaderboard counts them.
+- **Holders:** the people among them with an active badge row of that code in an active
+  edition, at any tier, discipline or partner, each counted once. This is the same filter
+  as the profile's own badge list: revoked rows and inactive editions don't count, and
+  badges given by hand do.
+- **Tiered badges:** `nk` is the number of people whose highest tier of the code is at
+  least `k`.
+
+### Server
+
+`badges.badge_stats(user_ids)` makes one query:
+`Badge.objects.filter(is_active=True, edition__is_active=True, user_id__in=user_ids)`,
+reading `code`, `user_id` and `tier`. It returns:
+
+```json
+{"players": 47, "holders": {"champion": 12, "veteran": 20}, "tiers": {"veteran": [20, 6, 1]}}
+```
+
+- `holders` only lists codes with at least one holder.
+- `tiers` only lists the six tiered codes, and only when they have a holder.
+- `players` is the number of user ids passed in.
+
+`getProfile` calls it with the leaderboard's user ids (it already builds the
+leaderboard), and `ProfileSerializer` gains `badge_stats` from the serializer context. The
+profile costs one more query (pinned). `/profiles/` is unchanged.
+
+### Front
+
+- `badgeRarity(stats, code, tier = 0)` in `badges.js` returns
+  `{ holders, players, percent }` for the code, where `percent` is
+  `Math.round(100 * holders / players)`. With `tier`, it reads `stats.tiers[code][tier - 1]`
+  instead. It returns `null` when `stats` is missing (an older API) or `players` is 0.
+- `BadgeSheet` shows, under the rule:
+  - `badge.rarity`: « {percent} % des joueurs l'ont obtenu ({holders} sur {players}) » /
+    "{percent}% of players have it ({holders} of {players})". There is a no-break space
+    before « % » in French.
+  - When `holders > 0` but the percentage rounds to 0, `badge.rarityUnder1`:
+    « Moins de 1 % des joueurs ({holders} sur {players}) » / "Less than 1% of players
+    ({holders} of {players})".
+  - When `holders == 0`, `badge.rarityNone`: « Personne ne l'a encore obtenu » /
+    "Nobody has it yet".
+  - For an earned tiered badge, a second line at the viewer's highest tier,
+    `badge.rarityTier`: « {percent} % au niveau {tier} ou plus ({holders} sur {players}) » /
+    "{percent}% at tier {tier} or above ({holders} of {players})". It has its own
+    under-1 % variant, `badge.rarityTierUnder1`.
+- The lines are centred like the rest of the sheet, in `--muted`.
+
+### Out of scope
+
+Rarity on the slots or in the hover tooltip. The future highlight may reuse
+`badge_stats`.
 
 ## Testing
 

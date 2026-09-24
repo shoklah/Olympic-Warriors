@@ -248,3 +248,49 @@ Replace the old badges-section tests; the collection has its own tests now.
 - **`CLAUDE.md`:** in the front paragraphs, the profile's tabs, the badge-count card and `BadgeCollection`/`BadgeSheet`; in the `badges.js` description, `FAMILIES` and `TIER_THRESHOLDS`, with the three-place tuning note. Mark the #91 badge-section text as superseded.
 - **Full suites:** front and build. The Django suite should be unaffected, but run it anyway.
 - **Browser:** a profile with many badges and one with none, on both tabs, at 375px and desktop.
+
+---
+
+## Rarity (added 2026-09-24)
+
+Spec: the "Rarity" section of `docs/superpowers/specs/2026-09-24-profile-badge-collection-design.md`. Same rules as above; Django tests run with `--noinput`.
+
+### Task R1: Server, `badge_stats` on the profile
+
+**Files:**
+- Modify `server/olympic_warriors/badges.py` (`badge_stats`), `server/olympic_warriors/views.py` (`getProfile`) and `server/olympic_warriors/serializer.py` (`ProfileSerializer.badge_stats`).
+- Tests go in `server/olympic_warriors/tests/test_profiles.py` or `test_badges.py`, whichever holds the profile badge tests.
+
+- [ ] **Tests first.** Using the existing badge test setup (create `Badge` rows directly, test database only):
+  - `badge_stats(ids)` counts each person once per code, whatever their disciplines, partners or years;
+  - it ignores revoked rows (`is_active=False`), inactive editions, and people outside `ids`;
+  - `tiers[code]` is the at-least-k count;
+  - `players == len(ids)`;
+  - `/profile/<id>/` carries `badge_stats` with that shape, and the profile's query pin becomes one more than today (e.g. `PROFILES_QUERIES + 2`);
+  - `/profiles/` is unchanged.
+- [ ] **Implement.** Build `badge_stats` from one `values_list("code", "user_id", "tier")` query. Tiered codes: reuse the server's own notion of tiered codes if `badges.py`/`Badge.Codes` has one, otherwise the six codes. Wire it into `getProfile` with the ids from the `leaderboard()` it already computes, and pass it to the serializer context. Update the `getProfile` OpenAPI summary.
+- [ ] **Run and commit.** Run the whole Django suite with `--noinput`, then commit `[ADD] badges: badge_stats (holders per code and tier) on the profile` with a Co-Authored-By line.
+
+### Task R2: Front, rarity lines in the sheet
+
+**Files:**
+- `front/src/lib/badges.js` (`badgeRarity`) and `badges.test.js`;
+- `BadgeSheet.svelte`, and the `BadgeCollection`/`BadgeSheet` tests;
+- `fr.js`, `en.js`;
+- `front/src/lib/fixtures/players.js` (add `badge_stats` to `profile`);
+- the profile page, to pass `profile.badge_stats` down.
+
+- [ ] **Tests first.**
+  - `badgeRarity`:
+    - the normal case gives the rounded percent;
+    - `holders > 0` rounding to 0 gives the under-1 % case, and 0 holders gives none;
+    - a tier reads `tiers[code][tier - 1]`;
+    - missing stats or 0 players give `null`.
+  - Sheet:
+    - an earned untiered badge shows `26% of players have it (12 of 47)`;
+    - a locked badge with 0 holders shows `Nobody has it yet`;
+    - an earned tiered badge at tier 2 shows the badge line and `6% at tier 2 or above (3 of 47)`;
+    - without `badge_stats`, no rarity line appears;
+    - in French, `26 % des joueurs l'ont obtenu (12 sur 47)` with a no-break space.
+- [ ] **Implement** per the spec. Thread `badge_stats` from `+page.svelte` through `BadgeCollection` to `BadgeSheet`.
+- [ ] **Run and commit.** Run `npm test` and `npm run build`, then commit `[FEAT] front: badge rarity in the detail sheet` with a Co-Authored-By line.

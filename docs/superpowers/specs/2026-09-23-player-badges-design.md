@@ -138,7 +138,7 @@ These need only a participation in a finished edition, not a rank.
 | Code | FR | EN | Rule | Repeat | Metal | Icon |
 |---|---|---|---|---|---|---|
 | `comrades` | Compagnons d'armes | Comrades in arms | On the same team as the same person in 3 editions. Both people earn it, each with the other as `partner` | once per partner | silver | Two shields side by side ✓ |
-| `networker` | Rassembleur | Networker | 20 / 40 / 60 different teammates | tiers | tiers | Linked dots |
+| `networker` | Rassembleur | Networker | 5 / 10 / 20 different teammates (lowered from 20 / 40 / 60 on 2026-09-24) | tiers | tiers | Linked dots |
 
 ### Hall of fame (the all-time table)
 
