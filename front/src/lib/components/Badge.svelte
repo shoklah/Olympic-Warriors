@@ -12,19 +12,22 @@
 <!-- Purely visual: the tile around it writes the name and, for a tiered badge, the tier. -->
 <span class="badge {metal}" data-metal={metal} aria-hidden="true">
 	<span class="medal"><img src={badgeGlyph(badge)} alt="" /></span>
-	{#if tiered}
-		<span class="pips">
+	<!-- The pip row keeps its height on an untiered badge too, so that in a grid of tiles
+	     every medallion takes the same room and the names below line up. -->
+	<span class="pips">
+		{#if tiered}
 			{#each [1, 2, 3] as n}
 				<span class="pip" class:on={n <= tier}></span>
 			{/each}
-		</span>
-	{/if}
+		{/if}
+	</span>
 </span>
 
 <style>
 	/* `--badge-size` lets a page scale the medallion, as `--medal-size` does for MedalRank. */
 	.badge {
 		--size: var(--badge-size, 56px);
+		--pip: max(5px, calc(var(--size) * 0.07));
 		display: inline-flex;
 		flex-direction: column;
 		align-items: center;
@@ -75,10 +78,11 @@
 	.pips {
 		display: flex;
 		gap: calc(var(--size) * 0.06);
+		height: var(--pip);
 	}
 
 	.pip {
-		width: max(5px, calc(var(--size) * 0.07));
+		width: var(--pip);
 		aspect-ratio: 1;
 		border-radius: 50%;
 		background: var(--line);

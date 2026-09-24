@@ -13,6 +13,13 @@ describe('Badge', () => {
 		expect(root.querySelectorAll('.pip')).toHaveLength(0);
 	});
 
+	it('keeps an empty pip row on an untiered badge, so medallions in a grid line up', () => {
+		const { container } = renderWith(Badge, { badge: { code: 'rookie', tier: 0, years: [2024] } });
+		const root = container.querySelector('[data-metal]');
+		expect(root.lastElementChild).toHaveClass('pips');
+		expect(root.lastElementChild).toBeEmptyDOMElement();
+	});
+
 	it('shows three pips for a tiered badge, the first `tier` lit, in the tier metal', () => {
 		const { container } = renderWith(Badge, { badge: { code: 'veteran', tier: 2, years: [2026] } });
 		expect(container.querySelector('[data-metal]')).toHaveAttribute('data-metal', 'silver');
