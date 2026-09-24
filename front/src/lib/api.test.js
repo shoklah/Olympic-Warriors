@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { apiGet, apiPost, apiPatch } from './api.js';
+import { apiGet, apiPost, apiPatch, apiSend } from './api.js';
 
 const jsonResponse = (status, body) =>
 	new Response(JSON.stringify(body), {
@@ -157,5 +157,71 @@ describe('token header', () => {
 			headers: { 'content-type': 'application/json', authorization: 'Token abc' },
 			body: JSON.stringify({ score1: 1 })
 		});
+	});
+});
+
+describe('apiSend', () => {
+	it('sends a FormData body as is, with no content type, so fetch writes the multipart boundary', async () => {
+		const fetch = vi.fn().mockResolvedValue(jsonResponse(200, { photo: { large: '/l.webp', small: '/s.webp' } }));
+		const body = new FormData();
+		body.append('photo', new Blob(['jpeg'], { type: 'image/jpeg' }), 'photo.jpg');
+
+		await expect(apiSend(fetch, 'http://api/me/photo/', { method: 'PUT', token: 'abc', body })).resolves.toEqual({
+			photo: { large: '/l.webp', small: '/s.webp' }
+		});
+		const [url, options] = fetch.mock.calls[0];
+		expect(url).toBe('http://api/me/photo/');
+		expect(options.method).toBe('PUT');
+		expect(options.headers).toEqual({ authorization: 'Token abc' });
+		expect(options.body).toBe(body);
+	});
+
+	it('sends no body when given none, as for a DELETE', async () => {
+		const fetch = vi.fn().mockResolvedValue(jsonResponse(200, {}));
+		await apiSend(fetch, 'http://api/me/photo/', { method: 'DELETE', token: 'abc' });
+		expect(fetch).toHaveBeenCalledWith('http://api/me/photo/', {
+			method: 'DELETE',
+			headers: { authorization: 'Token abc' }
+		});
+	});
+
+	it('adds extra headers', async () => {
+		const fetch = vi.fn().mockResolvedValue(jsonResponse(200, {}));
+		await apiSend(fetch, 'http://api/x', { method: 'DELETE', headers: { 'x-forwarded-for': '203.0.113.7' } });
+		expect(fetch.mock.calls[0][1].headers).toEqual({ 'x-forwarded-for': '203.0.113.7' });
+	});
+
+	it('resolves to null for a 204 with no body, and for an empty 200', async () => {
+		let fetch = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+		await expect(apiSend(fetch, 'http://api/me/photo/', { method: 'DELETE', token: 'abc' })).resolves.toBeNull();
+		fetch = vi.fn().mockResolvedValue(new Response('', { status: 200 }));
+		await expect(apiSend(fetch, 'http://api/me/photo/', { method: 'DELETE', token: 'abc' })).resolves.toBeNull();
+	});
+
+	it('throws the API error code as the message, like the other helpers', async () => {
+		const fetch = vi.fn().mockResolvedValue(jsonResponse(403, { error: 'photo_locked' }));
+		await expect(apiSend(fetch, 'http://api/me/photo/', { method: 'PUT', token: 'abc' })).rejects.toMatchObject({
+			status: 403,
+			body: { message: 'photo_locked' }
+		});
+	});
+
+	it("keeps the status of a proxy's non-JSON refusal (nginx's 413)", async () => {
+		const fetch = vi.fn().mockResolvedValue(
+			new Response('<html>413 Request Entity Too Large</html>', {
+				status: 413,
+				statusText: 'Request Entity Too Large',
+				headers: { 'content-type': 'text/html' }
+			})
+		);
+		await expect(apiSend(fetch, 'http://api/me/photo/', { method: 'PUT', token: 'abc' })).rejects.toMatchObject({
+			status: 413,
+			body: { message: 'Request Entity Too Large' }
+		});
+	});
+
+	it('maps a network failure to 502', async () => {
+		const fetch = vi.fn().mockRejectedValue(new TypeError('fetch failed'));
+		await expect(apiSend(fetch, 'http://api/me/photo/', { method: 'DELETE' })).rejects.toMatchObject({ status: 502 });
 	});
 });

@@ -59,16 +59,33 @@ describe('root layout load', () => {
 			first_name: 'Léa',
 			last_name: 'Martin',
 			photo: { large: '/media/avatars/7-abc.webp', small: '/media/avatars/7-abc-sm.webp' },
-			is_person: true
+			is_person: true,
+			photo_locked: false
 		});
 	});
 
-	it('keeps only the id, the names, the photo and whether they are a person', async () => {
+	it('keeps only the id, the names, the photo, whether they are a person and the photo lock', async () => {
 		const { data, cookies } = await run({ token: 'abc', user: json(200, meBody({ photo: null })) });
 		expect(data.organiser).toBe(false);
-		// Never the username, the lock or the pins: the layout data reaches the page.
-		expect(data.me).toEqual({ id: 7, first_name: 'Léa', last_name: 'Martin', photo: null, is_person: true });
+		// Never the username or the pins: the layout data is serialised into every page. The
+		// lock is the viewer's own, for their photo editor.
+		expect(data.me).toEqual({
+			id: 7,
+			first_name: 'Léa',
+			last_name: 'Martin',
+			photo: null,
+			is_person: true,
+			photo_locked: false
+		});
 		expect(cookies.delete).not.toHaveBeenCalled();
+	});
+
+	it('carries the photo lock an organiser set, and reads an older API without it as unlocked', async () => {
+		let { data } = await run({ token: 'abc', user: json(200, meBody({ photo_locked: true })) });
+		expect(data.me.photo_locked).toBe(true);
+		const { photo_locked, ...older } = meBody();
+		({ data } = await run({ token: 'abc', user: json(200, older) }));
+		expect(data.me.photo_locked).toBe(false);
 	});
 
 	it('knows a staff user who never played is not a person', async () => {
@@ -77,7 +94,14 @@ describe('root layout load', () => {
 			user: json(200, meBody({ is_staff: true, is_person: false, photo: null }))
 		});
 		expect(data.organiser).toBe(true);
-		expect(data.me).toEqual({ id: 7, first_name: 'Léa', last_name: 'Martin', photo: null, is_person: false });
+		expect(data.me).toEqual({
+			id: 7,
+			first_name: 'Léa',
+			last_name: 'Martin',
+			photo: null,
+			is_person: false,
+			photo_locked: false
+		});
 	});
 
 	it.each([401, 403])('drops a dead token (%i)', async (status) => {

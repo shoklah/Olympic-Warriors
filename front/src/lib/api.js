@@ -72,6 +72,17 @@ export function apiPatch(fetch, url, body, token = null) {
 	return request(fetch, url, jsonOptions('PATCH', body), token);
 }
 
+/**
+ * Any method with `body` sent as is, such as a FormData upload: no content type is set, so
+ * fetch writes the multipart boundary itself. Without a body (a DELETE) none is sent. An
+ * empty answer (a 204) resolves to null; failures throw like the helpers above.
+ */
+export async function apiSend(fetch, url, { method, token = null, body, headers = {} } = {}) {
+	const options = body === undefined ? { method, headers } : { method, headers, body };
+	const answer = await request(fetch, url, options, token);
+	return answer === '' ? null : answer;
+}
+
 const jsonOptions = (method, body, headers = {}) => ({
 	method,
 	headers: { 'content-type': 'application/json', ...headers },

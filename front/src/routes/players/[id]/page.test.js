@@ -1,5 +1,5 @@
 import { fireEvent, screen, within } from '@testing-library/svelte';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderWith } from '$lib/test-utils';
 import Page from './+page.svelte';
 import { profile, profileUnranked } from '$lib/fixtures/players.js';
@@ -32,6 +32,18 @@ const collectionSlot = (family, name) =>
 		'button',
 		{ name }
 	);
+
+/** The root layout's `me` for Xavier Baby, whose profile the `profile` fixture is (id 34). */
+const xavier = {
+	id: 34,
+	first_name: 'Xavier',
+	last_name: 'Baby',
+	photo: profile.photo,
+	is_person: true,
+	photo_locked: false
+};
+
+const camera = () => screen.queryByRole('button', { name: 'Change my photo' });
 
 describe('player profile page', () => {
 	beforeEach(() => {
@@ -416,5 +428,88 @@ describe('player profile page', () => {
 		expect(shown).toEqual(['Balle au prisonnier', 'Blindtest', 'Cache-cache']);
 		expect(card).not.toHaveTextContent('Pétanque');
 		expect(within(card).getByText('+1')).toBeInTheDocument();
+	});
+
+	describe('owner view: the photo', () => {
+		afterEach(() => {
+			document.body.style.overflow = '';
+		});
+
+		it('gives the owner a camera button on the header avatar, opening the photo editor', async () => {
+			renderWith(Page, { data: { profile, me: xavier } });
+
+			const button = within(screen.getByTestId('portrait')).getByRole('button', { name: 'Change my photo' });
+			expect(button).toHaveAttribute('aria-haspopup', 'dialog');
+			await fireEvent.click(button);
+			const dialog = screen.getByRole('dialog', { name: 'My photo' });
+			expect(dialog).toHaveTextContent('Your photo will be publicly visible on the site.');
+			expect(within(dialog).getByRole('button', { name: 'Delete my photo' })).toBeInTheDocument();
+			expect(within(dialog).getByLabelText('Choose a photo')).toBeInTheDocument();
+
+			await fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+			expect(screen.queryByRole('dialog')).toBeNull();
+			expect(button).toHaveFocus();
+		});
+
+		it('shows no camera to a visitor, or to someone logged in on another profile', () => {
+			const { unmount } = renderWith(Page, { data: { profile, me: null } });
+			expect(camera()).toBeNull();
+			unmount();
+
+			renderWith(Page, { data: { profile, me: { ...xavier, id: 12 } } });
+			expect(camera()).toBeNull();
+			expect(screen.queryByRole('dialog')).toBeNull();
+		});
+
+		it("offers no delete button in the editor of an owner without a photo", async () => {
+			renderWith(Page, { data: { profile: { ...profileUnranked, id: 34 }, me: { ...xavier, photo: null } } });
+
+			await fireEvent.click(camera());
+			expect(screen.queryByRole('button', { name: 'Delete my photo' })).toBeNull();
+		});
+
+		it('opens the locked editor when an organiser turned uploads off', async () => {
+			renderWith(Page, { data: { profile, me: { ...xavier, photo_locked: true } } });
+
+			await fireEvent.click(camera());
+			const dialog = screen.getByRole('dialog', { name: 'My photo' });
+			expect(dialog).toHaveTextContent('Photo uploads have been turned off by an organiser');
+			expect(within(dialog).queryByLabelText('Choose a photo')).toBeNull();
+			expect(within(dialog).getByRole('button', { name: 'Delete my photo' })).toBeInTheDocument();
+		});
+
+		it('follows `data` from one profile to the next, the page staying mounted', async () => {
+			const { component } = renderWith(Page, { data: { profile, me: xavier } });
+			expect(camera()).toBeInTheDocument();
+
+			await component.$set({ data: { profile: profileUnranked, me: xavier } });
+			expect(camera()).toBeNull();
+			await component.$set({ data: { profile, me: xavier } });
+			expect(camera()).toBeInTheDocument();
+			// Logged out in another tab: the next load carries no `me`.
+			await component.$set({ data: { profile, me: null } });
+			expect(camera()).toBeNull();
+		});
+
+		it("closes the editor on the way to someone else's profile, and does not reopen it", async () => {
+			const { component } = renderWith(Page, { data: { profile, me: xavier } });
+			await fireEvent.click(camera());
+			expect(screen.getByRole('dialog', { name: 'My photo' })).toBeInTheDocument();
+
+			await component.$set({ data: { profile: profileUnranked, me: xavier } });
+			expect(screen.queryByRole('dialog')).toBeNull();
+			await component.$set({ data: { profile, me: xavier } });
+			expect(screen.queryByRole('dialog')).toBeNull();
+		});
+
+		it('speaks French for the camera and the editor', async () => {
+			renderWith(Page, { data: { profile, me: xavier } }, 'fr');
+
+			await fireEvent.click(screen.getByRole('button', { name: 'Changer ma photo' }));
+			const dialog = screen.getByRole('dialog', { name: 'Ma photo' });
+			expect(dialog).toHaveTextContent('Votre photo sera visible publiquement sur le site.');
+			expect(within(dialog).getByRole('button', { name: 'Supprimer ma photo' })).toBeInTheDocument();
+			expect(within(dialog).getByLabelText('Choisir une photo')).toBeInTheDocument();
+		});
 	});
 });

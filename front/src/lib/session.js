@@ -5,11 +5,12 @@ export const ORGANISER = 'organiser';
 
 /**
  * Svelte context key under which the root layout stores who is logged in:
- * `{ id, first_name, last_name, photo, is_person }` (`photo` being `{ large, small }` or
- * null), or null. Set once at init, so it is for what cannot change within a page's
+ * `{ id, first_name, last_name, photo, is_person, photo_locked }` (`photo` being
+ * `{ large, small }` or null), or null. Set once at init, so it is for what cannot change within a page's
  * lifetime, such as `me.id` (whose profile this is): logging in and out reload the page.
- * The photo in it goes stale after an in-page `invalidateAll()`, so a component showing
- * the photo reads the layout's `data.me` reactively instead (Header takes it as a prop).
+ * The photo and the lock in it go stale after an in-page `invalidateAll()`, so a component
+ * showing them reads the layout's `data.me` reactively instead (Header takes it as a prop,
+ * the profile page reads it from its merged `data`).
  */
 export const ME = 'me';
 

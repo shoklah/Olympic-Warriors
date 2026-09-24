@@ -4,6 +4,7 @@
 	import BadgeCollection from '$lib/components/BadgeCollection.svelte';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import MedalRank from '$lib/components/MedalRank.svelte';
+	import PhotoEditor from '$lib/components/PhotoEditor.svelte';
 	import Showcase from '$lib/components/Showcase.svelte';
 	import { badgeCollection } from '$lib/badges';
 	import { iconFor } from '$lib/icons';
@@ -24,6 +25,16 @@
 	$: best = bestDisciplines(disciplines);
 	$: collection = badgeCollection(profile.badges ?? []);
 	$: tab = $page.url.searchParams.get('tab') === 'badges' ? 'badges' : 'profile';
+
+	// Whether this is the viewer's own profile, from `data` (the root layout's `me` is merged
+	// into it) rather than the ME context: this component stays mounted from one profile to
+	// the next, and `me` follows invalidateAll() after a new photo.
+	$: owner = Boolean(data.me) && data.me.id === profile.id;
+	/** The photo editor is open; it closes itself when the page stops being the owner's. */
+	let editing = false;
+	$: if (!owner) editing = false;
+	/** The camera button, given focus back when the editor closes. */
+	let camera = null;
 </script>
 
 <div class="page">
@@ -33,6 +44,21 @@
 	<div class="identity">
 		<span class="portrait" data-testid="portrait">
 			<Avatar photo={profile.photo?.large ?? null} name={profile} />
+			{#if owner}
+				<button
+					type="button"
+					class="camera"
+					aria-label={t('photo.change')}
+					aria-haspopup="dialog"
+					bind:this={camera}
+					on:click={() => (editing = true)}
+				>
+					<svg viewBox="0 0 24 24" aria-hidden="true">
+						<path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2.3l1.4-2h5.6l1.4 2h2.3A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z" />
+						<circle cx="12" cy="12.5" r="3.2" />
+					</svg>
+				</button>
+			{/if}
 		</span>
 		<div class="who">
 			<h1>{name}</h1>
@@ -72,6 +98,17 @@
 			aria-current={tab === 'badges' ? 'page' : undefined}>{t('profile.tab.badges')}</a
 		>
 	</nav>
+
+	{#if owner}
+		<PhotoEditor
+			open={editing}
+			photo={profile.photo ?? null}
+			locked={Boolean(data.me.photo_locked)}
+			name={profile}
+			opener={camera}
+			on:close={() => (editing = false)}
+		/>
+	{/if}
 
 	{#if tab === 'badges'}
 		<BadgeCollection {collection} badgeStats={profile.badge_stats ?? null} />
@@ -183,8 +220,41 @@
 	}
 
 	.portrait {
+		position: relative;
 		display: flex;
 		flex: none;
+	}
+
+	/* On the avatar's lower right, ringed in the page colour so it reads over any photo. */
+	.camera {
+		position: absolute;
+		right: -4px;
+		bottom: -4px;
+		display: grid;
+		place-items: center;
+		width: 40px;
+		height: 40px;
+		padding: 0;
+		border: 3px solid var(--bg);
+		border-radius: 50%;
+		background: var(--accent);
+		color: var(--bg);
+		cursor: pointer;
+	}
+
+	.camera svg {
+		width: 20px;
+		height: 20px;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+
+	.camera:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
 	}
 
 	.who {
