@@ -24,6 +24,9 @@ The rules (see the player profiles design spec under docs/superpowers/specs/):
   discipline name); a person's discipline places aggregate those by name across
   editions, sorted best first, and are ordered and positioned by the same medal-table
   rule as the leaderboard, with the name as tie-break.
+- a discipline's all-time table ranks every person with a place in it (by discipline
+  name, across editions) on those places, with the same medal-table rule; identical
+  places share a position and are listed by name.
 """
 
 import math
@@ -49,11 +52,12 @@ def paris_today():
 @dataclass(frozen=True)
 class DisciplinePlace:
     """One ranked discipline result of a participation's team: the discipline name, the
-    edition's year, and the team's rank there."""
+    edition's year, the team's rank there, and the Discipline row of that edition."""
 
     name: str
     year: int
     rank: int
+    discipline_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -65,6 +69,11 @@ class DisciplinePlaces:
     name: str
     places: tuple[DisciplinePlace, ...]
     position: int
+
+    @property
+    def latest(self):
+        """The newest place (highest year): the profile links to that edition's page."""
+        return max(self.places, key=lambda place: place.year)
 
 
 @dataclass(frozen=True)
@@ -196,7 +205,10 @@ def _participations(loaded):
             # counts implies a rank, and rank is only set above for a team in a ranked edition.
             disciplines = tuple(
                 DisciplinePlace(
-                    discipline.discipline_name, edition.year, discipline.standing.ranking
+                    discipline.discipline_name,
+                    edition.year,
+                    discipline.standing.ranking,
+                    discipline.discipline_id,
                 )
                 for discipline in loaded.standings[edition_id].disciplines_of(team.id)
                 if discipline.standing.ranking > 0
@@ -349,3 +361,53 @@ def leaderboard(today=None):
     the ones with nothing counted yet, by name and without a position.
     """
     return _place([_record(user, parts) for user, parts in participations(today).values()])
+
+
+@dataclass(frozen=True)
+class DisciplineRow:
+    """One person in a discipline's all-time table: their places there, best first, and
+    their shared position."""
+
+    user_id: int
+    first_name: str
+    last_name: str
+    places: tuple[DisciplinePlace, ...]
+    position: int
+
+
+@dataclass(frozen=True)
+class DisciplineTable:
+    """A discipline's all-time table: its database name, the years that give a place
+    (oldest first), and the people with a place, in medal-table order."""
+
+    name: str
+    years: tuple[int, ...]
+    rows: tuple[DisciplineRow, ...]
+
+
+def discipline_table(name, today=None):
+    """
+    The all-time table of the discipline called `name`: every person with a place in it
+    (see PlayerRecord.disciplines), ordered like the leaderboard's medal table on those
+    places, identical places sharing a position and listed by name.
+    Same queries as leaderboard().
+    """
+    entries = []
+    for user, parts in participations(today).values():
+        record = _record(user, parts)
+        entry = next((d for d in record.disciplines if d.name == name), None)
+        if entry is not None:
+            entries.append((record, entry.places))
+    entries.sort(key=lambda entry: (_places_key(entry[1]), *_by_name(entry[0])))
+    rows = tuple(
+        DisciplineRow(
+            user_id=record.user_id,
+            first_name=record.first_name,
+            last_name=record.last_name,
+            places=places,
+            position=position,
+        )
+        for position, (record, places) in _positioned(entries, lambda entry: _places_key(entry[1]))
+    )
+    years = tuple(sorted({place.year for row in rows for place in row.places}))
+    return DisciplineTable(name=name, years=years, rows=rows)

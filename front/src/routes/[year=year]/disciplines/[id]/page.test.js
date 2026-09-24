@@ -4,6 +4,7 @@ import { renderWith } from '$lib/test-utils';
 import Page from './+page.svelte';
 import { disciplineEntries, disciplineResults, disciplineSchedule, findDiscipline } from '$lib/edition';
 import { summary, summaryAllRevealed, summaryStaff } from '$lib/fixtures/summary.js';
+import { allTime, allTimeEmpty } from '$lib/fixtures/players.js';
 
 vi.mock('$app/forms', () => ({ enhance: () => ({ destroy() {} }) }));
 
@@ -140,6 +141,75 @@ describe('discipline page', () => {
 		expect(screen.getByRole('heading', { name: 'Programme' })).toBeInTheDocument();
 		expect(screen.getByRole('heading', { name: 'Tour 1' }).parentElement).toHaveTextContent('1 à jouer');
 		expect(screen.getByRole('heading', { name: 'Tour 2' }).parentElement).toHaveTextContent('1 match');
+	});
+});
+
+describe('discipline page tabs', () => {
+	const onAllTime = (data, table = allTime) => ({ ...data, tab: 'all-time', allTime: table });
+
+	it('opens on the edition tab, with the all-time tab one link away', () => {
+		renderWith(Page, { data: dataFor(summary, 10) });
+
+		const tabs = screen.getByRole('navigation', { name: 'Discipline sections' });
+		const edition = within(tabs).getByRole('link', { name: '2026 edition' });
+		const allTimeTab = within(tabs).getByRole('link', { name: 'All time' });
+		expect(edition).toHaveAttribute('href', '/2026/disciplines/10');
+		expect(edition).toHaveAttribute('aria-current', 'page');
+		expect(allTimeTab).toHaveAttribute('href', '/2026/disciplines/10?tab=all-time');
+		expect(allTimeTab).not.toHaveAttribute('aria-current');
+		expect(screen.getAllByTestId('result-row')).toHaveLength(3);
+		expect(screen.queryAllByTestId('all-time-row')).toHaveLength(0);
+		expect(screen.getByRole('link', { name: 'Relay' })).toHaveAttribute('href', '/2026/disciplines/10');
+	});
+
+	it('shows only the all-time table on its tab, and the rail keeps the tab', () => {
+		renderWith(Page, { data: onAllTime(dataFor(summary, 10)) });
+
+		const tabs = screen.getByRole('navigation', { name: 'Discipline sections' });
+		expect(within(tabs).getByRole('link', { name: 'All time' })).toHaveAttribute('aria-current', 'page');
+		expect(within(tabs).getByRole('link', { name: '2026 edition' })).not.toHaveAttribute('aria-current');
+		const rows = screen.getAllByTestId('all-time-row');
+		expect(rows).toHaveLength(4);
+		expect(rows[0]).toHaveTextContent(/^1\s*Léa Martin\s*1\s*2025\s*2\s*2024/);
+		expect(screen.getByText('2024 and 2025 editions')).toBeInTheDocument();
+		expect(screen.queryAllByTestId('result-row')).toHaveLength(0);
+		expect(screen.queryByRole('heading', { name: 'Schedule' })).toBeNull();
+		expect(screen.getByRole('link', { name: 'Relay' })).toHaveAttribute('href', '/2026/disciplines/10?tab=all-time');
+		expect(screen.getByRole('link', { name: 'Orienteering' })).toHaveAttribute(
+			'href',
+			'/2026/disciplines/11?tab=all-time'
+		);
+	});
+
+	it('shows the empty state when no finished edition placed anyone', () => {
+		renderWith(Page, { data: onAllTime(dataFor(summary, 11), allTimeEmpty) });
+
+		expect(screen.getByText('No finished edition for this discipline yet')).toBeInTheDocument();
+		expect(screen.queryByText('Results not revealed yet')).toBeNull();
+	});
+
+	it('keeps every organiser control on the edition tab', () => {
+		renderWith(Page, { data: dataFor(summaryStaff, 12, true) }, 'en', true);
+		expect(screen.getByText('Results hidden from the public')).toBeInTheDocument();
+		expect(screen.getAllByTestId('result-line').length).toBeGreaterThan(0);
+	});
+
+	it('shows no organiser control on the all-time tab', () => {
+		renderWith(Page, { data: onAllTime(dataFor(summaryStaff, 12, true)) }, 'en', true);
+
+		expect(screen.queryByText('Results hidden from the public')).toBeNull();
+		expect(screen.queryAllByTestId('result-line')).toHaveLength(0);
+		expect(screen.queryByRole('button')).toBeNull();
+		expect(screen.getAllByTestId('all-time-row')).toHaveLength(4);
+	});
+
+	it('words the tabs in French under fr', () => {
+		renderWith(Page, { data: onAllTime(dataFor(summary, 10)) }, 'fr');
+
+		const tabs = screen.getByRole('navigation', { name: "Sections de l'épreuve" });
+		expect(within(tabs).getByRole('link', { name: 'Édition 2026' })).toBeInTheDocument();
+		expect(within(tabs).getByRole('link', { name: 'Palmarès' })).toHaveAttribute('aria-current', 'page');
+		expect(screen.getByText('Éditions 2024 et 2025')).toBeInTheDocument();
 	});
 });
 

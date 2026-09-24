@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { actions } from './+page.server.js';
+import { actions, load } from './+page.server.js';
+import { summary } from '$lib/fixtures/summary.js';
+import { allTime } from '$lib/fixtures/players.js';
 
 vi.mock('$lib/server/urls', () => ({ api: (path) => `http://api${path}` }));
 
@@ -92,5 +94,41 @@ describe('discipline actions', () => {
 			const { result } = await call('close', { round: '22' }, { response: json(status, { error: 'x' }) });
 			expect(result).toMatchObject({ status, data: { error: key } });
 		}
+	});
+});
+
+describe('discipline load', () => {
+	const run = (search, id = '10', response = json(200, allTime)) => {
+		const fetch = vi.fn().mockResolvedValue(response);
+		const url = new URL(`http://localhost/2026/disciplines/${id}${search}`);
+		const parent = vi.fn(async () => ({ summary }));
+		return load({ fetch, params: { id }, parent, url }).then((data) => ({ data, fetch, parent }));
+	};
+
+	it('fetches nothing on the edition tab', async () => {
+		for (const search of ['', '?tab=edition', '?tab=badges']) {
+			const { data, fetch, parent } = await run(search);
+			expect(data).toEqual({ tab: 'edition', allTime: null });
+			expect(fetch).not.toHaveBeenCalled();
+			expect(parent).not.toHaveBeenCalled();
+		}
+	});
+
+	it('fetches the all-time table on its tab', async () => {
+		const { data, fetch } = await run('?tab=all-time');
+		expect(fetch.mock.calls[0][0]).toBe('http://api/discipline/10/all-time/');
+		expect(data).toEqual({ tab: 'all-time', allTime });
+	});
+
+	it('does not call the API for an id outside the year', async () => {
+		for (const id of ['999', 'abc', '../admin']) {
+			const { data, fetch } = await run('?tab=all-time', id);
+			expect(data).toEqual({ tab: 'all-time', allTime: null });
+			expect(fetch).not.toHaveBeenCalled();
+		}
+	});
+
+	it("passes the API's errors through", async () => {
+		await expect(run('?tab=all-time', '10', json(500, { error: 'x' }))).rejects.toMatchObject({ status: 500 });
 	});
 });

@@ -19,6 +19,7 @@ from olympic_warriors.profiles import (
     DisciplinePlace,
     DisciplinePlaces,
     Participation,
+    discipline_table,
     leaderboard,
     paris_today,
     participations,
@@ -32,6 +33,8 @@ TODAY = date(2026, 9, 23)
 # The editions query, the players query, then three per finished edition with players
 # (2024 and 2025 in ProfilesSetup; 2026 is still running).
 PROFILES_QUERIES = 2 + 3 * 2
+# The discipline's name, then everything /profiles/ reads.
+DISCIPLINE_TABLE_QUERIES = 1 + PROFILES_QUERIES
 
 
 class TestParisToday(SimpleTestCase):
@@ -69,9 +72,9 @@ class ProfilesSetup:
         self.loups, self.ours, self.pumas = [
             Team.objects.create(name=name, edition=self.y2025) for name in ("Loups", "Ours", "Pumas")
         ]
-        relay = Relay.objects.create(edition=self.y2025, reveal_score=True)
+        self.relay2025 = Relay.objects.create(edition=self.y2025, reveal_score=True)
         for team, points in [(self.loups, 10), (self.ours, 5), (self.pumas, 0)]:
-            TeamResult.objects.filter(discipline=relay, team=team).update(points=points)
+            TeamResult.objects.filter(discipline=self.relay2025, team=team).update(points=points)
         self.renards, self.sangliers = [
             Team.objects.create(name=name, edition=self.y2026) for name in ("Renards", "Sangliers")
         ]
@@ -313,25 +316,29 @@ class TestLeaderboard(ProfilesSetup, TestCase):
             leaderboard(TODAY)
 
 
-class TestDisciplinePlaces(ProfilesSetup, TestCase):
+class DisciplinesSetup(ProfilesSetup):
     """
     On top of ProfilesSetup's revealed 2025 Relay (Loups 1, Ours 2, Pumas 3): a revealed
-    2024 Relay (Bisons 1, Aigles 2, Cerfs 3, Daims 4), a revealed 2024 Darts (Aigles 1),
-    a hidden 2025 Darts, and a revealed 2026 Darts in the running edition.
+    2024 Relay (Bisons 1, Aigles 2, Cerfs 3, Daims 4), a revealed 2024 Darts (Aigles 1,
+    Bisons 2, Cerfs 3, Daims 4), a hidden 2025 Darts, and a revealed 2026 Darts in the
+    running edition.
     """
 
     def setUp(self):
         super().setUp()
-        relay = Relay.objects.create(edition=self.y2024, reveal_score=True)
+        self.relay2024 = Relay.objects.create(edition=self.y2024, reveal_score=True)
         for team, points in [(self.bisons, 8), (self.aigles, 5), (self.cerfs, 1), (self.daims, 0)]:
-            TeamResult.objects.filter(discipline=relay, team=team).update(points=points)
-        darts = Darts.objects.create(edition=self.y2024, reveal_score=True)
+            TeamResult.objects.filter(discipline=self.relay2024, team=team).update(points=points)
+        self.darts2024 = Darts.objects.create(edition=self.y2024, reveal_score=True)
         for team, points in [(self.aigles, 9), (self.bisons, 4), (self.cerfs, 2), (self.daims, 1)]:
-            TeamResult.objects.filter(discipline=darts, team=team).update(points=points)
-        hidden = Darts.objects.create(edition=self.y2025, reveal_score=False)
-        TeamResult.objects.filter(discipline=hidden, team=self.loups).update(points=9)
-        running = Darts.objects.create(edition=self.y2026, reveal_score=True)
-        TeamResult.objects.filter(discipline=running, team=self.renards).update(points=9)
+            TeamResult.objects.filter(discipline=self.darts2024, team=team).update(points=points)
+        self.hidden_darts = Darts.objects.create(edition=self.y2025, reveal_score=False)
+        TeamResult.objects.filter(discipline=self.hidden_darts, team=self.loups).update(points=9)
+        self.running_darts = Darts.objects.create(edition=self.y2026, reveal_score=True)
+        TeamResult.objects.filter(discipline=self.running_darts, team=self.renards).update(points=9)
+
+
+class TestDisciplinePlaces(DisciplinesSetup, TestCase):
 
     def disciplines(self, first_name):
         record = next(r for r in leaderboard(TODAY) if r.first_name == first_name)
@@ -363,6 +370,15 @@ class TestDisciplinePlaces(ProfilesSetup, TestCase):
     def test_no_counted_participation_means_no_disciplines(self):
         self.assertEqual(self.disciplines("Eve"), [])  # 2026 is running
         self.assertEqual(self.disciplines("Fay"), [])  # no team in 2024
+
+    def test_latest_is_the_newest_place_with_its_discipline_row(self):
+        # Bob's best Relay place is 2024, but the newest is 2025, whose page the profile links to.
+        bob = next(r for r in leaderboard(TODAY) if r.first_name == "Bob")
+        relay, darts = bob.disciplines
+
+        self.assertEqual(relay.places[0].year, 2024)
+        self.assertEqual((relay.latest.year, relay.latest.discipline_id), (2025, self.relay2025.id))
+        self.assertEqual((darts.latest.year, darts.latest.discipline_id), (2024, self.darts2024.id))
 
     def test_query_budget_is_unchanged(self):
         with self.assertNumQueries(PROFILES_QUERIES):
@@ -668,7 +684,14 @@ class TestProfileEndpoints(ProfilesSetup, TestCase):
         self.assertNotIn("average_beaten", response.data)
         self.assertEqual(
             response.data["disciplines"],
-            [{"name": "Relay", "position": 1, "places": [{"year": 2025, "rank": 1}]}],
+            [
+                {
+                    "name": "Relay",
+                    "position": 1,
+                    "places": [{"year": 2025, "rank": 1}],
+                    "latest": {"year": 2025, "discipline": self.relay2025.id},
+                }
+            ],
         )
         self.assertEqual(
             response.data["editions"],
@@ -852,3 +875,136 @@ class TestProfileEndpoints(ProfilesSetup, TestCase):
         self.badge(Badge.Codes.ROOKIE, y2023)
 
         self.assertEqual(self.badges(), [self.entry("champion", [2024])])
+
+
+class TestDisciplineTable(DisciplinesSetup, TestCase):
+    """profiles.discipline_table and GET /discipline/<id>/all-time/: every person with a
+    place in a discipline, across editions by name, in medal-table order."""
+
+    def setUp(self):
+        super().setUp()
+        patcher = mock.patch("olympic_warriors.profiles.paris_today", return_value=TODAY)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.client = APIClient()  # no credentials: the endpoint is public
+
+    @staticmethod
+    def rows(table):
+        """(first name, position, [(year, rank), ...]) per row, for compact asserts."""
+        return [
+            (row.first_name, row.position, [(p.year, p.rank) for p in row.places])
+            for row in table.rows
+        ]
+
+    def test_places_aggregate_by_name_across_editions_in_medal_table_order(self):
+        # Ana (2nd in 2024, 1st in 2025) and Bob (1st in 2024, 2nd in 2025) have identical
+        # places: tied, listed by name. Chloé's single 1st loses to their extra 2nd.
+        table = discipline_table("Relay", TODAY)
+
+        self.assertEqual(table.name, "Relay")
+        self.assertEqual(table.years, (2024, 2025))
+        self.assertEqual(
+            self.rows(table),
+            [
+                ("Ana", 1, [(2025, 1), (2024, 2)]),
+                ("Bob", 1, [(2024, 1), (2025, 2)]),
+                ("Chloé", 3, [(2025, 1)]),
+                ("Dan", 4, [(2024, 3)]),
+            ],
+        )
+
+    def test_hidden_and_running_disciplines_and_people_without_a_place_are_left_out(self):
+        # The hidden 2025 Darts and the running 2026 Darts give nothing: Chloé and Eve are
+        # absent, and so is Fay, who had no team in 2024.
+        table = discipline_table("Darts", TODAY)
+
+        self.assertEqual(table.years, (2024,))
+        self.assertEqual(
+            self.rows(table),
+            [("Ana", 1, [(2024, 1)]), ("Bob", 2, [(2024, 2)]), ("Dan", 3, [(2024, 3)])],
+        )
+
+    def test_an_inactive_discipline_or_team_drops_out(self):
+        # Without the 2024 Relay, Chloé (Dupont) and Ana (Lopez) tie on a single 1st place,
+        # listed by name; with Cerfs inactive, Dan has no team and no place.
+        Relay.objects.filter(pk=self.relay2024.pk).update(is_active=False)
+        Team.objects.filter(pk=self.cerfs.pk).update(is_active=False)
+
+        table = discipline_table("Relay", TODAY)
+
+        self.assertEqual(table.years, (2025,))
+        self.assertEqual(
+            self.rows(table),
+            [("Chloé", 1, [(2025, 1)]), ("Ana", 1, [(2025, 1)]), ("Bob", 3, [(2025, 2)])],
+        )
+
+    def test_a_discipline_without_a_place_gives_an_empty_table(self):
+        table = discipline_table("Rugby", TODAY)
+
+        self.assertEqual((table.name, table.years, table.rows), ("Rugby", (), ()))
+
+    def test_query_budget(self):
+        with self.assertNumQueries(PROFILES_QUERIES):
+            discipline_table("Relay", TODAY)
+
+    def test_endpoint_is_public_and_serves_the_table(self):
+        response = self.client.get(f"/discipline/{self.relay2024.id}/all-time/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["name"], "Relay")
+        self.assertEqual(response.data["years"], [2024, 2025])
+        self.assertEqual(
+            response.data["players"][0],
+            {
+                "id": self.ana.id,
+                "first_name": "Ana",
+                "last_name": "Lopez",
+                "position": 1,
+                "places": [{"year": 2025, "rank": 1}, {"year": 2024, "rank": 2}],
+            },
+        )
+        self.assertEqual(
+            [(row["first_name"], row["position"]) for row in response.data["players"]],
+            [("Ana", 1), ("Bob", 1), ("Chloé", 3), ("Dan", 4)],
+        )
+
+    def test_every_edition_of_a_discipline_serves_the_same_table(self):
+        # Including the running edition's Darts and the hidden 2025 one: the table does not
+        # depend on the page it is shown on.
+        relay = self.client.get(f"/discipline/{self.relay2024.id}/all-time/").data
+        darts = self.client.get(f"/discipline/{self.darts2024.id}/all-time/").data
+
+        self.assertEqual(self.client.get(f"/discipline/{self.relay2025.id}/all-time/").data, relay)
+        for discipline in (self.hidden_darts, self.running_darts):
+            self.assertEqual(self.client.get(f"/discipline/{discipline.id}/all-time/").data, darts)
+
+    def test_empty_table(self):
+        unplayed = Darts.objects.create(edition=self.y2026, reveal_score=False)
+        Darts.objects.exclude(pk=unplayed.pk).update(is_active=False)
+
+        response = self.client.get(f"/discipline/{unplayed.id}/all-time/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, {"name": "Darts", "years": [], "players": []})
+
+    def test_404_for_an_unknown_or_inactive_discipline_and_an_inactive_edition(self):
+        Relay.objects.filter(pk=self.relay2024.pk).update(is_active=False)
+        Edition.objects.filter(pk=self.y2025.pk).update(is_active=False)
+
+        for discipline_id in (999999, self.relay2024.id, self.relay2025.id):
+            response = self.client.get(f"/discipline/{discipline_id}/all-time/")
+            self.assertEqual(response.status_code, 404)
+
+    def test_payload_carries_no_login_name_or_email(self):
+        content = self.client.get(f"/discipline/{self.relay2024.id}/all-time/").content
+
+        self.assertNotIn(b"login-", content)
+        self.assertNotIn(b"mail.example", content)
+        self.assertNotIn(b"username", content)
+        self.assertNotIn(b"email", content)
+
+    def test_endpoint_runs_in_a_fixed_number_of_queries(self):
+        with self.assertNumQueries(DISCIPLINE_TABLE_QUERIES):
+            self.assertEqual(
+                self.client.get(f"/discipline/{self.relay2024.id}/all-time/").status_code, 200
+            )
