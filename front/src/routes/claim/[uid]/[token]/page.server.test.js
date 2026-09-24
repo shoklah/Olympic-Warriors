@@ -8,14 +8,14 @@ const json = (status, body) =>
 	new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
 // A user id as Django encodes it (base64url of "34") and a `<timestamp>-<hash>` token.
-const params = { uid: 'MzQ', token: 'cxqh2p-3f9a8b7c6d5e4f3a2b1c' };
-const API_PATH = 'http://api/claim/MzQ/cxqh2p-3f9a8b7c6d5e4f3a2b1c/';
+const params = { uid: 'MzQ', token: 'claim-token-demo' };
+const API_PATH = 'http://api/claim/MzQ/claim-token-demo/';
 const address = () => '203.0.113.7';
 
 const post = (fields) => {
 	const body = new FormData();
 	for (const [name, value] of Object.entries(fields)) body.append(name, value);
-	return new Request('http://localhost/claim/MzQ/cxqh2p-3f9a8b7c6d5e4f3a2b1c?/claim', {
+	return new Request('http://localhost/claim/MzQ/claim-token-demo?/claim', {
 		method: 'POST',
 		body
 	});
@@ -23,7 +23,7 @@ const post = (fields) => {
 
 const claim = ({
 	response = json(200, { token: 'fresh', user_id: 34 }),
-	fields = { password: 'Tr3s-Olympique', confirmation: 'Tr3s-Olympique' },
+	fields = { password: 'pw-demo', confirmation: 'pw-demo' },
 	getClientAddress = address,
 	linkParams = params
 } = {}) => {
@@ -118,7 +118,7 @@ describe('claim action', () => {
 		expect(fetch).toHaveBeenCalledWith(API_PATH, {
 			method: 'POST',
 			headers: { 'content-type': 'application/json', 'x-forwarded-for': '203.0.113.7' },
-			body: JSON.stringify({ password: 'Tr3s-Olympique' })
+			body: JSON.stringify({ password: 'pw-demo' })
 		});
 		expect(cookies.set).toHaveBeenCalledWith('token', 'fresh', tokenCookieOptions());
 		expect(tokenCookieOptions()).toMatchObject({ httpOnly: true, sameSite: 'lax', path: '/' });
@@ -146,7 +146,7 @@ describe('claim action', () => {
 		});
 		expect(fetch).not.toHaveBeenCalled();
 
-		({ result, fetch } = claim({ fields: { password: 'Tr3s-Olympique' } }));
+		({ result, fetch } = claim({ fields: { password: 'pw-demo' } }));
 		const { data } = await result;
 		expect(data).toEqual({ confirmation: ['claim.error.confirmation_missing'] });
 		expect(fetch).not.toHaveBeenCalled();
@@ -154,12 +154,12 @@ describe('claim action', () => {
 
 	it('refuses two different passwords before calling the API', async () => {
 		const { result, fetch, cookies } = claim({
-			fields: { password: 'Tr3s-Olympique', confirmation: 'Tr3s-Olympiqve' }
+			fields: { password: 'pw-demo', confirmation: 'pw-typo' }
 		});
 
 		const failure = await result;
 		expect(failure).toMatchObject({ status: 400, data: { confirmation: ['claim.error.mismatch'] } });
-		expect(JSON.stringify(failure.data)).not.toContain('Tr3s-Olympiq');
+		expect(JSON.stringify(failure.data)).not.toContain('pw-typo');
 		expect(fetch).not.toHaveBeenCalled();
 		expect(cookies.set).not.toHaveBeenCalled();
 	});
@@ -179,7 +179,7 @@ describe('claim action', () => {
 			status: 400,
 			data: { password: codes.map((code) => `claim.error.${code}`) }
 		});
-		expect(JSON.stringify(failure.data)).not.toContain('Tr3s-Olympique');
+		expect(JSON.stringify(failure.data)).not.toContain('pw-demo');
 		expect(cookies.set).not.toHaveBeenCalled();
 	});
 

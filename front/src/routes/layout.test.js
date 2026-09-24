@@ -41,7 +41,7 @@ describe('root layout', () => {
 	it('gives the login and claim pages no tab bar', () => {
 		for (const [routeId, pathname] of [
 			['/login', '/login'],
-			['/claim/[uid]/[token]', '/claim/MzQ/cxqh2p-3f9a8b7c6d5e4f3a2b1c']
+			['/claim/[uid]/[token]', '/claim/MzQ/claim-token-demo']
 		]) {
 			const { container, unmount } = renderAt(routeId, pathname);
 
