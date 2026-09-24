@@ -9,8 +9,11 @@ from django.contrib.admin.forms import AdminAuthenticationForm
 from django.core.exceptions import ValidationError
 from django.forms import ModelChoiceField, ModelForm
 from django.http import HttpRequest
+from .badges import refresh
 from .throttling import LoginRateThrottle
 from .models import (
+    MANUAL_CODES,
+    Badge,
     Player,
     PlayerRating,
     Team,
@@ -246,6 +249,20 @@ class TeamAdmin(ModelAdmin):
         return super().changelist_view(request, extra_context)
 
 
+def refresh_badges(modeladmin, request, queryset):  # pylint: disable=unused-argument
+    """Rebuild every computed badge: streaks and tables span editions, so the selection
+    does not matter."""
+    report = refresh()
+    modeladmin.message_user(
+        request,
+        f"Badges recalculés : {report.added} ajoutés, {report.removed} retirés, "
+        f"{report.kept} inchangés.",
+    )
+
+
+refresh_badges.short_description = "Recalculer les badges (toutes les éditions)"
+
+
 class EditionAdmin(ModelAdmin):
     """
     Admin dashboard configuration for the Edition model.
@@ -254,6 +271,7 @@ class EditionAdmin(ModelAdmin):
     list_display = ["year"]
     list_filter = ["is_active"]
     search_fields = ["year"]
+    actions = [refresh_badges]
 
     def changelist_view(self, request, extra_context=None):
         """
@@ -489,11 +507,67 @@ class DodgeballEventAdmin(GameEventAdmin):
         return super().changelist_view(request, extra_context)
 
 
+class BadgeAdminForm(ModelForm):
+    """A badge given by hand: only the manual codes. A computed row only edits is_active."""
+
+    class Meta:
+        model = Badge
+        fields = ["user", "code", "edition", "note", "is_active"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if "code" in self.fields:
+            self.fields["code"].choices = [
+                (value, label) for value, label in Badge.Codes.choices if value in MANUAL_CODES
+            ]
+
+
+class BadgeAdmin(ModelAdmin):
+    """
+    Badges: computed ones (badges.refresh()) are read-only but is_active, which revokes
+    them; the ones given by hand are editable, and adding one gives it by hand.
+    """
+
+    form = BadgeAdminForm
+    list_display = [
+        "user", "code", "edition", "tier", "discipline", "partner", "is_manual", "is_active"
+    ]
+    list_filter = ["code", "edition", "is_manual", "is_active"]
+    search_fields = ["user__first_name", "user__last_name"]
+    list_select_related = ["user", "edition", "partner"]
+
+    COMPUTED_FIELDS = ("user", "code", "edition", "tier", "discipline", "partner", "is_active")
+    MANUAL_FIELDS = ("user", "code", "edition", "note", "is_active")
+
+    def get_fields(self, request, obj=None):
+        if obj is not None and not obj.is_manual:
+            return self.COMPUTED_FIELDS
+        return self.MANUAL_FIELDS
+
+    def get_readonly_fields(self, request, obj=None):
+        if obj is not None and not obj.is_manual:
+            return self.COMPUTED_FIELDS[:-1]
+        return ()
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.is_manual = True
+        super().save_model(request, obj, form, change)
+
+    def changelist_view(self, request, extra_context=None):
+        """
+        Filter the request to only show active items.
+        """
+        request = request_only_active(request)
+        return super().changelist_view(request, extra_context)
+
+
 site.login_form = ThrottledAdminAuthenticationForm
 
 site.register(Player, PlayerAdmin)
 site.register(Team, TeamAdmin)
 site.register(Edition, EditionAdmin)
+site.register(Badge, BadgeAdmin)
 site.register(PlayerRating, PlayerRatingAdmin)
 site.register(Discipline, DisciplineAdmin)
 site.register(TeamResult, TeamResultAdmin)

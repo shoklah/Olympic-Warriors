@@ -1,17 +1,24 @@
 """
-Tests for badges.refresh() and the refresh_badges command: the refresh stores the difference
-between earned() and the stored computed rows, and never touches the manual ones.
+Tests for badges.refresh() and what calls it: the refresh stores the difference between
+earned() and the stored computed rows, and never touches the manual ones. The
+refresh_badges command, the Edition admin action and a real import_edition run it; the
+Badge admin gives badges by hand and only revokes computed ones.
 """
 
+import json
+import os
+import tempfile
 from collections import Counter
 from io import StringIO
 from unittest import mock
 
+from django.contrib.auth.models import User
 from django.core.management import call_command
-from django.test import TestCase
+from django.test import TestCase, override_settings
+from django.utils import timezone
 
-from olympic_warriors.badges import earned, refresh
-from olympic_warriors.models import Badge, BadgeRefresh, Team
+from olympic_warriors.badges import RefreshReport, earned, refresh
+from olympic_warriors.models import MANUAL_CODES, Badge, BadgeRefresh, Team
 from olympic_warriors.tests.test_badges import PLACE_CODES, TODAY, World
 
 C = Badge.Codes
@@ -169,3 +176,176 @@ class TestRefresh(World, TestCase):
             f"Refreshed at {refreshed_at.isoformat()}.\n",
         )
         self.assertEqual(stored(), wanted())
+
+
+def a_report():
+    """What a patched refresh returns."""
+    return RefreshReport(added=3, removed=1, kept=2, refreshed_at=timezone.now())
+
+
+@override_settings(STATICFILES_STORAGE="django.contrib.staticfiles.storage.StaticFilesStorage")
+class TestBadgeAdmin(World, TestCase):
+    """The Badge admin and the Edition changelist action, as a superuser."""
+
+    BADGES = "/admin/olympic_warriors/badge/"
+
+    def setUp(self):
+        self.client.force_login(User.objects.create_superuser("admin", "a@b.c", "pw"))
+        self.e2024, _ = self.edition(2024, spectator=False)
+        self.ana = self.person("Ana")
+
+    def test_the_edition_action_refreshes_every_badge(self):
+        with mock.patch("olympic_warriors.admin.refresh", return_value=a_report()) as patched:
+            response = self.client.post(
+                "/admin/olympic_warriors/edition/",
+                {"action": "refresh_badges", "_selected_action": [self.e2024.id], "index": 0},
+                follow=True,
+            )
+
+        patched.assert_called_once_with()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [str(message) for message in response.context["messages"]],
+            ["Badges recalculés : 3 ajoutés, 1 retirés, 2 inchangés."],
+        )
+
+    def test_the_changelist_lists_active_rows_unless_asked(self):
+        shown = Badge.objects.create(user=self.ana, code=Badge.Codes.CHAMPION, edition=self.e2024)
+        revoked = Badge.objects.create(
+            user=self.ana, code=Badge.Codes.ROOKIE, edition=self.e2024, is_active=False
+        )
+
+        response = self.client.get(self.BADGES)
+        inactive = self.client.get(self.BADGES, {"is_active__exact": "0"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context["cl"].result_list), [shown])
+        self.assertEqual(list(inactive.context["cl"].result_list), [revoked])
+
+    def test_the_add_page_offers_only_the_manual_codes(self):
+        response = self.client.get(f"{self.BADGES}add/")
+
+        self.assertEqual(response.status_code, 200)
+        form = response.context["adminform"].form
+        self.assertEqual(list(form.fields), ["user", "code", "edition", "note", "is_active"])
+        self.assertEqual(
+            [value for value, _ in form.fields["code"].choices],
+            [value for value in Badge.Codes.values if value in MANUAL_CODES],
+        )
+        self.assertEqual(len(MANUAL_CODES), 6)
+        self.assertNotContains(response, 'value="champion"')
+        for field in ("tier", "discipline", "partner"):
+            self.assertNotContains(response, f'name="{field}"')
+
+    def test_adding_through_the_admin_gives_a_manual_badge(self):
+        response = self.client.post(
+            f"{self.BADGES}add/",
+            {
+                "user": self.ana.id,
+                "code": Badge.Codes.MVP,
+                "edition": self.e2024.id,
+                "note": "Try of the day",
+                "is_active": "on",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        badge = Badge.objects.get()
+        self.assertEqual(
+            (badge.user, badge.code, badge.edition, badge.note, badge.is_manual, badge.is_active),
+            (self.ana, Badge.Codes.MVP, self.e2024, "Try of the day", True, True),
+        )
+
+    def test_a_computed_code_cannot_be_added_by_hand(self):
+        response = self.client.post(
+            f"{self.BADGES}add/",
+            {"user": self.ana.id, "code": Badge.Codes.CHAMPION, "edition": self.e2024.id},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("code", response.context["adminform"].form.errors)
+        self.assertFalse(Badge.objects.exists())
+
+    def test_a_computed_row_only_edits_is_active(self):
+        bob = self.person("Bob")
+        badge = Badge.objects.create(
+            user=self.ana, code=Badge.Codes.COMRADES, edition=self.e2024, partner=bob
+        )
+        url = f"{self.BADGES}{badge.id}/change/"
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        adminform = response.context["adminform"]
+        self.assertEqual(list(adminform.form.fields), ["is_active"])
+        self.assertEqual(
+            tuple(adminform.readonly_fields),
+            ("user", "code", "edition", "tier", "discipline", "partner"),
+        )
+
+        # The checkbox left off; a posted code is not a field of the form, so it is ignored.
+        response = self.client.post(url, {"code": Badge.Codes.MVP})
+
+        self.assertEqual(response.status_code, 302)
+        badge.refresh_from_db()
+        self.assertEqual(
+            (badge.code, badge.partner, badge.is_manual, badge.is_active),
+            (Badge.Codes.COMRADES, bob, False, False),
+        )
+
+    def test_a_manual_row_stays_editable(self):
+        badge = Badge.objects.create(
+            user=self.ana, code=Badge.Codes.MVP, edition=self.e2024, is_manual=True
+        )
+
+        response = self.client.get(f"{self.BADGES}{badge.id}/change/")
+
+        self.assertEqual(response.status_code, 200)
+        adminform = response.context["adminform"]
+        self.assertEqual(
+            list(adminform.form.fields), ["user", "code", "edition", "note", "is_active"]
+        )
+        self.assertEqual(tuple(adminform.readonly_fields), ())
+
+
+class TestImportRefresh(TestCase):
+    """import_edition refreshes the badges after a real import, never after a dry run."""
+
+    COMMAND = "olympic_warriors.management.commands.import_edition"
+    REPORT = {
+        "year": 2024,
+        "edition_id": 1,
+        "users_reused": 0,
+        "users_created": 0,
+        "created_users": [],
+        "counts": {},
+        "missing_files": [],
+    }
+
+    def run_import(self, *args):
+        """Run the command on a document holding {}, the import and the refresh patched."""
+        folder = tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with
+        self.addCleanup(folder.cleanup)
+        path = os.path.join(folder.name, "edition.json")
+        with open(path, "w", encoding="utf-8") as dst:
+            json.dump({}, dst)
+        out = StringIO()
+        with mock.patch(f"{self.COMMAND}.import_edition", return_value=self.REPORT), mock.patch(
+            f"{self.COMMAND}.refresh", return_value=a_report()
+        ) as patched:
+            call_command("import_edition", path, *args, stdout=out)
+        return patched, out.getvalue()
+
+    def test_a_real_import_refreshes_the_badges(self):
+        patched, out = self.run_import()
+
+        patched.assert_called_once_with()
+        self.assertIn("Imported edition 2024.", out)
+        self.assertTrue(out.endswith("Badges: 3 added, 1 removed, 2 kept.\n"))
+
+    def test_a_dry_run_does_not(self):
+        patched, out = self.run_import("--dry-run")
+
+        patched.assert_not_called()
+        self.assertIn("Dry run: rolled back, nothing persisted.", out)
+        self.assertNotIn("Badges:", out)
