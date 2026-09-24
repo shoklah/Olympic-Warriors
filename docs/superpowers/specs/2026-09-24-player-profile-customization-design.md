@@ -80,6 +80,11 @@ Decisions taken while grilling (2026-09-24):
 - The public views keep `@permission_classes([AllowAny])` and do not change.
 - The views a player uses opt in with `@permission_classes([IsAuthenticated])`:
   `/me/`, `/me/photo/` and `/me/showcase/` (all new).
+- The token-only game, round and result read views that read through `_games()`,
+  `_rounds()` and `_results()` also keep `IsAuthenticated` explicitly. They already apply
+  the reveal rule to a player token and carry nothing the public summary does not, so
+  `test_reveal.py`'s player-token cases stay as they are (decided while planning,
+  2026-09-24).
 - `/user/current/` becomes staff-only through the default. The front switches to `/me/`,
   so a player never needs it.
 - `ThrottledObtainAuthToken` keeps DRF's `permission_classes = ()`, and the swagger
@@ -142,7 +147,9 @@ rules.
   who exists.
 - `POST /claim/<uidb64>/<token>/` takes `{password}` and uses the same permissions and
   throttle. It checks the token, then runs `validate_password(password, user)` with the
-  four validators already configured (errors return as 400 with their messages). Then, in
+  four validators already configured. A failure is a 400 `{"errors": [<Django error
+  code>, ...]}` (`password_too_short`, `password_too_common`, `password_entirely_numeric`,
+  `password_too_similar`, or `password_missing`), which the front maps to dictionary keys. Then, in
   one transaction, it:
   - calls `set_password` and `save`;
   - deletes the user's DRF `Token` and creates a fresh one;
@@ -160,14 +167,16 @@ rules.
   is_staff, is_person, photo: {large, small} | null, photo_locked, showcase:
   {auto, codes}}`. `username` goes to its owner only.
 - `PUT /me/photo/` (`IsAuthenticated`, multipart `photo`) calls `store_photo`. It answers
-  403 (`{"error": "photo_locked"}`) when `photo_locked` is set, 400 for an invalid image, and 404 when the user is not
+  403 (`{"error": "photo_locked"}`) when `photo_locked` is set, 400 `{"error": code}`
+  for a bad upload (`missing`, `too_large`, `bad_format`, `too_many_pixels`), and 404 when the user is not
   a person. It is throttled at **10/hour per user** (a `UserRateThrottle` scope,
   `PHOTO_THROTTLE_RATE`) so nobody can fill the volume.
 - `DELETE /me/photo/` (`IsAuthenticated`) calls `remove_photo`. It works even when the
   profile is locked: a player can always take their own face down.
 - `PUT /me/showcase/` (`IsAuthenticated`, `{codes: [...]}`) accepts 0 to 3 distinct
-  codes, each currently earned by the caller, and answers 400 otherwise. `[]` means
-  "back to automatic". The order is kept.
+  codes, each currently earned by the caller, and answers 400 `{"error":
+  "invalid_showcase"}` otherwise (404 for a user who is not a person). `[]` means "back
+  to automatic". The order is kept. It returns the new `{auto, badges}` showcase.
 
 ### 6. Payload changes (public)
 
