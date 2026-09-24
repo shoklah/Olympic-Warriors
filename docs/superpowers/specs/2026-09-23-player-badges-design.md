@@ -416,7 +416,7 @@ and each tile shows:
 
 A code the front does not know (a newer server) is left out of the section.
 
-Text shape for the tests: `Champion ×2 · 2024 · 2026 Win an edition`.
+Text shape for the tests: `Clean sweep ×2 · 2023 · 2026 Win three disciplines or more in one edition`.
 
 ### i18n
 

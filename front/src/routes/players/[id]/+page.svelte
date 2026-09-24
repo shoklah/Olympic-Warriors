@@ -50,16 +50,24 @@
 		<h2>{t('profile.badges')}</h2>
 		<ul class="badges" role="list">
 			{#each badges as badge}
+				{@const parts = badgeDetail(badge, t, locale)}
 				<li class="tile" data-testid="badge">
 					<Badge {badge} />
 					<span class="label name">{t(`badge.${badge.code}.name`)}</span>
-					<span class="detail">
-						{#if badge.partner}
-							{t('badge.with')}
-							<a href="/players/{badge.partner.id}">{fullName(badge.partner)}</a> ·
-						{/if}
-						{badgeDetail(badge, t, locale).join(' · ')}
-					</span>
+					{#if badge.partner || parts.length}
+						<!-- Each part is its own text, with the dots hidden from assistive tech;
+						     the spaces stay outside them so spoken parts never run together. -->
+						<span class="detail" data-testid="badge-detail">
+							{#if badge.partner}
+								{t('badge.with')}
+								<a href="/players/{badge.partner.id}">{fullName(badge.partner)}</a>
+							{/if}
+							{#each parts as part, i}{#if i > 0 || badge.partner}{' '}<span
+										class="sep"
+										aria-hidden="true">·</span
+									>{' '}{/if}<span>{part}</span>{/each}
+						</span>
+					{/if}
 					<span class="rule">{t(`badge.${badge.code}.rule`)}</span>
 				</li>
 			{/each}
@@ -184,6 +192,10 @@
 
 	.detail a {
 		color: var(--accent);
+	}
+
+	.sep {
+		color: var(--ghost);
 	}
 
 	.detail a:focus-visible {

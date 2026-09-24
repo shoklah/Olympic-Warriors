@@ -16,8 +16,21 @@ describe('Badge', () => {
 	it('shows three pips for a tiered badge, the first `tier` lit, in the tier metal', () => {
 		const { container } = renderWith(Badge, { badge: { code: 'veteran', tier: 2, years: [2026] } });
 		expect(container.querySelector('[data-metal]')).toHaveAttribute('data-metal', 'silver');
-		expect(container.querySelectorAll('.pip')).toHaveLength(3);
-		expect(container.querySelectorAll('.pip.on')).toHaveLength(2);
+		const lit = [...container.querySelectorAll('.pip')].map((pip) => pip.classList.contains('on'));
+		expect(lit).toEqual([true, true, false]);
+	});
+
+	it('lights the pips of the clamped tier, matching the metal', () => {
+		const lit = (tier) => {
+			const { container } = renderWith(Badge, { badge: { code: 'veteran', tier, years: [2026] } });
+			return [
+				container.querySelector('[data-metal]').getAttribute('data-metal'),
+				[...container.querySelectorAll('.pip')].map((pip) => pip.classList.contains('on'))
+			];
+		};
+		expect(lit(0)).toEqual(['bronze', [true, false, false]]);
+		expect(lit(4)).toEqual(['gold', [true, true, true]]);
+		expect(lit(undefined)).toEqual(['bronze', [true, false, false]]);
 	});
 
 	it('borrows the discipline icon for a specialist', () => {

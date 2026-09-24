@@ -1,11 +1,12 @@
 <script>
-	import { badgeGlyph, badgeMetal, isTiered } from '$lib/badges';
+	import { badgeGlyph, badgeMetal, badgeTier, isTiered } from '$lib/badges';
 
 	/** A badge of the profile payload: { code, tier, years, discipline, partner }. */
 	export let badge;
 
 	$: metal = badgeMetal(badge);
 	$: tiered = isTiered(badge.code);
+	$: tier = badgeTier(badge);
 </script>
 
 <!-- Purely visual: the tile around it writes the name and, for a tiered badge, the tier. -->
@@ -14,7 +15,7 @@
 	{#if tiered}
 		<span class="pips">
 			{#each [1, 2, 3] as n}
-				<span class="pip" class:on={n <= badge.tier}></span>
+				<span class="pip" class:on={n <= tier}></span>
 			{/each}
 		</span>
 	{/if}

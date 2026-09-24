@@ -3,10 +3,11 @@
  * and a 2nd place, average rank 1.5), Hugo and Inès tied 2nd (one 1st place each, average
  * rank 1), Xavier 4th (a 2nd, a 3rd and a 4th place, average rank 3), then two not ranked
  * yet (no average rank). `profile` is /profile/34/: a running edition, two ranked ones and
- * one without a team, and five badges in catalogue order, consistent with those editions:
- * veteran at tier 1 (his third finished edition, 2026), comrades with Léa (MxM, 2026), a
- * Relay specialist (won in 2023 and 2026), clean sweep twice (2023, 2026: three
- * disciplines won without the title), and a code the front does not know.
+ * one without a team, and five badges in catalogue order: veteran at tier 1 (his third
+ * finished edition, 2026), comrades with Léa (2026), a Relay specialist (won in 2023 and
+ * 2026), clean sweep twice (2023, 2026: three disciplines won without the title), and a
+ * code the front does not know. The comrades tile is there to exercise the partner link:
+ * it takes three shared editions, and Xavier has a team in only two finished ones.
  * `profileUnranked` has nothing counted and no badge.
  */
 export const leaderboard = [

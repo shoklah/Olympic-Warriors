@@ -90,11 +90,16 @@ export const isTiered = (code) => BADGES[code] === 'tiers';
 
 export const hasGlyph = (code) => hasOwn(glyphs, code);
 
+/**
+ * A tiered badge's tier, 1 to 3: a missing, zero or out-of-range tier is clamped, so the
+ * metal, the pips and the « Niveau n » line always agree.
+ */
+export const badgeTier = (badge) => Math.min(Math.max(Number(badge.tier) || 1, 1), 3);
+
 /** 'gold' | 'silver' | 'bronze' | 'plain': the ring colour. */
 export function badgeMetal(badge) {
-	const metal = BADGES[badge.code];
-	if (metal === 'tiers') return TIER_METALS[Math.min(Math.max(badge.tier, 1), 3) - 1];
-	return metal ?? 'plain';
+	const metal = hasOwn(BADGES, badge.code) ? BADGES[badge.code] : 'plain';
+	return metal === 'tiers' ? TIER_METALS[badgeTier(badge) - 1] : metal;
 }
 
 /** The glyph URL: the discipline's own icon for specialist. */
@@ -109,13 +114,13 @@ export function badgeGlyph(badge) {
  * so two tiles of one code tell their disciplines apart. Then a tiered badge gives
  * ['Tier 2', year reached]; comrades gives [year], the page writing the partner link
  * before it; any other badge gives ['×2', ...years] when earned more than once, else
- * [year].
+ * [year]. No year gives no part (the page then leaves the line, or its separator, out).
  */
 export function badgeDetail(badge, t, locale) {
 	const years = badge.years.map(String);
 	const parts = badge.discipline ? [disciplineName(locale, badge.discipline)] : [];
 	if (isTiered(badge.code)) {
-		parts.push(t('badge.level', { tier: badge.tier }));
+		parts.push(t('badge.level', { tier: badgeTier(badge) }));
 		if (years.length) parts.push(years[years.length - 1]);
 		return parts;
 	}

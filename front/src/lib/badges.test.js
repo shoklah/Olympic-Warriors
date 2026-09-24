@@ -59,6 +59,17 @@ describe('badgeMetal', () => {
 			'gold'
 		]);
 	});
+
+	it('clamps a tier out of range into bronze to gold, and a missing one to bronze', () => {
+		expect(badgeMetal({ code: 'veteran', tier: 0 })).toBe('bronze');
+		expect(badgeMetal({ code: 'veteran', tier: 4 })).toBe('gold');
+		expect(badgeMetal({ code: 'veteran' })).toBe('bronze');
+		expect(badgeMetal({ code: 'veteran', tier: null })).toBe('bronze');
+	});
+
+	it('is plain for a code it does not know', () => {
+		expect(badgeMetal({ code: 'future-badge', tier: 2 })).toBe('plain');
+	});
 });
 
 describe('badgeGlyph', () => {
@@ -90,6 +101,13 @@ describe('badgeDetail', () => {
 		expect(badgeDetail(veteran, tFr, 'fr')).toEqual(['Niveau 2', '2026']);
 	});
 
+	it('gives the tier its metal shows, clamped into 1 to 3', () => {
+		const veteran = { code: 'veteran', years: [2026], discipline: null, partner: null };
+		expect(badgeDetail({ ...veteran, tier: 0 }, tEn, 'en')).toEqual(['Tier 1', '2026']);
+		expect(badgeDetail({ ...veteran, tier: 4 }, tEn, 'en')).toEqual(['Tier 3', '2026']);
+		expect(badgeDetail(veteran, tEn, 'en')).toEqual(['Tier 1', '2026']);
+	});
+
 	it('names the discipline of a specialist, in French under fr', () => {
 		const specialist = { code: 'specialist', tier: 1, years: [2026], discipline: 'Relay', partner: null };
 		expect(badgeDetail(specialist, tEn, 'en')).toEqual(['Relay', 'Tier 1', '2026']);
@@ -105,5 +123,11 @@ describe('badgeDetail', () => {
 	it('leaves the partner of comrades to the page, keeping the year', () => {
 		const comrades = { code: 'comrades', tier: 0, years: [2026], discipline: null, partner: { id: 12 } };
 		expect(badgeDetail(comrades, tEn, 'en')).toEqual(['2026']);
+	});
+
+	it('is empty when the badge has no year', () => {
+		const comrades = { code: 'comrades', tier: 0, years: [], discipline: null, partner: { id: 12 } };
+		expect(badgeDetail(comrades, tEn, 'en')).toEqual([]);
+		expect(badgeDetail({ ...comrades, code: 'champion', partner: null }, tEn, 'en')).toEqual([]);
 	});
 });
