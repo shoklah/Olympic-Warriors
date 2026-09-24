@@ -137,6 +137,14 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+# Claim links (claims.py) are Django password-reset tokens, so this is how long one lasts:
+# a week, time for an organiser to send it over WhatsApp or Messenger and for the person to
+# open it. A link dies sooner once any claim link of the same person is used.
+PASSWORD_RESET_TIMEOUT = 7 * 24 * 3600
+
+# The front's public address, the base of every claim link (config.PUBLIC_URL).
+PUBLIC_URL = settings.PUBLIC_URL
+
 
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/
@@ -236,8 +244,8 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'olympic_warriors.permissions.IsOrganiser',
     ],
-    # No DEFAULT_THROTTLE_CLASSES: only the token view throttles (LoginRateThrottle, which the
-    # admin login form shares from admin.py).
+    # No DEFAULT_THROTTLE_CLASSES: only the token view and a claim link's POST throttle, both
+    # with LoginRateThrottle, which the admin login form shares from admin.py.
     'DEFAULT_THROTTLE_RATES': {
         'login': settings.LOGIN_THROTTLE_RATE,
     },

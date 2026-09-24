@@ -56,11 +56,16 @@ class BaseConfig(BaseSettings):
 
     BASE_URL: str = "localhost"
 
+    # The front's public address (a trailing slash is ignored), the base of the claim links
+    # organisers hand out from the admin (claims.claim_link). Required, except in dev
+    # (DevConfig): a link built on a guessed default would send players nowhere.
+    PUBLIC_URL: str
+
     ALLOWED_HOSTS: list = ["*"]
     CSRF_TRUSTED_ORIGINS: list = ["https://*", "http://*"]
 
-    # Login attempts per client IP, /auth/token/ and /admin/login/ together, in DRF's
-    # "<count>/<sec|min|hour|day>".
+    # Login attempts per client IP, /auth/token/, /admin/login/ and a claim link's POST
+    # together, in DRF's "<count>/<sec|min|hour|day>".
     LOGIN_THROTTLE_RATE: str = "5/min"
     # Proxies in front of Django that append the client IP to X-Forwarded-For: nginx for a
     # direct API call, the front for a login through the site. DRF trusts that many entries
@@ -108,6 +113,8 @@ class DevConfig(BaseConfig):
     """
     Development configuration class.
     """
+
+    PUBLIC_URL: str = "http://localhost:5173"  # the Vite dev server
 
     class Config:
         """

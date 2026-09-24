@@ -47,7 +47,8 @@ Decisions taken while grilling (2026-09-24):
 
 - **Person.** As in the player profiles spec: a user with an active `Player` in an active
   edition. Only a person has a profile page, so only a person can be sent a claim link.
-- **Claimable user.** A person who is `is_active` and not `is_staff`.
+- **Claimable user.** A person who is `is_active` and neither `is_staff` nor
+  `is_superuser`.
 - **Claim link.** `<PUBLIC_URL>/claim/<uidb64>/<token>`, where `token` comes from Django's
   `default_token_generator`. The token is a hash of the user's password hash,
   `last_login`, email and the timestamp. It stops working once the password changes, expires
@@ -141,25 +142,38 @@ rules.
   URL is a new config value, `PUBLIC_URL` (for example
   `https://olympicwarriors.com`), required in `ProdConfig` and defaulting to
   `http://localhost:5173` in `DevConfig`.
-- `GET /claim/<uidb64>/<token>/` is `AllowAny` and uses `LoginRateThrottle`. It returns
-  `{first_name, username}`, or 404 for a bad user id, an unclaimable user, or an invalid
-  or expired token. The 404 is the same in every case, so the endpoint does not reveal
-  who exists.
-- `POST /claim/<uidb64>/<token>/` takes `{password}` and uses the same permissions and
-  throttle. It checks the token, then runs `validate_password(password, user)` with the
-  four validators already configured. A failure is a 400 `{"errors": [<Django error
-  code>, ...]}` (`password_too_short`, `password_too_common`, `password_entirely_numeric`,
-  `password_too_similar`, or `password_missing`), which the front maps to dictionary keys. Then, in
-  one transaction, it:
+- One view serves both methods. It is `AllowAny` and ignores any token header
+  (`authentication_classes([])`): the link is the credential, and a stale token forwarded
+  by the front must not turn the claim page into a 401.
+- `GET /claim/<uidb64>/<token>/` returns `{first_name, username}`, or 404
+  `{"error": "invalid_link"}` for a bad user id, an unclaimable user, or an invalid or
+  expired token. The 404 is the same in every case, so the endpoint does not reveal who
+  exists. The GET is **not throttled** (decided while implementing, 2026-09-24): it
+  answers only for a valid token, which cannot be guessed, and the claim page re-runs it
+  after each refused POST, which would otherwise spend the login budget twice per attempt.
+- `POST /claim/<uidb64>/<token>/` takes `{password}` and counts against the login
+  throttle: `ClaimRateThrottle` in `throttling.py` is `LoginRateThrottle` on POST only,
+  with the same scope and rate, so claim POSTs, `/auth/token/` and the admin login share
+  one per-IP budget. It checks the link first (a dead link is the 404 whatever the
+  password), then runs `validate_password(password, user)` with the four validators
+  already configured. A failure is a 400 `{"errors": [<Django error code>, ...]}`
+  (`password_too_short`, `password_too_common`, `password_entirely_numeric`,
+  `password_too_similar`, or `password_missing` for an absent, blank or non-string
+  password), which the front maps to dictionary keys. Then, in one transaction, it:
+  - re-reads the user under a row lock and re-checks the token and claimability, so two
+    uses of one link racing each other set one password, and a user made staff or
+    deactivated in between gets the same 404;
   - calls `set_password` and `save`;
   - deletes the user's DRF `Token` and creates a fresh one;
   - stamps `claimed_at`.
 
   It returns `{token, user_id}`, and the old token and every old session are gone.
 - **Admin action** « Générer un lien d'activation » on `PlayerAdmin`, where organisers
-  already work edition by edition. For each selected player's user it adds one message
-  line, `Léa Martin (leamartin) : <link>`, and skips staff users with a warning line.
-  The same action goes on `UserProfileAdmin` for re-issuing links.
+  already work edition by edition. For each selected player's user (several players of
+  one person make one line, users in name order) it adds one message line,
+  `Léa Martin (leamartin) : <link>`, and skips with a warning line, naming why, a staff
+  user or superuser, a deactivated user, or a user who is not a person. The same action
+  goes on `UserProfileAdmin` for re-issuing links.
 
 ### 5. Player endpoints
 

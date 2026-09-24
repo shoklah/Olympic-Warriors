@@ -4,9 +4,11 @@ Admin dashboard configuration for the Olympic Warriors app.
 
 import math
 
+from django.contrib import messages
 from django.contrib.admin import action, display, site, ModelAdmin, SimpleListFilter, TabularInline
 from django.contrib.admin.actions import delete_selected as stock_delete_selected
 from django.contrib.admin.forms import AdminAuthenticationForm
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.forms import ModelChoiceField, ModelForm
@@ -15,6 +17,7 @@ from django.utils.html import format_html
 from django.utils.translation import gettext_lazy
 from .avatars import remove_photo
 from .badges import refresh
+from .claims import INACTIVE, NOT_A_PERSON, STAFF, claim_link
 from .profiles import PARIS
 from .throttling import LoginRateThrottle
 from .models import (
@@ -180,6 +183,39 @@ class TeamWithYearChoiceField(ModelChoiceField):
         return f"{obj.name} ({obj.edition.year})"
 
 
+# Why no link was generated, after « Prénom Nom (identifiant) : pas de lien, ».
+CLAIM_REFUSALS = {
+    STAFF: "un organisateur garde son propre mot de passe",
+    INACTIVE: "ce compte est désactivé",
+    NOT_A_PERSON: "aucune participation active à une édition active",
+}
+
+
+@action(description="Générer un lien d'activation", permissions=["change"])
+def generate_claim_links(modeladmin, request, queryset):
+    """
+    One message per user of the selection (several players of one person make one line), by
+    name: the claim link to send them, or a warning saying why there is none. A new link
+    does not revoke older unused ones: they all die when any of them is used. The links are
+    shown, never stored or logged.
+    """
+    users = get_user_model().objects.filter(pk__in=queryset.values("user_id")).order_by(
+        "last_name", "first_name", "username"
+    )
+    for user in users:
+        label = f"{user.get_full_name() or user.username} ({user.username})"
+        try:
+            link = claim_link(user)
+        except ValueError as error:
+            modeladmin.message_user(
+                request,
+                f"{label} : pas de lien, {CLAIM_REFUSALS[error.args[0]]}.",
+                messages.WARNING,
+            )
+        else:
+            modeladmin.message_user(request, f"{label} : {link}", messages.INFO)
+
+
 class PlayerAdmin(ModelAdmin):
     """
     Admin dashboard configuration for the Player model.
@@ -197,6 +233,7 @@ class PlayerAdmin(ModelAdmin):
         "edition__year",
     ]
     inlines = [PlayerRatingInline]
+    actions = [generate_claim_links]
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         """Teams labelled `name (year)`, newest edition first."""
@@ -685,8 +722,9 @@ class UserProfileAdmin(ModelAdmin):
     by its owner), so no form here has a file input: the photo shows as a thumbnail linking
     to the full size, and the pinned showcase is read-only too, since badges are earned.
     Only the lock is edited, from the list or the change form, and the actions take photos
-    down. Rows are created lazily by the claim and edit flows, never here. The model has no
-    is_active, so the changelist does not go through request_only_active.
+    down or re-issue claim links. Rows are created lazily by the claim and edit flows, never
+    here. The model has no is_active, so the changelist does not go through
+    request_only_active.
     """
 
     list_display = ["name", "thumbnail", "photo_locked", "claimed_at", "updated_at"]
@@ -695,7 +733,7 @@ class UserProfileAdmin(ModelAdmin):
     list_select_related = ("user",)
     search_fields = ["user__first_name", "user__last_name", "user__username"]
     ordering = ["user__last_name", "user__first_name", "user__username"]
-    actions = [remove_photos, remove_and_lock]
+    actions = [remove_photos, remove_and_lock, generate_claim_links]
     fields = ["user", "photo_preview", "photo_locked", "pinned", "claimed_at", "updated_at"]
     readonly_fields = ["user", "photo_preview", "pinned", "claimed_at", "updated_at"]
 
@@ -737,7 +775,7 @@ class UserProfileAdmin(ModelAdmin):
         return False
 
     def get_actions(self, request):
-        """Only the moderation actions: next to « Retirer la photo », the stock bulk delete
+        """Only this admin's own actions: next to « Retirer la photo », the stock bulk delete
         would drop the whole rows, pins and claim date with them, which taking a photo down
         never means. A profile can still be deleted from its own page (its files go with
         it, signals.py)."""

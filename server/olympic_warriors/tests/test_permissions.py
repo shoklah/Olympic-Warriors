@@ -40,6 +40,8 @@ PUBLIC = {
     "api/schema/redoc/",
     # the login itself (DRF's ObtainAuthToken: no permission, LoginRateThrottle)
     "auth/token/",
+    # a claim link: the link is the credential (its POST shares the login throttle)
+    "claim/<str:uidb64>/<str:token>/",
     # what the front reads: the editions, the summary, the disciplines, the profiles
     "editions/",
     "edition/<int:edition_id>/",

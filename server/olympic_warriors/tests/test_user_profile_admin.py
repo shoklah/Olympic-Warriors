@@ -110,11 +110,12 @@ class TestUserProfileAdmin(MediaRootTestCase):
         self.assertEqual(self.listed(photo_locked__exact="1"), [self.bob])
         self.assertEqual(self.listed(photo_locked__exact="0"), [self.cleo, self.ana])
 
-    def test_the_actions_are_the_moderation_ones(self):
+    def test_the_actions_are_this_admins_own(self):
         response = self.client.get(PROFILES)
 
         choices = [name for name, _ in response.context["action_form"].fields["action"].choices]
-        self.assertEqual(choices, ["", "remove_photos", "remove_and_lock"])
+        # The claim links action is tested with PlayerAdmin's in test_claims.py.
+        self.assertEqual(choices, ["", "remove_photos", "remove_and_lock", "generate_claim_links"])
 
     def test_removing_the_photos_of_a_selection(self):
         files = [self.ana.photo.name, self.ana.photo_small.name, self.cleo.photo.name]

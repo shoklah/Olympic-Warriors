@@ -1,5 +1,6 @@
 """
-The login throttle: on the token endpoint, the only throttled API view, and the admin login form.
+The login throttle: on the token endpoint, a claim link's POST and the admin login form, the
+only throttled requests.
 """
 
 import ipaddress
@@ -44,3 +45,19 @@ class LoginRateThrottle(SimpleRateThrottle):
     def get_cache_key(self, request, view):
         ident = client_key(self.get_ident(request))
         return self.cache_format % {"scope": self.scope, "ident": ident}
+
+
+class ClaimRateThrottle(LoginRateThrottle):
+    """
+    The login bucket, on a claim link's POST only. Choosing a password through a link is a
+    login attempt, so it counts with /auth/token/ and the admin login in the same per-IP
+    budget (same scope, same rate). The GET is not counted: it answers only for a valid
+    token, which cannot be guessed, and the claim page re-runs it after every refused POST,
+    which would otherwise spend the budget twice per attempt. A function view has one
+    throttle list for all its methods, hence the method check here.
+    """
+
+    def allow_request(self, request, view):
+        if request.method != "POST":
+            return True
+        return super().allow_request(request, view)

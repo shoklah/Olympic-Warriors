@@ -4,15 +4,24 @@ Logic for the Olympic Warriors app endpoints.
 
 from datetime import time as time_of_day
 
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Q
+from django.views.decorators.debug import sensitive_variables
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.contrib.auth.models import User
 from rest_framework.authtoken.views import ObtainAuthToken
-from rest_framework.decorators import api_view, permission_classes, parser_classes
+from rest_framework.decorators import (
+    api_view,
+    authentication_classes,
+    permission_classes,
+    parser_classes,
+    throttle_classes,
+)
+from rest_framework import serializers
 from rest_framework.parsers import JSONParser
 from rest_framework.response import Response
-from drf_spectacular.utils import extend_schema, OpenApiResponse
+from drf_spectacular.utils import extend_schema, inline_serializer, OpenApiResponse
 
 from .serializer import (
     UserSerializer,
@@ -40,9 +49,10 @@ from .serializer import (
     ProfileSerializer,
 )
 from .badges import badge_stats, profile_badges
+from .claims import check_claim, complete_claim
 from .profiles import leaderboard
 from .permissions import IsOrganiser
-from .throttling import LoginRateThrottle
+from .throttling import ClaimRateThrottle, LoginRateThrottle
 from .models import (
     Player,
     Edition,
@@ -68,6 +78,69 @@ class ThrottledObtainAuthToken(ObtainAuthToken):
     """
 
     throttle_classes = [LoginRateThrottle]
+
+
+# The one answer to every link that does not hold, whatever the reason (claims.check_claim).
+INVALID_LINK = {"error": "invalid_link"}
+
+
+@extend_schema(
+    methods=["GET"],
+    summary="Who a claim link is for",
+    responses={
+        "200": inline_serializer(
+            "ClaimIdentity",
+            {"first_name": serializers.CharField(), "username": serializers.CharField()},
+        ),
+        "404": OpenApiResponse(description="Invalid or expired link, the same for every reason"),
+    },
+)
+@extend_schema(
+    methods=["POST"],
+    summary="Choose a password through a claim link, ending every older session",
+    request=inline_serializer("ClaimPassword", {"password": serializers.CharField()}),
+    responses={
+        "200": inline_serializer(
+            "ClaimToken",
+            {"token": serializers.CharField(), "user_id": serializers.IntegerField()},
+        ),
+        "400": OpenApiResponse(
+            description='{"errors": [codes]}: the password validators\' codes, or '
+            "password_missing"
+        ),
+        "404": OpenApiResponse(description="Invalid or expired link, the same for every reason"),
+        "429": OpenApiResponse(description="Too many login attempts from this address"),
+    },
+)
+@api_view(["GET", "POST"])
+@authentication_classes([])  # the link is the credential: a stale token must not 401 it
+@permission_classes([AllowAny])
+@throttle_classes([ClaimRateThrottle])  # the POST only, in the login bucket
+@parser_classes([JSONParser])
+@sensitive_variables("password")  # never in an error report
+def claimAccount(request, uidb64, token):
+    """
+    A claim link (claims.py): GET says who it is for, POST {password} sets the password and
+    answers the user's new token, the old one deleted. The link is checked before the
+    password, so a dead link is a 404 whatever the password; then a missing or blank
+    password is `password_missing`, and the validators give their own codes.
+    """
+    user = check_claim(uidb64, token)
+    if user is None:
+        return Response(INVALID_LINK, status=404)
+    if request.method == "GET":
+        return Response({"first_name": user.first_name, "username": user.username})
+
+    password = request.data.get("password") if isinstance(request.data, dict) else None
+    if not isinstance(password, str) or not password.strip():
+        return Response({"errors": ["password_missing"]}, status=400)
+    try:
+        key = complete_claim(user, token, password)
+    except ValidationError as error:
+        return Response({"errors": [e.code for e in error.error_list]}, status=400)
+    if key is None:  # used or made unclaimable since check_claim()
+        return Response(INVALID_LINK, status=404)
+    return Response({"token": key, "user_id": user.pk})
 
 
 # Users
