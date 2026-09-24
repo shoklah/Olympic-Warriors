@@ -40,31 +40,64 @@ function photoError(err) {
 	return PHOTO_CODES.has(code) ? `photo.error.${code}` : FAILED;
 }
 
+/** A showcase holds this many badges at most, as `PUT /me/showcase/` checks. */
+const SHOWCASE_SIZE = 3;
+/**
+ * A badge code as `Badge.Codes` writes them, lowercase words and hyphens, within the 32
+ * characters of `UserProfile.showcase`'s field. Whether the caller earned it is the API's call.
+ */
+const BADGE_CODE = /^[a-z0-9-]{1,32}$/;
+
+/**
+ * The dictionary key for a failed showcase call: the API's only 400 is `invalid_showcase` (a
+ * code no longer earned since the page loaded, say); anything else is a plain failure.
+ */
+const showcaseError = (err) => (statusOf(err) === 400 ? 'showcase.error.invalid' : 'showcase.error.failed');
+
+/**
+ * Each owner action's dictionary keys: `forbidden` for a page that is not the caller's (or a
+ * dead token), `failed` when /me/ cannot answer, and `of(err)` for the API call's refusal.
+ */
+const PHOTO = { forbidden: FORBIDDEN, failed: FAILED, of: photoError };
+const SHOWCASE = { forbidden: 'showcase.error.forbidden', failed: 'showcase.error.failed', of: showcaseError };
+
 /**
  * Run `send()` as `action` when this page is the profile of the token's owner: `/me/` must
  * be this page's id, compared as the canonical string, so `/players/034` is nobody's. The
- * API's `/me/photo/` only ever touches the caller's own photo, whatever page posts: the check
- * keeps an upload from someone else's profile page from landing on the visitor's own.
- * Returns `{ok, action}` or a fail() with a dictionary key.
+ * API's `/me/…` endpoints only ever touch the caller's own profile, whatever page posts: the
+ * check keeps an upload or a showcase sent from someone else's profile page from landing on
+ * the visitor's own. Returns `{ok, action}` or a fail() with one of `keys`.
  */
-async function onOwnPhoto({ fetch, params }, action, token, send) {
+async function asOwner({ fetch, params }, action, token, keys, send) {
 	let me;
 	try {
 		me = await apiGet(fetch, api('/me/'), token);
 	} catch (err) {
 		const status = statusOf(err);
-		// A dead token: the next load drops the cookie, and the camera button with it.
-		if (status === 401 || status === 403) return fail(403, { action, error: FORBIDDEN });
-		return fail(status, { action, error: FAILED });
+		// A dead token: the next load drops the cookie, and the owner's controls with it.
+		if (status === 401 || status === 403) return fail(403, { action, error: keys.forbidden });
+		return fail(status, { action, error: keys.failed });
 	}
-	if (!Number.isInteger(me?.id) || String(me.id) !== params.id) return fail(403, { action, error: FORBIDDEN });
+	if (!Number.isInteger(me?.id) || String(me.id) !== params.id) return fail(403, { action, error: keys.forbidden });
 
 	try {
 		await send();
 	} catch (err) {
-		return fail(statusOf(err), { action, error: photoError(err) });
+		return fail(statusOf(err), { action, error: keys.of(err) });
 	}
 	return { ok: true, action };
+}
+
+/**
+ * The `codes` fields of a showcase form in the order posted, which is the pick order, or
+ * null when they cannot be a showcase: more than three, a file, anything but a badge code,
+ * or a code twice. None at all is `[]`, back to automatic.
+ */
+function showcaseCodes(form) {
+	const codes = form.getAll('codes');
+	if (codes.length > SHOWCASE_SIZE) return null;
+	if (!codes.every((code) => typeof code === 'string' && BADGE_CODE.test(code))) return null;
+	return new Set(codes).size === codes.length ? codes : null;
 }
 
 /** The form's `photo` file, or null for no form, no file, an empty one or a text field. */
@@ -92,7 +125,7 @@ export const actions = {
 		}
 		const file = photoIn(form);
 		if (!file) return fail(400, { action: 'photo', error: 'photo.error.missing' });
-		return onOwnPhoto(event, 'photo', token, () => {
+		return asOwner(event, 'photo', token, PHOTO, () => {
 			const body = new FormData();
 			body.append('photo', file, file.name || 'photo.jpg');
 			return apiSend(event.fetch, api('/me/photo/'), { method: 'PUT', token, body });
@@ -103,8 +136,33 @@ export const actions = {
 	removePhoto: async (event) => {
 		const token = event.cookies.get(TOKEN_COOKIE);
 		if (!token) return fail(403, { action: 'removePhoto', error: FORBIDDEN });
-		return onOwnPhoto(event, 'removePhoto', token, () =>
+		return asOwner(event, 'removePhoto', token, PHOTO, () =>
 			apiSend(event.fetch, api('/me/photo/'), { method: 'DELETE', token })
+		);
+	},
+
+	/**
+	 * The caller's showcase, the badge codes of the form's `codes` fields in pick order,
+	 * put as JSON to `PUT /me/showcase/`; no code at all (« Revenir à l'automatique ») puts
+	 * `[]`, back to the rarest badges. The codes are checked before any API call.
+	 */
+	showcase: async (event) => {
+		const token = event.cookies.get(TOKEN_COOKIE);
+		if (!token) return fail(403, { action: 'showcase', error: SHOWCASE.forbidden });
+		let codes = null;
+		try {
+			codes = showcaseCodes(await event.request.formData());
+		} catch {
+			// Not a form body at all: nothing that could be a showcase.
+		}
+		if (!codes) return fail(400, { action: 'showcase', error: 'showcase.error.invalid' });
+		return asOwner(event, 'showcase', token, SHOWCASE, () =>
+			apiSend(event.fetch, api('/me/showcase/'), {
+				method: 'PUT',
+				token,
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ codes })
+			})
 		);
 	}
 };

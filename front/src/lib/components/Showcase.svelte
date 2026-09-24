@@ -22,6 +22,8 @@
 	export let collection = null;
 	/** interactive: the profile's `badge_stats`, for the sheet's rarity line, or null. */
 	export let badgeStats = null;
+	/** interactive: the owner looks at an automatic showcase, so a quiet line says how it is picked. */
+	export let autoHint = false;
 
 	const t = useT();
 
@@ -73,6 +75,9 @@
 				</li>
 			{/each}
 		</ul>
+		{#if autoHint}
+			<p class="hint">{t('showcase.autoHint')}</p>
+		{/if}
 		<BadgeSheet slot={activeSlot} open={activeSlot !== null} {badgeStats} on:close={closeSheet} />
 	{:else}
 		<span class="showcase row" style:--badge-size="20px" aria-hidden="true" data-testid="showcase">
@@ -132,6 +137,12 @@
 	.interactive button:focus-visible {
 		outline: 2px solid var(--accent);
 		outline-offset: 2px;
+	}
+
+	.hint {
+		margin: 0;
+		font-size: 0.8rem;
+		color: var(--muted);
 	}
 
 	@media (min-width: 600px) {

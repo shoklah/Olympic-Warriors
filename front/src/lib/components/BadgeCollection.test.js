@@ -1,8 +1,40 @@
-import { fireEvent, screen, within } from '@testing-library/svelte';
-import { describe, expect, it, vi } from 'vitest';
+import { fireEvent, screen, waitFor, within } from '@testing-library/svelte';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderWith } from '$lib/test-utils';
 import { badgeCollection } from '$lib/badges';
 import BadgeCollection from './BadgeCollection.svelte';
+
+/**
+ * A stand-in for use:enhance that runs the component's submit function and callback the way
+ * SvelteKit does, without a network: `posted` records each form sent (its action and its
+ * `codes` in order), `result` is what the action answers (a promise a test can hold back to
+ * see the busy state), and `updates` records the options of every update() call.
+ */
+const forms = vi.hoisted(() => ({ posted: [], result: null, updates: [] }));
+
+vi.mock('$app/forms', () => ({
+	enhance(form, submit = () => {}) {
+		async function onSubmit(event) {
+			event.preventDefault();
+			let cancelled = false;
+			const formData = new FormData(form);
+			const callback = await submit({
+				formData,
+				formElement: form,
+				submitter: event.submitter,
+				cancel: () => {
+					cancelled = true;
+				}
+			});
+			if (cancelled) return;
+			forms.posted.push({ action: form.getAttribute('action'), codes: formData.getAll('codes') });
+			const result = await forms.result;
+			await callback?.({ result, formData, formElement: form, update: async (opts) => forms.updates.push(opts) });
+		}
+		form.addEventListener('submit', onSubmit);
+		return { destroy: () => form.removeEventListener('submit', onSubmit) };
+	}
+}));
 
 const badges = [
 	{ code: 'champion', tier: 0, years: [2021, 2024], discipline: null, partner: null },
@@ -263,5 +295,277 @@ describe('BadgeCollection', () => {
 		await fireEvent.mouseEnter(veteran);
 		expect(veteran).not.toHaveClass('align-left');
 		expect(veteran).not.toHaveClass('align-right');
+	});
+});
+
+describe('BadgeCollection showcase selection (the owner)', () => {
+	/** Earned: champion (twice), veteran, specialist, comrades; the rest locked. */
+	const renderOwner = (showcase = { auto: true, badges: [] }, locale = 'en', list = badges) =>
+		renderWith(BadgeCollection, { collection: badgeCollection(list), editable: true, showcase }, locale);
+	const pinned = {
+		auto: false,
+		badges: [
+			{ code: 'veteran', tier: 1, discipline: null },
+			{ code: 'champion', tier: 0, discipline: null }
+		]
+	};
+
+	const choose = () => screen.getByRole('button', { name: 'Choose my showcase' });
+	const slot = (name) => screen.getByRole('button', { name: new RegExp(`^${name},`) });
+	/** The pick order a slot shows, or null. */
+	const order = (button) => within(button).queryByTestId('order')?.textContent ?? null;
+	const pressed = () =>
+		screen
+			.getAllByRole('button', { pressed: true })
+			.map((button) => [button.getAttribute('aria-label'), order(button)]);
+
+	beforeEach(() => {
+		forms.posted = [];
+		forms.updates = [];
+		forms.result = { type: 'success', status: 200 };
+		document.body.focus();
+	});
+
+	it('is not offered without editable, and offered to the owner otherwise', () => {
+		const { unmount } = renderCollection(badges);
+		expect(screen.queryByRole('button', { name: 'Choose my showcase' })).toBeNull();
+		unmount();
+
+		renderOwner();
+		expect(choose()).toBeInTheDocument();
+		// Outside the mode the slots stay the plain buttons opening the sheet.
+		expect(slot('Veteran')).not.toHaveAttribute('aria-pressed');
+		expect(slot('Wooden spoon')).toBeEnabled();
+	});
+
+	it('is not offered to an owner without an earned badge: nothing to choose from', () => {
+		renderOwner(undefined, 'en', []);
+		expect(screen.queryByRole('button', { name: 'Choose my showcase' })).toBeNull();
+	});
+
+	it('turns earned slots into toggles and disables locked ones, the intro taking focus', async () => {
+		renderOwner();
+		await fireEvent.click(choose());
+
+		expect(screen.queryByRole('button', { name: 'Choose my showcase' })).toBeNull();
+		expect(screen.getByText('Pick up to 3 badges, in the order to show them.')).toHaveFocus();
+		expect(slot('Veteran')).toHaveAttribute('aria-pressed', 'false');
+		expect(slot('Champion')).toHaveAttribute('aria-pressed', 'false');
+		expect(slot('Wooden spoon')).toBeDisabled();
+		expect(slot('Wooden spoon')).not.toHaveAttribute('aria-pressed');
+		expect(screen.getByRole('status')).toHaveTextContent('0 badges chosen out of 3');
+	});
+
+	it('starts empty when the showcase is automatic, whatever it shows', async () => {
+		renderOwner({ auto: true, badges: pinned.badges });
+		await fireEvent.click(choose());
+
+		expect(screen.queryAllByRole('button', { pressed: true })).toHaveLength(0);
+	});
+
+	it('starts from the pins, in pin order, leaving out one no longer earned', async () => {
+		renderOwner({ auto: false, badges: [...pinned.badges, { code: 'rookie', tier: 0, discipline: null }] });
+		await fireEvent.click(choose());
+
+		expect(pressed()).toEqual([
+			['Champion, badge earned 2 times', '2'],
+			['Veteran, badge earned', '1']
+		]);
+		expect(screen.getByRole('status')).toHaveTextContent('2 badges chosen out of 3');
+	});
+
+	it('numbers the picks in pick order, and renumbers when one is taken back', async () => {
+		renderOwner();
+		await fireEvent.click(choose());
+
+		await fireEvent.click(slot('Specialist'));
+		await fireEvent.click(slot('Champion'));
+		await fireEvent.click(slot('Veteran'));
+		expect(order(slot('Specialist'))).toBe('1');
+		expect(order(slot('Champion'))).toBe('2');
+		expect(order(slot('Veteran'))).toBe('3');
+		expect(slot('Champion')).toHaveAccessibleDescription('Place 2 in the showcase. Win an edition');
+
+		await fireEvent.click(slot('Specialist'));
+		expect(slot('Specialist')).toHaveAttribute('aria-pressed', 'false');
+		expect(order(slot('Specialist'))).toBeNull();
+		expect(slot('Specialist')).toHaveAccessibleDescription(expect.not.stringContaining('Place'));
+		expect(order(slot('Champion'))).toBe('1');
+		expect(order(slot('Veteran'))).toBe('2');
+	});
+
+	it('toggles instead of opening the sheet, and ignores a click on a locked slot', async () => {
+		renderOwner();
+		await fireEvent.click(choose());
+
+		await fireEvent.click(slot('Veteran'));
+		expect(screen.queryByRole('dialog')).toBeNull();
+		expect(slot('Veteran')).toHaveAttribute('aria-pressed', 'true');
+
+		await fireEvent.click(slot('Wooden spoon'));
+		expect(screen.getByRole('status')).toHaveTextContent('1 badge chosen out of 3');
+	});
+
+	it('refuses a fourth pick with a polite status line, which clears on the next change', async () => {
+		renderOwner();
+		await fireEvent.click(choose());
+		for (const name of ['Champion', 'Veteran', 'Specialist']) await fireEvent.click(slot(name));
+
+		await fireEvent.click(slot('Comrades in arms'));
+		expect(slot('Comrades in arms')).toHaveAttribute('aria-pressed', 'false');
+		expect(screen.getByRole('status')).toHaveTextContent('3 badges at most');
+		expect(screen.queryByRole('alert')).toBeNull();
+
+		await fireEvent.click(slot('Veteran'));
+		expect(screen.getByRole('status')).toHaveTextContent('2 badges chosen out of 3');
+		await fireEvent.click(slot('Comrades in arms'));
+		expect(order(slot('Comrades in arms'))).toBe('3');
+	});
+
+	it('cancels without a request, restoring the pins, focus back on the choose button', async () => {
+		renderOwner(pinned);
+		await fireEvent.click(choose());
+		await fireEvent.click(slot('Veteran'));
+		await fireEvent.click(slot('Specialist'));
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+		expect(forms.posted).toEqual([]);
+		expect(screen.queryAllByRole('button', { pressed: false })).toHaveLength(0);
+		await waitFor(() => expect(choose()).toHaveFocus());
+
+		await fireEvent.click(choose());
+		expect(pressed()).toEqual([
+			['Champion, badge earned 2 times', '2'],
+			['Veteran, badge earned', '1']
+		]);
+	});
+
+	it('saves the picks in order through the form, then reloads and gives focus back', async () => {
+		renderOwner();
+		await fireEvent.click(choose());
+		await fireEvent.click(slot('Specialist'));
+		await fireEvent.click(slot('Champion'));
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+		await waitFor(() => expect(choose()).toHaveFocus());
+		expect(forms.posted).toEqual([{ action: '?/showcase', codes: ['specialist', 'champion'] }]);
+		expect(forms.updates).toEqual([{ reset: false }]);
+		expect(screen.queryAllByRole('button', { pressed: false })).toHaveLength(0);
+	});
+
+	it('saves an empty selection as no code at all', async () => {
+		renderOwner(pinned);
+		await fireEvent.click(choose());
+		await fireEvent.click(slot('Veteran'));
+		await fireEvent.click(slot('Champion'));
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+		await waitFor(() => expect(forms.posted).toEqual([{ action: '?/showcase', codes: [] }]));
+	});
+
+	it('offers « Back to automatic » over pins only, posting no code', async () => {
+		const { unmount } = renderOwner();
+		await fireEvent.click(choose());
+		expect(screen.queryByRole('button', { name: 'Back to automatic' })).toBeNull();
+		unmount();
+
+		renderOwner(pinned);
+		await fireEvent.click(choose());
+		await fireEvent.click(screen.getByRole('button', { name: 'Back to automatic' }));
+		await waitFor(() => expect(choose()).toHaveFocus());
+		expect(forms.posted).toEqual([{ action: '?/showcase', codes: [] }]);
+		expect(forms.updates).toEqual([{ reset: false }]);
+	});
+
+	it('holds every control while saving, and sends nothing twice', async () => {
+		let answer;
+		forms.result = new Promise((resolve) => (answer = resolve));
+		renderOwner(pinned);
+		await fireEvent.click(choose());
+
+		const save = screen.getByRole('button', { name: 'Save' });
+		await fireEvent.click(save);
+		await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Saving…'));
+		expect(save).toHaveAttribute('aria-disabled', 'true');
+		expect(screen.getByRole('button', { name: 'Back to automatic' })).toHaveAttribute('aria-disabled', 'true');
+		expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled();
+		expect(slot('Veteran')).toHaveAttribute('aria-disabled', 'true');
+
+		await fireEvent.click(slot('Veteran'));
+		expect(slot('Veteran')).toHaveAttribute('aria-pressed', 'true');
+		await fireEvent.click(save);
+		expect(forms.posted).toHaveLength(1);
+
+		answer({ type: 'success', status: 200 });
+		await waitFor(() => expect(choose()).toHaveFocus());
+	});
+
+	it('stays in the mode with an alert when the action fails, the picks kept', async () => {
+		forms.result = { type: 'failure', status: 400, data: { action: 'showcase', error: 'showcase.error.invalid' } };
+		renderOwner();
+		await fireEvent.click(choose());
+		await fireEvent.click(slot('Veteran'));
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+		await waitFor(() =>
+			expect(screen.getByRole('alert')).toHaveTextContent('This selection was refused: reload the page and try again')
+		);
+		expect(slot('Veteran')).toHaveAttribute('aria-pressed', 'true');
+		expect(screen.getByRole('button', { name: 'Save' })).not.toHaveAttribute('aria-disabled');
+		expect(forms.updates).toEqual([]);
+	});
+
+	it('words a thrown error or a stray answer as a plain failure, without applying it', async () => {
+		forms.result = { type: 'error', status: 500, error: new Error('boom') };
+		renderOwner();
+		await fireEvent.click(choose());
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+		await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('The change failed: try again later'));
+		expect(forms.updates).toEqual([]);
+
+		forms.result = { type: 'failure', status: 403, data: { error: 'photo.error.forbidden' } };
+		await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+		await waitFor(() => expect(forms.posted).toHaveLength(2));
+		await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('The change failed: try again later'));
+	});
+
+	it("ends the mode when the page stops being the owner's, or has nothing left to choose", async () => {
+		const { component } = renderOwner();
+		await fireEvent.click(choose());
+		expect(slot('Veteran')).toHaveAttribute('aria-pressed', 'false');
+
+		await component.$set({ editable: false });
+		expect(slot('Veteran')).not.toHaveAttribute('aria-pressed');
+		expect(screen.queryByRole('status')).toBeNull();
+
+		await component.$set({ editable: true });
+		await fireEvent.click(choose());
+		await component.$set({ collection: badgeCollection([]) });
+		expect(screen.queryByRole('status')).toBeNull();
+		expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
+	});
+
+	it('speaks French', async () => {
+		renderOwner(pinned, 'fr');
+		await fireEvent.click(screen.getByRole('button', { name: 'Choisir ma vitrine' }));
+
+		expect(screen.getByText("Choisissez jusqu'à 3 badges, dans l'ordre où les montrer.")).toHaveFocus();
+		expect(screen.getByRole('status')).toHaveTextContent('2 badges choisis sur 3');
+		expect(screen.getByRole('button', { name: 'Vétéran, badge obtenu' })).toHaveAccessibleDescription(
+			'Place 1 dans la vitrine. Jouer 3, 5 puis 10 éditions'
+		);
+		await fireEvent.click(screen.getByRole('button', { name: /^Spécialiste,/ }));
+		await fireEvent.click(screen.getByRole('button', { name: /^Compagnons d'armes,/ }));
+		expect(screen.getByRole('status')).toHaveTextContent('3 badges maximum');
+		expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Annuler' })).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: "Revenir à l'automatique" })).toBeInTheDocument();
+	});
+
+	it('speaks French for no pick and one, 0 in the singular', async () => {
+		renderOwner(undefined, 'fr');
+		await fireEvent.click(screen.getByRole('button', { name: 'Choisir ma vitrine' }));
+		expect(screen.getByRole('status')).toHaveTextContent('0 badge choisi sur 3');
 	});
 });

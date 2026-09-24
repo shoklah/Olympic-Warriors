@@ -123,8 +123,26 @@ describe('Showcase in the profile header', () => {
 		expect(container.querySelector('*')).toBeNull();
 	});
 
+	it('says how an automatic showcase is picked when asked (the owner), under the medallions', () => {
+		const { unmount } = renderHeader();
+		expect(screen.queryByText('Automatic: your rarest badges')).toBeNull();
+		unmount();
+
+		renderHeader({ autoHint: true });
+		const hint = screen.getByText('Automatic: your rarest badges');
+		const list = screen.getByRole('list', { name: 'Showcase' });
+		expect(list.compareDocumentPosition(hint) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+	});
+
+	it('writes no hint without a badge to show', () => {
+		const { container } = renderHeader({ autoHint: true, badges: [], collection: badgeCollection([]) });
+
+		expect(container.querySelector('*')).toBeNull();
+	});
+
 	it('speaks French', () => {
-		renderHeader({}, 'fr');
+		renderHeader({ autoHint: true }, 'fr');
+		expect(screen.getByText('Automatique : vos badges les plus rares')).toBeInTheDocument();
 
 		const list = screen.getByRole('list', { name: 'Vitrine' });
 		expect(within(list).getByRole('button', { name: 'Razzia, badge obtenu 2 fois' })).toHaveAccessibleDescription(

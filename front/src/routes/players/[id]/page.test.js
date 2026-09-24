@@ -9,6 +9,13 @@ import { profile, profileUnranked } from '$lib/fixtures/players.js';
 // init, so mutating this object before renderWith is enough: no reactive updates needed.
 const pageState = vi.hoisted(() => ({ url: new URL('http://localhost/players/34') }));
 
+// The collection's showcase forms use use:enhance; the photo editor still needs the real
+// deserialize.
+vi.mock('$app/forms', async (importOriginal) => ({
+	...(await importOriginal()),
+	enhance: () => ({ destroy() {} })
+}));
+
 vi.mock('$app/stores', () => ({
 	page: {
 		subscribe(run) {
@@ -510,6 +517,79 @@ describe('player profile page', () => {
 			expect(dialog).toHaveTextContent('Votre photo sera visible publiquement sur le site.');
 			expect(within(dialog).getByRole('button', { name: 'Supprimer ma photo' })).toBeInTheDocument();
 			expect(within(dialog).getByLabelText('Choisir une photo')).toBeInTheDocument();
+		});
+	});
+
+	describe('owner view: the showcase', () => {
+		const choose = () => screen.queryByRole('button', { name: 'Choose my showcase' });
+		const hint = () => screen.queryByText('Automatic: your rarest badges');
+		/** Xavier's profile with the showcase he pinned: comrades first, then specialist. */
+		const pinnedProfile = {
+			...profile,
+			showcase: {
+				auto: false,
+				badges: [
+					{ code: 'comrades', tier: 0, discipline: null },
+					{ code: 'specialist', tier: 1, discipline: 'Relay' }
+				]
+			}
+		};
+
+		it('gives the owner « Choose my showcase » on the Badges tab, and the hint under an automatic showcase', () => {
+			setSearch('?tab=badges');
+			renderWith(Page, { data: { profile, me: xavier } });
+
+			expect(choose()).toBeInTheDocument();
+			const list = screen.getByRole('list', { name: 'Showcase' });
+			expect(follows(list, hint())).toBe(true);
+			expect(follows(hint(), screen.getByRole('navigation', { name: 'Profile sections' }))).toBe(true);
+		});
+
+		it('keeps the hint on the Profile tab, where the collection and its button are not', () => {
+			renderWith(Page, { data: { profile, me: xavier } });
+
+			expect(hint()).toBeInTheDocument();
+			expect(choose()).toBeNull();
+		});
+
+		it('shows neither to a visitor, or to someone logged in on another profile', () => {
+			setSearch('?tab=badges');
+			const { unmount } = renderWith(Page, { data: { profile, me: null } });
+			expect(choose()).toBeNull();
+			expect(hint()).toBeNull();
+			unmount();
+
+			renderWith(Page, { data: { profile, me: { ...xavier, id: 12 } } });
+			expect(choose()).toBeNull();
+			expect(hint()).toBeNull();
+		});
+
+		it('drops the hint over pins, and starts the selection from them', async () => {
+			setSearch('?tab=badges');
+			renderWith(Page, { data: { profile: pinnedProfile, me: xavier } });
+			expect(hint()).toBeNull();
+
+			await fireEvent.click(choose());
+			expect(collectionSlot('Teammates', /^Comrades in arms/)).toHaveAttribute('aria-pressed', 'true');
+			expect(collectionSlot('Disciplines', /^Specialist/)).toHaveAttribute('aria-pressed', 'true');
+			expect(collectionSlot('Loyalty', /^Veteran/)).toHaveAttribute('aria-pressed', 'false');
+			expect(screen.getByRole('button', { name: 'Back to automatic' })).toBeInTheDocument();
+		});
+
+		it('offers nothing to choose, and no hint, to an owner without a badge', () => {
+			setSearch('?tab=badges');
+			renderWith(Page, { data: { profile: { ...profileUnranked, id: 34 }, me: xavier } });
+
+			expect(choose()).toBeNull();
+			expect(hint()).toBeNull();
+		});
+
+		it('speaks French for the button and the hint', () => {
+			setSearch('?tab=badges');
+			renderWith(Page, { data: { profile, me: xavier } }, 'fr');
+
+			expect(screen.getByRole('button', { name: 'Choisir ma vitrine' })).toBeInTheDocument();
+			expect(screen.getByText('Automatique : vos badges les plus rares')).toBeInTheDocument();
 		});
 	});
 });

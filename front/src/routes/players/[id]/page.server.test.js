@@ -237,3 +237,155 @@ describe('removePhoto action', () => {
 		expect(result).toMatchObject({ status: 500, data: { action: 'removePhoto', error: 'photo.error.failed' } });
 	});
 });
+
+/**
+ * Run the showcase action on /players/<id> with the token cookie, `codes` posted as repeated
+ * fields in that order (urlencoded, as use:enhance sends a form without a file), `/me/`
+ * answering the caller's id and `PUT /me/showcase/` answering `showcaseResponse`.
+ */
+const runShowcase = async ({
+	codes = [],
+	id = '34',
+	token = 'abc',
+	meId = 34,
+	me = null,
+	body = null,
+	showcaseResponse = json(200, { auto: false, badges: [] })
+} = {}) => {
+	const fetch = vi.fn(async (url) => {
+		if (url === 'http://api/me/') return me ?? json(200, { id: meId, first_name: 'Xavier', is_person: true });
+		if (url === 'http://api/me/showcase/')
+			return typeof showcaseResponse === 'function' ? showcaseResponse() : showcaseResponse;
+		throw new Error(`unexpected ${url}`);
+	});
+	const form = new URLSearchParams();
+	for (const code of codes) form.append('codes', code);
+	const request = new Request('http://localhost/players/34?/showcase', {
+		method: 'POST',
+		body: body ?? form,
+		...(body ? {} : { headers: { 'content-type': 'application/x-www-form-urlencoded' } })
+	});
+	const cookies = { get: (name) => (name === 'token' ? token : undefined) };
+	const result = await actions.showcase({ params: { id }, request, fetch, cookies });
+	const showcaseCall = fetch.mock.calls.find(([url]) => url === 'http://api/me/showcase/');
+	return { result, fetch, showcaseCall };
+};
+
+describe('showcase action', () => {
+	it("puts the codes to /me/showcase/ as JSON, in the order posted, with the caller's token", async () => {
+		const { result, fetch, showcaseCall } = await runShowcase({ codes: ['specialist', 'comrades', 'clean-sweep'] });
+
+		expect(result).toEqual({ ok: true, action: 'showcase' });
+		expect(fetch.mock.calls[0][0]).toBe('http://api/me/');
+		const [, options] = showcaseCall;
+		expect(options.method).toBe('PUT');
+		expect(options.headers).toEqual({ 'content-type': 'application/json', authorization: 'Token abc' });
+		expect(JSON.parse(options.body)).toEqual({ codes: ['specialist', 'comrades', 'clean-sweep'] });
+	});
+
+	it('puts an empty list for a form without codes: back to automatic', async () => {
+		const { result, showcaseCall } = await runShowcase({
+			codes: [],
+			showcaseResponse: json(200, { auto: true, badges: [] })
+		});
+
+		expect(result).toEqual({ ok: true, action: 'showcase' });
+		expect(JSON.parse(showcaseCall[1].body)).toEqual({ codes: [] });
+	});
+
+	it('accepts a multipart form too', async () => {
+		const body = new FormData();
+		body.append('codes', 'veteran');
+		const { result, showcaseCall } = await runShowcase({ body });
+
+		expect(result).toEqual({ ok: true, action: 'showcase' });
+		expect(JSON.parse(showcaseCall[1].body)).toEqual({ codes: ['veteran'] });
+	});
+
+	it('refuses without a token cookie, calling no API', async () => {
+		const { result, fetch } = await runShowcase({ token: null, codes: ['veteran'] });
+		expect(result).toMatchObject({ status: 403, data: { action: 'showcase', error: 'showcase.error.forbidden' } });
+		expect(fetch).not.toHaveBeenCalled();
+	});
+
+	it("refuses someone else's profile, checked against /me/, never saving", async () => {
+		const { result, fetch, showcaseCall } = await runShowcase({ id: '12', codes: ['veteran'] });
+		expect(result).toMatchObject({ status: 403, data: { action: 'showcase', error: 'showcase.error.forbidden' } });
+		expect(fetch.mock.calls[0][0]).toBe('http://api/me/');
+		expect(showcaseCall).toBeUndefined();
+	});
+
+	it("refuses an id that is not the canonical form of the caller's", async () => {
+		for (const id of ['034', '34a', '']) {
+			const { result, showcaseCall } = await runShowcase({ id, codes: ['veteran'] });
+			expect(result).toMatchObject({ status: 403, data: { error: 'showcase.error.forbidden' } });
+			expect(showcaseCall).toBeUndefined();
+		}
+	});
+
+	it('refuses when /me/ no longer knows the token, and fails plainly when /me/ is down', async () => {
+		let { result, showcaseCall } = await runShowcase({ me: json(401, { detail: 'Invalid token.' }) });
+		expect(result).toMatchObject({ status: 403, data: { action: 'showcase', error: 'showcase.error.forbidden' } });
+		expect(showcaseCall).toBeUndefined();
+
+		({ result, showcaseCall } = await runShowcase({ me: json(502, { error: 'x' }) }));
+		expect(result).toMatchObject({ status: 502, data: { action: 'showcase', error: 'showcase.error.failed' } });
+		expect(showcaseCall).toBeUndefined();
+	});
+
+	it.each([
+		['more than 3 codes', ['champion', 'veteran', 'rookie', 'comrades']],
+		['a code twice', ['champion', 'champion']],
+		['an empty code', ['']],
+		['something that is not a badge code', ['../me/photo']],
+		['an uppercase code', ['Champion']],
+		['a code longer than the model field', ['a'.repeat(33)]]
+	])('refuses %s before calling any API', async (_, codes) => {
+		const { result, fetch } = await runShowcase({ codes });
+		expect(result).toMatchObject({ status: 400, data: { action: 'showcase', error: 'showcase.error.invalid' } });
+		expect(fetch).not.toHaveBeenCalled();
+	});
+
+	it('refuses a file posted as a code, and a body that is not a form, before calling any API', async () => {
+		const withFile = new FormData();
+		withFile.append('codes', new Blob(['x']), 'champion');
+		let { result, fetch } = await runShowcase({ body: withFile });
+		expect(result).toMatchObject({ status: 400, data: { error: 'showcase.error.invalid' } });
+		expect(fetch).not.toHaveBeenCalled();
+
+		const request = new Request('http://localhost/players/34?/showcase', {
+			method: 'POST',
+			body: '{"codes": ["champion"]}',
+			headers: { 'content-type': 'application/json' }
+		});
+		fetch = vi.fn();
+		result = await actions.showcase({ params: { id: '34' }, request, fetch, cookies: { get: () => 'abc' } });
+		expect(result).toMatchObject({ status: 400, data: { action: 'showcase', error: 'showcase.error.invalid' } });
+		expect(fetch).not.toHaveBeenCalled();
+	});
+
+	it("maps the API's 400 (a code not earned, unknown, twice) to the invalid key", async () => {
+		const { result } = await runShowcase({
+			codes: ['champion'],
+			showcaseResponse: json(400, { error: 'invalid_showcase' })
+		});
+		expect(result).toMatchObject({ status: 400, data: { action: 'showcase', error: 'showcase.error.invalid' } });
+	});
+
+	it('maps a 404 (not a person), a 500, the throttle and a network failure to the generic key', async () => {
+		for (const [status, response] of [
+			[404, json(404, { detail: 'Not found.' })],
+			[500, json(500, { error: 'x' })],
+			[429, json(429, { detail: 'Request was throttled.' })],
+			[
+				502,
+				() => {
+					throw new TypeError('fetch failed');
+				}
+			]
+		]) {
+			const { result } = await runShowcase({ codes: ['champion'], showcaseResponse: response });
+			expect(result).toMatchObject({ status, data: { action: 'showcase', error: 'showcase.error.failed' } });
+		}
+	});
+});

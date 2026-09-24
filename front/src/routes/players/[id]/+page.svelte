@@ -78,6 +78,7 @@
 				badges={profile.showcase?.badges ?? []}
 				{collection}
 				badgeStats={profile.badge_stats ?? null}
+				autoHint={owner && profile.showcase?.auto === true}
 			/>
 		</div>
 	</div>
@@ -111,7 +112,12 @@
 	{/if}
 
 	{#if tab === 'badges'}
-		<BadgeCollection {collection} badgeStats={profile.badge_stats ?? null} />
+		<BadgeCollection
+			{collection}
+			badgeStats={profile.badge_stats ?? null}
+			editable={owner}
+			showcase={profile.showcase ?? null}
+		/>
 	{:else}
 		<div class="figures">
 			<div class="figure" data-testid="average-rank">
