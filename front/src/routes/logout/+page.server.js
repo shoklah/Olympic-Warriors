@@ -7,7 +7,10 @@ export const load = () => {
 };
 
 export const actions = {
-	/** The header's ORGA pill: forget the token, come back to the same page as a visitor. */
+	/**
+	 * The header's ORGA pill and account pill: forget the token, come back to the same page
+	 * as a visitor.
+	 */
 	default: async ({ cookies, request }) => {
 		const form = await request.formData();
 		cookies.delete(TOKEN_COOKIE, { path: '/' });

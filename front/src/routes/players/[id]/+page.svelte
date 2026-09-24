@@ -1,8 +1,11 @@
 <script>
 	import { page } from '$app/stores';
+	import Avatar from '$lib/components/Avatar.svelte';
 	import BadgeCollection from '$lib/components/BadgeCollection.svelte';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import MedalRank from '$lib/components/MedalRank.svelte';
+	import PhotoEditor from '$lib/components/PhotoEditor.svelte';
+	import Showcase from '$lib/components/Showcase.svelte';
 	import { badgeCollection } from '$lib/badges';
 	import { iconFor } from '$lib/icons';
 	import { bestDisciplines, byDisplayedName, editionStatus, formatAverage, fullName, spokenPlaces } from '$lib/players';
@@ -22,21 +25,63 @@
 	$: best = bestDisciplines(disciplines);
 	$: collection = badgeCollection(profile.badges ?? []);
 	$: tab = $page.url.searchParams.get('tab') === 'badges' ? 'badges' : 'profile';
+
+	// Whether this is the viewer's own profile, from `data` (the root layout's `me` is merged
+	// into it) rather than the ME context: this component stays mounted from one profile to
+	// the next, and `me` follows invalidateAll() after a new photo.
+	$: owner = Boolean(data.me) && data.me.id === profile.id;
+	/** The photo editor is open; it closes itself when the page stops being the owner's. */
+	let editing = false;
+	$: if (!owner) editing = false;
+	/** The camera button, given focus back when the editor closes. */
+	let camera = null;
 </script>
 
 <div class="page">
 	<Breadcrumb items={[{ label: t('players.title'), href: '/players' }, { label: name }]} />
-	<h1>{name}</h1>
+	<!-- The avatar beside the name, the all-time position and the showcase, on every tab.
+	     `photo` and `showcase` are optional: an older API sends neither. -->
+	<div class="identity">
+		<span class="portrait" data-testid="portrait">
+			<Avatar photo={profile.photo?.large ?? null} name={profile} />
+			{#if owner}
+				<button
+					type="button"
+					class="camera"
+					aria-label={t('photo.change')}
+					aria-haspopup="dialog"
+					bind:this={camera}
+					on:click={() => (editing = true)}
+				>
+					<svg viewBox="0 0 24 24" aria-hidden="true">
+						<path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2.3l1.4-2h5.6l1.4 2h2.3A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z" />
+						<circle cx="12" cy="12.5" r="3.2" />
+					</svg>
+				</button>
+			{/if}
+		</span>
+		<div class="who">
+			<h1>{name}</h1>
 
-	{#if profile.position !== null}
-		<!-- A plain number: a French ordinal would have to guess the player's gender. -->
-		<a class="position" href="/players" data-testid="position">
-			<MedalRank rank={profile.position} />
-			<span class="label">{t('profile.allTime')}</span>
-			<!-- The accessible name must contain the visible text (WCAG 2.5.3). -->
-			<span class="visually-hidden"> · {t('profile.positionHint')}</span>
-		</a>
-	{/if}
+			{#if profile.position !== null}
+				<!-- A plain number: a French ordinal would have to guess the player's gender. -->
+				<a class="position" href="/players" data-testid="position">
+					<MedalRank rank={profile.position} />
+					<span class="label">{t('profile.allTime')}</span>
+					<!-- The accessible name must contain the visible text (WCAG 2.5.3). -->
+					<span class="visually-hidden"> · {t('profile.positionHint')}</span>
+				</a>
+			{/if}
+
+			<Showcase
+				mode="interactive"
+				badges={profile.showcase?.badges ?? []}
+				{collection}
+				badgeStats={profile.badge_stats ?? null}
+				autoHint={owner && profile.showcase?.auto === true}
+			/>
+		</div>
+	</div>
 
 	<nav class="tabs" aria-label={t('profile.tabs')}>
 		<a
@@ -55,8 +100,24 @@
 		>
 	</nav>
 
+	{#if owner}
+		<PhotoEditor
+			open={editing}
+			photo={profile.photo ?? null}
+			locked={Boolean(data.me.photo_locked)}
+			name={profile}
+			opener={camera}
+			on:close={() => (editing = false)}
+		/>
+	{/if}
+
 	{#if tab === 'badges'}
-		<BadgeCollection {collection} badgeStats={profile.badge_stats ?? null} />
+		<BadgeCollection
+			{collection}
+			badgeStats={profile.badge_stats ?? null}
+			editable={owner}
+			showcase={profile.showcase ?? null}
+		/>
 	{:else}
 		<div class="figures">
 			<div class="figure" data-testid="average-rank">
@@ -154,9 +215,83 @@
 </div>
 
 <style>
+	/* The avatar is 96px on phones and 128px from 600px (`--avatar-size`, read by Avatar),
+	   centred on the name, the position and the showcase stacked beside it. */
+	.identity {
+		display: flex;
+		align-items: center;
+		gap: 16px;
+		--avatar-size: 96px;
+		margin: 0.2rem 0 1.2rem;
+	}
+
+	.portrait {
+		position: relative;
+		display: flex;
+		flex: none;
+	}
+
+	/* On the avatar's lower right, ringed in the page colour so it reads over any photo. */
+	.camera {
+		position: absolute;
+		right: -6px;
+		bottom: -6px;
+		display: grid;
+		place-items: center;
+		width: 44px;
+		height: 44px;
+		padding: 0;
+		border: 3px solid var(--bg);
+		border-radius: 50%;
+		background: var(--accent);
+		color: var(--bg);
+		cursor: pointer;
+	}
+
+	.camera svg {
+		width: 20px;
+		height: 20px;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+
+	.camera:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
+	}
+
+	.who {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 0.5rem;
+		min-width: 0;
+	}
+
+	@media (min-width: 600px) {
+		.identity {
+			gap: 24px;
+			--avatar-size: 128px;
+		}
+	}
+
+	/* `anywhere` is the last resort for a single word wider than the line. */
 	h1 {
-		margin: 0 0 0.6rem;
+		margin: 0;
+		line-height: 1;
 		overflow-wrap: anywhere;
+	}
+
+	/* Beside the 96px avatar the name has 231px at 375px and 176px at 320px: the heading
+	   scales with the viewport so a long name part (« Rochefoucauld- ») still fits whole on
+	   a line. No `hyphens: auto`: a dictionary would cut people's names at syllables. */
+	@media (max-width: 599.98px) {
+		h1 {
+			font-size: clamp(1.6rem, 8vw, 2.75rem);
+		}
 	}
 
 	h2 {
@@ -168,7 +303,6 @@
 		align-items: baseline;
 		gap: 8px;
 		--medal-size: 1.6rem;
-		margin-bottom: 0.9rem;
 		color: var(--text);
 		text-decoration: none;
 	}
