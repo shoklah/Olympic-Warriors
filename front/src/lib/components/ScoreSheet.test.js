@@ -117,14 +117,16 @@ describe('ScoreSheet', () => {
 		const outside = document.createElement('button');
 		outside.textContent = 'Outside';
 		document.body.appendChild(outside);
-		renderWith(ScoreSheet, { game, roundNumber: 1, open: true });
-		await new Promise((resolve) => setTimeout(resolve, 0));
+		try {
+			renderWith(ScoreSheet, { game, roundNumber: 1, open: true });
+			await new Promise((resolve) => setTimeout(resolve, 0));
 
-		outside.focus();
-		await fireEvent.keyDown(window, { key: 'Tab' });
-		expect(screen.getByRole('button', { name: 'One point less for Cerfs' })).toHaveFocus();
-
-		outside.remove();
+			outside.focus();
+			await fireEvent.keyDown(window, { key: 'Tab' });
+			expect(screen.getByRole('button', { name: 'One point less for Cerfs' })).toHaveFocus();
+		} finally {
+			outside.remove();
+		}
 	});
 
 	it('locks the page scroll while open and restores it when it closes', async () => {
