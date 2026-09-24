@@ -2,7 +2,7 @@
 <!-- A broom sweeping, with a little dust. -->
 <g transform="rotate(-35 1000 1000)">
 <path d="M1000 120V1060" stroke="white" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M820 1060H1180" stroke="white" stroke-width="160" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M820 1060H1180" stroke="white" stroke-width="150" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M850 1180L640 1830H1360L1150 1180Z" stroke="white" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M910 1330L840 1830M1000 1330V1830M1090 1330L1160 1830" stroke="white" stroke-width="70" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
