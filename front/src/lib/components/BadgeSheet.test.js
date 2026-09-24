@@ -78,7 +78,7 @@ describe('BadgeSheet', () => {
 		const detail = screen.getByTestId('badge-sheet-detail');
 		expect(detail).toHaveTextContent(/^with Léa Martin$/);
 		expect(within(detail).getByRole('link', { name: 'Léa Martin' })).toHaveAttribute('href', '/players/12');
-		// Links sitting among text are underlined (the light theme's quiet-link, #92).
+		// Links sitting among text carry quiet-link (underlined on hover and focus, #92).
 		expect(within(detail).getByRole('link', { name: 'Léa Martin' })).toHaveClass('quiet-link');
 	});
 

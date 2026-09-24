@@ -2,6 +2,11 @@
 
 Date: 2026-09-24
 
+> **Revised 2026-09-24 (Hugo):** `.quiet-link` no longer underlines at rest. The underline
+> (accent, 1px, offset `0.22em`) shows on hover and keyboard focus only. On a touch screen,
+> links among text now look like plain text: a deliberate, known WCAG 1.4.1 gap. The dot
+> on the own team is unchanged. `styles.test.js` pins both rules.
+
 ## Problem
 
 `--accent` is the brand colour: cream on black in the dark theme, near-black on

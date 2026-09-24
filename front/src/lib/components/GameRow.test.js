@@ -72,8 +72,8 @@ describe('GameRow', () => {
 	});
 
 	// The accent sits too close to the body text: a link among text carries the stylesheet's
-	// quiet underline, and the own team a dot drawn from its `own` class.
-	it('underlines the team links, and never the own team, which is no link', () => {
+	// quiet-link (underlined on hover and focus), and the own team a dot drawn from its `own` class.
+	it('marks the team links as links among text, and never the own team, which is no link', () => {
 		renderWith(GameRow, {
 			...played,
 			team1Id: 2,

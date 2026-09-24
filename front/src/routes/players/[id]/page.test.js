@@ -62,7 +62,7 @@ describe('player profile page', () => {
 		expect(within(rows[2]).queryAllByRole('link').map((a) => a.textContent.trim())).toEqual(['2024']);
 	});
 
-	it('underlines the links sitting among text: the edition year and team', () => {
+	it('marks the links sitting among text: the edition year and team', () => {
 		renderWith(Page, { data: { profile } });
 
 		const row = screen.getAllByTestId('edition-row')[1];
