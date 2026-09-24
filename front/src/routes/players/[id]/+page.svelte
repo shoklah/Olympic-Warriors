@@ -1,8 +1,9 @@
 <script>
-	import Badge from '$lib/components/Badge.svelte';
+	import { page } from '$app/stores';
+	import BadgeCollection from '$lib/components/BadgeCollection.svelte';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import MedalRank from '$lib/components/MedalRank.svelte';
-	import { badgeDetail, isKnownBadge } from '$lib/badges';
+	import { badgeCollection } from '$lib/badges';
 	import { iconFor } from '$lib/icons';
 	import { bestDisciplines, byDisplayedName, editionStatus, formatAverage, fullName, spokenPlaces } from '$lib/players';
 	import { disciplineName, useLocale, useT } from '$lib/i18n';
@@ -14,12 +15,13 @@
 
 	$: profile = data.profile;
 	$: name = fullName(profile);
-	$: badges = (profile.badges ?? []).filter(isKnownBadge);
 	// Defensive: a front deployed ahead of a server that doesn't carry `disciplines` yet.
 	// Ties (equal position) are re-sorted by the name as displayed in this locale, so the
 	// server's English database-name order doesn't leak into the French page.
 	$: disciplines = byDisplayedName(profile.disciplines ?? [], locale);
 	$: best = bestDisciplines(disciplines);
+	$: collection = badgeCollection(profile.badges ?? []);
+	$: tab = $page.url.searchParams.get('tab') === 'badges' ? 'badges' : 'profile';
 </script>
 
 <div class="page">
@@ -36,115 +38,118 @@
 		</a>
 	{/if}
 
-	<div class="figures">
-		<div class="figure" data-testid="average-rank">
-			<span class="label">{t('profile.averageRank')}</span>
-			<span class="num value">{formatAverage(profile.average_rank, locale)}</span>
-		</div>
-		<div class="figure" data-testid="best-discipline">
-			<span class="label">{t('profile.bestDiscipline', { n: Math.max(best.count, 1) })}</span>
-			{#if best.count > 0}
-				<ul class="best-list" role="list">
-					{#each best.shown as d}
-						<li class="best"><img src={iconFor(d.name)} alt="" />{disciplineName(locale, d.name)}</li>
-					{/each}
-				</ul>
-				{#if best.more > 0}
-					<span class="num more" aria-hidden="true">{t('players.more', { n: best.more })}</span>
-					<span class="visually-hidden">{t('profile.moreDisciplines', { n: best.more })}</span>
-				{/if}
-			{:else}
-				<span class="num value">—</span>
-			{/if}
-		</div>
-	</div>
+	<nav class="tabs" aria-label={t('profile.tabs')}>
+		<a
+			class="tab"
+			href="?"
+			data-sveltekit-noscroll
+			data-sveltekit-keepfocus
+			aria-current={tab === 'profile' ? 'page' : undefined}>{t('profile.tab.profile')}</a
+		>
+		<a
+			class="tab"
+			href="?tab=badges"
+			data-sveltekit-noscroll
+			data-sveltekit-keepfocus
+			aria-current={tab === 'badges' ? 'page' : undefined}>{t('profile.tab.badges')}</a
+		>
+	</nav>
 
-	<p class="counts">
-		{t('players.editions', { n: profile.editions.length })} · {t('profile.counted', {
-			n: profile.counted
-		})}
-	</p>
-	{#if profile.counted === 0}
-		<p class="counts">{t('profile.noRankedEdition')}</p>
-	{/if}
-
-	{#if badges.length}
-		<h2>{t('profile.badges')}</h2>
-		<ul class="badges" role="list">
-			{#each badges as badge}
-				{@const parts = badgeDetail(badge, t, locale)}
-				<li class="tile" data-testid="badge">
-					<Badge {badge} />
-					<span class="label name">{t(`badge.${badge.code}.name`)}</span>
-					{#if badge.partner || parts.length}
-						<!-- Each part is its own text, with the dots hidden from assistive tech;
-						     the spaces stay outside them so spoken parts never run together. -->
-						<span class="detail" data-testid="badge-detail">
-							{#if badge.partner}
-								{t('badge.with')}
-								<a class="quiet-link" href="/players/{badge.partner.id}">{fullName(badge.partner)}</a>
-							{/if}
-							{#each parts as part, i}{#if i > 0 || badge.partner}{' '}<span
-										class="sep"
-										aria-hidden="true">·</span
-									>{' '}{/if}<span>{part}</span>{/each}
-						</span>
-					{/if}
-					<span class="rule">{t(`badge.${badge.code}.rule`)}</span>
-				</li>
-			{/each}
-		</ul>
-	{/if}
-
-	<h2>{t('profile.editions')}</h2>
-	<ul class="editions" role="list">
-		{#each profile.editions as edition}
-			{@const status = editionStatus(edition)}
-			<li class="edition" data-testid="edition-row">
-				<a class="year num quiet-link" href="/{edition.year}">{edition.year}</a>
-				{#if edition.team}
-					<a class="team quiet-link" href="/{edition.year}/teams/{edition.team.id}">{edition.team.name}</a>
-				{:else}
-					<span class="team muted">{t('profile.noTeam')}</span>
-				{/if}
-				{#if status === 'ranked'}
-					<span class="rank">
-						<MedalRank rank={edition.rank} />
-						<span class="num of">/ {edition.teams}</span>
-					</span>
-				{:else if status === 'inProgress'}
-					<span class="tag label">{t('profile.inProgress')}</span>
-				{:else}
-					<span class="rank muted">—</span>
-				{/if}
-			</li>
-		{/each}
-	</ul>
-
-	{#if disciplines.length > 0}
-		<h2>{t('profile.byDiscipline')}</h2>
-		<ul class="disciplines" role="list">
-			{#each disciplines as d}
-				<li class="discipline" data-testid="discipline-row">
-					<img src={iconFor(d.name)} alt="" />
-					<span class="name">{disciplineName(locale, d.name)}</span>
-					<span class="places" aria-hidden="true">
-						{#each d.places as p}
-							<span class="discipline-place"
-								><span
-									class="num place-rank"
-									class:gold={p.rank === 1}
-									class:silver={p.rank === 2}
-									class:bronze={p.rank === 3}>{p.rank}</span
-								>
-								<span class="place-year">{p.year}</span></span
-							>{' '}
+	{#if tab === 'badges'}
+		<BadgeCollection {collection} badgeStats={profile.badge_stats ?? null} />
+	{:else}
+		<div class="figures">
+			<div class="figure" data-testid="average-rank">
+				<span class="label">{t('profile.averageRank')}</span>
+				<span class="num value">{formatAverage(profile.average_rank, locale)}</span>
+			</div>
+			<div class="figure" data-testid="best-discipline">
+				<span class="label">{t('profile.bestDiscipline', { n: Math.max(best.count, 1) })}</span>
+				{#if best.count > 0}
+					<ul class="best-list" role="list">
+						{#each best.shown as d}
+							<li class="best"><img src={iconFor(d.name)} alt="" />{disciplineName(locale, d.name)}</li>
 						{/each}
-					</span>
-					<span class="visually-hidden">{spokenPlaces(d.places, locale)}</span>
+					</ul>
+					{#if best.more > 0}
+						<span class="num more" aria-hidden="true">{t('players.more', { n: best.more })}</span>
+						<span class="visually-hidden">{t('profile.moreDisciplines', { n: best.more })}</span>
+					{/if}
+				{:else}
+					<span class="num value">—</span>
+				{/if}
+			</div>
+			<a class="figure count-card" href="?tab=badges" data-sveltekit-noscroll data-testid="badge-count">
+				<span class="label">{t('profile.badges')}</span>
+				<span class="value"
+					><span class="num">{collection.earned}</span> <span class="num total">/ {collection.total}</span></span
+				>
+				<span class="bar" aria-hidden="true"
+					><span style="width: {(100 * collection.earned) / collection.total}%"></span></span
+				>
+				<span class="visually-hidden">{t('profile.seeCollection')}</span>
+			</a>
+		</div>
+
+		<p class="counts">
+			{t('players.editions', { n: profile.editions.length })} · {t('profile.counted', {
+				n: profile.counted
+			})}
+		</p>
+		{#if profile.counted === 0}
+			<p class="counts">{t('profile.noRankedEdition')}</p>
+		{/if}
+
+		<h2>{t('profile.editions')}</h2>
+		<ul class="editions" role="list">
+			{#each profile.editions as edition}
+				{@const status = editionStatus(edition)}
+				<li class="edition" data-testid="edition-row">
+					<a class="year num quiet-link" href="/{edition.year}">{edition.year}</a>
+					{#if edition.team}
+						<a class="team quiet-link" href="/{edition.year}/teams/{edition.team.id}">{edition.team.name}</a>
+					{:else}
+						<span class="team muted">{t('profile.noTeam')}</span>
+					{/if}
+					{#if status === 'ranked'}
+						<span class="rank">
+							<MedalRank rank={edition.rank} />
+							<span class="num of">/ {edition.teams}</span>
+						</span>
+					{:else if status === 'inProgress'}
+						<span class="tag label">{t('profile.inProgress')}</span>
+					{:else}
+						<span class="rank muted">—</span>
+					{/if}
 				</li>
 			{/each}
 		</ul>
+
+		{#if disciplines.length > 0}
+			<h2>{t('profile.byDiscipline')}</h2>
+			<ul class="disciplines" role="list">
+				{#each disciplines as d}
+					<li class="discipline" data-testid="discipline-row">
+						<img src={iconFor(d.name)} alt="" />
+						<span class="name">{disciplineName(locale, d.name)}</span>
+						<span class="places" aria-hidden="true">
+							{#each d.places as p}
+								<span class="discipline-place"
+									><span
+										class="num place-rank"
+										class:gold={p.rank === 1}
+										class:silver={p.rank === 2}
+										class:bronze={p.rank === 3}>{p.rank}</span
+									>
+									<span class="place-year">{p.year}</span></span
+								>{' '}
+							{/each}
+						</span>
+						<span class="visually-hidden">{spokenPlaces(d.places, locale)}</span>
+					</li>
+				{/each}
+			</ul>
+		{/if}
 	{/if}
 </div>
 
@@ -178,17 +183,56 @@
 		border-radius: 2px;
 	}
 
+	.tabs {
+		display: flex;
+		gap: 1.4rem;
+		margin: 0 0 1.4rem;
+		border-bottom: 1px solid var(--line);
+	}
+
+	.tab {
+		padding: 0.3em 0.1em 0.6em;
+		border-bottom: 2px solid transparent;
+		color: var(--muted);
+		font-family: var(--font-display);
+		font-size: 1.1rem;
+		text-transform: uppercase;
+		letter-spacing: 0.1em;
+		text-decoration: none;
+	}
+
+	.tab:hover {
+		color: var(--accent);
+	}
+
+	.tab[aria-current='page'] {
+		color: var(--accent);
+		border-bottom-color: var(--accent);
+	}
+
+	.tab:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
+		border-radius: 2px;
+	}
+
 	.figures {
 		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 14rem));
+		grid-template-columns: repeat(3, minmax(0, 14rem));
 		gap: 8px;
 		margin-bottom: 0.6rem;
 	}
 
-	/* Two 14rem cards don't fit below 360px: stack them instead of squeezing. */
-	@media (max-width: 359.98px) {
+	/* Two 14rem cards and the badge-count card don't fit below 600px: two columns instead,
+	   with the signature-event card (variable height) spanning the second row alone. */
+	@media (max-width: 599.98px) {
 		.figures {
-			grid-template-columns: minmax(0, 14rem);
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+
+		.figure[data-testid='best-discipline'] {
+			grid-column: 1 / -1;
+			order: 3;
 		}
 	}
 
@@ -203,12 +247,47 @@
 		border-radius: var(--radius);
 	}
 
+	.count-card {
+		color: inherit;
+		text-decoration: none;
+	}
+
+	.count-card:hover {
+		border-color: var(--accent);
+	}
+
+	.count-card:hover .label {
+		color: var(--accent);
+	}
+
+	.count-card:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
+	}
+
 	.value {
 		margin-top: auto;
 		font-size: 2.1rem;
 		line-height: 1;
 		letter-spacing: 0.04em;
 		color: var(--ink);
+	}
+
+	.value .total {
+		color: var(--muted);
+	}
+
+	.count-card .bar {
+		height: 4px;
+		border-radius: var(--radius-pill);
+		background: var(--line);
+		overflow: hidden;
+	}
+
+	.count-card .bar span {
+		display: block;
+		height: 100%;
+		background: var(--accent);
 	}
 
 	.best-list {
@@ -249,52 +328,8 @@
 		color: var(--muted);
 	}
 
-	.badges {
-		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
-		gap: 22px 16px;
-		--badge-size: 56px;
-		margin: 0;
-		padding: 0;
-		list-style: none;
-	}
-
-	.tile {
-		display: flex;
-		flex-direction: column;
-		align-items: flex-start;
-		gap: 6px;
-		min-width: 0;
-	}
-
 	.name {
 		color: var(--ink);
-	}
-
-	.detail {
-		font-size: 0.85rem;
-		color: var(--muted);
-		overflow-wrap: anywhere;
-	}
-
-	.detail a {
-		color: var(--accent);
-	}
-
-	.sep {
-		color: var(--ghost);
-	}
-
-	.detail a:focus-visible {
-		outline: 2px solid var(--accent);
-		outline-offset: 2px;
-		border-radius: 2px;
-	}
-
-	.rule {
-		font-size: 0.78rem;
-		line-height: 1.35;
-		color: var(--muted);
 	}
 
 	.editions {

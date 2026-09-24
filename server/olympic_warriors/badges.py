@@ -225,16 +225,16 @@ def _career_of(h, user_id, seats):
 
 VETERAN_TIERS = {3: 1, 5: 2, 10: 3}
 EVER_PRESENT_TIERS = {4: 1, 6: 2, 8: 3}
-NETWORKER_TIERS = ((20, 1), (40, 2), (60, 3))
+NETWORKER_TIERS = ((5, 1), (10, 2), (20, 3))
 
 
 def _loyalty(h):
-    """rookie, veteran, argonaut, ever-present, homecoming and globetrotter: a
-    participation is enough, team or rank not needed."""
+    """rookie, veteran, argonaut, ever-present and homecoming: a participation is enough,
+    team or rank not needed."""
     for user_id, seats in h.seats.items():
         played = run = 0
         seen = None
-        hosts, present = set(), set()
+        present = set()
         for i, edition in enumerate(h.sequence):
             if i not in seats:
                 run = 0
@@ -253,11 +253,6 @@ def _loyalty(h):
             if seen is not None and i - seen > 2:  # missed at least 2 consecutive editions
                 yield Earned(user_id, C.HOMECOMING, edition_id)
             seen = i
-            host = _sort_key(edition.host.strip())
-            if host not in hosts:
-                hosts.add(host)
-                if len(hosts) == 3:
-                    yield Earned(user_id, C.GLOBETROTTER, edition_id)
         # The first finished edition is index 0 exactly when it has a roster.
         if 0 in seats and h.sequence[0].id == h.first_edition_id:
             yield Earned(user_id, C.ARGONAUT, h.first_edition_id)
@@ -529,9 +524,6 @@ def _photo_finish(h, i, rows, seat, wins):
     return leaders == [seat.team_id] and bool(others) and mine.total_points - max(others) <= 1
 
 
-GOLDEN_WHISTLE_TIERS = ((5, 1), (10, 2), (20, 3))
-
-
 @dataclass(frozen=True)
 class GameRow:
     """One game of a sequence edition, as the game badges read it."""
@@ -542,7 +534,6 @@ class GameRow:
     score1: int
     team2_id: int
     score2: int
-    referees_id: int
 
 
 @dataclass(frozen=True)
@@ -551,8 +542,7 @@ class GameFacts:
 
     records: dict  # team id -> {discipline name: (played, won, lost)}, revealed games only
     shutouts: frozenset
-    steamrollers: frozenset
-    refereed: dict  # team id -> games refereed by a team not playing them, revealed or not
+    steamrollers: dict  # team id -> discipline names of that team's biggest margin there
 
 
 def _game_rows(h):
@@ -567,7 +557,7 @@ def _game_rows(h):
         is_played=True,
     ).values_list(
         "discipline__edition_id", "discipline__name", "discipline__reveal_score",
-        "team1_id", "score1", "team2_id", "score2", "referees_id",
+        "team1_id", "score1", "team2_id", "score2",
     )
     games = defaultdict(list)
     for edition_id, *game in rows:
@@ -576,14 +566,13 @@ def _game_rows(h):
 
 
 def _game_facts(games):
-    """The GameFacts of one edition's games. A game counts as refereed only when the referee
-    team is neither of the two playing: the schedulers leave a playing team in the slot as a
-    placeholder (Swiss rounds put team1 there)."""
+    """The GameFacts of one edition's games. Steamroller margins are judged discipline by
+    discipline, so raw scores never compare across sports: a darts leg's 301-141 does not
+    outweigh a rugby 13-0."""
     records = defaultdict(lambda: defaultdict(lambda: [0, 0, 0]))
-    shutouts, margins, refereed = set(), [], Counter()
+    shutouts = set()
+    margins = defaultdict(list)  # discipline name -> [(margin, team id)], revealed wins only
     for game in games:
-        if game.referees_id not in (game.team1_id, game.team2_id):
-            refereed[game.referees_id] += 1
         if not game.revealed:  # a badge never leaks a hidden score
             continue
         for team_id, mine, theirs in (
@@ -594,20 +583,24 @@ def _game_facts(games):
             record[0] += 1
             if mine > theirs:
                 record[1] += 1
-                margins.append((mine - theirs, team_id))
+                margins[game.discipline_name].append((mine - theirs, team_id))
                 if theirs == 0:
                     shutouts.add(team_id)
             elif mine < theirs:
                 record[2] += 1
-    best = max((margin for margin, _ in margins), default=0)
+    steamrollers = defaultdict(set)
+    for name, entries in margins.items():
+        best = max(margin for margin, _ in entries)
+        for margin, team_id in entries:
+            if margin == best:
+                steamrollers[team_id].add(name)
     return GameFacts(
         records={
             team_id: {name: tuple(r) for name, r in by_name.items()}
             for team_id, by_name in records.items()
         },
         shutouts=frozenset(shutouts),
-        steamrollers=frozenset(team_id for margin, team_id in margins if margin == best),
-        refereed=dict(refereed),
+        steamrollers={team_id: frozenset(names) for team_id, names in steamrollers.items()},
     )
 
 
@@ -643,14 +636,13 @@ def _perfect_pitch(h):
 
 
 def _games(h):
-    """unbeaten, perfect-run, shutout, steamroller, golden-whistle and perfect-pitch."""
+    """unbeaten, perfect-run, shutout, steamroller and perfect-pitch."""
     if not h.sequence:
         return
     games = _game_rows(h)
     pitch = _perfect_pitch(h)
     facts = [_game_facts(games.get(i, [])) for i in range(len(h.sequence))]
     for user_id, seats in h.seats.items():
-        refereed = 0
         for i, edition in enumerate(h.sequence):
             seat = seats.get(i)
             if seat is None or seat.team_id is None:
@@ -662,15 +654,10 @@ def _games(h):
                     yield Earned(user_id, code, edition_id, discipline=name)
             if team_id in fact.shutouts:
                 yield Earned(user_id, C.SHUTOUT, edition_id)
-            if team_id in fact.steamrollers:
-                yield Earned(user_id, C.STEAMROLLER, edition_id)
+            for name in sorted(fact.steamrollers.get(team_id, ())):
+                yield Earned(user_id, C.STEAMROLLER, edition_id, discipline=name)
             if team_id in pitch.get(i, ()):
                 yield Earned(user_id, C.PERFECT_PITCH, edition_id)
-            before = refereed
-            refereed += fact.refereed.get(team_id, 0)
-            for threshold, tier in GOLDEN_WHISTLE_TIERS:
-                if before < threshold <= refereed:
-                    yield Earned(user_id, C.GOLDEN_WHISTLE, edition_id, tier=tier)
 
 
 RULES = (_places, _streaks, _career, _loyalty, _teammates, _hall_of_fame, _disciplines, _games)
@@ -790,3 +777,43 @@ def profile_badges(user_id):
         )
 
     return sorted(({**g, "years": sorted(g["years"])} for g in groups.values()), key=order)
+
+
+# The five tiered codes (see VETERAN_TIERS, EVER_PRESENT_TIERS, NETWORKER_TIERS,
+# SPECIALIST_TIERS and ALL_ROUNDER_TIERS above): badge_stats reports an at-least-k holder
+# count for these codes only.
+TIERED_CODES = frozenset({C.VETERAN, C.EVER_PRESENT, C.NETWORKER, C.SPECIALIST, C.ALL_ROUNDER})
+
+
+def badge_stats(user_ids):
+    """
+    Rarity stats for GET /profile/<id>/ (1 query), over the given user ids (the leaderboard's
+    people): how many hold each badge code (any tier, discipline, partner or year, each
+    counted once) and, for the six tiered codes, how many hold at least each tier (the
+    person's own highest tier of that code). Same filter as profile_badges: active rows of
+    active editions only. `holders` only lists codes with at least one holder; `tiers` only
+    lists the tiered codes with one. See the "Rarity" design spec.
+
+    {"players": 47, "holders": {"champion": 12, "veteran": 20}, "tiers": {"veteran": [20, 6, 1]}}
+    """
+    rows = Badge.objects.filter(
+        is_active=True, edition__is_active=True, user_id__in=user_ids
+    ).values_list("code", "user_id", "tier")
+    highest = {}
+    for code, user_id, tier in rows:
+        key = (code, user_id)
+        if tier > highest.get(key, -1):
+            highest[key] = tier
+    holders = Counter()
+    tiers = defaultdict(lambda: [0, 0, 0])
+    for (code, _), tier in highest.items():
+        holders[code] += 1
+        if code in TIERED_CODES:
+            for k in (1, 2, 3):
+                if tier >= k:
+                    tiers[code][k - 1] += 1
+    return {
+        "players": len(user_ids),
+        "holders": dict(holders),
+        "tiers": dict(tiers),
+    }

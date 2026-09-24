@@ -2,20 +2,33 @@ import { describe, expect, it } from 'vitest';
 import fr from './i18n/fr.js';
 import en from './i18n/en.js';
 import { translator } from './i18n';
-import { BADGES, badgeDetail, badgeGlyph, badgeMetal, hasGlyph, isKnownBadge, isTiered } from './badges.js';
+import {
+	BADGES,
+	FAMILIES,
+	TIER_THRESHOLDS,
+	badgeCollection,
+	badgeDetail,
+	badgeGlyph,
+	badgeMetal,
+	badgeRarity,
+	hasGlyph,
+	isKnownBadge,
+	isTiered,
+	nextThreshold
+} from './badges.js';
 
 /** Badge.Codes in server/olympic_warriors/models/Badge.py, in order. Keep in sync by hand. */
 const BADGE_CODES = [
 	'champion', 'runner-up', 'bronze', 'chocolate', 'wooden-spoon',
 	'back-to-back', 'threepeat', 'dynasty', 'phoenix', 'legend', 'podium-regular', 'full-set',
 	'eternal-second', 'janus', 'comeback', 'on-the-rise', 'icarus', 'lucky-charm',
-	'rookie', 'veteran', 'argonaut', 'ever-present', 'homecoming', 'globetrotter',
+	'rookie', 'veteran', 'argonaut', 'ever-present', 'homecoming',
 	'comrades', 'networker',
 	'goat', 'alone-at-the-top', 'hall-of-fame-podium', 'hall-of-famer', 'reign', 'kingslayer', 'rocket',
 	'specialist', 'all-rounder', 'decathlete', 'brains-and-brawn', 'clean-sweep', 'metronome',
 	'uncrowned', 'photo-finish',
 	'athena', 'apollo', 'artemis', 'hermes', 'heracles', 'theseus', 'ares', 'hades', 'dionysus', 'olympus',
-	'unbeaten', 'perfect-run', 'shutout', 'steamroller', 'golden-whistle', 'perfect-pitch',
+	'unbeaten', 'perfect-run', 'shutout', 'steamroller', 'perfect-pitch',
 	'mvp', 'fair-play', 'hype', 'costume', 'wounded', 'torchbearer'
 ];
 
@@ -89,9 +102,9 @@ describe('isKnownBadge and isTiered', () => {
 });
 
 describe('badgeDetail', () => {
-	it('counts and lists the years of a repeated badge', () => {
+	it('lists every year of a repeated badge; the sheet says the count separately', () => {
 		const champion = { code: 'champion', tier: 0, years: [2024, 2026], discipline: null, partner: null };
-		expect(badgeDetail(champion, tEn, 'en')).toEqual(['×2', '2024', '2026']);
+		expect(badgeDetail(champion, tEn, 'en')).toEqual(['2024', '2026']);
 		expect(badgeDetail({ ...champion, years: [2025] }, tEn, 'en')).toEqual(['2025']);
 	});
 
@@ -116,8 +129,8 @@ describe('badgeDetail', () => {
 
 	it('names the discipline of any badge that has one', () => {
 		const unbeaten = { code: 'unbeaten', tier: 0, years: [2025, 2026], discipline: 'Dodgeball', partner: null };
-		expect(badgeDetail(unbeaten, tEn, 'en')).toEqual(['Dodgeball', '×2', '2025', '2026']);
-		expect(badgeDetail(unbeaten, tFr, 'fr')).toEqual(['Balle au prisonnier', '×2', '2025', '2026']);
+		expect(badgeDetail(unbeaten, tEn, 'en')).toEqual(['Dodgeball', '2025', '2026']);
+		expect(badgeDetail(unbeaten, tFr, 'fr')).toEqual(['Balle au prisonnier', '2025', '2026']);
 	});
 
 	it('leaves the partner of comrades to the page, keeping the year', () => {
@@ -129,5 +142,111 @@ describe('badgeDetail', () => {
 		const comrades = { code: 'comrades', tier: 0, years: [], discipline: null, partner: { id: 12 } };
 		expect(badgeDetail(comrades, tEn, 'en')).toEqual([]);
 		expect(badgeDetail({ ...comrades, code: 'champion', partner: null }, tEn, 'en')).toEqual([]);
+	});
+});
+
+describe('FAMILIES', () => {
+	it('covers every code exactly once, in catalogue order inside each family', () => {
+		const codes = FAMILIES.flatMap((f) => f.codes);
+		expect([...codes].sort()).toEqual(Object.keys(BADGES).sort());
+		expect(new Set(codes).size).toBe(codes.length);
+		const order = Object.keys(BADGES);
+		for (const f of FAMILIES) {
+			const idx = f.codes.map((c) => order.indexOf(c));
+			expect(idx).toEqual([...idx].sort((a, b) => a - b));
+		}
+		expect(FAMILIES.map((f) => f.key)).toEqual([
+			'podiums', 'streaks', 'loyalty', 'teammates', 'hall-of-fame', 'disciplines', 'olympus', 'games', 'awards'
+		]);
+		expect(FAMILIES.map((f) => f.codes.length)).toEqual([5, 13, 5, 2, 7, 8, 10, 5, 6]);
+	});
+});
+
+describe('TIER_THRESHOLDS and nextThreshold', () => {
+	it('lists the five tiered codes with the server thresholds', () => {
+		expect(TIER_THRESHOLDS).toEqual({
+			veteran: [3, 5, 10], 'ever-present': [4, 6, 8], networker: [5, 10, 20],
+			specialist: [2, 3, 4], 'all-rounder': [3, 5, 8]
+		});
+		expect(Object.keys(TIER_THRESHOLDS).sort()).toEqual(Object.keys(BADGES).filter(isTiered).sort());
+	});
+
+	it('gives the next threshold, the first for a locked slot, and none at the top or untiered', () => {
+		expect(nextThreshold('veteran', 0)).toBe(3);
+		expect(nextThreshold('veteran', 1)).toBe(5);
+		expect(nextThreshold('veteran', 2)).toBe(10);
+		expect(nextThreshold('veteran', 3)).toBeNull();
+		expect(nextThreshold('champion', 0)).toBeNull();
+	});
+});
+
+describe('badgeCollection', () => {
+	const entry = (code, extra = {}) => ({ code, tier: 0, years: [2026], discipline: null, partner: null, ...extra });
+
+	it('counts earned slots overall and per family, ignoring unknown codes', () => {
+		const c = badgeCollection([entry('champion', { years: [2021, 2024] }), entry('rookie'), entry('future-badge')]);
+		expect(c.total).toBe(61);
+		expect(c.earned).toBe(2);
+		const podiums = c.families.find((f) => f.key === 'podiums');
+		expect([podiums.earned, podiums.total]).toEqual([1, 5]);
+		expect(c.families.reduce((n, f) => n + f.slots.length, 0)).toBe(61);
+	});
+
+	it('counts repeats, disciplines and partners, but a tier once', () => {
+		const c = badgeCollection([
+			entry('champion', { years: [2021, 2024] }),
+			entry('specialist', { tier: 1, discipline: 'Rugby' }),
+			entry('specialist', { tier: 2, discipline: 'Crossfit', years: [2025] }),
+			entry('comrades', { partner: { id: 1, first_name: 'A', last_name: 'B' } }),
+			entry('comrades', { partner: { id: 2, first_name: 'C', last_name: 'D' } }),
+			entry('comrades', { partner: { id: 3, first_name: 'E', last_name: 'F' } }),
+			entry('veteran', { tier: 2, years: [2024, 2026] })
+		]);
+		const slot = (code) => c.families.flatMap((f) => f.slots).find((s) => s.code === code);
+		expect(slot('champion').count).toBe(2);
+		expect(slot('specialist').count).toBe(2);
+		expect(slot('specialist').medal.discipline).toBe('Crossfit'); // highest tier drawn
+		expect(slot('comrades').count).toBe(3);
+		expect(slot('veteran').count).toBe(1);
+		expect(slot('veteran').earned).toBe(true);
+	});
+
+	it('gives a locked slot a stub medal and no entries', () => {
+		const slot = badgeCollection([]).families[0].slots[0];
+		expect(slot).toEqual({
+			code: 'champion', entries: [], count: 0, earned: false,
+			medal: { code: 'champion', tier: 0, years: [], discipline: null, partner: null }
+		});
+	});
+});
+
+describe('badgeRarity', () => {
+	it('gives the rounded percent of players holding the badge', () => {
+		const stats = { players: 47, holders: { champion: 12 } };
+		expect(badgeRarity(stats, 'champion')).toEqual({ holders: 12, players: 47, percent: 26 });
+	});
+
+	it('rounds to 0 when holders are few but nonzero, and gives 0 holders for a code with none', () => {
+		const rare = badgeRarity({ players: 1000, holders: { mvp: 1 } }, 'mvp');
+		expect(rare).toEqual({ holders: 1, players: 1000, percent: 0 });
+
+		const none = badgeRarity({ players: 47, holders: {} }, 'mvp');
+		expect(none).toEqual({ holders: 0, players: 47, percent: 0 });
+	});
+
+	it('reads the at-least-tier count from tiers when a tier is given', () => {
+		const stats = { players: 47, holders: { veteran: 20 }, tiers: { veteran: [20, 12, 1] } };
+		expect(badgeRarity(stats, 'veteran', 2)).toEqual({ holders: 12, players: 47, percent: 26 });
+	});
+
+	it('gives 0 holders for a tiered code missing from tiers', () => {
+		const stats = { players: 47, holders: { veteran: 20 }, tiers: {} };
+		expect(badgeRarity(stats, 'veteran', 1)).toEqual({ holders: 0, players: 47, percent: 0 });
+	});
+
+	it('gives null when stats are missing (an older API) or players is 0', () => {
+		expect(badgeRarity(null, 'champion')).toBeNull();
+		expect(badgeRarity(undefined, 'champion')).toBeNull();
+		expect(badgeRarity({ players: 0, holders: { champion: 0 } }, 'champion')).toBeNull();
 	});
 });

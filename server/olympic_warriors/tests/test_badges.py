@@ -560,7 +560,6 @@ LOYALTY_CODES = (
     C.ARGONAUT,
     C.EVER_PRESENT,
     C.HOMECOMING,
-    C.GLOBETROTTER,
 )
 
 
@@ -570,12 +569,6 @@ def tiers_of(user, code, today=TODAY):
 
 
 class TestLoyalty(World, TestCase):
-    def tour(self, user, hosts):
-        """Seat `user` on a team in consecutive editions from 2021, held at `hosts`."""
-        for year, host in zip(range(2021, 2021 + len(hosts)), hosts):
-            edition, teams = self.edition(year, host=host)
-            self.seat(user, edition, teams[0])
-
     def test_rookie_at_the_first_finished_edition_played(self):
         ana = self.person("Ana")
         self.play(ana, [None, 2, 3])
@@ -668,30 +661,6 @@ class TestLoyalty(World, TestCase):
 
         self.assertEqual(years_of(ana, C.HOMECOMING), [])
 
-    def test_hosts_match_whatever_the_case_and_spaces(self):
-        ana = self.person("Ana")
-        self.tour(ana, ["Paris", " paris ", "Nantes"])
-
-        self.assertEqual(years_of(ana, C.GLOBETROTTER), [])
-
-    def test_globetrotter_at_the_third_host(self):
-        ana = self.person("Ana")
-        self.tour(ana, ["Paris", " paris ", "Nantes", "Lyon"])
-
-        self.assertEqual(years_of(ana, C.GLOBETROTTER), [2024])
-
-    def test_a_fourth_host_earns_nothing_more(self):
-        ana = self.person("Ana")
-        self.tour(ana, ["Paris", " paris ", "Nantes", "Lyon", "Marseille"])
-
-        self.assertEqual(years_of(ana, C.GLOBETROTTER), [2024])
-
-    def test_hosts_match_whatever_the_accents(self):
-        ana = self.person("Ana")
-        self.tour(ana, ["Orléans", "Orleans", "Paris"])
-
-        self.assertEqual(years_of(ana, C.GLOBETROTTER), [])
-
 
 def comrades_of(user, today=TODAY):
     """The (year, partner id) of the user's comrades badges, sorted."""
@@ -716,10 +685,6 @@ class TestTeammates(World, TestCase):
         edition, teams = self.edition(year)
         for user in (self.ana, *mates):
             self.seat(user, edition, teams[0])
-
-    def crowd(self, year):
-        """Ten new people."""
-        return [self.person(f"Mate{year}-{n}") for n in range(10)]
 
     def test_comrades_after_three_editions_together(self):
         self.share([2021])
@@ -767,34 +732,35 @@ class TestTeammates(World, TestCase):
         self.assertEqual(comrades_of(uma), [])
         self.assertEqual(comrades_of(vic), [])
 
-    def test_networker_at_twenty_teammates(self):
-        self.meet(2021, self.crowd(2021))
-        self.meet(2022, self.crowd(2022))
+    def test_networker_at_five_teammates(self):
+        self.meet(2021, [self.person(f"Mate{n}") for n in range(3)])
+        self.meet(2022, [self.person(f"Mate2-{n}") for n in range(2)])  # 5th teammate here
 
         self.assertEqual(tiers_of(self.ana, C.NETWORKER), [(2022, 1)])
 
-    def test_networker_tiers_at_forty_and_sixty(self):
-        for year in range(2021, 2027):
-            self.meet(year, self.crowd(year))
+    def test_networker_tiers_at_ten_and_twenty(self):
+        self.meet(2021, [self.person(f"Mate21-{n}") for n in range(5)])
+        self.meet(2022, [self.person(f"Mate22-{n}") for n in range(5)])  # 10th teammate here
+        self.meet(2023, [self.person(f"Mate23-{n}") for n in range(10)])  # 20th teammate here
 
-        self.assertEqual(tiers_of(self.ana, C.NETWORKER), [(2022, 1), (2024, 2), (2026, 3)])
+        self.assertEqual(tiers_of(self.ana, C.NETWORKER), [(2021, 1), (2022, 2), (2023, 3)])
 
     def test_two_networker_tiers_in_one_edition(self):
-        self.meet(2021, [self.person(f"Mate{n}") for n in range(41)])  # 41 teammates
+        self.meet(2021, [self.person(f"Mate{n}") for n in range(11)])  # 11 teammates
 
         self.assertEqual(tiers_of(self.ana, C.NETWORKER), [(2021, 1), (2021, 2)])
 
     def test_networker_when_the_threshold_is_passed_not_reached(self):
-        self.meet(2021, [self.person(f"Mate{n}") for n in range(15)])
-        self.meet(2022, self.crowd(2022))  # 25 teammates: 20 passed, never reached
+        self.meet(2021, [self.person(f"Mate{n}") for n in range(4)])
+        self.meet(2022, [self.person(f"Mate2-{n}") for n in range(3)])  # 7 teammates: 5 passed, never reached
 
         self.assertEqual(tiers_of(self.ana, C.NETWORKER), [(2022, 1)])
 
     def test_meeting_the_same_people_again_adds_nothing(self):
-        mates = self.crowd(2021)
+        mates = [self.person(f"Mate{n}") for n in range(4)]
         self.meet(2021, mates)
         self.meet(2022, mates)
-        self.meet(2023, self.crowd(2023))
+        self.meet(2023, [self.person(f"Mate2-{n}") for n in range(3)])  # 7 teammates: 5 crossed here
 
         self.assertEqual(tiers_of(self.ana, C.NETWORKER), [(2023, 1)])
 
@@ -1464,7 +1430,6 @@ GAME_CODES = (
     C.PERFECT_RUN,
     C.SHUTOUT,
     C.STEAMROLLER,
-    C.GOLDEN_WHISTLE,
     C.PERFECT_PITCH,
 )
 
@@ -1575,22 +1540,9 @@ class TestGames(World, TestCase):
             [(C.PERFECT_RUN, 2021, 0, "Rugby", None), (C.UNBEATEN, 2021, 0, "Football", None)],
         )
 
-    def test_a_hidden_discipline_gives_only_the_golden_whistle(self):
-        # Ana's team wins three games to nil and referees five more, all hidden.
-        edition, (a, b, c, d) = self.four()
-        rugby = self.sport(edition, reveal=False)
-        self.game(rugby, a, 12, b, 0, c)
-        self.game(rugby, a, 12, c, 0, d)
-        self.game(rugby, a, 12, d, 0, b)
-        for team1, team2 in ((b, c), (b, d), (c, d), (b, c), (b, d)):
-            self.game(rugby, team1, 3, team2, 1, a)
-
-        self.assertEqual(games_of(self.ana), [(C.GOLDEN_WHISTLE, 2021, 1, "", None)])
-
     def test_unplayed_games_and_inactive_rounds_games_and_disciplines_count_for_nothing(self):
-        # Two wins count for Ana's team and four refereed games for Bob's: any one excluded
-        # Rugby game would make a third win (a perfect run, a shutout) and a fifth whistle,
-        # and the win of the deactivated Football a shutout and a fifth whistle.
+        # Two wins count for Ana's team: any one excluded Rugby game would make a third win
+        # (a perfect run, a shutout), and so would the win of the deactivated Football.
         edition, (a, b, c, d) = self.four()
         rugby = self.sport(edition)
         self.game(rugby, a, 12, c, 3, b)
@@ -1608,7 +1560,6 @@ class TestGames(World, TestCase):
         Discipline.objects.filter(pk=football.discipline_id).update(is_active=False)
 
         self.assertEqual(games_of(self.ana, C.UNBEATEN, C.PERFECT_RUN, C.SHUTOUT), [])
-        self.assertEqual(games_of(self.bob, C.GOLDEN_WHISTLE), [])
 
     def test_shutout_once_per_edition(self):
         for year in (2021, 2022):
@@ -1632,23 +1583,31 @@ class TestGames(World, TestCase):
         self.assertEqual(games_of(self.ana, C.SHUTOUT), [])
         self.assertEqual(games_of(self.cat, C.SHUTOUT), [])
 
-    def test_steamroller_for_the_biggest_margin(self):
-        # Rugby: Ana's team wins by 12, Cat's by 2. Dan's 30 to 0 in a hidden Football is
-        # left out, so it takes the badge from no one.
+    def test_steamroller_is_judged_per_discipline(self):
+        # Raw margins aren't comparable across sports: Darts' 301-141 (margin 160) dwarfs any
+        # Rugby score, but each discipline judges only its own games. Rugby: Ana's team wins
+        # by 13, Cat's by 2, so Ana's the biggest Rugby margin. Darts: Bob's team wins by 160,
+        # Ana's second Darts game only by 10, so Bob's still the biggest Darts margin. Both
+        # earn steamroller, each with their own discipline.
         edition, (a, b, c, d) = self.four()
         rugby = self.sport(edition)
-        self.game(rugby, a, 12, b, 0, c)
+        self.game(rugby, a, 13, b, 0, c)
         self.game(rugby, c, 5, d, 3, a)
-        football = self.sport(edition, Football, reveal=False)
-        self.game(football, d, 30, b, 0, a)
+        darts = self.sport(edition, Darts)
+        self.game(darts, b, 301, c, 141, d)
+        self.game(darts, a, 100, d, 90, b)
 
-        self.assertEqual(years_of(self.ana, C.STEAMROLLER), [2021])
         self.assertEqual(
-            [years_of(user, C.STEAMROLLER) for user in (self.bob, self.cat, self.dan)],
-            [[], [], []],
+            games_of(self.ana, C.STEAMROLLER), [(C.STEAMROLLER, 2021, 0, "Rugby", None)]
+        )
+        self.assertEqual(
+            games_of(self.bob, C.STEAMROLLER), [(C.STEAMROLLER, 2021, 0, "Darts", None)]
+        )
+        self.assertEqual(
+            [games_of(user, C.STEAMROLLER) for user in (self.cat, self.dan)], [[], []]
         )
 
-    def test_a_tied_biggest_margin_gives_it_to_both_winners(self):
+    def test_a_tied_biggest_margin_gives_it_to_both_winners_of_that_discipline(self):
         edition, (a, b, c, d) = self.four()
         rugby = self.sport(edition)
         self.game(rugby, a, 12, b, 0, c)
@@ -1656,8 +1615,13 @@ class TestGames(World, TestCase):
         self.game(rugby, a, 5, d, 4, b)
 
         self.assertEqual(
-            [years_of(user, C.STEAMROLLER) for user in self.people],
-            [[2021], [], [2021], []],
+            [games_of(user, C.STEAMROLLER) for user in self.people],
+            [
+                [(C.STEAMROLLER, 2021, 0, "Rugby", None)],
+                [],
+                [(C.STEAMROLLER, 2021, 0, "Rugby", None)],
+                [],
+            ],
         )
 
     def test_a_draw_is_never_a_steamroller(self):
@@ -1668,60 +1632,31 @@ class TestGames(World, TestCase):
 
         self.assertEqual([years_of(user, C.STEAMROLLER) for user in self.people], [[]] * 4)
 
-    def whistle(self, year, count, reveal=True):
-        """A new edition of `year` where Ana's team referees `count` games of Bob's and
-        Cat's."""
-        edition, (a, b, c, _) = self.four(year)
-        rugby = self.sport(edition, reveal=reveal)
-        for _ in range(count):
-            self.game(rugby, b, 2, c, 1, a)
-
-    def test_golden_whistle_at_the_edition_reaching_five_games(self):
-        self.whistle(2021, 3)
-        self.whistle(2022, 2)
-
-        self.assertEqual(tiers_of(self.ana, C.GOLDEN_WHISTLE), [(2022, 1)])
-
-    def test_four_refereed_games_are_not_enough(self):
-        self.whistle(2021, 2)
-        self.whistle(2022, 2)
-
-        self.assertEqual(tiers_of(self.ana, C.GOLDEN_WHISTLE), [])
-
-    def test_golden_whistle_tiers_at_ten_and_twenty(self):
-        for year, count in ((2021, 5), (2022, 5), (2023, 9), (2024, 1)):
-            self.whistle(year, count)
-
-        self.assertEqual(tiers_of(self.ana, C.GOLDEN_WHISTLE), [(2021, 1), (2022, 2), (2024, 3)])
-
-    def test_golden_whistle_crossing_two_tiers_in_one_edition(self):
-        self.whistle(2021, 10)
-
-        self.assertEqual(tiers_of(self.ana, C.GOLDEN_WHISTLE), [(2021, 1), (2021, 2)])
-
-    def test_a_playing_team_in_the_referee_slot_referees_nothing(self):
-        # The schedulers leave a playing team as a placeholder referee (Swiss rounds put
-        # team1 there). Four real refereed games, then Ana's team in the slot of a game it
-        # plays as team1 and of one it plays as team2: either would make a fifth whistle.
-        edition, (a, b, c, _) = self.four()
-        rugby = self.sport(edition)
-        for _ in range(4):
-            self.game(rugby, b, 2, c, 1, a)
-        self.game(rugby, a, 2, b, 1, a)
-        self.game(rugby, c, 2, a, 1, a)
-
-        self.assertEqual(tiers_of(self.ana, C.GOLDEN_WHISTLE), [])
-
-    def test_refereeing_in_a_hidden_discipline_counts(self):
-        # Three games refereed in a revealed Rugby and two in a hidden Football.
-        edition, (a, b, c, _) = self.four()
-        rugby = self.sport(edition)
+    def test_a_hidden_disciplines_games_give_no_steamroller(self):
+        # Dan's 30-0 win is the only game of the edition, but its Football is hidden: no one
+        # earns the badge.
+        edition, (a, b, c, d) = self.four()
         football = self.sport(edition, Football, reveal=False)
-        for round_, count in ((rugby, 3), (football, 2)):
-            for _ in range(count):
-                self.game(round_, b, 2, c, 1, a)
+        self.game(football, d, 30, b, 0, a)
 
-        self.assertEqual(tiers_of(self.ana, C.GOLDEN_WHISTLE), [(2021, 1)])
+        self.assertEqual([years_of(user, C.STEAMROLLER) for user in self.people], [[]] * 4)
+
+    def test_one_team_earns_steamroller_in_two_disciplines(self):
+        # Ana's team has the biggest margin in both Rugby and Darts, so it earns steamroller
+        # twice: one badge per discipline, not one for the edition.
+        edition, (a, b, c, d) = self.four()
+        rugby = self.sport(edition)
+        self.game(rugby, a, 13, b, 0, c)
+        darts = self.sport(edition, Darts)
+        self.game(darts, a, 301, b, 100, c)
+
+        self.assertEqual(
+            games_of(self.ana, C.STEAMROLLER),
+            [
+                (C.STEAMROLLER, 2021, 0, "Darts", None),
+                (C.STEAMROLLER, 2021, 0, "Rugby", None),
+            ],
+        )
 
     def blindtest(self, reveal=True):
         """

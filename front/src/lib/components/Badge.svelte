@@ -3,21 +3,25 @@
 
 	/** A badge of the profile payload: { code, tier, years, discipline, partner }. */
 	export let badge;
+	/** A locked slot: dashed ring, dimmed glyph, no metal and no lit pip. */
+	export let locked = false;
 
 	$: metal = badgeMetal(badge);
 	$: tiered = isTiered(badge.code);
 	$: tier = badgeTier(badge);
 </script>
 
-<!-- Purely visual: the tile around it writes the name and, for a tiered badge, the tier. -->
-<span class="badge {metal}" data-metal={metal} aria-hidden="true">
+<!-- Purely visual: the tile around it writes the name and, for a tiered badge, the tier.
+     A locked slot carries no metal: data-metal would otherwise read gold/silver/bronze for
+     a badge that hasn't been earned. -->
+<span class="badge {locked ? '' : metal}" class:locked data-metal={locked ? undefined : metal} aria-hidden="true">
 	<span class="medal"><img src={badgeGlyph(badge)} alt="" /></span>
 	<!-- The pip row keeps its height on an untiered badge too, so that in a grid of tiles
 	     every medallion takes the same room and the names below line up. -->
 	<span class="pips">
 		{#if tiered}
 			{#each [1, 2, 3] as n}
-				<span class="pip" class:on={n <= tier}></span>
+				<span class="pip" class:on={!locked && n <= tier}></span>
 			{/each}
 		{/if}
 	</span>
@@ -91,5 +95,18 @@
 
 	.pip.on {
 		background: var(--metal);
+	}
+
+	.locked .medal {
+		border-style: dashed;
+		border-color: var(--ghost);
+	}
+
+	.locked .medal::after {
+		display: none;
+	}
+
+	.locked img {
+		opacity: 0.35;
 	}
 </style>

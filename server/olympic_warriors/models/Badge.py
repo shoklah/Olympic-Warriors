@@ -40,7 +40,6 @@ class Badge(models.Model):
         ARGONAUT = "argonaut", "Argonaute"
         EVER_PRESENT = "ever-present", "Pénélope"
         HOMECOMING = "homecoming", "Ulysse"
-        GLOBETROTTER = "globetrotter", "Globe-trotteur"
         # Teammates
         COMRADES = "comrades", "Compagnons d'armes"
         NETWORKER = "networker", "Rassembleur"
@@ -77,7 +76,6 @@ class Badge(models.Model):
         PERFECT_RUN = "perfect-run", "Sans faute"
         SHUTOUT = "shutout", "Cadenas"
         STEAMROLLER = "steamroller", "Rouleau compresseur"
-        GOLDEN_WHISTLE = "golden-whistle", "Sifflet d'or"
         PERFECT_PITCH = "perfect-pitch", "Oreille absolue"
         # Given by hand
         MVP = "mvp", "MVP"
@@ -93,7 +91,7 @@ class Badge(models.Model):
     edition = models.ForeignKey("Edition", on_delete=models.CASCADE)
     # 0 for an untiered badge, 1 to 3 (bronze, silver, gold) for a tiered one.
     tier = models.PositiveSmallIntegerField(default=0)
-    # The discipline name, for specialist, unbeaten and perfect-run.
+    # The discipline name, for specialist, unbeaten, perfect-run and steamroller.
     discipline = models.CharField(max_length=100, blank=True, default="")
     # The other person, for comrades.
     partner = models.ForeignKey(
