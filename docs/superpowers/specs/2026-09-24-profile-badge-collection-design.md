@@ -24,11 +24,12 @@ Decisions taken while brainstorming (2026-09-24):
 6. **A « Badges » card** next to « Classement moyen » and « Épreuve fétiche ».
 
 This is front-end only. `/profile/<id>/` already carries the earned badges, and
-`src/lib/badges.js` already knows all 63 codes.
+`src/lib/badges.js` already knows every code (61 since golden whistle and globetrotter
+were removed on 2026-09-24; 63 before).
 
 ## Definitions
 
-- **Slot.** One per catalogue code (63 of them), in catalogue order inside its family.
+- **Slot.** One per catalogue code (61 of them), in catalogue order inside its family.
 - **Entries of a slot.** The profile's `badges` entries with that code. There can be
   several: one per discipline (`specialist`, `unbeaten`, `perfect-run`, `steamroller`) or one per partner
   (`comrades`). Codes the front doesn't know are ignored, as today.
@@ -47,7 +48,7 @@ This is front-end only. `/profile/<id>/` already carries the earned badges, and
   - Locked: `Badge.svelte` with `locked` set: a dashed `--ghost` ring, the glyph at 0.35
     opacity and no metal. A locked specialist shows the fallback glyph.
 - **Progress.**
-  - Overall: `earned / 63`.
+  - Overall: `earned / 61`.
   - Per family: earned slots out of that family's slots.
 - **Families**, in this order. The two lists match the catalogue and must cover every code
   exactly once:
@@ -56,12 +57,12 @@ This is front-end only. `/profile/<id>/` already carries the earned badges, and
   |---|---|---|---|
   | `podiums` | Palmarès | Podiums | champion, runner-up, bronze, chocolate, wooden-spoon |
   | `streaks` | Séries | Streaks | back-to-back … lucky-charm (13) |
-  | `loyalty` | Fidélité | Loyalty | rookie, veteran, argonaut, ever-present, homecoming, globetrotter |
+  | `loyalty` | Fidélité | Loyalty | rookie, veteran, argonaut, ever-present, homecoming |
   | `teammates` | Coéquipiers | Teammates | comrades, networker |
   | `hall-of-fame` | Panthéon | Hall of fame | goat … rocket (7) |
   | `disciplines` | Épreuves | Disciplines | specialist … photo-finish (8) |
   | `olympus` | Olympe | Olympus | athena … olympus (10) |
-  | `games` | Matchs | Games | unbeaten … perfect-pitch (6) |
+  | `games` | Matchs | Games | unbeaten, perfect-run, shutout, steamroller, perfect-pitch |
   | `awards` | Distinctions | Awards | mvp, fair-play, hype, costume, wounded, torchbearer |
 
 - **Tier thresholds**, in the front catalogue, mirroring `badges.py`:
@@ -73,7 +74,6 @@ This is front-end only. `/profile/<id>/` already carries the earned badges, and
   | `networker` | 5, 10, 20 | teammates |
   | `specialist` | 2, 3, 4 | titles in the discipline |
   | `all-rounder` | 3, 5, 8 | disciplines won |
-  | `golden-whistle` | 5, 10, 20 | games refereed |
 
   - **Next goal of a tiered entry:** the threshold of `tier + 1`, or none at tier 3.
   - **First goal of a locked tiered slot:** the tier 1 threshold.
@@ -106,10 +106,10 @@ Gains a `locked` prop, false by default. When set:
 ### `BadgeCollection.svelte`
 
 Props: `collection`, the page's `badgeCollection(profile.badges ?? [])`, computed once and
-shared with the count card.
+shared with the count card, and `badgeStats`, the profile's `badge_stats` (see Rarity).
 
 It renders:
-- the overall line « 28 badges sur 63 » / "28 badges out of 63", a progress bar
+- the overall line « 28 badges sur 61 » / "28 badges out of 61", a progress bar
   (decorative, `aria-hidden`; the line says the same thing), and the percentage;
 - for each family:
   - a heading (`h3`, `.label`) with the family name and `earned/total` in the same heading,
@@ -149,7 +149,7 @@ The same shell as the organiser `ScoreSheet`: a backdrop, `role="dialog"`,
 close it, and it takes focus when it opens. Tab and Shift+Tab cycle inside it, and the
 page behind it doesn't scroll while it is open (jsdom has no `showModal`, so the trap is
 hand-written rather than a native `<dialog>`). It is a bottom sheet below 1000px and a
-centred dialog above. Props: `slot` and `open`; it dispatches `close`.
+centred dialog above. Props: `slot`, `open` and `badgeStats`; it dispatches `close`.
 
 Content:
 - the medallion at 64px, the name as the title (`h2`), and the status line:
@@ -158,8 +158,8 @@ Content:
 - every text line of the sheet is centred, like the title and the status (Hugo, 2026-09-24);
 - **earned:** one line per entry:
   - the discipline and partner (a link to their profile) when there is one;
-  - the tier and years, as `badgeDetail` gives them, without its `×N` part: the status
-    line already says it;
+  - the tier and years, as `badgeDetail` gives them (it has no `×N` part: the status line
+    carries the count);
   - for a tiered entry, then: « Prochain niveau : 5 éditions » / "Next tier: 5 editions",
     or « Niveau maximum » / "Top tier" at tier 3;
 - **locked tiered:** « Premier niveau : 3 éditions » / "First tier: 3 editions";
@@ -185,7 +185,7 @@ Content:
 - **Badges tab** holds `BadgeCollection`, and nothing else from the profile.
 - **Figures:** a third card, `data-testid="badge-count"`:
   - a link to `?tab=badges`, labelled `profile.badges`;
-  - a large `28` with a muted `/ 63`;
+  - a large `28` with a muted `/ 61`;
   - a thin progress bar;
   - the visually hidden text « voir la collection » / "see the collection" after the
     visible text, so the accessible name starts with what is shown (WCAG 2.5.3).
@@ -269,7 +269,7 @@ profile costs one more query (pinned). `/profiles/` is unchanged.
     ({holders} of {players})".
   - When `holders == 0`, `badge.rarityNone`: « Personne ne l'a encore obtenu » /
     "Nobody has it yet".
-  - For an earned tiered badge, a second line at the viewer's highest tier,
+  - For an earned tiered badge, a second line at the profile owner's highest tier,
     `badge.rarityTier`: « {percent} % au niveau {tier} ou plus ({holders} sur {players}) » /
     "{percent}% at tier {tier} or above ({holders} of {players})". It has its own
     under-1 % variant, `badge.rarityTierUnder1`.
@@ -295,7 +295,7 @@ Rarity on the slots or in the hover tooltip. The future highlight may reuse
 - **Collection component tests:**
   - the progress line;
   - the family headings with their counts;
-  - 63 slots;
+  - 61 slots;
   - the accessible names for an earned slot and a locked one;
   - the ×N chip;
   - clicking a slot opens the sheet, whose content covers entry lines, partner link,
@@ -311,6 +311,6 @@ Rarity on the slots or in the hover tooltip. The future highlight may reuse
 
 ## Out of scope
 
-- The highlight of the best badges on the Profil tab, and rarity.
+- The highlight of the best badges on the Profil tab (rarity is in the sheet: see Rarity).
 - Live counters towards the next tier.
 - Badges on the leaderboard rows, and a public catalogue page.

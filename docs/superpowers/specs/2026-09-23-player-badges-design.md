@@ -58,10 +58,8 @@ Decisions taken while brainstorming (2026-09-23):
   matched across editions by its `name`, as the rest of the app does.
 - **Game**: an active, played game of an active round of an active discipline, the filter
   `compute_standings` uses. A game gives a badge only when its discipline is revealed, so
-  a badge never leaks a hidden score. Refereeing a game leaks nothing, so every such game
-  counts for the golden whistle, but only as refereed when the referee team is neither of
-  the two teams playing: the schedulers put a playing team there as a placeholder (Swiss
-  rounds leave team1, and round robin keeps its default when no team is free).
+  a badge never leaks a hidden score. (Refereeing used to count for the golden whistle,
+  removed on 2026-09-24.)
 - **All-time table after E**: the `/players` leaderboard built only from the
   participations of the editions up to E in the sequence, using the same `_record` and
   `_place` as `profiles.py`. Positions are shared as on the page, and someone with nothing
@@ -74,6 +72,9 @@ Decisions taken while brainstorming (2026-09-23):
   Other badges have a fixed metal, listed in the catalogue.
 
 ## Catalogue
+
+> **2026-09-24:** `golden-whistle` (Sifflet d'or) and `globetrotter` (Globe-trotteur) were
+> removed from the catalogue (migration `0034` deletes their stored rows). 61 codes remain.
 
 The codes are kebab-case. They serve as the database value, the glyph file stem and the
 i18n key. The "Repeat" column says how often a badge can be earned:
@@ -131,7 +132,6 @@ These need only a participation in a finished edition, not a rank.
 | `argonaut` | Argonaute | Argonaut | Played the first finished edition, roster or not (when that edition has no roster, nobody earns it) | once | gold | The Argo's prow and oars |
 | `ever-present` | Pénélope | Ever-present | 4 / 6 / 8 consecutive editions played | tiers | tiers | An unbroken chain |
 | `homecoming` | Ulysse | Homecoming | Plays again after missing at least 2 consecutive editions | each | plain | Ulysses' ship under sail ✓ |
-| `globetrotter` | Globe-trotteur | Globetrotter | Editions in 3 different `Edition.host` values (trimmed, case- and accent-insensitive) | once | bronze | Map pin on a globe |
 
 ### Teammates
 
@@ -200,7 +200,6 @@ discipline means picking its god and its kind.
 | `perfect-run` | Sans faute | Perfect run | Won every game of a discipline, at least 3 played. Replaces `unbeaten` for that discipline and edition | each, per discipline | gold | Shield with a star |
 | `shutout` | Cadenas | Shutout | Won a game without conceding a point | once per edition | bronze | Padlock |
 | `steamroller` | Rouleau compresseur | Steamroller | The biggest winning margin among a discipline's games of the edition (ties share it) | each, per discipline | silver | Road roller |
-| `golden-whistle` | Sifflet d'or | Golden whistle | The person's teams refereed 5 / 10 / 20 games in total. A game counts as refereed only when the referee team is neither of the two teams playing (the schedulers put a playing team there as a placeholder) | tiers | tiers | Whistle ✓ |
 | `perfect-pitch` | Oreille absolue | Perfect pitch | Artist and song both right on every round of the edition's blindtest, which must be revealed: every active round that has at least one active guess (`Blindtest.save()` creates a guess per team for every round) | once per edition | gold | Tuning fork |
 
 ### Given by hand
@@ -539,8 +538,8 @@ Front:
   through the admin action.
 - The cron entry lives on the host, outside the repository. Without it, a finished
   edition's badges wait for the admin action or an `import_edition`.
-- The thresholds (networker, golden whistle, veteran, ever-present) are first guesses, to
-  tune once the real data is in.
+- The thresholds (networker, veteran, ever-present) are first guesses, to tune once the real
+  data is in; networker was lowered to 5 / 10 / 20 on 2026-09-24.
 - `created_at` restarts when a correction removes a badge and a later one earns it back.
 - An inactive edition's badges are frozen: the refresh neither updates nor deletes them
   while it is inactive, so they come back as they were when it is reactivated, and only
