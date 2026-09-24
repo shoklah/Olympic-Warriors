@@ -176,6 +176,23 @@ describe('BadgeCollection', () => {
 		expect(champion).not.toHaveClass('tooltip-dismissed');
 	});
 
+	it("threads badge_stats through to the sheet's rarity line", async () => {
+		const badgeStats = { players: 47, holders: { champion: 12 } };
+		renderWith(BadgeCollection, { collection: badgeCollection(badges), badgeStats });
+		await fireEvent.click(screen.getByRole('button', { name: /^Champion/ }));
+
+		expect(screen.getByRole('dialog', { name: 'Champion' })).toHaveTextContent(
+			'26% of players have it (12 of 47)'
+		);
+	});
+
+	it('shows no rarity line without badge_stats', async () => {
+		renderCollection(badges);
+		await fireEvent.click(screen.getByRole('button', { name: /^Champion/ }));
+
+		expect(screen.getByRole('dialog', { name: 'Champion' })).not.toHaveTextContent('of players');
+	});
+
 	it('aligns the tooltip to the near edge for a slot close to the viewport edge, centred otherwise', async () => {
 		renderCollection(badges);
 		const champion = screen.getByRole('button', { name: /^Champion/ });

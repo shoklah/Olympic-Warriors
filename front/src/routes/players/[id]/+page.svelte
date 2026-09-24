@@ -56,7 +56,7 @@
 	</nav>
 
 	{#if tab === 'badges'}
-		<BadgeCollection {collection} />
+		<BadgeCollection {collection} badgeStats={profile.badge_stats ?? null} />
 	{:else}
 		<div class="figures">
 			<div class="figure" data-testid="average-rank">

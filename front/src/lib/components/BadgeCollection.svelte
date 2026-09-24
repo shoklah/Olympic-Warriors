@@ -5,6 +5,8 @@
 
 	/** badgeCollection(profile.badges ?? []); the page computes it once and passes it down. */
 	export let collection;
+	/** profile.badge_stats ({ players, holders, tiers }), or null (an older API). */
+	export let badgeStats = null;
 
 	const t = useT();
 
@@ -143,7 +145,7 @@
 	</section>
 {/each}
 
-<BadgeSheet slot={activeSlot} open={activeSlot !== null} on:close={closeSheet} />
+<BadgeSheet slot={activeSlot} open={activeSlot !== null} {badgeStats} on:close={closeSheet} />
 
 <style>
 	.progress {

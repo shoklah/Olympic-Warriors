@@ -207,4 +207,68 @@ describe('BadgeSheet', () => {
 		expect(dialog).toHaveTextContent('Badge obtenu');
 		expect(dialog).toHaveTextContent("Prochain niveau : 6 éditions d'affilée");
 	});
+
+	describe('rarity', () => {
+		it("shows an earned untiered badge's share of players", () => {
+			const badges = [{ code: 'champion', tier: 0, years: [2026], discipline: null, partner: null }];
+			const badgeStats = { players: 47, holders: { champion: 12 } };
+			renderWith(BadgeSheet, { slot: slotFor('champion', badges), open: true, badgeStats });
+
+			const dialog = screen.getByRole('dialog', { name: 'Champion' });
+			expect(dialog).toHaveTextContent('26% of players have it (12 of 47)');
+		});
+
+		it('shows "Nobody has it yet" for a locked badge with 0 holders', () => {
+			const badgeStats = { players: 47, holders: {} };
+			renderWith(BadgeSheet, { slot: slotFor('wooden-spoon', []), open: true, badgeStats });
+
+			const dialog = screen.getByRole('dialog', { name: 'Wooden spoon' });
+			expect(dialog).toHaveTextContent('Nobody has it yet');
+		});
+
+		it('shows the under-1% wording when holders round to 0%', () => {
+			const badges = [{ code: 'mvp', tier: 0, years: [2026], discipline: null, partner: null }];
+			const badgeStats = { players: 1000, holders: { mvp: 1 } };
+			renderWith(BadgeSheet, { slot: slotFor('mvp', badges), open: true, badgeStats });
+
+			expect(screen.getByRole('dialog', { name: 'MVP' })).toHaveTextContent('Less than 1% of players (1 of 1000)');
+		});
+
+		it("shows the badge line and a second line at the viewer's tier for an earned tiered badge", () => {
+			const badges = [{ code: 'veteran', tier: 2, years: [2024, 2026], discipline: null, partner: null }];
+			const badgeStats = { players: 47, holders: { veteran: 20 }, tiers: { veteran: [20, 3, 1] } };
+			renderWith(BadgeSheet, { slot: slotFor('veteran', badges), open: true, badgeStats });
+
+			const dialog = screen.getByRole('dialog', { name: 'Veteran' });
+			expect(dialog).toHaveTextContent('43% of players have it (20 of 47)');
+			expect(dialog).toHaveTextContent('6% at tier 2 or above (3 of 47)');
+		});
+
+		it('shows no second tier line for a locked tiered badge', () => {
+			const badgeStats = { players: 47, holders: { networker: 10 }, tiers: { networker: [10, 4, 1] } };
+			renderWith(BadgeSheet, { slot: slotFor('networker', []), open: true, badgeStats });
+
+			const dialog = screen.getByRole('dialog', { name: 'Networker' });
+			expect(dialog).toHaveTextContent('21% of players have it (10 of 47)');
+			expect(dialog).not.toHaveTextContent('or above');
+		});
+
+		it('shows no rarity line at all without badge_stats', () => {
+			const badges = [{ code: 'champion', tier: 0, years: [2026], discipline: null, partner: null }];
+			renderWith(BadgeSheet, { slot: slotFor('champion', badges), open: true });
+
+			const dialog = screen.getByRole('dialog', { name: 'Champion' });
+			expect(dialog).not.toHaveTextContent('of players');
+		});
+
+		it('speaks French with a no-break space before the percent sign', () => {
+			const badges = [{ code: 'champion', tier: 0, years: [2026], discipline: null, partner: null }];
+			const badgeStats = { players: 47, holders: { champion: 12 } };
+			renderWith(BadgeSheet, { slot: slotFor('champion', badges), open: true, badgeStats }, 'fr');
+
+			const dialog = screen.getByRole('dialog', { name: 'Champion' });
+			expect(dialog).toHaveTextContent("26 % des joueurs l'ont obtenu (12 sur 47)");
+			expect(dialog.textContent).toContain('26 %');
+		});
+	});
 });

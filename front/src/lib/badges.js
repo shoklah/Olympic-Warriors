@@ -186,6 +186,22 @@ export function nextThreshold(code, tier) {
 	return TIER_THRESHOLDS[code]?.[tier] ?? null;
 }
 
+/**
+ * The share of players holding `code`, from the profile's `badge_stats`
+ * (`{ players, holders: {code: n}, tiers: {code: [n1, n2, n3]} }`, see the design spec's
+ * "Rarity"): `{ holders, players, percent }`, `percent` rounded to the nearest whole
+ * number. With `tier` (1 to 3), `holders` is the at-least-that-tier count from
+ * `stats.tiers[code]` instead of the overall `stats.holders[code]`; either is 0 when the
+ * code (or that tier) isn't listed, which means no one holds it. Null when `stats` is
+ * missing (an older API) or `players` is 0.
+ */
+export function badgeRarity(stats, code, tier = 0) {
+	if (!stats || !stats.players) return null;
+	const players = stats.players;
+	const holders = tier > 0 ? (stats.tiers?.[code]?.[tier - 1] ?? 0) : (stats.holders?.[code] ?? 0);
+	return { holders, players, percent: Math.round((100 * holders) / players) };
+}
+
 /** The medal stub a locked slot shows: no entry to draw, so `Badge.svelte` gets zeros. */
 const lockedMedal = (code) => ({ code, tier: 0, years: [], discipline: null, partner: null });
 

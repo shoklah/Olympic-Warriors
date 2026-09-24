@@ -10,6 +10,7 @@ import {
 	badgeDetail,
 	badgeGlyph,
 	badgeMetal,
+	badgeRarity,
 	hasGlyph,
 	isKnownBadge,
 	isTiered,
@@ -216,5 +217,36 @@ describe('badgeCollection', () => {
 			code: 'champion', entries: [], count: 0, earned: false,
 			medal: { code: 'champion', tier: 0, years: [], discipline: null, partner: null }
 		});
+	});
+});
+
+describe('badgeRarity', () => {
+	it('gives the rounded percent of players holding the badge', () => {
+		const stats = { players: 47, holders: { champion: 12 } };
+		expect(badgeRarity(stats, 'champion')).toEqual({ holders: 12, players: 47, percent: 26 });
+	});
+
+	it('rounds to 0 when holders are few but nonzero, and gives 0 holders for a code with none', () => {
+		const rare = badgeRarity({ players: 1000, holders: { mvp: 1 } }, 'mvp');
+		expect(rare).toEqual({ holders: 1, players: 1000, percent: 0 });
+
+		const none = badgeRarity({ players: 47, holders: {} }, 'mvp');
+		expect(none).toEqual({ holders: 0, players: 47, percent: 0 });
+	});
+
+	it('reads the at-least-tier count from tiers when a tier is given', () => {
+		const stats = { players: 47, holders: { veteran: 20 }, tiers: { veteran: [20, 12, 1] } };
+		expect(badgeRarity(stats, 'veteran', 2)).toEqual({ holders: 12, players: 47, percent: 26 });
+	});
+
+	it('gives 0 holders for a tiered code missing from tiers', () => {
+		const stats = { players: 47, holders: { veteran: 20 }, tiers: {} };
+		expect(badgeRarity(stats, 'veteran', 1)).toEqual({ holders: 0, players: 47, percent: 0 });
+	});
+
+	it('gives null when stats are missing (an older API) or players is 0', () => {
+		expect(badgeRarity(null, 'champion')).toBeNull();
+		expect(badgeRarity(undefined, 'champion')).toBeNull();
+		expect(badgeRarity({ players: 0, holders: { champion: 0 } }, 'champion')).toBeNull();
 	});
 });

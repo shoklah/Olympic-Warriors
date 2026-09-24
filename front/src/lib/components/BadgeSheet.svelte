@@ -1,13 +1,15 @@
 <script>
 	import { createEventDispatcher, onDestroy, tick } from 'svelte';
 	import Badge from './Badge.svelte';
-	import { badgeDetail, badgeTier, isTiered, nextThreshold } from '$lib/badges';
+	import { badgeDetail, badgeRarity, badgeTier, isTiered, nextThreshold } from '$lib/badges';
 	import { fullName } from '$lib/players';
 	import { useLocale, useT } from '$lib/i18n';
 
 	/** A slot from badgeCollection: { code, entries, count, earned, medal }, or null. */
 	export let slot = null;
 	export let open = false;
+	/** The profile's `badge_stats` ({ players, holders, tiers }), or null (an older API). */
+	export let badgeStats = null;
 
 	const t = useT();
 	const locale = useLocale();
@@ -86,6 +88,11 @@
 	$: titleId = slot ? `badge-sheet-title-${slot.code}` : null;
 	/** The first tier's threshold for a locked tiered slot (slot.medal.tier is 0). */
 	$: firstGoal = slot && tiered && !slot.earned ? nextThreshold(slot.code, 0) : null;
+
+	/** The badge's overall share of players, or null without badge_stats. */
+	$: rarity = slot ? badgeRarity(badgeStats, slot.code) : null;
+	/** A second share at the viewer's own tier, only for an earned tiered badge. */
+	$: tierRarity = slot && tiered && slot.earned ? badgeRarity(badgeStats, slot.code, badgeTier(slot.medal)) : null;
 </script>
 
 <svelte:window on:keydown={onKey} />
@@ -105,6 +112,36 @@
 			{/if}
 		</p>
 		<p class="rule">{t(`badge.${slot.code}.rule`)}</p>
+
+		{#if rarity}
+			<p class="rarity">
+				{#if rarity.holders === 0}
+					{t('badge.rarityNone')}
+				{:else if rarity.percent === 0}
+					{t('badge.rarityUnder1', { holders: rarity.holders, players: rarity.players })}
+				{:else}
+					{t('badge.rarity', { percent: rarity.percent, holders: rarity.holders, players: rarity.players })}
+				{/if}
+			</p>
+			{#if tierRarity}
+				<p class="rarity">
+					{#if tierRarity.percent === 0}
+						{t('badge.rarityTierUnder1', {
+							tier: badgeTier(slot.medal),
+							holders: tierRarity.holders,
+							players: tierRarity.players
+						})}
+					{:else}
+						{t('badge.rarityTier', {
+							percent: tierRarity.percent,
+							tier: badgeTier(slot.medal),
+							holders: tierRarity.holders,
+							players: tierRarity.players
+						})}
+					{/if}
+				</p>
+			{/if}
+		{/if}
 
 		{#if slot.earned}
 			<ul class="entries" role="list">
@@ -186,6 +223,17 @@
 		line-height: 1.4;
 		text-align: center;
 		color: var(--muted);
+	}
+
+	.rarity {
+		margin: -0.4rem 0 0.8rem;
+		font-size: 0.85rem;
+		text-align: center;
+		color: var(--muted);
+	}
+
+	.rarity + .rarity {
+		margin-top: -0.6rem;
 	}
 
 	.entries {

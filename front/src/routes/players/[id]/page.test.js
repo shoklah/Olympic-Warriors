@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/svelte';
+import { fireEvent, screen, within } from '@testing-library/svelte';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderWith } from '$lib/test-utils';
 import Page from './+page.svelte';
@@ -93,6 +93,25 @@ describe('player profile page', () => {
 		expect(screen.getByRole('heading', { level: 3, name: /Podiums/ })).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: /^Champion,/ })).toBeInTheDocument();
 		expect(screen.queryByRole('heading', { level: 2, name: 'Editions' })).toBeNull();
+	});
+
+	it("threads badge_stats down to the sheet's rarity line on the Badges tab", async () => {
+		setSearch('?tab=badges');
+		renderWith(Page, { data: { profile } });
+
+		await fireEvent.click(screen.getByRole('button', { name: /^Comrades in arms/ }));
+		expect(screen.getByRole('dialog', { name: 'Comrades in arms' })).toHaveTextContent(
+			'17% of players have it (8 of 47)'
+		);
+	});
+
+	it('does not crash and shows no rarity line for a profile without badge_stats, like an older API', async () => {
+		setSearch('?tab=badges');
+		const { badge_stats, ...older } = profile;
+		renderWith(Page, { data: { profile: older } });
+
+		await fireEvent.click(screen.getByRole('button', { name: /^Comrades in arms/ }));
+		expect(screen.getByRole('dialog', { name: 'Comrades in arms' })).not.toHaveTextContent('of players');
 	});
 
 	it('shows the badge-count card linking to the Badges tab, its accessible name in shown-text order', () => {
