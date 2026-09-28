@@ -1,5 +1,7 @@
 # Player Profile Customization Implementation Plan
 
+**Status:** shipped as PR #105 (merged into `dev`); follow-ups in PR #107.
+
 > **For agentic workers:** executed subagent-driven: one implementer per task, then a
 > review of that task, before the next task starts. Steps use checkbox (`- [ ]`) syntax.
 

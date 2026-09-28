@@ -147,7 +147,11 @@ Before the first deploy, work through these points:
 - **Migrations.** Nothing runs them in production. After each deploy that adds migrations, run `migrate`. After the first deploy, also run `createsu`.
 - **Admin credentials.** Before that first `createsu`, set your own `SU_USERNAME` and a strong `SU_PASSWORD` in `prod.env`. Without them, `createsu` creates a superuser named `admin` with the password `password`. Changing them later does not update an account that already exists: use `manage.py changepassword` for that.
 - **Front config.** `front/.env` must hold the production `API_URL` before you build the front image.
-- **`ORIGIN`.** Set it on each front, `front-stage` included (the template has it only on `front`). Without it, SvelteKit refuses every form POST behind the TLS-terminating proxy: the language switch, login, logout and the organiser tools.
+- **`ORIGIN`.** Set it on each front, `front-stage` included (the template has it only on `front`). Without it, SvelteKit refuses every form POST behind the TLS-terminating proxy: the language and theme switches, login, logout, the organiser tools, the claim page, and a player's photo and showcase changes.
+- **`PUBLIC_URL`.** Set it in the `prod.env` of production and of stage, each to its own public address (for example `https://olympicwarriors.com`). It is the base of the claim links organisers send players. Without it the site runs, but the admin makes no link.
+- **Deploy order.** Deploy the server, and run its migrations, before the front. A front that calls `/me/` on a server without it treats every visitor as logged out, organisers included.
+- **Player photos.** Photo URLs are site-relative (`/media/avatars/...`), so the nginx server block of the front's public host must serve that folder from the media volume, for example `location /media/avatars/ { alias /home/app/web/mediafiles/avatars/; expires max; }` (file names never change content). Serve only public folders: `registration_forms/`, in the same volume, holds the registration CSVs with names and emails. The front's default upload limit (adapter-node's `BODY_SIZE_LIMIT`, 512K) is enough for the photo it sends.
+- **Backups.** Include the `mediafiles` volume: it holds players' photos, which cannot be re-created from the admin.
 - **Client IPs.** The login throttle identifies clients by the last `X-Forwarded-For` entry. For that reason:
   - The app ports are bound to `127.0.0.1`.
   - Every nginx location that proxies to the server or the front must set `X-Forwarded-For $proxy_add_x_forwarded_for`.
