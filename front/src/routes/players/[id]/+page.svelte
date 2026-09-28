@@ -29,8 +29,8 @@
 	$: tab = $page.url.searchParams.get('tab') === 'badges' ? 'badges' : 'profile';
 
 	// Whether this is the viewer's own profile, from `data` (the root layout's `me` is merged
-	// into it) rather than the ME context: this component stays mounted from one profile to
-	// the next, and `me` follows invalidateAll() after a new photo.
+	// into it), reactively: this component stays mounted from one profile to the next, and
+	// `me` follows invalidateAll() after a new photo.
 	$: owner = Boolean(data.me) && data.me.id === profile.id;
 	/** The photo editor is open; it closes itself when the page stops being the owner's. */
 	let editing = false;

@@ -69,7 +69,7 @@
 	</section>
 {:else}
 	<!-- A plain POST, never use:enhance: the redirect after a claim then reloads the whole page,
-	     so the root layout sets the organiser and me contexts from the new cookie, as /login does. -->
+	     so the root layout resolves the organiser and me from the new cookie, as /login does. -->
 	<form method="POST" action="?/claim">
 		<h1>{t('claim.greeting', { name: data.first_name || data.username })}</h1>
 

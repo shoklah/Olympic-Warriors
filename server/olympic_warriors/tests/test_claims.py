@@ -296,6 +296,20 @@ class TestClaimPassword(ClaimSetup, APITestCase):
             with self.subTest(body=body):
                 self.assert_refused(body, ["password_missing"])
 
+    def test_a_body_that_is_not_json_is_password_missing_after_the_link_check(self):
+        # The same error shape as every other refusal, never DRF's {"detail"}: the password
+        # could not be read. A dead link is still the one 404, whatever the body.
+        for link, answer in (
+            (self.link, (400, {"errors": ["password_missing"]})),
+            (path(*parts(self.staff)), (404, INVALID)),
+        ):
+            with self.subTest(link=link):
+                cache.clear()
+                response = self.client.post(link, "{not json", content_type="application/json")
+                self.assertEqual((response.status_code, response.json()), answer)
+        self.lea.refresh_from_db()
+        self.assertTrue(self.lea.check_password("old-password"))
+
     def test_a_refused_password_changes_nothing(self):
         self.claim({"password": "12345678"})
         self.lea.refresh_from_db()

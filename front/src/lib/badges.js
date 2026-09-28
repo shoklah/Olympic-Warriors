@@ -1,10 +1,10 @@
 import { iconFor } from './icons.js';
 import { disciplineName } from './i18n';
-import { BADGES, isKnownBadge, isTiered } from './badge-codes.js';
+import { BADGES, SHOWCASE_SIZE, isKnownBadge, isTiered } from './badge-codes.js';
 import fallback from './img/icons/default.svg?url';
 
 // The catalogue lives in the glyph-free badge-codes.js; importing it from here still works.
-export { BADGES, isKnownBadge, isTiered };
+export { BADGES, SHOWCASE_SIZE, isKnownBadge, isTiered };
 
 const TIER_METALS = ['bronze', 'silver', 'gold'];
 

@@ -1,6 +1,6 @@
 import { error, fail } from '@sveltejs/kit';
 import { apiGet, apiSend } from '$lib/api';
-import { isKnownBadge } from '$lib/badge-codes';
+import { SHOWCASE_SIZE, isKnownBadge } from '$lib/badge-codes';
 import { api } from '$lib/server/urls';
 import { TOKEN_COOKIE } from '$lib/session';
 
@@ -40,9 +40,6 @@ function photoError(err) {
 	const code = err?.body?.message;
 	return PHOTO_CODES.has(code) ? `photo.error.${code}` : FAILED;
 }
-
-/** A showcase holds this many badges at most, as `PUT /me/showcase/` checks. */
-const SHOWCASE_SIZE = 3;
 
 /**
  * The dictionary key for a failed showcase call: the API's only 400 is `invalid_showcase` (a

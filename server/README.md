@@ -8,7 +8,7 @@ This folder holds the Django project behind the Olympic Warriors site. It serves
 - Django 4.2 and Django REST Framework 3.15, with token authentication
 - drf-spectacular for the OpenAPI schema and the Swagger and ReDoc pages
 - PostgreSQL only: there is no SQLite fallback, and the tests need Postgres as well
-- pydantic-settings to load the configuration, pandas to parse the registration CSV, whitenoise to serve static files and gunicorn in production
+- pydantic-settings to load the configuration, pandas to parse the registration CSV, Pillow to re-encode player photos, whitenoise to serve static files and gunicorn in production
 
 ## Layout
 
@@ -23,17 +23,21 @@ server/
   olympic_warriors/
     settings.py          Django settings, built from config.py
     config.py            DevConfig / ProdConfig (pydantic-settings)
-    models/              Edition, Team, Player, Discipline (with rounds, games, events), one file per discipline
+    models/              Edition, Team, Player, Discipline (with rounds, games, events), Badge, UserProfile, one file per discipline
     schedule/            round_robin.py and swiss.py, the game schedulers
     standings.py         every ranking and total of an edition, computed in one pass
+    profiles.py          the all-time leaderboard, profiles and discipline tables, and who is a person
+    badges.py            the computed badges and the badge showcase
+    avatars.py           player photos: validation, re-encoding, files written and deleted
+    claims.py            claim links: how a person sets their first password
     registration.py      registration form CSV -> players and skill ratings
     transfer.py          export and import of a whole edition as JSON
     views.py, urls.py    the API: flat function views and one hand-written URL list
     serializer.py        DRF serializers, including the edition summary
     permissions.py       IsOrganiser (staff only)
-    throttling.py        the login throttle
+    throttling.py        the login throttle (token, claim link, admin login) and the photo throttle
     admin.py             Django admin configuration
-    signals.py           creates an API token for every new user
+    signals.py           creates an API token for every new user, deletes a deleted profile's photo files
     management/commands/ createsu, create_tokens_for_users, export_edition, import_edition
     migrations/
     tests/               Django tests; tests/fixtures/ holds sample registration CSVs
@@ -106,7 +110,7 @@ DB_HOST=localhost python manage.py runserver 0.0.0.0:3003
 | `dev`, or unset | `DevConfig` | `dev.env` |
 | `prod` | `ProdConfig` | `prod.env` |
 
-Any other value leaves the configuration empty, and Django fails to start. A real environment variable always overrides the same key in the file. That override assigns the raw string without validation, so only override string and number keys this way. As an environment variable, `DEBUG=False` is a non-empty string and therefore true, and a JSON list stays a string. Change booleans and lists in the file. Both files are gitignored, and `.env.example` is the template for both.
+Any other value leaves the configuration empty, and Django fails to start. A real environment variable always overrides the same key in the file, and is parsed and validated like the file's value: `DEBUG=False` is false, and a JSON list is a list (`tests/test_config.py`). CI relies on this, since its `server` job has no env file. Both files are gitignored, and `.env.example` is the template for both.
 
 | Variable | Default | Notes |
 | --- | --- | --- |
@@ -119,15 +123,18 @@ Any other value leaves the configuration empty, and Django fails to start. A rea
 | `SU_USERNAME`, `SU_PASSWORD` | `admin` / `password` | Read by `createsu`. Set your own in `prod.env`. |
 | `ALLOWED_HOSTS` | `["*"]` | A JSON list. It must include `server`, the hostname the front container uses, or every front page fails with a 400. |
 | `CSRF_TRUSTED_ORIGINS` | `["https://*", "http://*"]` | A JSON list. |
-| `LOGIN_THROTTLE_RATE` | `5/min` | Login attempts per client IP, counted across `/auth/token/` and `/admin/login/` together. |
+| `PUBLIC_URL` | empty, `http://localhost:5173` in dev | The front's public address, for example `https://olympicwarriors.com`. It is the base of the claim links the admin generates. It is optional, so a deploy never fails on it, but without an absolute `http(s)` address the admin refuses to make links. |
+| `LOGIN_THROTTLE_RATE` | `5/min` | Login attempts per client IP, counted across `/auth/token/`, a claim link's POST and `/admin/login/` together. |
+| `PHOTO_THROTTLE_RATE` | `10/hour` | Photo uploads per user (`PUT /me/photo/`). Taking a photo down is never limited. |
 | `NUM_PROXIES` | `1` | How many `X-Forwarded-For` entries to trust when identifying the client IP (see [Login throttle](#login-throttle)). |
 | `BASE_URL` | `localhost` | Loaded but not used. |
 
 Some settings are not configurable:
 
 - **Language and time zone:** Django runs in French (`LANGUAGE_CODE = "fr"`) on UTC.
-- **Media:** uploads (registration forms, rule PDFs) go to `mediafiles/`. Django serves them only when `ENV=dev`.
-- **Cache:** the throttle counts live in a file cache in the system temp directory, so every gunicorn worker of a container shares them.
+- **Media:** uploads go to `mediafiles/`: registration forms under `registration_forms/`, rule PDFs under `rules/` and player photos under `avatars/`. Django serves them only when `ENV=dev`, and the front's dev server proxies `/media` to the API. In production nginx serves them (see [Production](#production)).
+- **Claim links** last a week (`PASSWORD_RESET_TIMEOUT`).
+- **Cache:** the throttle counts (login and photo) live in a file cache in the system temp directory, so every gunicorn worker of a container shares them.
 
 ## Domain model
 
@@ -143,6 +150,8 @@ Some settings are not configurable:
 | `Game` | Two teams, `score1` / `score2`, the refereeing team and `is_played`. |
 | `GameEvent`, `RugbyEvent`, `DodgeballEvent` | Per-player actions in a game (try, tackle, hit, catch, and so on). They roll up into the game score. The site does not use them today. |
 | `Blindtest`, `BlindtestRound`, `BlindtestGuess` | The blindtest, its rounds, and each team's artist and song guess per round. |
+| `Badge`, `BadgeRefresh` | The badges people earn. Most are computed from the editions (by `refresh_badges`, an Edition admin action or an import), and six are given by hand. |
+| `UserProfile` | What a person adds to their public profile: a photo in two sizes, `photo_locked` (set by an organiser), the pinned badge `showcase` (up to three codes) and `claimed_at`. One row per user at most, created on the first claim or edit. It has no `is_active`, and it is not part of an edition export. |
 
 `Discipline` has these fields:
 - `result_type`: points, time or none.
@@ -151,11 +160,11 @@ Some settings are not configurable:
 - `reveal_score`: whether the scores are public yet.
 - `rules`: an optional PDF.
 
-Nearly every model has an `is_active` flag, used for soft deletes. The admin changelists show only active rows by default. Inactive rows stay in the database, and every computation ignores them.
+Nearly every model has an `is_active` flag, used for soft deletes (`UserProfile` is the exception). The admin changelists show only active rows by default. Inactive rows stay in the database, and every computation ignores them.
 
 ### Business rules live in `save()`
 
-Business rules live in the models' `save()` overrides, not in views, signals or services. The one exception is `signals.py`, which creates API tokens. The consequence is that `bulk_create`, `queryset.update()` and `loaddata` skip all of these rules:
+Business rules live in the models' `save()` overrides, not in views, signals or services. The exceptions are `signals.py`, which creates API tokens and deletes the photo files of a deleted profile, and `avatars.py`, which writes and deletes photo files outside `save()` because it touches the filesystem. The consequence is that `bulk_create`, `queryset.update()` and `loaddata` skip all of these rules:
 
 - **A discipline subclass's `save()`** sets `name` and `result_type` on the first save.
 - **`Discipline.save()`** creates a `TeamResult` for every active team on the first save.
@@ -199,9 +208,12 @@ The API has about 70 function views in `views.py`, wired in one hand-written lis
 
 ### Authentication
 
-`POST /auth/token/` with `{"username": ..., "password": ...}` returns `{"token": ...}`. Send the token on later requests as `Authorization: Token <token>`. Every user gets a token automatically when they are created. Run `create_tokens_for_users` to backfill tokens for users created before that.
+`POST /auth/token/` with `{"username": ..., "password": ...}` returns `{"token": ...}`. Send the token on later requests as `Authorization: Token <token>`. Every user gets a token automatically when they are created. Run `create_tokens_for_users` to backfill tokens for users created before that. A player gets their password, and a new token, through a claim link (see [Player accounts](#player-accounts)).
 
-Every endpoint is for staff users only unless it is listed as public below: it returns 401 without a token and 403 for a non-staff user. The one exception is the game, round and result reads (`/game/<id>/`, `/games/...`, `/round/<id>/`, `/rounds/...`, `/result/<id>/`, `/results/...`), which any token may call, a player's included: they apply the summary's reveal rule and leave out what the summary leaves out (inactive rows, and every row of an inactive edition), so they carry nothing the public summary does not.
+Every endpoint is for staff users only unless it is listed as public below: it returns 401 without a token and 403 for a non-staff user. The exceptions are the endpoints any token may call, a player's included:
+
+- the caller's own account, `/me/`, `/me/photo/` and `/me/showcase/` (see [Player endpoints](#player-endpoints));
+- the game, round and result reads (`/game/<id>/`, `/games/...`, `/round/<id>/`, `/rounds/...`, `/result/<id>/`, `/results/...`). They apply the summary's reveal rule and leave out what the summary leaves out (inactive rows, and every row of an inactive edition), so they carry nothing the public summary does not.
 
 ### Public endpoints
 
@@ -211,12 +223,17 @@ Every endpoint is for staff users only unless it is listed as public below: it r
 | `GET /edition/<id>/` | One edition |
 | `GET /edition/year/<year>/summary/` | The whole edition in one payload (see below) |
 | `GET /disciplines/`, `/discipline/<id>/`, `/disciplines/<edition_id>/` | Disciplines |
-| `GET /profiles/` | The all-time leaderboard: one row per person, ranked like a medal table |
-| `GET /profile/<user_id>/` | One person's profile, with their editions, disciplines and badges (404 for someone who never played) |
+| `GET /profiles/` | The all-time leaderboard: one row per person, ranked like a medal table, with their small photo and showcase |
+| `GET /profile/<user_id>/` | One person's profile, with their editions, disciplines, badges, photo and showcase (404 for someone who never played) |
+| `GET /discipline/<id>/all-time/` | A discipline's all-time table of people, across every edition that held it |
+| `GET /disciplines/all-time/` | Every discipline an active edition ever held, with those editions |
+| `GET`, `POST /claim/<uidb64>/<token>/` | A claim link: who it is for, then the chosen password (see [Player accounts](#player-accounts)) |
 
-`/auth/token/`, the admin login page and `/api/schema/*` need no token either. Of the read endpoints, the front uses only `/editions/`, the summary, `/profiles/` and `/profile/<user_id>/`. It also calls `/user/current/`, `/auth/token/` and the organiser endpoints below.
+`/auth/token/`, the admin login page and `/api/schema/*` need no token either. Of the read endpoints, the front uses only `/editions/`, the summary, `/profiles/`, `/profile/<user_id>/` and the two all-time endpoints. It also calls `/auth/token/`, `/me/` (on every page, when the visitor has a token), the claim endpoint, the `/me/photo/` and `/me/showcase/` writes, and the organiser endpoints below. It no longer calls `/user/current/`, which is staff-only like the rest.
 
-The summary returns the edition's active rows: `edition`, `disciplines`, `teams` (each with its roster, `ranking` and `total_points`), `results`, `rounds` and `games`. Until a discipline is revealed, its scores are hidden:
+No public payload carries a username, an email, `photo_locked`, `claimed_at` or the stored showcase pins. Only `/me/` carries the username, the lock and the pins, to their owner.
+
+The summary returns the edition's active rows: `edition`, `disciplines`, `teams` (each with its roster, `ranking` and `total_points`; each roster player carries the small `photo` URL or `null`), `results`, `rounds` and `games`. Until a discipline is revealed, its scores are hidden:
 
 - Its results come back with `ranking`, `points`, `time`, `points_difference` and `global_points` set to `null`.
 - Its games come back with `score1` and `score2` set to `null`. Pairings, referees and `is_played` stay visible.
@@ -236,11 +253,37 @@ These endpoints are for staff users only. They return 401 without a token, 403 f
 
 All four go through the models' `save()`, so league points and Swiss rounds update exactly as they do from the admin.
 
+### Player accounts
+
+Players have no password until an organiser sends them a claim link. Nothing sends email: the organiser generates the link in the admin (see [Admin](#admin)) and sends it however they like. The person then logs in with their username and the password they chose, through `/auth/token/` like anyone else.
+
+- **Who can claim.** A person (an active player of an active edition) whose account is active and who is neither staff nor superuser. Organisers keep their own passwords.
+- **The link** is `<PUBLIC_URL>/claim/<uidb64>/<token>`, the front's claim page. The token is a Django password-reset token: nothing is stored, it expires after a week, and every link of a person stops working once one of them sets the password. A new link does not revoke older unused ones.
+- **`GET /claim/<uidb64>/<token>/`** returns `{"first_name": ..., "username": ...}`.
+- **`POST /claim/<uidb64>/<token>/`** with `{"password": ...}` sets the password, replaces the user's token (every older session ends) and returns `{"token": ..., "user_id": ...}`. A refused password is a 400 `{"errors": [codes]}`, with Django's validator codes (`password_too_short`, `password_too_common`, `password_entirely_numeric`, `password_too_similar`), or `password_missing` for a missing, blank or unreadable password.
+- **A link that does not hold**, whatever the reason, is the same 404 `{"error": "invalid_link"}`, so the endpoint does not reveal who exists. The link is checked before the body.
+- **Tokens are ignored** on this endpoint: the link is the credential. Its POST counts against the login throttle, and its GET does not.
+
+### Player endpoints
+
+Any logged-in user may call these. The photo and showcase endpoints answer 404 `{"error": "not_a_person"}` to someone who is not a person.
+
+| Endpoint | What it does |
+| --- | --- |
+| `GET /me/` | The caller's account: `id`, `first_name`, `last_name`, `username`, `is_staff`, `is_person`, `photo` (`{large, small}` or `null`), `photo_locked`, and `showcase` (`{auto, codes}`, the stored pins). It never creates anything. |
+| `PUT /me/photo/` | A multipart `photo`: a JPEG, PNG or WebP of at most 2 MiB and 4096 × 4096 pixels in total. The server re-encodes it into two WebP squares (512 and 128 px) without any metadata, and returns `{"photo": {"large": ..., "small": ...}}`. Refusals: 403 `photo_locked`, then 400 `missing`, `too_large`, `bad_format` or `too_many_pixels`. |
+| `DELETE /me/photo/` | Takes the photo down and returns 204, even when uploads are locked. |
+| `PUT /me/showcase/` | `{"codes": [...]}`: up to three distinct badge codes the caller has earned, in the order shown, or `[]` for the automatic showcase (their three rarest badges). It returns the showcase the profile now shows, `{auto, badges}`. Anything else is a 400 `invalid_showcase`. |
+
+Photo URLs are site-relative (`/media/avatars/...`). A URL never changes content, since every upload gets new file names.
+
 ### Login throttle
 
-`/auth/token/` and the admin login share one per-IP bucket of `LOGIN_THROTTLE_RATE` attempts. Every attempt counts, whether it fails or succeeds. Past the limit, the API returns a 429 with `Retry-After`, and the admin shows an error message instead of checking the password.
+`/auth/token/`, a claim link's POST and the admin login share one per-IP bucket of `LOGIN_THROTTLE_RATE` attempts. Every attempt counts, whether it fails or succeeds. Past the limit, the API returns a 429 with `Retry-After`, and the admin shows an error message instead of checking the password.
 
-The client IP is the last `X-Forwarded-For` entry, as set by nginx, or by the front for a login through the site. With `NUM_PROXIES=1`, that is only safe while every request reaches Django through nginx or the front.
+The client IP is the last `X-Forwarded-For` entry, as set by nginx, or by the front for a login or a claim through the site. With `NUM_PROXIES=1`, that is only safe while every request reaches Django through nginx or the front.
+
+Photo uploads have a throttle of their own: `PHOTO_THROTTLE_RATE` per user, every upload counting, refused or not. Taking a photo down is never limited.
 
 ### Schema
 
@@ -263,6 +306,8 @@ The Django admin at `/admin/` is where an edition is prepared. Any staff account
 - **Add disciplines** for the edition. Each discipline type has its own admin entry and sets its own name and result type. You choose the pairing system and the maximum number of rounds. Create the teams first: a discipline creates results only for the teams that exist when it is created.
 - **Fix games from the changelist.** `score1`, `score2` and `is_played` are editable directly in the list.
 - **Enter the rest by hand:** blindtest guesses, results of disciplines without games, and `final_rank` for an old edition without results.
+- **Send claim links.** The action « Générer un lien d'activation », on the players and on the user profiles, prints one link per selected person, to send them however you like. It needs the permission to change users, skips staff, deactivated users and people with no active participation (saying why), and makes no link at all until `PUBLIC_URL` is set.
+- **Moderate photos.** The user profiles list shows each person's photo, lock and claim date. « Retirer la photo » takes photos down, and « Retirer et verrouiller » also stops the person from uploading again; the lock can be edited from the list too. Organisers never upload a photo or change a showcase: the change form has no upload field and edits only the lock.
 
 The admin login counts against the same login throttle as the API.
 
@@ -295,8 +340,9 @@ The exported file contains player names and emails. Write it as `server/edition-
 `export_edition` and `import_edition` move a whole edition between databases, typically from local to production.
 
 - **Export.** The document carries no database ids: users are referenced by username, and rows by throwaway `_id`s.
-- **Import.** Rows are inserted raw, so no `save()` rule runs. Existing users are reused by username, and missing ones are created with a random password.
+- **Import.** Rows are inserted raw, so no `save()` rule runs. Existing users are reused by username, and missing ones are created with a random password that nobody receives: a person sets their own through a claim link.
 - **Media.** Uploaded files are not included. Copy them into the `mediafiles` volume separately.
+- **Badges and profiles.** Badges are not exported, and a real import rebuilds the computed ones. User profiles (photos, showcases, claim dates) are about people, not editions, and are not exported either: they live on production only.
 
 The runbook is in [the edition transfer spec](../docs/superpowers/specs/2026-09-19-edition-transfer-design.md).
 
@@ -312,7 +358,7 @@ docker compose exec server python manage.py test
 docker compose exec server python manage.py test olympic_warriors.tests.test_summary
 ```
 
-The tests live in `olympic_warriors/tests/`, one file per area: `test_summary`, `test_organiser`, `test_standings`, `test_scheduling`, `test_registration`, `test_transfer`, `test_blindtest`, `test_auth_token`, `test_admin_login`, and so on. `test_summary.py`, `test_organiser.py` and `test_reveal.py` pin their query counts (`SUMMARY_QUERIES`, `RESULT_PATCH_QUERIES`, `GAME_LIST_QUERIES`, `RESULT_LIST_QUERIES`), so a view that queries once per row fails the suite. `test_routes.py` walks every route of `urls.py`: a function view without `@api_view`, or whose parameters are not the route's converter names, fails it, since either one is a 500 on every call. `test_permissions.py` walks them too: every route must answer without a token (its `PUBLIC` list), answer a player's token but refuse no token with 401 (its `PLAYER` list), or refuse a player's token with 403.
+The tests live in `olympic_warriors/tests/`, one file per area: `test_summary`, `test_organiser`, `test_standings`, `test_scheduling`, `test_registration`, `test_transfer`, `test_blindtest`, `test_auth_token`, `test_admin_login`, `test_claims`, `test_avatars`, `test_me`, `test_showcase`, `test_user_profile_admin`, and so on. The photo tests write to a throwaway `MEDIA_ROOT` (`MediaRootTestCase` in `test_avatars.py`), and the throttle tests use a private local-memory cache. Keep test passwords and tokens short and plainly fake (`x`, `claim-token-demo`): realistic ones get flagged by secret scanners. `test_summary.py`, `test_organiser.py`, `test_reveal.py`, `test_profiles.py` and `test_me.py` pin their query counts (`SUMMARY_QUERIES`, `RESULT_PATCH_QUERIES`, `GAME_LIST_QUERIES`, `RESULT_LIST_QUERIES`, `LEADERBOARD_QUERIES`, `PROFILES_QUERIES`, `ME_QUERIES`, `SHOWCASE_PUT_QUERIES` and others), so a view that queries once per row fails the suite. `test_routes.py` walks every route of `urls.py`: a function view without `@api_view`, or whose parameters are not the route's converter names, fails it, since either one is a 500 on every call. `test_permissions.py` walks them too: every route must answer without a token (its `PUBLIC` list), answer a player's token but refuse no token with 401 (its `PLAYER` list), or refuse a player's token with 403.
 
 CI runs the whole suite in the `server` job of `.github/workflows/test.yml`, against its own Postgres service and after `makemigrations --check --dry-run`, so a failing test or a model change without its migration fails the workflow.
 
@@ -355,7 +401,8 @@ pylint --load-plugins pylint_django --ignore=lib server/
 - **Static files.** whitenoise serves them from `staticfiles/`. The production compose file mounts a named volume there, and Docker fills that volume from the image only when it is created, so rebuilding does not refresh it. After a deploy that changes static files, run `docker compose exec server python manage.py collectstatic --no-input`.
 - **Migrations are manual.** The production command only starts gunicorn, so after a deploy that adds migrations, run `docker compose exec server python manage.py migrate`. The first time, also run `createsu`.
 - **Set the superuser before `createsu`.** Put your own `SU_USERNAME` and a strong `SU_PASSWORD` in `prod.env` first. Otherwise `createsu` creates `admin` with the password `password`. It only creates a missing user and never updates a password, so after changing `SU_PASSWORD`, run `docker compose exec server python manage.py changepassword <username>` instead.
-- **Media files** (`mediafiles/`) live in a Docker volume shared with nginx, which serves them.
+- **Media files** (`mediafiles/`) live in a Docker volume shared with nginx, which serves them. Photo URLs are site-relative, so the nginx server block of the **front's** public host must serve `/media/avatars/`, for example `location /media/avatars/ { alias /home/app/web/mediafiles/avatars/; expires max; }` (the path where the template mounts the volume in the nginx container; stage's is under `/home/stage/web/`). Serve only the public folders there, never `registration_forms/`, which holds the registration CSVs with names and emails. Add the volume to the host's backups: players' photos cannot be re-created from the admin.
+- **Player accounts.** Set `PUBLIC_URL` in the `prod.env` of production and of stage, each its own public address, or the admin makes no claim link. Deploy the server before the front: a new front on an old server gets a 404 from `/me/` and treats every visitor, organisers included, as logged out. The image needs Pillow, so rebuild it.
 - **nginx must set `X-Forwarded-For`** (`proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`) on the locations that proxy to the server and to the front. Otherwise the login throttle trusts an IP the client chose.
 
 ## License

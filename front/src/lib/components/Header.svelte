@@ -8,7 +8,7 @@
 	import Avatar from './Avatar.svelte';
 
 	/**
-	 * Who is logged in, the root layout's `data.me`, or null. A prop rather than the ME
+	 * Who is logged in, the root layout's `data.me`, or null. A prop rather than a Svelte
 	 * context: `invalidateAll()` (after a new photo) re-runs the root load without remounting
 	 * the header, and only a prop follows it. An organiser keeps the ORGA pill, with their
 	 * avatar in it when they also play; anyone else logged in gets the account pill.

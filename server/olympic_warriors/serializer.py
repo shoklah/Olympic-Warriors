@@ -205,7 +205,11 @@ class ShowcaseBadgeSerializer(serializers.Serializer):
     code = serializers.CharField()
     tier = serializers.IntegerField(help_text="0 untiered, 1 to 3 (bronze, silver, gold)")
     discipline = serializers.CharField(
-        allow_null=True, help_text="The database Discipline.name for specialist, else null"
+        allow_null=True,
+        help_text=(
+            "The database Discipline.name for a badge judged per discipline (specialist, "
+            "master, unbeaten, perfect-run, steamroller), else null"
+        ),
     )
 
 

@@ -17,6 +17,7 @@
 		zoomTo
 	} from '$lib/crop';
 	import { useLocale, useT } from '$lib/i18n';
+	import { modal } from '$lib/modal';
 
 	/** Whether the dialog is shown; the page closes it on the `close` event. */
 	export let open = false;
@@ -85,7 +86,8 @@
 		opener?.focus();
 	}
 
-	/** Cancel, Escape and the backdrop: not while a save is on its way, whose answer decides. */
+	/** Cancel, Escape and the backdrop (the modal action's onClose): not while a save is on
+	    its way, whose answer decides. */
 	function dismiss() {
 		if (!busy) close();
 	}
@@ -101,65 +103,8 @@
 	}
 	$: if (!open) reset();
 
-	/** Every element the dialog lets Tab reach, in DOM order. */
-	function focusables() {
-		if (!sheetEl) return [];
-		return [
-			...sheetEl.querySelectorAll(
-				'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
-			)
-		];
-	}
-
-	/** Escape closes; Tab and Shift+Tab wrap inside the dialog, as in BadgeSheet. */
-	const onKey = (event) => {
-		if (!open) return;
-		if (event.key === 'Escape') {
-			dismiss();
-			return;
-		}
-		if (event.key !== 'Tab') return;
-		const items = focusables();
-		if (items.length === 0) {
-			event.preventDefault();
-			return;
-		}
-		const first = items[0];
-		const last = items[items.length - 1];
-		const active = document.activeElement;
-		if (!sheetEl.contains(active)) {
-			event.preventDefault();
-			(event.shiftKey ? last : first).focus();
-			return;
-		}
-		if (event.shiftKey) {
-			if (active === first || active === sheetEl) {
-				event.preventDefault();
-				last.focus();
-			}
-		} else if (active === last) {
-			event.preventDefault();
-			first.focus();
-		}
-	};
-
-	// The page must not scroll behind the open dialog (BadgeSheet's lock).
-	let previousOverflow = null;
-	function lockScroll() {
-		if (typeof document === 'undefined' || previousOverflow !== null) return;
-		previousOverflow = document.body.style.overflow;
-		document.body.style.overflow = 'hidden';
-	}
-	function unlockScroll() {
-		if (typeof document === 'undefined' || previousOverflow === null) return;
-		document.body.style.overflow = previousOverflow;
-		previousOverflow = null;
-	}
-	$: if (open) lockScroll();
-	else unlockScroll();
 	onDestroy(() => {
 		pick += 1;
-		unlockScroll();
 		source?.close?.();
 	});
 
@@ -432,10 +377,10 @@
 	}
 </script>
 
-<svelte:window on:keydown={onKey} />
-
 {#if open}
 	<div class="backdrop" data-testid="backdrop" on:click={dismiss} aria-hidden="true"></div>
+	<!-- use:modal, as in the two sheets: Escape through dismiss, Tab kept inside, the page
+	     behind locked from scrolling, for as long as the dialog is shown. -->
 	<div
 		class="sheet"
 		role="dialog"
@@ -443,6 +388,7 @@
 		aria-labelledby="photo-editor-title"
 		tabindex="-1"
 		bind:this={sheetEl}
+		use:modal={{ onClose: dismiss }}
 	>
 		<h2 id="photo-editor-title">{t('photo.title')}</h2>
 

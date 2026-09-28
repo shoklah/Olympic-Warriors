@@ -1,8 +1,10 @@
 /**
- * The keyboard and scroll handling shared by the two sheets (BadgeSheet, ScoreSheet), as a
- * Svelte action on the dialog element: `use:modal={{ onClose }}`. Each sheet renders its
- * dialog only while open, so the action lives exactly as long as the sheet is open. The
- * initial focus stays with each sheet (ScoreSheet focuses its first field on desktop).
+ * The keyboard and scroll handling shared by the dialogs (BadgeSheet, ScoreSheet,
+ * PhotoEditor), as a Svelte action on the dialog element: `use:modal={{ onClose }}`. Each
+ * renders its dialog only while open, so the action lives exactly as long as the dialog is
+ * open. The initial focus stays with each dialog (ScoreSheet focuses its first field on
+ * desktop), and so does what Escape does: `onClose` decides (PhotoEditor's ignores it while
+ * a save or a delete is on its way).
  */
 
 const FOCUSABLE = [

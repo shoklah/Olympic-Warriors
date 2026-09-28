@@ -3,6 +3,7 @@
 	import { enhance } from '$app/forms';
 	import Badge from './Badge.svelte';
 	import BadgeSheet from './BadgeSheet.svelte';
+	import { SHOWCASE_SIZE } from '$lib/badge-codes';
 	import { slotLabel } from '$lib/badges';
 	import { useT } from '$lib/i18n';
 
@@ -123,8 +124,6 @@
 	// saves or cancels, and « Revenir à l'automatique » under the intro drops the pins. The
 	// forms post to the page's `showcase` action, which puts the codes to the API.
 
-	/** A showcase holds this many badges, as the API checks. */
-	const SHOWCASE_SIZE = 3;
 	const FAILED = 'showcase.error.failed';
 
 	/** The selection mode is on: a slot click toggles the slot instead of opening its sheet. */
