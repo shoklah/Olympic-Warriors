@@ -41,7 +41,19 @@
 	/** The progress block's bar or out-of-reach line (progressView), or null: without an
 	    entry for the slot's code the sheet keeps its own goal lines. */
 	$: view = slot ? progressView(progressFor(progress, slot.code)) : null;
-	$: countKey = view ? `badge.count.${view.code}` : null;
+	/** The bar's fraction, or null out of reach and at the top tier, where the count stands alone. */
+	$: fraction = view && !view.outOfReach && !view.topTier ? { n: view.count, target: view.target } : null;
+	/** The count line's phrase as seen (« 7 / 10 éditions ») and as read out (« 7 sur 10 éditions »). */
+	$: shownCount =
+		view && !view.outOfReach
+			? t(`badge.count.${view.code}`, { fraction: fraction ? t('badge.fraction', fraction) : view.count })
+			: '';
+	$: spokenCount = fraction ? t(`badge.count.${view.code}`, { fraction: t('badge.fractionSpoken', fraction) }) : shownCount;
+	/** The parts a dot sets apart after the count: the discipline, then « Niveau maximum ». */
+	$: dotted = [
+		view?.discipline ? disciplineName(locale, view.discipline) : null,
+		view?.topTier ? t('badge.topTier') : null
+	].filter(Boolean);
 	/** An earned tiered badge's entry lines say the next goal, unless the bar says it: all but
 	    specialist's, one line per discipline while the bar follows one of them. */
 	$: entryGoals = tiered && (view === null || slot.code === 'specialist');
@@ -100,25 +112,15 @@
 						{/each}
 					</div>
 					<p class="count" data-testid="badge-progress-count">
-						{#if view.topTier}
-							<span>{t(countKey, { fraction: view.count })}</span>
-						{:else}
-							<!-- "7 / 10" reads as a fraction or a date to a screen reader: hidden, and
-							     the same line said with "7 of 10" instead. -->
-							<span aria-hidden="true"
-								>{t(countKey, { fraction: t('badge.fraction', { n: view.count, target: view.target }) })}</span
-							>
-							<span class="visually-hidden"
-								>{t(countKey, { fraction: t('badge.fractionSpoken', { n: view.count, target: view.target }) })}</span
-							>
-						{/if}
-						<!-- The candidate the bar follows, outside both spans: the partner's link is
-						     never hidden. -->
-						{#if view.discipline}
-							{' '}<span class="sep" aria-hidden="true">·</span>{' '}<span
-								>{disciplineName(locale, view.discipline)}</span
-							>
-						{/if}
+						<!-- Seen: "7 / 10", which reads as a fraction or a date to a screen reader, and
+						     dots, which it skips, running the parts together. Read out: a hidden copy
+						     with "7 of 10" and commas, « 7 sur 10 victoires, Relais ». -->
+						<span aria-hidden="true"
+							>{shownCount}{#each dotted as part}{' '}<span class="sep">·</span>{' '}{part}{/each}</span
+						>
+						<span class="visually-hidden">{[spokenCount, ...dotted].join(', ')}</span>
+						<!-- The candidate the bar follows by name, outside both copies: the partner's
+						     link is never hidden. -->
 						{#if view.partner}
 							{' '}{t('badge.with')}
 							<span class="partner-avatar"
@@ -128,9 +130,6 @@
 						{/if}
 						{#if view.year}
 							{' '}{t('badge.inYear', { year: view.year })}
-						{/if}
-						{#if view.topTier}
-							{' '}<span class="sep" aria-hidden="true">·</span>{' '}<span>{t('badge.topTier')}</span>
 						{/if}
 					</p>
 					{#if view.best !== null}
@@ -286,11 +285,12 @@
 	}
 
 	/* The ticks, taller than the track and ringed, overhang it: its margins keep them clear
-	   of the lines around. */
+	   of the lines around, and inset it by half a tick and its ring on both sides, so the
+	   last tick ends where the text column does and the track stays centred in it. */
 	.track {
 		position: relative;
 		height: 0.375rem;
-		margin: 0.25rem 0 0.6rem;
+		margin: 0.25rem calc(0.3125rem + 2px) 0.6rem;
 		border-radius: var(--radius);
 		background: var(--line);
 	}

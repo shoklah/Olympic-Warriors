@@ -20,7 +20,9 @@
  * best of 2, networker 4, specialist 2 in Relay, all-rounder 2), the codes without tiers not
  * earned yet (a podium-regular run of 1 with a best of 2, among others), comrades toward its
  * next partner (2 editions with Hugo, no photo, since Léa's badge is earned), lucky-charm and
- * argonaut out of reach, and no clean-sweep row, that badge being earned.
+ * argonaut out of reach, and no clean-sweep row, that badge being earned. Like the badges,
+ * the progress rows are not derived from the editions and places above: they agree with the
+ * badges only (so eternal-second is still reachable, Xavier having no champion badge).
  * `profileUnranked` has nothing counted, no discipline places, no badge and no photo.
  * `allTime` is /discipline/10/all-time/ (Relay, 2024 and 2025): Léa and Hugo tied 1st on a
  * 1st and a 2nd place each, Inès 3rd on a single 1st place, Xavier 4th on a 4th place.

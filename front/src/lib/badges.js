@@ -175,6 +175,12 @@ export function progressFor(progress, code) {
 	return progress.find((entry) => entry?.code === code) ?? null;
 }
 
+/**
+ * The colour token a badge's metal fills a bar with: the metal itself, or the accent for a
+ * plain badge, as Badge.svelte rings it. No code with a progress target is plain today.
+ */
+export const fillFor = (metal) => (metal === 'plain' ? 'accent' : metal);
+
 /** A count from the payload: a whole number from 0, a missing one read as 0. */
 const whole = (n) => Math.max(0, Math.floor(Number(n) || 0));
 
@@ -236,7 +242,6 @@ export function progressView(entry) {
 
 	const target = PROGRESS_TARGETS[code];
 	if (!target) return null;
-	const metal = BADGES[code];
 	return {
 		code,
 		outOfReach: false,
@@ -245,7 +250,7 @@ export function progressView(entry) {
 		share: Math.min(value, target) / target,
 		topTier: false,
 		ticks: [],
-		fill: metal === 'plain' ? 'accent' : metal,
+		fill: fillFor(BADGES[code]),
 		best: note(false),
 		...named
 	};

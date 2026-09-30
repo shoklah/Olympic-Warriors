@@ -13,6 +13,7 @@ import {
 	badgeGlyph,
 	badgeMetal,
 	badgeRarity,
+	fillFor,
 	hasGlyph,
 	isKnownBadge,
 	isTiered,
@@ -413,10 +414,9 @@ describe('progressView', () => {
 		expect(progressView(entry('on-the-rise', { value: 1, best: 1 })).fill).toBe('bronze');
 	});
 
-	it("fills every badge without tiers in its catalogue metal, the accent for a plain one", () => {
+	it('fills every badge without tiers in its catalogue metal', () => {
 		for (const code of Object.keys(PROGRESS_TARGETS)) {
-			const metal = BADGES[code] === 'plain' ? 'accent' : BADGES[code];
-			expect(progressView(entry(code, { value: 1 })).fill, code).toBe(metal);
+			expect(progressView(entry(code, { value: 1 })).fill, code).toBe(BADGES[code]);
 		}
 	});
 
@@ -446,6 +446,11 @@ describe('progressView', () => {
 		}
 	});
 
+	it('draws nothing for a badge that cannot close sent as out of reach: the sheet keeps its own lines', () => {
+		expect(progressView(entry('veteran', { value: null, reachable: false }))).toBeNull();
+		expect(progressView(entry('legend', { value: null, reachable: false }))).toBeNull();
+	});
+
 	it('draws nothing for argonaut while reachable, a code without progress, or no entry', () => {
 		expect(progressView(entry('argonaut'))).toBeNull();
 		expect(progressView(entry('champion', { value: 1 }))).toBeNull();
@@ -454,5 +459,12 @@ describe('progressView', () => {
 
 	it('reads a missing count as 0', () => {
 		expect(progressView(entry('legend', { value: null }))).toMatchObject({ count: 0, share: 0 });
+	});
+});
+
+describe('fillFor', () => {
+	it("fills in a badge's metal, and in the accent for a plain badge, as its ring is drawn", () => {
+		expect(['gold', 'silver', 'bronze'].map(fillFor)).toEqual(['gold', 'silver', 'bronze']);
+		expect(fillFor('plain')).toBe('accent');
 	});
 });

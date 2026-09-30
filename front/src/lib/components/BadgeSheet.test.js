@@ -299,7 +299,8 @@ describe('BadgeSheet', () => {
 			expect(lit()).toEqual([true, false, false]);
 			expect(fill().dataset.metal).toBe('bronze');
 			expect(seen(count())).toBe('2 / 3 wins · Darts');
-			expect(spoken(count())).toBe('2 of 3 wins Darts');
+			// The dot is hidden: a hidden comma parts the words instead.
+			expect(spoken(count())).toBe('2 of 3 wins, Darts');
 		});
 
 		it("keeps specialist's next goal on its entry lines: one per discipline, while the bar follows one", () => {
@@ -354,12 +355,13 @@ describe('BadgeSheet', () => {
 			renderWith(BadgeSheet, { slot: slotFor('veteran', badges), open: true, progress });
 
 			expect(seen(count())).toBe('12 editions · Top tier');
-			expect(spoken(count())).toBe('12 editions Top tier');
+			expect(spoken(count())).toBe('12 editions, Top tier');
 			expect(lit()).toEqual([true, true, true]);
 			expect(fill().dataset.metal).toBe('gold');
 			expect(fill().style.getPropertyValue('--share')).toBe('1');
-			// "Top tier" once, on the count line: the entry line drops its own.
-			expect(screen.getAllByText(/Top tier/)).toHaveLength(1);
+			// "Top tier" on the count line only: the entry line drops its own.
+			expect(within(screen.getByRole('list')).queryByText(/Top tier/)).toBeNull();
+			expect(within(screen.getByRole('list')).getByText(/Tier 3/)).toBeInTheDocument();
 		});
 
 		it('shows ever-present full at the top tier by its best run, whatever the current one, with no note', () => {
@@ -379,6 +381,7 @@ describe('BadgeSheet', () => {
 			renderWith(BadgeSheet, { slot: slotFor('specialist', badges), open: true, progress });
 
 			expect(seen(count())).toBe('4 wins · Relay · Top tier');
+			expect(spoken(count())).toBe('4 wins, Relay, Top tier');
 		});
 
 		it('draws a plain bar, with no tick, for a badge without tiers', () => {
@@ -471,6 +474,14 @@ describe('BadgeSheet', () => {
 			expect(screen.queryByTestId('badge-progress')).toBeNull();
 		});
 
+		it('keeps its own lines for an out-of-reach entry of a badge that cannot close', () => {
+			const progress = [progressEntry('veteran', { value: null, reachable: false })];
+			renderWith(BadgeSheet, { slot: slotFor('veteran', []), open: true, progress });
+
+			expect(screen.getByRole('dialog', { name: 'Veteran' })).toHaveTextContent('First tier: 3 editions');
+			expect(screen.queryByTestId('badge-progress')).toBeNull();
+		});
+
 		it("keeps an earned tiered badge's next goal without an entry", () => {
 			const badges = [{ code: 'veteran', tier: 1, years: [2026], discipline: null, partner: null }];
 			renderWith(BadgeSheet, { slot: slotFor('veteran', badges), open: true, progress: [] });
@@ -492,7 +503,7 @@ describe('BadgeSheet', () => {
 				'fr'
 			);
 			expect(seen(count())).toBe('2 / 3 victoires · Relais');
-			expect(spoken(count())).toBe('2 sur 3 victoires Relais');
+			expect(spoken(count())).toBe('2 sur 3 victoires, Relais');
 			unmount();
 
 			const second = renderWith(BadgeSheet, { slot: slotFor('comrades', []), open: true, progress }, 'fr');
@@ -513,6 +524,7 @@ describe('BadgeSheet', () => {
 			];
 			const { unmount } = renderWith(BadgeSheet, { slot: slotFor('veteran', badges), open: true, progress }, 'fr');
 			expect(seen(count())).toBe('12 éditions · Niveau maximum');
+			expect(spoken(count())).toBe('12 éditions, Niveau maximum');
 			unmount();
 
 			renderWith(BadgeSheet, { slot: slotFor('dynasty', []), open: true, progress }, 'fr');
