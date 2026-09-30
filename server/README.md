@@ -23,11 +23,11 @@ server/
   olympic_warriors/
     settings.py          Django settings, built from config.py
     config.py            DevConfig / ProdConfig (pydantic-settings)
-    models/              Edition, Team, Player, Discipline (with rounds, games, events), Badge, UserProfile, one file per discipline
+    models/              Edition, Team, Player, Discipline (with rounds, games, events), Badge, BadgeProgress, UserProfile, one file per discipline
     schedule/            round_robin.py and swiss.py, the game schedulers
     standings.py         every ranking and total of an edition, computed in one pass
     profiles.py          the all-time leaderboard, profiles and discipline tables, and who is a person
-    badges.py            the computed badges and the badge showcase
+    badges.py            the computed badges, the progress toward them and the badge showcase
     avatars.py           player photos: validation, re-encoding, files written and deleted
     claims.py            claim links: how a person sets their first password
     registration.py      registration form CSV -> players and skill ratings
@@ -38,7 +38,7 @@ server/
     throttling.py        the login throttle (token, claim link, admin login) and the photo throttle
     admin.py             Django admin configuration
     signals.py           creates an API token for every new user, deletes a deleted profile's photo files
-    management/commands/ createsu, create_tokens_for_users, export_edition, import_edition
+    management/commands/ createsu, create_tokens_for_users, export_edition, import_edition, refresh_badges
     migrations/
     tests/               Django tests; tests/fixtures/ holds sample registration CSVs
   static/                images served as Django static files
@@ -151,6 +151,7 @@ Some settings are not configurable:
 | `GameEvent`, `RugbyEvent`, `DodgeballEvent` | Per-player actions in a game (try, tackle, hit, catch, and so on). They roll up into the game score. The site does not use them today. |
 | `Blindtest`, `BlindtestRound`, `BlindtestGuess` | The blindtest, its rounds, and each team's artist and song guess per round. |
 | `Badge`, `BadgeRefresh` | The badges people earn. Most are computed from the editions (by `refresh_badges`, an Edition admin action or an import), and six are given by hand. |
+| `BadgeProgress` | How far each person is toward the 20 badges whose rule is a count (« 7 / 10 éditions »), one row per person and badge, rebuilt with the computed badges at every refresh. |
 | `UserProfile` | What a person adds to their public profile: a photo in two sizes, `photo_locked` (set by an organiser), the pinned badge `showcase` (up to five codes) and `claimed_at`. One row per user at most, created on the first claim or edit. It has no `is_active`, and it is not part of an edition export. |
 
 `Discipline` has these fields:
@@ -224,7 +225,7 @@ Every endpoint is for staff users only unless it is listed as public below: it r
 | `GET /edition/year/<year>/summary/` | The whole edition in one payload (see below) |
 | `GET /disciplines/`, `/discipline/<id>/`, `/disciplines/<edition_id>/` | Disciplines |
 | `GET /profiles/` | The all-time leaderboard: one row per person, ranked like a medal table, with their small photo and showcase |
-| `GET /profile/<user_id>/` | One person's profile, with their editions, disciplines, badges, photo and showcase (404 for someone who never played) |
+| `GET /profile/<user_id>/` | One person's profile, with their editions, disciplines, badges, badge progress, photo and showcase (404 for someone who never played) |
 | `GET /discipline/<id>/all-time/` | A discipline's all-time table of people, across every edition that held it |
 | `GET /disciplines/all-time/` | Every discipline an active edition ever held, with those editions |
 | `GET`, `POST /claim/<uidb64>/<token>/` | A claim link: who it is for, then the chosen password (see [Player accounts](#player-accounts)) |
@@ -332,6 +333,7 @@ Run these inside the container, for example `docker compose exec server python m
 | `create_tokens_for_users` | Creates the missing API tokens for existing users. |
 | `export_edition <year> --out <file>` | Writes an edition to JSON, with no database ids. |
 | `import_edition <file> [--dry-run] [--replace]` | Imports an edition. `--dry-run` reports what would happen and rolls back. `--replace` first deletes the edition with the same year (users are kept). |
+| `refresh_badges [--if-due]` | Recomputes the computed badges and everyone's progress toward them, and stores the difference. With `--if-due` it does so only the morning after an edition ends, or once the last refresh is 30 days old, and otherwise prints "Nothing to refresh". |
 
 The exported file contains player names and emails. Write it as `server/edition-<year>.json` (in the container, `--out /server/edition-2026.json`), because that is the only name the repository ignores. Delete the file once you have finished with it.
 
@@ -342,7 +344,7 @@ The exported file contains player names and emails. Write it as `server/edition-
 - **Export.** The document carries no database ids: users are referenced by username, and rows by throwaway `_id`s.
 - **Import.** Rows are inserted raw, so no `save()` rule runs. Existing users are reused by username, and missing ones are created with a random password that nobody receives: a person sets their own through a claim link.
 - **Media.** Uploaded files are not included. Copy them into the `mediafiles` volume separately.
-- **Badges and profiles.** Badges are not exported, and a real import rebuilds the computed ones. User profiles (photos, showcases, claim dates) are about people, not editions, and are not exported either: they live on production only.
+- **Badges and profiles.** Badges and badge progress are not exported, and a real import rebuilds the computed ones. User profiles (photos, showcases, claim dates) are about people, not editions, and are not exported either: they live on production only.
 
 The runbook is in [the edition transfer spec](../docs/superpowers/specs/2026-09-19-edition-transfer-design.md).
 
@@ -403,6 +405,7 @@ pylint --load-plugins pylint_django --ignore=lib server/
 - **Set the superuser before `createsu`.** Put your own `SU_USERNAME` and a strong `SU_PASSWORD` in `prod.env` first. Otherwise `createsu` creates `admin` with the password `password`. It only creates a missing user and never updates a password, so after changing `SU_PASSWORD`, run `docker compose exec server python manage.py changepassword <username>` instead.
 - **Media files** (`mediafiles/`) live in a Docker volume shared with nginx, which serves them. Photo URLs are site-relative, so the nginx server block of the **front's** public host must serve `/media/avatars/`, for example `location /media/avatars/ { alias /home/app/web/mediafiles/avatars/; expires max; }` (the path where the template mounts the volume in the nginx container; stage's is under `/home/stage/web/`). Serve only the public folders there, never `registration_forms/`, which holds the registration CSVs with names and emails. Add the volume to the host's backups: players' photos cannot be re-created from the admin.
 - **Player accounts.** Set `PUBLIC_URL` in the `prod.env` of production and of stage, each its own public address, or the admin makes no claim link. Deploy the server before the front: a new front on an old server gets a 404 from `/me/` and treats every visitor, organisers included, as logged out. The image needs Pillow, so rebuild it.
+- **Badges.** A crontab entry on the host runs `refresh_badges --if-due` every day at 02:00 (the line is in a comment on the `server` service of the compose template). After deploying the badge progress (migration `0039`), run `refresh_badges` once: the progress table starts empty. Run the Edition admin action « Recalculer les badges » once an edition's last results are in, and after deactivating or reactivating an edition.
 - **nginx must set `X-Forwarded-For`** (`proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`) on the locations that proxy to the server and to the front. Otherwise the login throttle trusts an IP the client chose.
 
 ## License
