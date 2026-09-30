@@ -30,7 +30,7 @@ from olympic_warriors.badges import (
     VETERAN_TIERS,
     Progress,
     _counters,
-    _earned,
+    _badges_and_reigns,
     _progress,
     compute,
     earned,
@@ -67,6 +67,7 @@ from olympic_warriors.models import (
     Volleyball,
 )
 from olympic_warriors.models.ResultTypes import ResultTypes
+from olympic_warriors.profiles import _sort_key
 from olympic_warriors.standings import compute_standings
 
 C = Badge.Codes
@@ -144,7 +145,7 @@ class World:
     def agree_on(self, day):
         """assert_counters_agree() on the History of `day`."""
         h = history(day)
-        found, reigns = _earned(h)
+        found, reigns = _badges_and_reigns(h)
         counters = _counters(h, reigns)
         self.assertEqual(set(counters), set(h.users), day)
         badges = defaultdict(list)
@@ -152,7 +153,7 @@ class World:
             badges[badge.user_id].append(badge)
         for user_id, counts in counters.items():
             self.agree(h, counts, badges[user_id], f"user {user_id} on {day}")
-        self.rows_hold(h, _progress(h, counters, found), found, day)
+        self.rows_hold(h, counters, found, day)
 
     def agree(self, h, counts, badges, where):
         """One person's counters against their badges `badges`, L being the last edition of
@@ -171,9 +172,9 @@ class World:
         # specialist's per discipline name.
         for code, tiers, count in (
             (C.VETERAN, VETERAN_TIERS, counts.played),
-            (C.EVER_PRESENT, EVER_PRESENT_TIERS, counts.present[1]),
+            (C.EVER_PRESENT, EVER_PRESENT_TIERS, counts.present_run[1]),
             (C.NETWORKER, NETWORKER_TIERS, counts.mates),
-            (C.ALL_ROUNDER, ALL_ROUNDER_TIERS, counts.won),
+            (C.ALL_ROUNDER, ALL_ROUNDER_TIERS, counts.disciplines_won),
         ):
             self.assertEqual(tier_of(tiers, count), tier(code), f"{code}, {where}")
         names = set(counts.wins) | {b.discipline for b in badges if b.code == C.SPECIALIST}
@@ -199,8 +200,8 @@ class World:
             (C.THREEPEAT, counts.title_run),
             (C.DYNASTY, counts.title_run),
             (C.PODIUM_REGULAR, counts.podium_run),
-            (C.ON_THE_RISE, counts.rise),
-            (C.REIGN, counts.reign),
+            (C.ON_THE_RISE, counts.rise_run),
+            (C.REIGN, counts.reign_run),
         ):
             target = PROGRESS_TARGETS[code]
             self.assertEqual(current == target, code in at_last, f"{code}, {where}")
@@ -247,24 +248,96 @@ class World:
             where,
         )
 
-    def rows_hold(self, h, rows, found, where):
+    def rows_hold(self, h, counters, found, where):
         """
-        The rows compute() keeps: one per person and code, only for the progress codes; every
-        tiered code for every person; no row for a non-tiered badge earned, comrades aside;
-        no value exactly when out of reach; and a value of 0 names nothing.
+        The rows compute() keeps from these counters are exactly the expected ones
+        (expected_rows): one per person and code, each with the value, best run, reach,
+        discipline, partner and year its counters give; no value exactly when out of reach,
+        a best run on streaks only, and a value of 0 naming nothing.
         """
-        keys = [(row.user_id, row.code) for row in rows]
-        self.assertEqual(len(keys), len(set(keys)), where)
-        self.assertLessEqual({row.code for row in rows}, set(PROGRESS_CODES), where)
-        self.assertLessEqual({(u, code) for u in h.users for code in TIERED_CODES}, set(keys))
-        held = {(badge.user_id, badge.code) for badge in found}
-        for row in rows:
-            if row.code not in TIERED_CODES and row.code != C.COMRADES:
-                self.assertNotIn((row.user_id, row.code), held, where)
-            self.assertEqual(row.value is None, not row.reachable, f"{row}, {where}")
-            self.assertEqual(row.best is None, row.code not in STREAK_CODES, f"{row}, {where}")
+        actual = {}
+        for row in _progress(h, counters, found):
+            key, name = (row.user_id, row.code), f"user {row.user_id}, {row.code}, {where}"
+            self.assertNotIn(key, actual, f"two rows for {name}")
+            self.assertEqual(row.value is None, not row.reachable, name)
+            self.assertEqual(row.best is None, row.code not in STREAK_CODES, name)
             if not row.value:
-                self.assertEqual((row.discipline, row.partner_id, row.year), ("", None, None))
+                self.assertEqual((row.discipline, row.partner_id, row.year), ("", None, None), name)
+            actual[key] = (
+                row.value, row.best, row.reachable, row.discipline, row.partner_id, row.year
+            )
+        expected = self.expected_rows(h, counters, found)
+        for key in sorted(set(actual) | set(expected)):
+            user_id, code = key
+            self.assertEqual(actual.get(key), expected.get(key), f"user {user_id}, {code}, {where}")
+
+    @staticmethod
+    def expected_rows(h, counters, found):
+        """
+        The rows the design spec's "Which rows exist" and its counter bullets ask for, from
+        each person's counters: {(user id, code): (value, best, reachable, discipline,
+        partner id, year)}. Every tiered code; a non-tiered one while not earned (argonaut
+        only once out of reach); comrades unless earned with no partner below the target.
+        """
+        held = {(badge.user_id, badge.code) for badge in found}
+        top, users = max(SPECIALIST_TIERS), h.users
+        expected = {}
+        for user_id, c in counters.items():
+            # Specialist: the most wins below the top tier first, then the latest win, then
+            # the name; with every name at the top tier, the most wins first.
+            names = sorted(
+                (won >= top, -won, -latest, _sort_key(name), name)
+                for name, (won, latest) in c.wins.items()
+            )
+            specialist = (c.wins[names[0][-1]][0], names[0][-1]) if names else (0, "")
+            tiered = {
+                C.VETERAN: (c.played, None, ""),
+                C.EVER_PRESENT: (*c.present_run, ""),
+                C.NETWORKER: (c.mates, None, ""),
+                C.SPECIALIST: (specialist[0], None, specialist[1]),
+                C.ALL_ROUNDER: (c.disciplines_won, None, ""),
+            }
+            for code, (value, best, discipline) in tiered.items():
+                expected[(user_id, code)] = (value, best, True, discipline, None, None)
+
+            until_earned = {
+                C.LEGEND: (c.titles, None),
+                C.FULL_SET: (c.places, None),
+                C.DECATHLETE: (c.podiums, None),
+                C.OLYMPUS: (c.gods, None),
+                C.BACK_TO_BACK: c.title_run,
+                C.THREEPEAT: c.title_run,
+                C.DYNASTY: c.title_run,
+                C.PODIUM_REGULAR: c.podium_run,
+                C.ON_THE_RISE: c.rise_run,
+                C.REIGN: c.reign_run,
+                C.ETERNAL_SECOND: (None if c.seconds_closed else c.seconds, None),
+                C.LUCKY_CHARM: (None if c.lucky_closed else c.lucky, None),
+            }
+            if c.argonaut_closed:
+                until_earned[C.ARGONAUT] = (None, None)
+            for code, (value, best) in until_earned.items():
+                if (user_id, code) not in held:
+                    expected[(user_id, code)] = (value, best, value is not None, "", None, None)
+            if (user_id, C.CLEAN_SWEEP) not in held:
+                won, i = max(((won, i) for i, won in c.sweeps.items()), default=(0, None))
+                year = None if i is None else h.sequence[i].year
+                expected[(user_id, C.CLEAN_SWEEP)] = (won, None, True, "", None, year)
+
+            # Comrades: the most editions together below the target, then the latest, then
+            # the last name, first name and id.
+            below = sorted(
+                (-shared, -latest, _sort_key(users[p].last_name), _sort_key(users[p].first_name), p)
+                for p, (shared, latest) in c.together.items()
+                if shared < PROGRESS_TARGETS[C.COMRADES]
+            )
+            if below:
+                partner = below[0][-1]
+                shared, _ = c.together[partner]
+                expected[(user_id, C.COMRADES)] = (shared, None, True, "", partner, None)
+            elif (user_id, C.COMRADES) not in held:
+                expected[(user_id, C.COMRADES)] = (0, None, True, "", None, None)
+        return expected
 
     def edition(
         self, year, size=4, host="Paris", ranks=None, finished=True, ranked=True, spectator=True
@@ -347,7 +420,7 @@ def progress_of(user, today=TODAY):
 def counters_of(user, today=TODAY):
     """The user's raw progress counters on `today`."""
     h = history(today)
-    return _counters(h, _earned(h)[1])[user.id]
+    return _counters(h, _badges_and_reigns(h)[1])[user.id]
 
 
 class TestHistory(World, TestCase):
@@ -2170,6 +2243,7 @@ class TestGames(World, TestCase):
 
 class TestProgressTargets(TestCase):
     def test_the_targets_of_the_non_tiered_badges(self):
+        # full-set's rule compares the places won with {1, 2, 3}, not with its target of 3.
         self.assertEqual(
             PROGRESS_TARGETS,
             {
@@ -2190,10 +2264,6 @@ class TestProgressTargets(TestCase):
             },
         )
         self.assertEqual(len(GODS), 9)
-
-    def test_full_set_counts_the_three_podium_places(self):
-        # The rule compares the places won with {1, 2, 3}, not with the target.
-        self.assertEqual(PROGRESS_TARGETS[C.FULL_SET], 3)
 
     def test_the_codes_with_progress(self):
         self.assertEqual(
@@ -2333,6 +2403,16 @@ class TestProgress(World, TestCase):
         self.assertEqual(rows[C.LEGEND], Progress(bob.id, C.LEGEND, 1))
         self.assertNotIn(C.FULL_SET, rows)  # 3rd, 1st then 2nd: earned in 2023
 
+    def test_reign_reads_zero_after_losing_the_top(self):
+        # Tables: 2022 Ana (1, 1) 1st; 2023 Ana still 1st over Bob (1, 2, 2); 2024 Bob
+        # (1, 1, 2, 2) takes the top, his extra places counting in his favour.
+        ana, bob = self.person("Ana"), self.person("Bob")
+        self.play(ana, [1, 1])
+        self.play(bob, [2, 2, 1, 1])
+
+        self.assertEqual(progress_of(ana)[C.REIGN], Progress(ana.id, C.REIGN, 0, best=2))
+        self.assertEqual(progress_of(bob)[C.REIGN], Progress(bob.id, C.REIGN, 1, best=1))
+
     def test_eternal_second_is_out_of_reach_once_an_edition_is_won(self):
         ana, bob, cat = self.person("Ana"), self.person("Bob"), self.person("Cat")
         self.play(ana, [2, 1])  # a title before a second 2nd place
@@ -2384,13 +2464,6 @@ class TestProgress(World, TestCase):
         self.assertLessEqual(set(progress_of(ana)), set(PROGRESS_CODES))
         self.assertIn(C.CHAMPION, {badge[0] for badge in badges_of(ana)})
 
-    def test_compute_returns_the_badges_earned_returns(self):
-        ana, bob = self.person("Ana"), self.person("Bob")
-        self.play(ana, [1, 2, 1])
-        self.play(bob, [2, 1, 3])
-
-        self.assertEqual(compute(TODAY)[0], earned(TODAY))
-
 
 class TestComradesProgress(World, TestCase):
     """Ana's comrades row: the partner closest to 3 editions together among those below."""
@@ -2440,6 +2513,13 @@ class TestComradesProgress(World, TestCase):
             self.comrades(), Progress(self.ana.id, C.COMRADES, 1, partner_id=elodie.id)
         )
 
+    def test_networker_counts_the_distinct_teammates(self):
+        self.meet(2021, self.bob, self.chloe)
+        self.meet(2022, self.bob)
+
+        self.assertEqual(progress_of(self.ana)[C.NETWORKER], Progress(self.ana.id, C.NETWORKER, 2))
+        self.assertEqual(progress_of(self.bob)[C.NETWORKER], Progress(self.bob.id, C.NETWORKER, 2))
+
     def test_after_a_first_partner_the_next_one(self):
         for year in (2021, 2022, 2023):
             self.meet(year, self.bob)
@@ -2480,6 +2560,16 @@ class TestDisciplineProgress(DisciplineWorld, TestCase):
         self.assertEqual(rows[C.ALL_ROUNDER], Progress(ana.id, C.ALL_ROUNDER, 2))
         self.assertEqual(rows[C.DECATHLETE], Progress(ana.id, C.DECATHLETE, 2))
         self.assertEqual(rows[C.OLYMPUS], Progress(ana.id, C.OLYMPUS, 2))  # Hermes, Apollo
+
+    def test_olympus_counts_the_gods_not_the_disciplines(self):
+        # Darts and Petanque are both Artemis's: three disciplines won, two gods.
+        ana = self.person("Ana")
+        self.win(ana, 2021, Darts, Petanque)
+        self.win(ana, 2022, Relay)
+
+        rows = progress_of(ana)
+        self.assertEqual(rows[C.ALL_ROUNDER], Progress(ana.id, C.ALL_ROUNDER, 3))
+        self.assertEqual(rows[C.OLYMPUS], Progress(ana.id, C.OLYMPUS, 2))
 
     def test_specialist_shows_the_most_wins_below_the_top_tier(self):
         ana = self.person("Ana")

@@ -8,10 +8,10 @@ from .Badge import Badge
 class BadgeProgress(models.Model):
     """
     How far a person is toward a badge whose rule is a count, one row per (user, code):
-    computed by badges.compute() in the same pass as the badges, for the badge refresh to
-    store (see the badge progress design spec under docs/superpowers/specs/). The target is
-    not stored: it follows from the code and the count. Not in the admin: it is recomputed
-    at every refresh, and organisers act on the badges, not on the bars.
+    computed by badges.compute() in the same pass as the badges and stored by
+    badges.refresh() (see the badge progress design spec under docs/superpowers/specs/).
+    The target is not stored: it follows from the code and the count. Not in the admin: it
+    is recomputed at every refresh, and organisers act on the badges, not on the bars.
     """
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="badge_progress")

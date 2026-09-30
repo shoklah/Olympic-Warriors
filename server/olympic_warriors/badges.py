@@ -63,7 +63,9 @@ class History:
     - users: {user id: User};
     - last_ranks: per sequence index, the rank of the last place, or None (_last_rank);
     - standings: per sequence index, the edition's Standings;
-    - first_edition_id: the first finished active edition, roster or not (argonaut).
+    - first_edition_id: the first finished active edition, roster or not (argonaut);
+    - teams: per sequence index, the people seated on each valid team (_teams);
+    - results: per sequence index, the edition's discipline results (_discipline_results).
     """
 
     sequence: tuple
@@ -72,6 +74,8 @@ class History:
     last_ranks: tuple
     standings: tuple
     first_edition_id: int | None
+    teams: tuple
+    results: tuple
 
 
 def _rank(seat):
@@ -108,16 +112,19 @@ def history(today=None):
         if mine:
             seats[user_id] = mine
     finished = [loaded.editions[pk] for pk in loaded.finished]
+    standings = tuple(loaded.standings[edition.id] for edition in sequence)
     return History(
         sequence=sequence,
         seats=seats,
         users={user_id: user for user_id, (user, _) in people.items()},
         last_ranks=tuple(
-            _last_rank(edition, loaded.standings[edition.id], loaded.ranked)
-            for edition in sequence
+            _last_rank(edition, standing, loaded.ranked)
+            for edition, standing in zip(sequence, standings)
         ),
-        standings=tuple(loaded.standings[edition.id] for edition in sequence),
+        standings=standings,
         first_edition_id=min(finished, key=lambda e: e.year).id if finished else None,
+        teams=tuple(_teams(seats, i) for i in range(len(sequence))),
+        results=tuple(_discipline_results(standing) for standing in standings),
     )
 
 
@@ -244,9 +251,10 @@ def _career(h):
 
 def _rises(h, seats):
     """
-    (sequence index, rise) for every edition of the sequence, as on-the-rise counts: 1 at a
-    ranked edition (a counted participation) no better than the previous edition, one more
-    at each one better than the previous, 0 at an unranked or missed edition.
+    (sequence index, rise) for every edition of the sequence, as on-the-rise counts: 0 at an
+    unranked or missed edition; 1 at a ranked edition (a counted participation) that opens
+    the sequence, follows an unranked or missed edition, or is no better than the previous
+    one; one more at each ranked edition better than the previous one.
     """
     rise, previous = 0, None
     for i in range(len(h.sequence)):
@@ -358,11 +366,12 @@ def _argonaut(h, seats):
     return 0 in seats and h.sequence[0].id == h.first_edition_id
 
 
-def _teams(h, i):
-    """{team id: sorted user ids} of the people seated on a valid team at sequence index i."""
+def _teams(seats, i):
+    """{team id: sorted user ids} of the people seated on a valid team at sequence index i,
+    from History.seats."""
     teams = defaultdict(list)
-    for user_id, seats in h.seats.items():
-        seat = seats.get(i)
+    for user_id, mine in seats.items():
+        seat = mine.get(i)
         if seat is not None and seat.team_id is not None:
             teams[seat.team_id].append(user_id)
     return {team_id: sorted(users) for team_id, users in teams.items()}
@@ -374,7 +383,7 @@ def _teammates(h):
     mates = defaultdict(set)
     for i, edition in enumerate(h.sequence):
         edition_id = edition.id
-        for users in _teams(h, i).values():
+        for users in h.teams[i].values():
             for a, b in combinations(users, 2):
                 together[(a, b)] += 1
                 if together[(a, b)] == PROGRESS_TARGETS[C.COMRADES]:
@@ -481,42 +490,36 @@ class DisciplineResult:
     ranking: int
 
 
-def _discipline_results(h):
+def _discipline_results(standing):
     """
-    {sequence index: [DisciplineResult]}: the active results of the sequence's active teams
-    and disciplines, read from each edition's Standings (disciplines_of), which
-    compute_standings already loaded: no query of its own. A discipline whose ranked results
-    all share one rank (profiles._contested: a lone scored result, or every team tied on 0
-    before any game) beats nobody, so its results rank 0 here as they give no place on the
-    profiles: no win, no podium, and no ranked discipline for the metronome.
+    [DisciplineResult]: the active results of an edition's active teams and disciplines,
+    read from its Standings (disciplines_of), which compute_standings already loaded: no
+    query of its own. A discipline whose ranked results all share one rank
+    (profiles._contested: a lone scored result, or every team tied on 0 before any game)
+    beats nobody, so its results rank 0 here as they give no place on the profiles: no win,
+    no podium, and no ranked discipline for the metronome.
     """
-    results = {}
-    for i, standing in enumerate(h.standings):
-        contested = _contested(standing)
-        results[i] = [
-            DisciplineResult(
-                team_id,
-                discipline.discipline_id,
-                discipline.discipline_name,
-                discipline.result_type,
-                discipline.points,
-                discipline.standing.ranking if discipline.discipline_id in contested else 0,
-            )
-            for team_id, disciplines in standing.team_disciplines.items()
-            for discipline in disciplines
-        ]
-    return results
+    contested = _contested(standing)
+    return [
+        DisciplineResult(
+            team_id,
+            discipline.discipline_id,
+            discipline.discipline_name,
+            discipline.result_type,
+            discipline.points,
+            discipline.standing.ranking if discipline.discipline_id in contested else 0,
+        )
+        for team_id, disciplines in standing.team_disciplines.items()
+        for discipline in disciplines
+    ]
 
 
 def _disciplines(h):
     """specialist, master, all-rounder, decathlete, brains-and-brawn, clean-sweep, metronome,
     uncrowned, photo-finish, the gods and olympus."""
-    if not h.sequence:
-        return
-    results = _discipline_results(h)
     for user_id, seats in h.seats.items():
-        yield from _disciplines_of(h, results, user_id, seats)
-    yield from _masters(h, results)
+        yield from _disciplines_of(h, user_id, seats)
+    yield from _masters(h)
 
 
 MASTER_EDITIONS = 2
@@ -529,7 +532,7 @@ def _held(results):
     there (two disciplines of one name in an edition are two events to win, not one).
     """
     held = defaultdict(dict)
-    for i, rows in results.items():
+    for i, rows in enumerate(results):
         events = defaultdict(dict)  # name -> {discipline id: teams ranked 1st}
         for r in rows:
             if r.ranking:
@@ -541,7 +544,7 @@ def _held(results):
     return held
 
 
-def _masters(h, results):
+def _masters(h):
     """
     master: won every edition of the sequence that ranked a discipline (matched by name), at
     least MASTER_EDITIONS of them, earned at the one that completed it. Unlike every other
@@ -551,7 +554,7 @@ def _masters(h, results):
     (_discipline_results), so it neither extends nor breaks the run, and an unfinished
     edition is not in the sequence yet.
     """
-    held = _held(results)
+    held = _held(h.results)
     for name in sorted(held):
         editions = held[name]
         if len(editions) < MASTER_EDITIONS:
@@ -564,7 +567,7 @@ def _masters(h, results):
                 yield Earned(user_id, C.MASTER, completed, discipline=name)
 
 
-def _disciplines_of(h, results, user_id, seats):
+def _disciplines_of(h, user_id, seats):
     won_times = Counter()
     won, podiums, gods = set(), set(), set()
     decathlete = False
@@ -573,7 +576,7 @@ def _disciplines_of(h, results, user_id, seats):
         if seat is None or seat.team_id is None:
             continue
         edition_id = edition.id
-        rows = results.get(i, [])
+        rows = h.results[i]
         mine = [r for r in rows if r.team_id == seat.team_id]
         wins = [r for r in mine if r.ranking == 1]
         names = sorted({r.name for r in wins})
@@ -788,11 +791,11 @@ def _games(h):
                 yield Earned(user_id, C.PERFECT_PITCH, edition_id)
 
 
-# The hall of fame runs apart, in _earned(), which also keeps its reign runs.
+# The hall of fame runs apart, in _badges_and_reigns(), which also keeps its reign runs.
 RULES = (_places, _streaks, _career, _loyalty, _teammates, _disciplines, _games)
 
 
-def _earned(h):
+def _badges_and_reigns(h):
     """Every computed badge of the History `h`, as a set of Earned, and the reign runs the
     hall of fame kept (see _hall_of_fame)."""
     found, reigns = _hall_of_fame(h)
@@ -826,25 +829,25 @@ class Progress:
 @dataclass(frozen=True)
 class Counters:
     """
-    One person's raw progress counters now, after the last edition of the sequence (all 0
-    for someone without a seat), each the number its rule counts. A run is (current, best):
-    the run ending at the last edition, 0 after a break, and the longest one. "latest" is
-    the sequence index of the last edition that added to a count.
+    One person's raw progress counters now, after the last edition of the sequence, each
+    the number its rule counts (every count is 0 for someone without a seat). A run is
+    (current, best): the run ending at the last edition, 0 after a break, and the longest
+    one. "latest" is the sequence index of the last edition that added to a count.
     """
 
     played: int  # veteran: editions played
-    present: tuple  # ever-present: the run of editions played
+    present_run: tuple  # ever-present: the run of editions played
     mates: int  # networker: distinct teammates
     wins: dict  # specialist: {discipline name: (editions won, latest)}
-    won: int  # all-rounder: discipline names won
+    disciplines_won: int  # all-rounder: discipline names won
     titles: int  # legend: editions won
     places: int  # full-set: places won among 1st, 2nd and 3rd
     podiums: int  # decathlete: discipline names with a podium (see _podium)
     gods: int  # olympus: gods with a discipline won
     title_run: tuple  # back-to-back, threepeat and dynasty: the run of editions won
     podium_run: tuple  # podium-regular: the run of podiums
-    rise: tuple  # on-the-rise: the run of rises, max(rise - 1, 0) over _rises
-    reign: tuple  # reign: the run at 1st of the all-time table (_hall_of_fame)
+    rise_run: tuple  # on-the-rise: the run of rises, max(rise - 1, 0) over _rises
+    reign_run: tuple  # reign: the run at 1st of the all-time table (_hall_of_fame)
     together: dict  # comrades: {partner id: (editions on the same team, latest)}
     sweeps: dict  # clean-sweep: {sequence index: discipline results won}, wins only
     seconds: int  # eternal-second: 2nd places
@@ -867,8 +870,8 @@ def _partners(h):
     """{user id: {partner id: (editions together, latest index)}}, both ways: comrades' keyed
     count over the teams _teammates reads, whose keys are networker's teammates."""
     together = defaultdict(dict)
-    for i in range(len(h.sequence)):
-        for users in _teams(h, i).values():
+    for i, teams in enumerate(h.teams):
+        for users in teams.values():
             for a, b in combinations(users, 2):
                 for user_id, partner in ((a, b), (b, a)):
                     shared, _ = together[user_id].get(partner, (0, None))
@@ -876,7 +879,7 @@ def _partners(h):
     return together
 
 
-def _discipline_counts(h, results, seats):
+def _discipline_counts(h, seats):
     """
     One person's discipline counters, as _disciplines_of counts them: ({discipline name:
     (editions won, latest index)}, {sequence index: discipline results won}, the discipline
@@ -887,7 +890,7 @@ def _discipline_counts(h, results, seats):
         seat = seats.get(i)
         if seat is None or seat.team_id is None:
             continue
-        mine = [r for r in results.get(i, []) if r.team_id == seat.team_id]
+        mine = [r for r in h.results[i] if r.team_id == seat.team_id]
         firsts = [r for r in mine if r.ranking == 1]
         for name in {r.name for r in firsts}:
             won, _ = wins.get(name, (0, None))
@@ -902,35 +905,35 @@ def _counters(h, reigns):
     """
     Every person's raw progress counters now: {user id: Counters} for every person of
     h.users, including those without a finished edition yet. They read what the rules read
-    (_runs, _rises, _partners over _teams, _discipline_results), and `reigns` are
+    (_runs, _rises, _partners over History.teams, History.results), and `reigns` are
     _hall_of_fame's reign runs, so the all-time tables are not replayed: no query.
     """
-    results = _discipline_results(h)
     partners = _partners(h)
-    seconds, lucky = PROGRESS_TARGETS[C.ETERNAL_SECOND], PROGRESS_TARGETS[C.LUCKY_CHARM]
+    second_target = PROGRESS_TARGETS[C.ETERNAL_SECOND]
+    lucky_target = PROGRESS_TARGETS[C.LUCKY_CHARM]
     counters = {}
     for user_id in h.users:
         seats = h.seats.get(user_id, {})
         ranks = [_rank(seats.get(i)) for i in range(len(h.sequence))]
         counted = [rank for rank in ranks if rank is not None]
-        first_three = counted[:lucky]
+        first_three = counted[:lucky_target]
         # eternal-second closes at an edition won before the second 2nd place.
-        crowned_first = 1 in ranks and ranks[: ranks.index(1)].count(2) < seconds
-        wins, sweeps, podiums = _discipline_counts(h, results, seats)
+        crowned_first = 1 in ranks and ranks[: ranks.index(1)].count(2) < second_target
+        wins, sweeps, podiums = _discipline_counts(h, seats)
         counters[user_id] = Counters(
             played=len(seats),
-            present=_run(_runs(h, seats, lambda seat: True)),
+            present_run=_run(_runs(h, seats, lambda seat: True)),
             mates=len(partners[user_id]),
             wins=wins,
-            won=len(wins),
+            disciplines_won=len(wins),
             titles=ranks.count(1),
             places=len({rank for rank in counted if rank <= 3}),
             podiums=len(podiums),
             gods=len({FAMILIES[name] for name in wins if name in FAMILIES}),
             title_run=_run(_runs(h, seats, _won)),
             podium_run=_run(_runs(h, seats, _on_podium)),
-            rise=_run((i, max(rise - 1, 0)) for i, rise in _rises(h, seats)),
-            reign=reigns.get(user_id, (0, 0)),
+            rise_run=_run((i, max(rise - 1, 0)) for i, rise in _rises(h, seats)),
+            reign_run=reigns.get(user_id, (0, 0)),
             together=partners[user_id],
             sweeps=sweeps,
             seconds=ranks.count(2),
@@ -989,10 +992,10 @@ def _progress(h, counters, found):
         rows.update(
             (
                 row(C.VETERAN, c.played),
-                row(C.EVER_PRESENT, c.present[0], best=c.present[1]),
+                row(C.EVER_PRESENT, c.present_run[0], best=c.present_run[1]),
                 row(C.NETWORKER, c.mates),
                 row(C.SPECIALIST, c.wins[name][0] if name else 0, discipline=name or ""),
-                row(C.ALL_ROUNDER, c.won),
+                row(C.ALL_ROUNDER, c.disciplines_won),
             )
         )
 
@@ -1007,8 +1010,8 @@ def _progress(h, counters, found):
             row(C.OLYMPUS, c.gods),
             *(row(code, c.title_run[0], best=c.title_run[1]) for code in TITLE_STREAKS.values()),
             row(C.PODIUM_REGULAR, c.podium_run[0], best=c.podium_run[1]),
-            row(C.ON_THE_RISE, c.rise[0], best=c.rise[1]),
-            row(C.REIGN, c.reign[0], best=c.reign[1]),
+            row(C.ON_THE_RISE, c.rise_run[0], best=c.rise_run[1]),
+            row(C.REIGN, c.reign_run[0], best=c.reign_run[1]),
             sweep,
         ]
         for code, count, closed in (
@@ -1035,7 +1038,7 @@ def compute(today=None):
     of Progress). The progress adds no query to the badges'.
     """
     h = history(today)
-    found, reigns = _earned(h)
+    found, reigns = _badges_and_reigns(h)
     return found, _progress(h, _counters(h, reigns), found)
 
 
