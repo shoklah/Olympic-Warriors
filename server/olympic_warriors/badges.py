@@ -1,8 +1,10 @@
 """
 Badges people earn from their editions (see the player badges design spec under
-docs/superpowers/specs/). earned() computes every computed badge from the current data;
-refresh() stores the difference in the Badge table. The monthly cron job, the Edition admin
-action and import_edition call refresh(); a page view only reads the table.
+docs/superpowers/specs/). earned() computes every computed badge from the current data, and
+compute() also each person's progress toward the badges whose rule is a count, in the same
+pass (the badge progress design spec); refresh() stores the difference in the Badge table.
+The monthly cron job, the Edition admin action and import_edition call refresh(); a page
+view only reads the table.
 
 The rules read the sequence: the finished active editions with at least one active player,
 by year, so a year without an edition and an edition without a roster never break a
@@ -15,6 +17,7 @@ that the person does not win takes it away.
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import datetime
+from functools import partial
 from itertools import combinations
 
 from django.db import transaction
@@ -107,6 +110,64 @@ def history(today=None):
     )
 
 
+MIND, PHYSICAL = "mind", "physical"
+
+# The god of each discipline, by database name. Adding a discipline means picking its god
+# here and its kind in KINDS: test_badges fails otherwise.
+FAMILIES = {
+    "General Culture Quizz": C.ATHENA,
+    "Geography Quizz": C.ATHENA,
+    "Geoguessr": C.ATHENA,
+    "Burger Quizz": C.ATHENA,
+    "Blindtest": C.APOLLO,
+    "Dance": C.APOLLO,
+    "Darts": C.ARTEMIS,
+    "Petanque": C.ARTEMIS,
+    "Disc Throw": C.ARTEMIS,
+    "Frisbee": C.ARTEMIS,
+    "Relay": C.HERMES,
+    "Jumping Rope": C.HERMES,
+    "Obstacle Course": C.HERMES,
+    "Blindfolded Obstacle Course": C.HERMES,
+    "Crossfit": C.HERACLES,
+    "Orienteering": C.THESEUS,
+    "Rugby": C.ARES,
+    "Football": C.ARES,
+    "Handball": C.ARES,
+    "Basketball": C.ARES,
+    "Volleyball": C.ARES,
+    "Dodgeball": C.ARES,
+    "Hide and Seek": C.HADES,
+    "Fair": C.DIONYSUS,
+}
+GODS = tuple(dict.fromkeys(FAMILIES.values()))  # the nine, in catalogue order
+
+# Mind or physical, for brains-and-brawn: the Athena disciplines and Blindtest are the mind
+# ones. Fair is neither.
+MINDS = {name for name, god in FAMILIES.items() if god == C.ATHENA} | {"Blindtest"}
+KINDS = {name: MIND if name in MINDS else PHYSICAL for name in FAMILIES if name != "Fair"}
+
+# The target of each non-tiered badge whose rule is a count (see the badge progress design
+# spec), read by its rule and by its progress; the tiered ones keep their thresholds in
+# VETERAN_TIERS and the other tier tables. full-set's rule compares the places won with
+# {1, 2, 3}, which its target of 3 counts.
+PROGRESS_TARGETS = {
+    C.LEGEND: 3,
+    C.FULL_SET: 3,
+    C.DECATHLETE: 10,
+    C.OLYMPUS: len(GODS),
+    C.BACK_TO_BACK: 2,
+    C.THREEPEAT: 3,
+    C.DYNASTY: 4,
+    C.PODIUM_REGULAR: 3,
+    C.ON_THE_RISE: 2,
+    C.REIGN: 3,
+    C.COMRADES: 3,
+    C.CLEAN_SWEEP: 3,
+    C.ETERNAL_SECOND: 2,
+    C.LUCKY_CHARM: 3,
+}
+
 PLACES = {1: C.CHAMPION, 2: C.RUNNER_UP, 3: C.BRONZE}
 
 
@@ -127,7 +188,11 @@ def _places(h):
                 yield Earned(user_id, C.WOODEN_SPOON, edition_id)
 
 
-TITLE_STREAKS = {2: C.BACK_TO_BACK, 3: C.THREEPEAT, 4: C.DYNASTY}
+TITLE_STREAKS = {PROGRESS_TARGETS[code]: code for code in (C.BACK_TO_BACK, C.THREEPEAT, C.DYNASTY)}
+
+
+def _won(seat):
+    return _rank(seat) == 1
 
 
 def _on_podium(seat):
@@ -151,11 +216,11 @@ def _streaks(h):
     """back-to-back, threepeat, dynasty and podium-regular: once per streak, at the
     edition completing it."""
     for user_id, seats in h.seats.items():
-        for i, length in _runs(h, seats, lambda seat: _rank(seat) == 1):
+        for i, length in _runs(h, seats, _won):
             if length in TITLE_STREAKS:
                 yield Earned(user_id, TITLE_STREAKS[length], h.sequence[i].id)
         for i, length in _runs(h, seats, _on_podium):
-            if length == 3:
+            if length == PROGRESS_TARGETS[C.PODIUM_REGULAR]:
                 yield Earned(user_id, C.PODIUM_REGULAR, h.sequence[i].id)
 
 
@@ -166,6 +231,28 @@ def _career(h):
         yield from _career_of(h, user_id, seats)
 
 
+def _rises(h, seats):
+    """
+    (sequence index, rise) for every edition of the sequence, as on-the-rise counts: 1 at a
+    ranked edition (a counted participation) no better than the previous edition, one more
+    at each one better than the previous, 0 at an unranked or missed edition.
+    """
+    rise, previous = 0, None
+    for i in range(len(h.sequence)):
+        seat = seats.get(i)
+        rank = _rank(seat)
+        # Relative rank: 0 for first, 1 for last, so editions of different sizes compare.
+        share = None if rank is None else (rank - 1) / (seat.teams - 1)
+        if share is None:
+            rise = 0
+        elif previous is not None and share < previous:
+            rise += 1
+        else:
+            rise = 1
+        previous = share
+        yield i, rise
+
+
 def _career_of(h, user_id, seats):
     out, once = [], set()
 
@@ -174,10 +261,11 @@ def _career_of(h, user_id, seats):
             once.add(code)
             out.append(Earned(user_id, code, edition_id))
 
-    titles = seconds = rise = 0
+    titles = seconds = 0
     places, counted = set(), []
     had_last = previous_last = False
-    previous_rank = previous_share = None
+    previous_rank = None
+    rises = dict(_rises(h, seats))
     for i, edition in enumerate(h.sequence):
         seat = seats.get(i)
         rank = _rank(seat)
@@ -188,11 +276,11 @@ def _career_of(h, user_id, seats):
             if titles and previous_rank != 1:
                 earn(C.PHOENIX, edition_id, repeat=True)
             titles += 1
-            if titles == 3:
+            if titles == PROGRESS_TARGETS[C.LEGEND]:
                 earn(C.LEGEND, edition_id)
         if rank == 2:
             seconds += 1
-            if seconds == 2 and not titles:
+            if seconds == PROGRESS_TARGETS[C.ETERNAL_SECOND] and not titles:
                 earn(C.ETERNAL_SECOND, edition_id)
         if rank is not None and rank <= 3:
             places.add(rank)
@@ -206,23 +294,16 @@ def _career_of(h, user_id, seats):
         if previous_rank == 1 and rank is not None and rank > seat.teams / 2:
             earn(C.ICARUS, edition_id, repeat=True)
 
-        # Relative rank: 0 for first, 1 for last, so editions of different sizes compare.
-        share = None if rank is None else (rank - 1) / (seat.teams - 1)
-        if share is None:
-            rise = 0
-        elif previous_share is not None and share < previous_share:
-            rise += 1
-        else:
-            rise = 1
-        if rise == 3:
+        # The first ranked edition of a run is a rise of 1, before any climb.
+        if rises[i] == PROGRESS_TARGETS[C.ON_THE_RISE] + 1:
             earn(C.ON_THE_RISE, edition_id, repeat=True)
 
         if rank is not None:
             counted.append(rank)
-            if len(counted) == 3 and all(r <= 3 for r in counted):
+            if len(counted) == PROGRESS_TARGETS[C.LUCKY_CHARM] and all(r <= 3 for r in counted):
                 earn(C.LUCKY_CHARM, edition_id)
 
-        previous_rank, previous_share, previous_last = rank, share, last
+        previous_rank, previous_last = rank, last
     return out
 
 
@@ -256,9 +337,14 @@ def _loyalty(h):
             if seen is not None and i - seen > 2:  # missed at least 2 consecutive editions
                 yield Earned(user_id, C.HOMECOMING, edition_id)
             seen = i
-        # The first finished edition is index 0 exactly when it has a roster.
-        if 0 in seats and h.sequence[0].id == h.first_edition_id:
+        if _argonaut(h, seats):
             yield Earned(user_id, C.ARGONAUT, h.first_edition_id)
+
+
+def _argonaut(h, seats):
+    """Whether the person played the first finished edition, which is index 0 of the sequence
+    exactly when it has a roster."""
+    return 0 in seats and h.sequence[0].id == h.first_edition_id
 
 
 def _teams(h, i):
@@ -280,7 +366,7 @@ def _teammates(h):
         for users in _teams(h, i).values():
             for a, b in combinations(users, 2):
                 together[(a, b)] += 1
-                if together[(a, b)] == 3:
+                if together[(a, b)] == PROGRESS_TARGETS[C.COMRADES]:
                     yield Earned(a, C.COMRADES, edition_id, partner_id=b)
                     yield Earned(b, C.COMRADES, edition_id, partner_id=a)
             for user_id in users:
@@ -318,13 +404,18 @@ FAME = ((C.HALL_OF_FAME_PODIUM, 3), (C.HALL_OF_FAMER, 10))
 
 
 def _hall_of_fame(h):
-    """goat, alone-at-the-top, hall-of-fame-podium and hall-of-famer (once each), reign
-    (once per streak), kingslayer and rocket (at every table earned). A table after an
-    edition where no participation counts (nothing ranked yet) breaks every reign, as an
-    unranked edition breaks a place streak: missing data never counts. It is the previous
-    table unchanged, so it gives none of the other badges anyway."""
-    reached = set()
-    reign = Counter()
+    """
+    goat, alone-at-the-top, hall-of-fame-podium and hall-of-famer (once each), reign (once
+    per streak), kingslayer and rocket (at every table earned). A table after an edition
+    where no participation counts (nothing ranked yet) breaks every reign, as an unranked
+    edition breaks a place streak: missing data never counts. It is the previous table
+    unchanged, so it gives none of the other badges anyway.
+
+    Returns ([Earned], {user id: (current, best)}): the badges, and every seated person's
+    reign runs after the last table, which _counters reads rather than replaying the tables.
+    """
+    out, reached = [], set()
+    reign, longest = Counter(), Counter()
     previous = None
     for i, counted, positions in _tables(h):
         edition_id = h.sequence[i].id
@@ -337,16 +428,17 @@ def _hall_of_fame(h):
             for code, holds in candidates:
                 if holds and (user_id, code) not in reached:
                     reached.add((user_id, code))
-                    yield Earned(user_id, code, edition_id)
+                    out.append(Earned(user_id, code, edition_id))
         for user_id in h.seats:
             on_top = counted and positions.get(user_id) == 1
             reign[user_id] = reign[user_id] + 1 if on_top else 0
-            if reign[user_id] == 3:
-                yield Earned(user_id, C.REIGN, edition_id)
+            longest[user_id] = max(longest[user_id], reign[user_id])
+            if reign[user_id] == PROGRESS_TARGETS[C.REIGN]:
+                out.append(Earned(user_id, C.REIGN, edition_id))
         if previous is not None:
             for user_id in leaders:
                 if previous.get(user_id) != 1:
-                    yield Earned(user_id, C.KINGSLAYER, edition_id)
+                    out.append(Earned(user_id, C.KINGSLAYER, edition_id))
             climbs = {
                 user_id: previous[user_id] - position
                 for user_id, position in positions.items()
@@ -356,46 +448,10 @@ def _hall_of_fame(h):
             if best >= 1:
                 for user_id, climb in climbs.items():
                     if climb == best:
-                        yield Earned(user_id, C.ROCKET, edition_id)
+                        out.append(Earned(user_id, C.ROCKET, edition_id))
         previous = positions
+    return out, {user_id: (reign[user_id], longest[user_id]) for user_id in h.seats}
 
-
-MIND, PHYSICAL = "mind", "physical"
-
-# The god of each discipline, by database name. Adding a discipline means picking its god
-# here and its kind in KINDS: test_badges fails otherwise.
-FAMILIES = {
-    "General Culture Quizz": C.ATHENA,
-    "Geography Quizz": C.ATHENA,
-    "Geoguessr": C.ATHENA,
-    "Burger Quizz": C.ATHENA,
-    "Blindtest": C.APOLLO,
-    "Dance": C.APOLLO,
-    "Darts": C.ARTEMIS,
-    "Petanque": C.ARTEMIS,
-    "Disc Throw": C.ARTEMIS,
-    "Frisbee": C.ARTEMIS,
-    "Relay": C.HERMES,
-    "Jumping Rope": C.HERMES,
-    "Obstacle Course": C.HERMES,
-    "Blindfolded Obstacle Course": C.HERMES,
-    "Crossfit": C.HERACLES,
-    "Orienteering": C.THESEUS,
-    "Rugby": C.ARES,
-    "Football": C.ARES,
-    "Handball": C.ARES,
-    "Basketball": C.ARES,
-    "Volleyball": C.ARES,
-    "Dodgeball": C.ARES,
-    "Hide and Seek": C.HADES,
-    "Fair": C.DIONYSUS,
-}
-GODS = tuple(dict.fromkeys(FAMILIES.values()))  # the nine, in catalogue order
-
-# Mind or physical, for brains-and-brawn: the Athena disciplines and Blindtest are the mind
-# ones. Fair is neither.
-MINDS = {name for name, god in FAMILIES.items() if god == C.ATHENA} | {"Blindtest"}
-KINDS = {name: MIND if name in MINDS else PHYSICAL for name in FAMILIES if name != "Fair"}
 
 SPECIALIST_TIERS = {2: 1, 3: 2, 4: 3}
 ALL_ROUNDER_TIERS = ((3, 1), (5, 2), (8, 3))
@@ -521,18 +577,16 @@ def _disciplines_of(h, results, user_id, seats):
         for threshold, tier in ALL_ROUNDER_TIERS:
             if before < threshold <= len(won):
                 yield Earned(user_id, C.ALL_ROUNDER, edition_id, tier=tier)
-        # A discipline podium needs an edition of at least 4 teams: in a smaller one every
-        # result is on the podium, the last place included.
-        podium = [r for r in mine if 1 <= r.ranking <= 3] if edition.team_count >= 4 else []
+        podium = _podium(edition, mine)
         podiums.update(r.name for r in podium)
-        if not decathlete and len(podiums) >= 10:
+        if not decathlete and len(podiums) >= PROGRESS_TARGETS[C.DECATHLETE]:
             decathlete = True
             yield Earned(user_id, C.DECATHLETE, edition_id)
 
         kinds = {KINDS.get(name) for name in names}
         if MIND in kinds and PHYSICAL in kinds:
             yield Earned(user_id, C.BRAINS_AND_BRAWN, edition_id)
-        if len(wins) >= 3:
+        if len(wins) >= PROGRESS_TARGETS[C.CLEAN_SWEEP]:
             yield Earned(user_id, C.CLEAN_SWEEP, edition_id)
         ranked = {r.discipline_id for r in rows if r.ranking}
         on_podium = {r.discipline_id for r in podium}
@@ -548,8 +602,15 @@ def _disciplines_of(h, results, user_id, seats):
             if god and god not in gods:
                 gods.add(god)
                 yield Earned(user_id, god, edition_id)
-                if len(gods) == len(GODS):
+                if len(gods) == PROGRESS_TARGETS[C.OLYMPUS]:
                     yield Earned(user_id, C.OLYMPUS, edition_id)
+
+
+def _podium(edition, mine):
+    """The results among `mine` (one team's, in `edition`) on a discipline podium. A podium
+    needs an edition of at least 4 teams: in a smaller one every result is on the podium,
+    the last place included."""
+    return [r for r in mine if 1 <= r.ranking <= 3] if edition.team_count >= 4 else []
 
 
 def _uncrowned(rows, seat, wins):
@@ -716,16 +777,260 @@ def _games(h):
                 yield Earned(user_id, C.PERFECT_PITCH, edition_id)
 
 
-RULES = (_places, _streaks, _career, _loyalty, _teammates, _hall_of_fame, _disciplines, _games)
+# The hall of fame runs apart, in _earned(), which also keeps its reign runs.
+RULES = (_places, _streaks, _career, _loyalty, _teammates, _disciplines, _games)
+
+
+def _earned(h):
+    """Every computed badge of the History `h`, as a set of Earned, and the reign runs the
+    hall of fame kept (see _hall_of_fame)."""
+    found, reigns = _hall_of_fame(h)
+    found = set(found)
+    for rule in RULES:
+        found.update(rule(h))
+    return found, reigns
+
+
+@dataclass(frozen=True)
+class Progress:
+    """
+    One person's progress toward a badge whose rule is a count, keyed like a stored
+    BadgeProgress row (one per user and code): the count (None once out of reach), the best
+    run for a streak, and what the count is about: the discipline name (specialist), the
+    partner (comrades) or the edition's year (clean-sweep), never set on a count of 0. The
+    target is not stored: it follows from the code and the count (PROGRESS_TARGETS and the
+    tier tables). See the badge progress design spec.
+    """
+
+    user_id: int
+    code: str
+    value: int | None
+    best: int | None = None
+    reachable: bool = True
+    discipline: str = ""
+    partner_id: int | None = None
+    year: int | None = None
+
+
+@dataclass(frozen=True)
+class Counters:
+    """
+    One person's raw progress counters now, after the last edition of the sequence (all 0
+    for someone without a seat), each the number its rule counts. A run is (current, best):
+    the run ending at the last edition, 0 after a break, and the longest one. "latest" is
+    the sequence index of the last edition that added to a count.
+    """
+
+    played: int  # veteran: editions played
+    present: tuple  # ever-present: the run of editions played
+    mates: int  # networker: distinct teammates
+    wins: dict  # specialist: {discipline name: (editions won, latest)}
+    won: int  # all-rounder: discipline names won
+    titles: int  # legend: editions won
+    places: int  # full-set: places won among 1st, 2nd and 3rd
+    podiums: int  # decathlete: discipline names with a podium (see _podium)
+    gods: int  # olympus: gods with a discipline won
+    title_run: tuple  # back-to-back, threepeat and dynasty: the run of editions won
+    podium_run: tuple  # podium-regular: the run of podiums
+    rise: tuple  # on-the-rise: the run of rises, max(rise - 1, 0) over _rises
+    reign: tuple  # reign: the run at 1st of the all-time table (_hall_of_fame)
+    together: dict  # comrades: {partner id: (editions on the same team, latest)}
+    sweeps: dict  # clean-sweep: {sequence index: discipline results won}, wins only
+    seconds: int  # eternal-second: 2nd places
+    seconds_closed: bool  # out of reach: an edition won before the second 2nd place
+    lucky: int  # lucky-charm: podiums among the first three counted editions
+    lucky_closed: bool  # out of reach: one of those three off the podium
+    argonaut_closed: bool  # out of reach: the first edition is over, without the person
+
+
+def _run(runs):
+    """(current, best) of (sequence index, length) pairs such as _runs() yields: the length
+    at the last edition and the longest, (0, 0) over an empty sequence."""
+    current = best = 0
+    for _, length in runs:
+        current, best = length, max(best, length)
+    return current, best
+
+
+def _partners(h):
+    """{user id: {partner id: (editions together, latest index)}}, both ways: comrades' keyed
+    count over the teams _teammates reads, whose keys are networker's teammates."""
+    together = defaultdict(dict)
+    for i in range(len(h.sequence)):
+        for users in _teams(h, i).values():
+            for a, b in combinations(users, 2):
+                for user_id, partner in ((a, b), (b, a)):
+                    shared, _ = together[user_id].get(partner, (0, None))
+                    together[user_id][partner] = (shared + 1, i)
+    return together
+
+
+def _discipline_counts(h, results, seats):
+    """
+    One person's discipline counters, as _disciplines_of counts them: ({discipline name:
+    (editions won, latest index)}, {sequence index: discipline results won}, the discipline
+    names with a podium). A name counts once per edition, a result won once each.
+    """
+    wins, sweeps, podiums = {}, {}, set()
+    for i, edition in enumerate(h.sequence):
+        seat = seats.get(i)
+        if seat is None or seat.team_id is None:
+            continue
+        mine = [r for r in results.get(i, []) if r.team_id == seat.team_id]
+        firsts = [r for r in mine if r.ranking == 1]
+        for name in {r.name for r in firsts}:
+            won, _ = wins.get(name, (0, None))
+            wins[name] = (won + 1, i)
+        if firsts:
+            sweeps[i] = len(firsts)
+        podiums.update(r.name for r in _podium(edition, mine))
+    return wins, sweeps, podiums
+
+
+def _counters(h, reigns):
+    """
+    Every person's raw progress counters now: {user id: Counters} for every person of
+    h.users, including those without a finished edition yet. They read what the rules read
+    (_runs, _rises, _partners over _teams, _discipline_results), and `reigns` are
+    _hall_of_fame's reign runs, so the all-time tables are not replayed: no query.
+    """
+    results = _discipline_results(h)
+    partners = _partners(h)
+    seconds, lucky = PROGRESS_TARGETS[C.ETERNAL_SECOND], PROGRESS_TARGETS[C.LUCKY_CHARM]
+    counters = {}
+    for user_id in h.users:
+        seats = h.seats.get(user_id, {})
+        ranks = [_rank(seats.get(i)) for i in range(len(h.sequence))]
+        counted = [rank for rank in ranks if rank is not None]
+        first_three = counted[:lucky]
+        # eternal-second closes at an edition won before the second 2nd place.
+        crowned_first = 1 in ranks and ranks[: ranks.index(1)].count(2) < seconds
+        wins, sweeps, podiums = _discipline_counts(h, results, seats)
+        counters[user_id] = Counters(
+            played=len(seats),
+            present=_run(_runs(h, seats, lambda seat: True)),
+            mates=len(partners[user_id]),
+            wins=wins,
+            won=len(wins),
+            titles=ranks.count(1),
+            places=len({rank for rank in counted if rank <= 3}),
+            podiums=len(podiums),
+            gods=len({FAMILIES[name] for name in wins if name in FAMILIES}),
+            title_run=_run(_runs(h, seats, _won)),
+            podium_run=_run(_runs(h, seats, _on_podium)),
+            rise=_run((i, max(rise - 1, 0)) for i, rise in _rises(h, seats)),
+            reign=reigns.get(user_id, (0, 0)),
+            together=partners[user_id],
+            sweeps=sweeps,
+            seconds=ranks.count(2),
+            seconds_closed=crowned_first,
+            lucky=sum(rank <= 3 for rank in first_three),
+            lucky_closed=any(rank > 3 for rank in first_three),
+            argonaut_closed=h.first_edition_id is not None and not _argonaut(h, seats),
+        )
+    return counters
+
+
+def _specialist(wins):
+    """The discipline name specialist's row follows (None without a win): the most editions
+    won below the top tier, then the latest won, then the name; when every name is at the
+    top tier, the most won, then the latest, then the name."""
+    top = max(SPECIALIST_TIERS)
+    names = [name for name, (won, _) in wins.items() if won < top] or list(wins)
+    return min(
+        names,
+        key=lambda name: (-wins[name][0], -wins[name][1], _sort_key(name), name),
+        default=None,
+    )
+
+
+def _comrade(h, together):
+    """The partner comrades' row follows (None when every partner is at the target, or
+    without any): among those below the target, the most editions together, then the
+    latest, then the last name, first name and id, as _grouped orders partners."""
+
+    def key(partner):
+        shared, latest = together[partner]
+        user = h.users[partner]
+        return (-shared, -latest, _sort_key(user.last_name), _sort_key(user.first_name), partner)
+
+    target = PROGRESS_TARGETS[C.COMRADES]
+    return min((p for p, (shared, _) in together.items() if shared < target), key=key, default=None)
+
+
+def _progress(h, counters, found):
+    """
+    The Progress rows of every person's `counters`, given the badges `found` (from the same
+    History, so a revoked badge is still earned here) as the design spec's "Which rows
+    exist" says:
+    - a tiered code: always, 0 included;
+    - a non-tiered code: only while not earned, without a value once out of reach;
+    - comrades: unless earned with no partner left below the target, so someone without
+      any teammate reads 0;
+    - argonaut: only once out of reach (it has no count to show before);
+    - no row for the other codes.
+    """
+    held = {(badge.user_id, badge.code) for badge in found}
+    rows = set()
+    for user_id, c in counters.items():
+        row = partial(Progress, user_id)
+        name = _specialist(c.wins)
+        rows.update(
+            (
+                row(C.VETERAN, c.played),
+                row(C.EVER_PRESENT, c.present[0], best=c.present[1]),
+                row(C.NETWORKER, c.mates),
+                row(C.SPECIALIST, c.wins[name][0] if name else 0, discipline=name or ""),
+                row(C.ALL_ROUNDER, c.won),
+            )
+        )
+
+        sweep = row(C.CLEAN_SWEEP, 0)
+        if c.sweeps:  # the edition with the most wins, the latest of equals
+            won, i = max((won, i) for i, won in c.sweeps.items())
+            sweep = row(C.CLEAN_SWEEP, won, year=h.sequence[i].year)
+        until_earned = [
+            row(C.LEGEND, c.titles),
+            row(C.FULL_SET, c.places),
+            row(C.DECATHLETE, c.podiums),
+            row(C.OLYMPUS, c.gods),
+            *(row(code, c.title_run[0], best=c.title_run[1]) for code in TITLE_STREAKS.values()),
+            row(C.PODIUM_REGULAR, c.podium_run[0], best=c.podium_run[1]),
+            row(C.ON_THE_RISE, c.rise[0], best=c.rise[1]),
+            row(C.REIGN, c.reign[0], best=c.reign[1]),
+            sweep,
+        ]
+        for code, count, closed in (
+            (C.ETERNAL_SECOND, c.seconds, c.seconds_closed),
+            (C.LUCKY_CHARM, c.lucky, c.lucky_closed),
+        ):
+            until_earned.append(row(code, None, reachable=False) if closed else row(code, count))
+        if c.argonaut_closed:
+            until_earned.append(row(C.ARGONAUT, None, reachable=False))
+        rows.update(p for p in until_earned if (user_id, p.code) not in held)
+
+        partner = _comrade(h, c.together)
+        if partner is not None:
+            rows.add(row(C.COMRADES, c.together[partner][0], partner_id=partner))
+        elif (user_id, C.COMRADES) not in held:
+            rows.add(row(C.COMRADES, 0))
+    return rows
+
+
+def compute(today=None):
+    """
+    Every computed badge and every progress row on `today` (a Paris date, default today),
+    in one pass over one History, so a bar and the badges always agree: (set of Earned, set
+    of Progress). The progress adds no query to the badges'.
+    """
+    h = history(today)
+    found, reigns = _earned(h)
+    return found, _progress(h, _counters(h, reigns), found)
 
 
 def earned(today=None):
     """Every computed badge on `today` (a Paris date, default today), as a set of Earned."""
-    h = history(today)
-    found = set()
-    for rule in RULES:
-        found.update(rule(h))
-    return found
+    return compute(today)[0]
 
 
 @dataclass(frozen=True)
