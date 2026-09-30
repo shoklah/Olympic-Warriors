@@ -70,9 +70,10 @@ Taken without asking (say if you disagree):
   éditions » are always right.
 - When every discipline won is at 4 wins or more, specialist shows the best one, full,
   « Niveau maximum ».
-- Where a progress entry is shown, an earned tiered badge's entry lines drop their
-  « Prochain niveau » goal, which the bar's target now says, except specialist's, whose
-  entries are one per discipline while the bar follows one of them.
+- Where a progress entry is shown, an earned tiered badge's entry lines drop their goal line
+  (« Prochain niveau », or « Niveau maximum » at the top tier), which the bar now says,
+  except specialist's, whose entries are one per discipline while the bar follows one of
+  them.
 
 Changes from the independent review (2026-09-30), none of which moves a decision above:
 on-the-rise's counter floored at 0 (it read −1 after an unranked edition); ever-present's
