@@ -2,9 +2,10 @@
 Badges people earn from their editions (see the player badges design spec under
 docs/superpowers/specs/). earned() computes every computed badge from the current data, and
 compute() also each person's progress toward the badges whose rule is a count, in the same
-pass (the badge progress design spec); refresh() stores the difference in the Badge table.
-The monthly cron job, the Edition admin action and import_edition call refresh(); a page
-view only reads the table.
+pass (the badge progress design spec); refresh() stores the difference in the Badge and
+BadgeProgress tables. The daily cron job (refresh_badges --if-due, which refreshes only when
+refresh_due() says so), the Edition admin action and import_edition call refresh(); a page
+view only reads the tables.
 
 The rules read the sequence: the finished active editions with at least one active player,
 by year, so a year without an edition and an edition without a roster never break a
@@ -21,12 +22,22 @@ from functools import partial
 from itertools import combinations
 
 from django.db import transaction
+from django.db.models import Subquery
 from django.utils import timezone
 
 from .avatars import small_photo_url
-from .models import Badge, BadgeRefresh, BlindtestGuess, Game
+from .models import Badge, BadgeProgress, BadgeRefresh, BlindtestGuess, Edition, Game
 from .models.ResultTypes import ResultTypes
-from .profiles import _contested, _load, _participations, _place, _record, _sort_key, paris_today
+from .profiles import (
+    PARIS,
+    _contested,
+    _load,
+    _participations,
+    _place,
+    _record,
+    _sort_key,
+    paris_today,
+)
 
 C = Badge.Codes
 
@@ -1035,21 +1046,27 @@ def earned(today=None):
 
 @dataclass(frozen=True)
 class RefreshReport:
-    """What a refresh changed."""
+    """What a refresh changed: the badge rows added, removed and kept, and how many
+    progress rows it wrote (created, updated or deleted)."""
 
     added: int
     removed: int
     kept: int
+    progress: int
     refreshed_at: datetime
 
 
 KEY_FIELDS = ("user_id", "code", "edition_id", "tier", "discipline", "partner_id")
+# What a progress row holds besides its key, (user_id, code).
+PROGRESS_FIELDS = ("value", "best", "reachable", "discipline", "partner_id", "year")
 
 
 def refresh(today=None):
     """
-    Store earned(today) in the Badge table, in one transaction under the BadgeRefresh row
-    lock: delete the computed rows no longer earned (active or not), bulk-create the new
+    Store compute(today), in one transaction under the BadgeRefresh row lock: the badges in
+    the Badge table, the progress in BadgeProgress (_store_progress).
+
+    Badges: delete the computed rows no longer earned (active or not), bulk-create the new
     ones, and leave the others alone, so created_at and a revoked row's is_active survive.
     Of the duplicates of a key still earned, one row stays: an inactive one first, so a
     revocation is never lost, else the lowest id.
@@ -1062,7 +1079,8 @@ def refresh(today=None):
     with transaction.atomic():
         BadgeRefresh.objects.get_or_create(pk=1)  # a flushed test database loses the row
         state = BadgeRefresh.objects.select_for_update().get(pk=1)
-        wanted = {tuple(getattr(e, f) for f in KEY_FIELDS): e for e in earned(today)}
+        found, progress = compute(today)
+        wanted = {tuple(getattr(e, f) for f in KEY_FIELDS): e for e in found}
         stored, active = defaultdict(list), {}
         computed = Badge.objects.filter(is_manual=False, edition__is_active=True)
         for pk, is_active, *key in computed.values_list("id", "is_active", *KEY_FIELDS):
@@ -1085,12 +1103,80 @@ def refresh(today=None):
             Badge.objects.filter(id__in=gone).delete()
         if new:
             Badge.objects.bulk_create(new)
+        written = _store_progress(progress)
         state.refreshed_at = timezone.now()
         state.save(update_fields=["refreshed_at"])
     return RefreshReport(
-        added=len(new), removed=len(gone), kept=len(wanted) - len(new),
+        added=len(new), removed=len(gone), kept=len(wanted) - len(new), progress=written,
         refreshed_at=state.refreshed_at,
     )
+
+
+def _store_progress(progress):
+    """
+    Store `progress` (a set of Progress) in the BadgeProgress table, diffed by (user, code):
+    delete the rows no longer computed, update the changed ones in place, create the new
+    ones and leave the others alone, so a second run writes nothing. The table has no
+    edition and no is_active to keep a row by, so every row is recomputed, whatever edition
+    it came from. 1 query to read the rows, plus 1 per kind of write needed. Returns how
+    many rows it wrote.
+    """
+    wanted = {(p.user_id, p.code): p for p in progress}
+    stored = {}
+    columns = ("id", "user_id", "code", *PROGRESS_FIELDS)
+    for pk, user_id, code, *fields in BadgeProgress.objects.values_list(*columns):
+        stored[(user_id, code)] = (pk, tuple(fields))
+    gone = [pk for key, (pk, _) in stored.items() if key not in wanted]
+    changed, new = [], []
+    for key, p in wanted.items():
+        fields = {f: getattr(p, f) for f in PROGRESS_FIELDS}
+        pk, before = stored.get(key, (None, None))
+        if before == tuple(fields.values()):
+            continue
+        row = BadgeProgress(id=pk, user_id=p.user_id, code=p.code, **fields)
+        (new if pk is None else changed).append(row)
+    if gone:
+        BadgeProgress.objects.filter(id__in=gone).delete()
+    if changed:
+        BadgeProgress.objects.bulk_update(changed, PROGRESS_FIELDS)
+    if new:
+        BadgeProgress.objects.bulk_create(new)
+    return len(gone) + len(changed) + len(new)
+
+
+# How many days old the last refresh may get before refresh_due() asks for another.
+REFRESH_EVERY = 30
+
+
+def refresh_due(today=None):
+    """
+    Whether refresh_badges --if-due refreshes on `today` (a Paris date, default today), in
+    1 query: (due, refreshed_at), refreshed_at being when the last refresh ended (None:
+    never), for the command to say. With `last` the Paris date of that refresh, it is due:
+    - without a last refresh (no BadgeRefresh row, or no refreshed_at);
+    - when `last` is at least REFRESH_EVERY days before `today` (dates, not durations, so a
+      daily run at 02:00 catches it on the 30th day), so a correction of past data lands
+      within a month;
+    - when an active edition ended on or after `last` and before `today`: it finished since
+      the last refresh (one on its last day ran before it was over), so badges and progress
+      are fresh the morning after, and a missed night is caught up the next.
+    Otherwise not: results revealed or corrected later wait for the Edition admin action or
+    the month.
+    """
+    today = today or paris_today()
+    ended = Edition.objects.filter(is_active=True, end_date__lt=today).order_by("-end_date")
+    row = (
+        BadgeRefresh.objects.filter(pk=1)
+        .annotate(latest_end=Subquery(ended.values("end_date")[:1]))
+        .values_list("refreshed_at", "latest_end")
+        .first()
+    )
+    refreshed_at, latest_end = row or (None, None)
+    if refreshed_at is None:
+        return True, None
+    last = timezone.localtime(refreshed_at, PARIS).date()
+    due = (today - last).days >= REFRESH_EVERY or (latest_end is not None and latest_end >= last)
+    return due, refreshed_at
 
 
 CATALOGUE_ORDER = {code: n for n, code in enumerate(Badge.Codes.values)}
