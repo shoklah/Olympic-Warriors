@@ -55,7 +55,9 @@ from .serializer import (
     HeldDisciplineSerializer,
 )
 from .avatars import MAX_BYTES, PhotoError, photo_urls, remove_photo, store_photo
-from .badges import badge_stats, badges_by_user, profile_badges, showcase, valid_pins
+from .badges import (
+    SHOWCASE_SIZE, badge_stats, badges_by_user, profile_badges, showcase, valid_pins,
+)
 from .claims import check_claim, complete_claim
 from .profiles import (
     discipline_table,
@@ -303,7 +305,7 @@ def myPhoto(request):
         "ShowcasePins",
         {
             "codes": serializers.ListField(
-                child=serializers.CharField(), max_length=3,
+                child=serializers.CharField(), max_length=SHOWCASE_SIZE,
                 help_text="Distinct badge codes the caller has earned, in the order shown",
             )
         },
@@ -311,8 +313,8 @@ def myPhoto(request):
     responses={
         "200": ShowcaseSerializer,
         "400": OpenApiResponse(
-            description='{"error": "invalid_showcase"}: not a list, more than 3, a duplicate, '
-            "or a code the caller has not earned"
+            description=f'{{"error": "invalid_showcase"}}: not a list, more than {SHOWCASE_SIZE}, '
+            "a duplicate, or a code the caller has not earned"
         ),
         "404": OpenApiResponse(description="Not a person"),
     },
@@ -322,7 +324,7 @@ def myPhoto(request):
 @parser_classes([JSONParser])
 def setMyShowcase(request):
     """
-    Store {codes} as the caller's pins (badges.valid_pins: at most 3 distinct codes, each
+    Store {codes} as the caller's pins (badges.valid_pins: at most 5 distinct codes, each
     earned now) and answer the showcase the profile now shows. An unreadable body is the
     same 400 as a bad list. The rarity counts of the automatic showcase are over the
     leaderboard's people, as on the profile (person_ids(), without computing the

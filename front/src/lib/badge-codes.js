@@ -84,4 +84,4 @@ export const isTiered = (code) => BADGES[code] === 'tiers';
 
 /** A showcase holds this many badges at most, as `PUT /me/showcase/` checks (SHOWCASE_SIZE
     in badges.py): the profile's selection mode and the page's `showcase` action both read it. */
-export const SHOWCASE_SIZE = 3;
+export const SHOWCASE_SIZE = 5;

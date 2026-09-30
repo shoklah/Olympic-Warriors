@@ -151,7 +151,7 @@ Some settings are not configurable:
 | `GameEvent`, `RugbyEvent`, `DodgeballEvent` | Per-player actions in a game (try, tackle, hit, catch, and so on). They roll up into the game score. The site does not use them today. |
 | `Blindtest`, `BlindtestRound`, `BlindtestGuess` | The blindtest, its rounds, and each team's artist and song guess per round. |
 | `Badge`, `BadgeRefresh` | The badges people earn. Most are computed from the editions (by `refresh_badges`, an Edition admin action or an import), and six are given by hand. |
-| `UserProfile` | What a person adds to their public profile: a photo in two sizes, `photo_locked` (set by an organiser), the pinned badge `showcase` (up to three codes) and `claimed_at`. One row per user at most, created on the first claim or edit. It has no `is_active`, and it is not part of an edition export. |
+| `UserProfile` | What a person adds to their public profile: a photo in two sizes, `photo_locked` (set by an organiser), the pinned badge `showcase` (up to five codes) and `claimed_at`. One row per user at most, created on the first claim or edit. It has no `is_active`, and it is not part of an edition export. |
 
 `Discipline` has these fields:
 - `result_type`: points, time or none.
@@ -273,7 +273,7 @@ Any logged-in user may call these. The photo and showcase endpoints answer 404 `
 | `GET /me/` | The caller's account: `id`, `first_name`, `last_name`, `username`, `is_staff`, `is_person`, `photo` (`{large, small}` or `null`), `photo_locked`, and `showcase` (`{auto, codes}`, the stored pins). It never creates anything. |
 | `PUT /me/photo/` | A multipart `photo`: a JPEG, PNG or WebP of at most 2 MiB and 4096 × 4096 pixels in total. The server re-encodes it into two WebP squares (512 and 128 px) without any metadata, and returns `{"photo": {"large": ..., "small": ...}}`. Refusals: 403 `photo_locked`, then 400 `missing`, `too_large`, `bad_format` or `too_many_pixels`. |
 | `DELETE /me/photo/` | Takes the photo down and returns 204, even when uploads are locked. |
-| `PUT /me/showcase/` | `{"codes": [...]}`: up to three distinct badge codes the caller has earned, in the order shown, or `[]` for the automatic showcase (their three rarest badges). It returns the showcase the profile now shows, `{auto, badges}`. Anything else is a 400 `invalid_showcase`. |
+| `PUT /me/showcase/` | `{"codes": [...]}`: up to five distinct badge codes the caller has earned, in the order shown, or `[]` for the automatic showcase (their five rarest badges). It returns the showcase the profile now shows, `{auto, badges}`. Anything else is a 400 `invalid_showcase`. |
 
 Photo URLs are site-relative (`/media/avatars/...`). A URL never changes content, since every upload gets new file names.
 

@@ -26,6 +26,7 @@
 	$: disciplines = byDisplayedName(profile.disciplines ?? [], locale);
 	$: best = bestDisciplines(disciplines);
 	$: collection = badgeCollection(profile.badges ?? []);
+	$: showcaseBadges = profile.showcase?.badges ?? [];
 	$: tab = $page.url.searchParams.get('tab') === 'badges' ? 'badges' : 'profile';
 
 	// Whether this is the viewer's own profile, from `data` (the root layout's `me` is merged
@@ -41,9 +42,9 @@
 
 <div class="page">
 	<Breadcrumb items={[{ label: t('players.title'), href: '/players' }, { label: name }]} />
-	<!-- The avatar beside the name, the all-time position and the showcase, on every tab.
+	<!-- The avatar beside the name and the all-time position, then the showcase, on every tab.
 	     `photo` and `showcase` are optional: an older API sends neither. -->
-	<div class="identity">
+	<div class="identity" class:with-shelf={showcaseBadges.length > 0}>
 		<span class="portrait" data-testid="portrait">
 			<Avatar photo={profile.photo?.large ?? null} name={profile} />
 			{#if owner}
@@ -74,15 +75,19 @@
 					<span class="visually-hidden"> · {t('profile.positionHint')}</span>
 				</a>
 			{/if}
-
-			<Showcase
-				mode="interactive"
-				badges={profile.showcase?.badges ?? []}
-				{collection}
-				badgeStats={profile.badge_stats ?? null}
-				autoHint={owner && profile.showcase?.auto === true}
-			/>
 		</div>
+
+		{#if showcaseBadges.length > 0}
+			<div class="shelf">
+				<Showcase
+					mode="interactive"
+					badges={showcaseBadges}
+					{collection}
+					badgeStats={profile.badge_stats ?? null}
+					autoHint={owner && profile.showcase?.auto === true}
+				/>
+			</div>
+		{/if}
 	</div>
 
 	<nav class="tabs" aria-label={t('profile.tabs')}>
@@ -213,13 +218,26 @@
 
 <style>
 	/* The avatar is 96px on phones and 128px from 600px (`--avatar-size`, read by Avatar),
-	   centred on the name, the position and the showcase stacked beside it. */
+	   centred on the name and the position beside it. The showcase's five medallions (46px
+	   each with their padding, 254px in all) do not fit beside the avatar on a phone (231px
+	   at 375px, 176px at 320px), so below 600px they get a line of their own under both;
+	   from 600px they sit beside the avatar, under the position. */
 	.identity {
-		display: flex;
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr);
 		align-items: center;
-		gap: 16px;
+		gap: 14px 16px;
 		--avatar-size: 96px;
 		margin: 0.2rem 0 1.2rem;
+	}
+
+	.shelf {
+		grid-column: 1 / -1;
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 0.5rem;
+		min-width: 0;
 	}
 
 	.portrait {
@@ -270,8 +288,21 @@
 
 	@media (min-width: 600px) {
 		.identity {
-			gap: 24px;
+			gap: 0.5rem 24px;
 			--avatar-size: 128px;
+		}
+
+		.with-shelf .portrait {
+			grid-row: span 2;
+		}
+
+		.with-shelf .who {
+			align-self: end;
+		}
+
+		.shelf {
+			grid-column: 2;
+			align-self: start;
 		}
 	}
 

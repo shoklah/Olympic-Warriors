@@ -18,7 +18,7 @@ describe('badge-codes', () => {
 	});
 
 	it('holds the one showcase size, the API\'s', () => {
-		expect(codes.SHOWCASE_SIZE).toBe(3);
+		expect(codes.SHOWCASE_SIZE).toBe(5);
 	});
 
 	// badges.js bundles every glyph (import.meta.glob, inlined as data URIs): a page that

@@ -14,6 +14,15 @@ const pinned = [
 	{ code: 'clean-sweep', tier: 0, discipline: null }
 ];
 const unknown = { code: 'future-badge', tier: 0, discipline: null };
+/** A whole showcase: five badges, each earned. */
+const five = [
+	{ code: 'champion', tier: 0, discipline: null },
+	{ code: 'veteran', tier: 2, discipline: null },
+	{ code: 'networker', tier: 1, discipline: null },
+	{ code: 'rookie', tier: 0, discipline: null },
+	{ code: 'goat', tier: 0, discipline: null }
+];
+const fiveEarned = badgeCollection(five.map((badge) => ({ ...badge, years: [2025], partner: null })));
 
 const glyphs = (root) => [...root.querySelectorAll('img')].map((img) => img.getAttribute('src'));
 
@@ -52,6 +61,12 @@ describe('Showcase on a leaderboard row', () => {
 		renderWith(Showcase, { badges: [unknown, ...leaderboard[0].showcase.slice(0, 1)] });
 
 		expect(glyphs(screen.getByTestId('showcase'))).toEqual([expect.stringMatching(/champion\.svg$/)]);
+	});
+
+	it('draws a whole showcase of five', () => {
+		renderWith(Showcase, { badges: five });
+
+		expect(glyphs(screen.getByTestId('showcase'))).toHaveLength(5);
 	});
 
 	it('renders nothing at all for a person without a badge, not even an empty line', () => {
@@ -114,6 +129,19 @@ describe('Showcase in the profile header', () => {
 
 		expect(screen.getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual([
 			'Clean sweep, badge earned 2 times'
+		]);
+	});
+
+	it('gives each badge of a whole showcase of five its button', () => {
+		renderHeader({ badges: five, collection: fiveEarned });
+
+		const buttons = within(screen.getByRole('list', { name: 'Showcase' })).getAllByRole('button');
+		expect(buttons.map((b) => b.getAttribute('aria-label'))).toEqual([
+			'Champion, badge earned',
+			'Veteran, badge earned',
+			'Networker, badge earned',
+			'Rookie, badge earned',
+			'G.O.A.T, badge earned'
 		]);
 	});
 

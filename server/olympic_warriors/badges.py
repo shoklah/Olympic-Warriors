@@ -863,7 +863,7 @@ def _grouped(rows):
     return sorted(({**g, "years": sorted(g["years"])} for g in groups.values()), key=order)
 
 
-SHOWCASE_SIZE = 3
+SHOWCASE_SIZE = 5  # UserProfile.showcase repeats it as its size (test_showcase.py)
 
 
 def valid_pins(codes, entries):

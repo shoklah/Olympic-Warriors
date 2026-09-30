@@ -670,7 +670,7 @@
 
 	/* Above the phones' bottom tab bar, and clear of the screen's edge everywhere. On a phone
 	   the status takes a line of its own and the two buttons share the next, so a longer
-	   status (« 3 badges maximum », « Enregistrement… ») never pushes a button off the row;
+	   status (« 5 badges maximum », « Enregistrement… ») never pushes a button off the row;
 	   from 480px everything sits on one line. The shadow paints the page colour 8px around
 	   the sides and down to the tab bar (or the screen's edge), so the slots scrolling under
 	   never show through the gap. */
