@@ -451,7 +451,7 @@
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(4.75rem, 1fr));
 		gap: 14px 8px;
-		--badge-size: 48px;
+		--badge-size: 3rem;
 	}
 
 	.slot {

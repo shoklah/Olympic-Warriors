@@ -39,7 +39,7 @@
 	<div class="roster">
 		{#each data.team.players as player}
 			<a class="chip" href="/players/{player.user}"
-				><Avatar photo={player.photo ?? null} name={player} size={24} /><span class="player">{fullName(player)}</span></a
+				><Avatar photo={player.photo ?? null} name={player} size="1.5rem" /><span class="player">{fullName(player)}</span></a
 			>
 		{/each}
 	</div>

@@ -45,7 +45,7 @@
 		bind:this={sheetEl}
 		use:modal={{ onClose: close }}
 	>
-		<div class="medallion" style="--badge-size: 64px">
+		<div class="medallion" style="--badge-size: 4rem">
 			<Badge badge={slot.medal} locked={!slot.earned} />
 		</div>
 		<h2 id={titleId}>{t(`badge.${slot.code}.name`)}</h2>
@@ -100,7 +100,7 @@
 									{t('badge.with')}
 									<!-- Beside the link, not in it: the link keeps its underline on the name alone. -->
 									<span class="partner-avatar"
-										><Avatar photo={entry.partner.photo ?? null} name={entry.partner} size={24} /></span
+										><Avatar photo={entry.partner.photo ?? null} name={entry.partner} size="1.5rem" /></span
 									>
 									<a class="quiet-link" href="/players/{entry.partner.id}">{fullName(entry.partner)}</a>
 								{/if}

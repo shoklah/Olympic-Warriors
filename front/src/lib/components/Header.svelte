@@ -121,7 +121,7 @@
 						<!-- One group, so the phone menu keeps the avatar beside the pill. -->
 						<span class="who">
 							{#if me?.is_person}
-								<Avatar photo={smallPhoto} name={me} size={24} />
+								<Avatar photo={smallPhoto} name={me} size="1.5rem" />
 							{/if}
 							<span class="pill">{t('orga.pill')}</span>
 						</span>
@@ -133,13 +133,13 @@
 				<div class="account">
 					{#if me.is_person}
 						<a class="who" href="/players/{me.id}" aria-label={accountName}>
-							<Avatar photo={smallPhoto} name={me} size={24} />
+							<Avatar photo={smallPhoto} name={me} size="1.5rem" />
 							<span class="name">{me.first_name || t('account.profile')}</span>
 						</a>
 					{:else}
 						<!-- No active player row any more, so no profile page to link to. -->
 						<span class="who">
-							<Avatar photo={smallPhoto} name={me} size={24} />
+							<Avatar photo={smallPhoto} name={me} size="1.5rem" />
 							<span class="name">{me.first_name}</span>
 						</span>
 					{/if}
@@ -355,7 +355,8 @@
 		outline-offset: 2px;
 	}
 
-	/* The avatar sits in the rim: 10px round a 24px avatar in a 44px pill. */
+	/* The avatar sits in the rim: 10px round a 1.5rem avatar (24px at the default font size)
+	   in a 44px pill. */
 	.orga button.with-avatar {
 		padding-left: 9px;
 	}

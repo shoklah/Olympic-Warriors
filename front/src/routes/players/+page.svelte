@@ -41,7 +41,7 @@
 						data-testid="player-row"
 					>
 						<span class="position"><MedalRank rank={player.position} /></span>
-						<Avatar photo={player.photo ?? null} name={player} size={32} lazy />
+						<Avatar photo={player.photo ?? null} name={player} size="2rem" lazy />
 						<span class="text">
 							<span class="head">
 								<span class="name">{fullName(player)}</span>
@@ -80,7 +80,7 @@
 				{@const showcase = showcaseLabel(player.showcase, locale)}
 				<li>
 					<a class="row waiting" href="/players/{player.id}" data-testid="unranked-row">
-						<Avatar photo={player.photo ?? null} name={player} size={32} lazy />
+						<Avatar photo={player.photo ?? null} name={player} size="2rem" lazy />
 						<span class="head">
 							<span class="name">{fullName(player)}</span>
 							<Showcase badges={player.showcase ?? []} />
