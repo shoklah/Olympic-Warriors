@@ -22,6 +22,8 @@
 	export let collection = null;
 	/** interactive: the profile's `badge_stats`, for the sheet's rarity line, or null. */
 	export let badgeStats = null;
+	/** interactive: the profile's `progress`, for the sheet's progress bar, [] from an older API. */
+	export let progress = [];
 	/** interactive: the owner looks at an automatic showcase, so a quiet line says how it is picked. */
 	export let autoHint = false;
 
@@ -78,7 +80,7 @@
 		{#if autoHint}
 			<p class="hint">{t('showcase.autoHint')}</p>
 		{/if}
-		<BadgeSheet slot={activeSlot} open={activeSlot !== null} {badgeStats} on:close={closeSheet} />
+		<BadgeSheet slot={activeSlot} open={activeSlot !== null} {badgeStats} {progress} on:close={closeSheet} />
 	{:else}
 		<span class="showcase row" style:--badge-size="1.25rem" aria-hidden="true" data-testid="showcase">
 			{#each shown as badge}

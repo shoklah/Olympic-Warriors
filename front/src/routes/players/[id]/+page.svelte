@@ -84,6 +84,7 @@
 					badges={showcaseBadges}
 					{collection}
 					badgeStats={profile.badge_stats ?? null}
+					progress={profile.progress ?? []}
 					autoHint={owner && profile.showcase?.auto === true}
 				/>
 			</div>
@@ -122,6 +123,7 @@
 		<BadgeCollection
 			{collection}
 			badgeStats={profile.badge_stats ?? null}
+			progress={profile.progress ?? []}
 			editable={owner}
 			showcase={profile.showcase ?? null}
 		/>

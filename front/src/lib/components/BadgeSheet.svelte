@@ -2,16 +2,26 @@
 	import { createEventDispatcher, tick } from 'svelte';
 	import Avatar from './Avatar.svelte';
 	import Badge from './Badge.svelte';
-	import { badgeDetail, badgeRarity, badgeTier, isTiered, nextThreshold } from '$lib/badges';
+	import {
+		badgeDetail,
+		badgeRarity,
+		badgeTier,
+		isTiered,
+		nextThreshold,
+		progressFor,
+		progressView
+	} from '$lib/badges';
 	import { fullName } from '$lib/players';
 	import { modal } from '$lib/modal';
-	import { useLocale, useT } from '$lib/i18n';
+	import { disciplineName, useLocale, useT } from '$lib/i18n';
 
 	/** A slot from badgeCollection: { code, entries, count, earned, medal }, or null. */
 	export let slot = null;
 	export let open = false;
 	/** The profile's `badge_stats` ({ players, holders, tiers }), or null (an older API). */
 	export let badgeStats = null;
+	/** The profile's `progress` entries, [] from an older API: the bar under the status line. */
+	export let progress = [];
 
 	const t = useT();
 	const locale = useLocale();
@@ -27,6 +37,14 @@
 	$: titleId = slot ? `badge-sheet-title-${slot.code}` : null;
 	/** The first tier's threshold for a locked tiered slot (slot.medal.tier is 0). */
 	$: firstGoal = slot && tiered && !slot.earned ? nextThreshold(slot.code, 0) : null;
+
+	/** The progress block's bar or out-of-reach line (progressView), or null: without an
+	    entry for the slot's code the sheet keeps its own goal lines. */
+	$: view = slot ? progressView(progressFor(progress, slot.code)) : null;
+	$: countKey = view ? `badge.count.${view.code}` : null;
+	/** An earned tiered badge's entry lines say the next goal, unless the bar says it: all but
+	    specialist's, one line per discipline while the bar follows one of them. */
+	$: entryGoals = tiered && (view === null || slot.code === 'specialist');
 
 	/** The badge's overall share of players, or null without badge_stats. */
 	$: rarity = slot ? badgeRarity(badgeStats, slot.code) : null;
@@ -56,6 +74,72 @@
 				<span class="visually-hidden"> {t('badge.timesSpoken', { n: slot.count })}</span>
 			{/if}
 		</p>
+
+		{#if view}
+			<div class="progress" data-testid="badge-progress">
+				{#if view.outOfReach}
+					<p class="out-of-reach">{t(`badge.outOfReach.${view.code}`)}</p>
+				{:else}
+					<!-- Purely visual: the count line under it says the same in words. -->
+					<div class="track" aria-hidden="true" data-testid="badge-progress-track">
+						<span
+							class="fill {view.fill}"
+							style:--share={view.share}
+							data-metal={view.fill}
+							data-testid="badge-progress-fill"
+						></span>
+						{#each view.ticks as mark}
+							<span
+								class="tick {mark.metal}"
+								class:lit={mark.lit}
+								style:--at={mark.share}
+								data-lit={String(mark.lit)}
+								data-metal={mark.metal}
+								data-testid="badge-progress-tick"
+							></span>
+						{/each}
+					</div>
+					<p class="count" data-testid="badge-progress-count">
+						{#if view.topTier}
+							<span>{t(countKey, { fraction: view.count })}</span>
+						{:else}
+							<!-- "7 / 10" reads as a fraction or a date to a screen reader: hidden, and
+							     the same line said with "7 of 10" instead. -->
+							<span aria-hidden="true"
+								>{t(countKey, { fraction: t('badge.fraction', { n: view.count, target: view.target }) })}</span
+							>
+							<span class="visually-hidden"
+								>{t(countKey, { fraction: t('badge.fractionSpoken', { n: view.count, target: view.target }) })}</span
+							>
+						{/if}
+						<!-- The candidate the bar follows, outside both spans: the partner's link is
+						     never hidden. -->
+						{#if view.discipline}
+							{' '}<span class="sep" aria-hidden="true">·</span>{' '}<span
+								>{disciplineName(locale, view.discipline)}</span
+							>
+						{/if}
+						{#if view.partner}
+							{' '}{t('badge.with')}
+							<span class="partner-avatar"
+								><Avatar photo={view.partner.photo ?? null} name={view.partner} size="1.5rem" /></span
+							>
+							<a class="quiet-link" href="/players/{view.partner.id}">{fullName(view.partner)}</a>
+						{/if}
+						{#if view.year}
+							{' '}{t('badge.inYear', { year: view.year })}
+						{/if}
+						{#if view.topTier}
+							{' '}<span class="sep" aria-hidden="true">·</span>{' '}<span>{t('badge.topTier')}</span>
+						{/if}
+					</p>
+					{#if view.best !== null}
+						<p class="best">{t('badge.bestRun', { n: view.best })}</p>
+					{/if}
+				{/if}
+			</div>
+		{/if}
+
 		<p class="rule">{t(`badge.${slot.code}.rule`)}</p>
 
 		{#if rarity}
@@ -109,13 +193,13 @@
 										>{' '}{/if}<span>{part}</span>{/each}
 							</span>
 						{/if}
-						{#if tiered}
+						{#if entryGoals}
 							<span class="goal">{next !== null ? t(`badge.next.${entry.code}`, { n: next }) : t('badge.topTier')}</span>
 						{/if}
 					</li>
 				{/each}
 			</ul>
-		{:else if tiered}
+		{:else if tiered && view === null}
 			<p class="goal">{t(`badge.first.${slot.code}`, { n: firstGoal })}</p>
 		{/if}
 
@@ -174,6 +258,98 @@
 		color: var(--muted);
 	}
 
+	/* As wide as the sheet's text, up to 20rem, centred like the rest of the sheet. */
+	.progress {
+		max-width: 20rem;
+		margin: 0 auto 1rem;
+		text-align: center;
+	}
+
+	.gold {
+		--tint: var(--gold);
+	}
+
+	.silver {
+		--tint: var(--silver);
+	}
+
+	.bronze {
+		--tint: var(--bronze);
+	}
+
+	.accent {
+		--tint: var(--accent);
+	}
+
+	.muted {
+		--tint: var(--muted);
+	}
+
+	/* The ticks, taller than the track and ringed, overhang it: its margins keep them clear
+	   of the lines around. */
+	.track {
+		position: relative;
+		height: 0.375rem;
+		margin: 0.25rem 0 0.6rem;
+		border-radius: var(--radius);
+		background: var(--line);
+	}
+
+	/* Grows from 0 as the sheet opens (the global prefers-reduced-motion block stills it). */
+	.fill {
+		position: absolute;
+		top: 0;
+		bottom: 0;
+		left: 0;
+		width: calc(var(--share) * 100%);
+		border-radius: inherit;
+		background: var(--tint);
+		animation: grow 0.4s ease-out;
+	}
+
+	@keyframes grow {
+		from {
+			width: 0;
+		}
+	}
+
+	/* Ringed in the sheet's own surface, so a tick reads over the fill as over the track. */
+	.tick {
+		position: absolute;
+		top: 50%;
+		left: calc(var(--at) * 100%);
+		width: 0.625rem;
+		height: 0.625rem;
+		border-radius: 50%;
+		background: var(--line);
+		box-shadow: 0 0 0 2px var(--bg-raised);
+		transform: translate(-50%, -50%);
+	}
+
+	.tick.lit {
+		background: var(--tint);
+	}
+
+	.count {
+		margin: 0;
+		font-size: 0.9rem;
+		line-height: 1.4;
+		color: var(--text);
+		overflow-wrap: anywhere;
+	}
+
+	.best,
+	.out-of-reach {
+		margin: 0;
+		font-size: 0.85rem;
+		line-height: 1.4;
+		color: var(--muted);
+	}
+
+	.best {
+		margin-top: 0.15rem;
+	}
+
 	.rarity {
 		margin: -0.4rem 0 0.8rem;
 		font-size: 0.85rem;
@@ -207,11 +383,13 @@
 		overflow-wrap: anywhere;
 	}
 
-	.detail a {
+	.detail a,
+	.count a {
 		color: var(--accent);
 	}
 
-	.detail a:focus-visible {
+	.detail a:focus-visible,
+	.count a:focus-visible {
 		outline: 2px solid var(--accent);
 		outline-offset: 2px;
 		border-radius: 2px;
