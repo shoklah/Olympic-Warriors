@@ -7,9 +7,9 @@ person; profiles.person_ids() is the leaderboard's people without computing the 
 the denominator of the rarity counts the automatic showcase reads.
 
 The public payloads (§6 of the spec): /profiles/ and /profile/<id>/ carry each person's photo
-and showcase, a comrades partner their photo, the summary's rosters the photo too, and none
-of them carries what only /me/ may (the login name, the email, the lock, the claim date, the
-raw pins).
+and showcase, a comrades partner their photo (of a badge, or of a progress entry on the
+profile), the summary's rosters the photo too, and none of them carries what only /me/ may
+(the login name, the email, the lock, the claim date, the raw pins).
 """
 
 from datetime import date, datetime, timezone
@@ -19,7 +19,7 @@ from django.contrib.auth.models import User
 from django.test import SimpleTestCase, TestCase
 
 from olympic_warriors.badges import SHOWCASE_SIZE, badges_by_user, profile_badges, showcase
-from olympic_warriors.models import Badge, Edition, UserProfile
+from olympic_warriors.models import Badge, BadgeProgress, Edition, UserProfile
 from olympic_warriors.profiles import is_person, leaderboard, person_ids
 from olympic_warriors.tests.test_profiles import TODAY, EndpointSetup, ProfilesSetup
 
@@ -576,6 +576,14 @@ class TestPhotosAndShowcases(EndpointSetup, TestCase):
         self.badge(self.ana, C.CHAMPION, self.y2024)
         self.badge(self.ana, C.COMRADES, self.y2025, partner=self.chloe)
         self.badge(self.chloe, C.COMRADES, self.y2025, partner=self.ana)
+        # Progress entries naming a partner, whose login, email and claim must stay out too;
+        # the profiles walked below carry them.
+        BadgeProgress.objects.create(user=self.ana, code=C.COMRADES, value=1, partner=self.chloe)
+        BadgeProgress.objects.create(user=self.chloe, code=C.COMRADES, value=1, partner=self.ana)
+        self.assertEqual(
+            [entry["partner"]["id"] for entry in self.profile(self.ana)["progress"]],
+            [self.chloe.id],
+        )
 
         for url in (
             "/profiles/",

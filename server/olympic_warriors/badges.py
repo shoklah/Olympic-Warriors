@@ -1215,11 +1215,25 @@ def badges_by_user(user_ids):
     return by_user
 
 
+def _partner(user):
+    """A badge or progress row's partner as a profile shows them: {id, first_name,
+    last_name, photo} (the small photo URL or None; never the login name), None without
+    one."""
+    if user is None:
+        return None
+    return {
+        "id": user.id,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        # select_related: no query, and no row reads as no photo.
+        "photo": small_photo_url(getattr(user, "profile", None)),
+    }
+
+
 def _grouped(rows):
     """One person's badge rows as profile_badges() entries (see there)."""
     groups = {}
     for row in rows:
-        partner = row.partner
         group = groups.setdefault(
             (row.code, row.discipline, row.partner_id),
             {
@@ -1227,15 +1241,7 @@ def _grouped(rows):
                 "tier": 0,
                 "years": set(),
                 "discipline": row.discipline or None,
-                "partner": None
-                if partner is None
-                else {
-                    "id": partner.id,
-                    "first_name": partner.first_name,
-                    "last_name": partner.last_name,
-                    # select_related: no query, and no row reads as no photo.
-                    "photo": small_photo_url(getattr(partner, "profile", None)),
-                },
+                "partner": _partner(row.partner),
             },
         )
         group["tier"] = max(group["tier"], row.tier)
@@ -1252,6 +1258,32 @@ def _grouped(rows):
         )
 
     return sorted(({**g, "years": sorted(g["years"])} for g in groups.values()), key=order)
+
+
+def progress_entries(user_id):
+    """
+    The person's progress for GET /profile/<id>/ (1 query, the partner's profile row joined
+    in as _shown_rows() does), one entry per stored BadgeProgress row in catalogue order:
+    [{code, value, best, reachable, discipline, partner, year}], `value` None once out of
+    reach, `discipline` the database name or None, the partner as in profile_badges(). []
+    for someone without rows: nobody has any before a refresh has run since they joined.
+    """
+    rows = BadgeProgress.objects.filter(user_id=user_id).select_related("partner__profile")
+    entries = [
+        {
+            "code": row.code,
+            "value": row.value,
+            "best": row.best,
+            "reachable": row.reachable,
+            "discipline": row.discipline or None,
+            "partner": _partner(row.partner),
+            "year": row.year,
+        }
+        for row in rows
+    ]
+    return sorted(
+        entries, key=lambda entry: CATALOGUE_ORDER.get(entry["code"], len(CATALOGUE_ORDER))
+    )
 
 
 SHOWCASE_SIZE = 5  # UserProfile.showcase repeats it as its size (test_showcase.py)

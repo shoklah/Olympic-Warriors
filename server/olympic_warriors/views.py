@@ -56,7 +56,13 @@ from .serializer import (
 )
 from .avatars import MAX_BYTES, PhotoError, photo_urls, remove_photo, store_photo
 from .badges import (
-    SHOWCASE_SIZE, badge_stats, badges_by_user, profile_badges, showcase, valid_pins,
+    SHOWCASE_SIZE,
+    badge_stats,
+    badges_by_user,
+    profile_badges,
+    progress_entries,
+    showcase,
+    valid_pins,
 )
 from .claims import check_claim, complete_claim
 from .profiles import (
@@ -520,7 +526,7 @@ def getProfiles(request):
 @extend_schema(
     summary=(
         "One person's editions, average rank, discipline places, position, badges, "
-        "badge rarity stats, photo and showcase"
+        "badge progress, badge rarity stats, photo and showcase"
     ),
     responses={
         "200": ProfileSerializer,
@@ -535,7 +541,7 @@ def getProfile(request, user_id):
     # user ids are also the rarity stats' denominator (everyone on /players). The record's
     # discipline places also count the person's running editions, like the all-time tables.
     # The record carries the photo and the pins, and the showcase reuses the badges and the
-    # stats, so neither costs a query.
+    # stats, so neither costs a query. The badge progress is the last refresh's, one query.
     records, record = profile_record(user_id)
     if record is None:
         return Response({"error": "Player not found"}, status=404)
@@ -543,6 +549,7 @@ def getProfile(request, user_id):
     stats = badge_stats([r.user_id for r in records])
     context = {
         "badges": badges,
+        "progress": progress_entries(user_id),
         "badge_stats": stats,
         "showcase": showcase(badges, record.pins, stats["holders"]),
     }
