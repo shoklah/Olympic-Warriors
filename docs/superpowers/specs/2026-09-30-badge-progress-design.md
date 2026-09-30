@@ -42,7 +42,10 @@ Decisions taken while reviewing the spec (2026-09-30):
     `refresh_badges --if-due` refreshes only when an edition has finished since the last
     refresh, or the last refresh is a month old; badges and bars are fresh the morning after
     every edition, a correction of past data still lands within a month, and the rest of the
-    year nothing is recomputed daily.
+    year nothing is recomputed daily. **Only the first morning** (Hugo, 2026-09-30): results
+    revealed or corrected after that wait for the organisers' action « Recalculer les
+    badges » or the 30-day fallback, so the edition checklist keeps « run the action once
+    the last results are in ».
 11. **Comrades keeps a bar toward the next partner**: earned once per partner, like
     specialist per discipline, it shows the closest partner still below 3 for as long as
     there is one, earned or not.
