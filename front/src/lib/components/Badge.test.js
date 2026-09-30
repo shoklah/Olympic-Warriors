@@ -1,6 +1,17 @@
+import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { renderWith } from '$lib/test-utils';
 import Badge from './Badge.svelte';
+
+// Vitest runs from the front root, and component styles are not loaded under jsdom: the
+// sizes are read from the sources.
+const source = (path) => readFileSync(path, 'utf8');
+/** Every `.svelte` file of the tree, as [path, source]. */
+const components = () =>
+	readdirSync('src', { recursive: true })
+		.map((path) => path.replaceAll('\\', '/'))
+		.filter((path) => path.endsWith('.svelte'))
+		.map((path) => [path, source(`src/${path}`)]);
 
 describe('Badge', () => {
 	it('draws the glyph in a ring of the metal, hidden from assistive tech', () => {
@@ -59,5 +70,25 @@ describe('Badge', () => {
 		const root = container.querySelector('.badge');
 		expect(root).not.toHaveAttribute('data-metal');
 		expect(root).not.toHaveClass('gold');
+	});
+
+	// A larger default font size (a browser or system setting) grows the text: a medallion
+	// in rem grows with it, one in px would end up tiny beside the name.
+	it('is sized in rem, so it follows the default font size: 3.5rem, pips at least 0.3125rem', () => {
+		const css = source('src/lib/components/Badge.svelte');
+		expect(css).toMatch(/--size: var\(--badge-size, 3\.5rem\);/);
+		expect(css).toMatch(/--pip: max\(0\.3125rem, calc\(var\(--size\) \* 0\.07\)\);/);
+	});
+
+	it('is scaled in rem wherever a page or a component sets --badge-size', () => {
+		// A declaration (`--badge-size: 3rem;`, in a style block or attribute) or a
+		// `style:--badge-size="…"` directive; `var(--badge-size…)` reads it and is left out.
+		const sizes = components().flatMap(([path, text]) =>
+			[...text.matchAll(/--badge-size(?::\s*|=")([^;"}]+)/g)].map((m) => [path, m[1].trim()])
+		);
+		expect(sizes.length).toBeGreaterThan(0);
+		for (const [path, size] of sizes) {
+			expect(size, path).toMatch(/^\d+(\.\d+)?rem$/);
+		}
 	});
 });

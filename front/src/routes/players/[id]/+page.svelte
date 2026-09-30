@@ -84,6 +84,7 @@
 					badges={showcaseBadges}
 					{collection}
 					badgeStats={profile.badge_stats ?? null}
+					progress={profile.progress ?? []}
 					autoHint={owner && profile.showcase?.auto === true}
 				/>
 			</div>
@@ -122,6 +123,7 @@
 		<BadgeCollection
 			{collection}
 			badgeStats={profile.badge_stats ?? null}
+			progress={profile.progress ?? []}
 			editable={owner}
 			showcase={profile.showcase ?? null}
 		/>
@@ -218,10 +220,11 @@
 
 <style>
 	/* The avatar is 96px on phones and 128px from 600px (`--avatar-size`, read by Avatar),
-	   centred on the name and the position beside it. The showcase's five medallions (46px
-	   each with their padding, 254px in all) do not fit beside the avatar on a phone (231px
-	   at 375px, 176px at 320px), so below 600px they get a line of their own under both;
-	   from 600px they sit beside the avatar, under the position. */
+	   centred on the name and the position beside it. The showcase's five medallions (2.5rem
+	   each plus their 6px padding, 254px in all at the default font size) do not fit beside
+	   the avatar on a phone (231px at 375px, 176px at 320px), so below 600px they get a line
+	   of their own under both, which they wrap on with a large default font size; from 600px
+	   they sit beside the avatar, under the position. */
 	.identity {
 		display: grid;
 		grid-template-columns: auto minmax(0, 1fr);

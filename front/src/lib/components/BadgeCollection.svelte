@@ -11,6 +11,8 @@
 	export let collection;
 	/** profile.badge_stats ({ players, holders, tiers }), or null (an older API). */
 	export let badgeStats = null;
+	/** profile.progress, [] from an older API: the sheet's progress bars. */
+	export let progress = [];
 	/** The viewer's own profile: « Choisir ma vitrine » offers the selection mode below. */
 	export let editable = false;
 	/** profile.showcase ({ auto, badges }), or null (an older API): the pins a selection starts from. */
@@ -404,7 +406,7 @@
 	</div>
 {/if}
 
-<BadgeSheet slot={activeSlot} open={activeSlot !== null} {badgeStats} on:close={closeSheet} />
+<BadgeSheet slot={activeSlot} open={activeSlot !== null} {badgeStats} {progress} on:close={closeSheet} />
 
 <style>
 	.progress {
@@ -451,7 +453,7 @@
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(4.75rem, 1fr));
 		gap: 14px 8px;
-		--badge-size: 48px;
+		--badge-size: 3rem;
 	}
 
 	.slot {

@@ -28,10 +28,12 @@
 </span>
 
 <style>
-	/* `--badge-size` lets a page scale the medallion, as `--medal-size` does for MedalRank. */
+	/* `--badge-size` lets a page scale the medallion, as `--medal-size` does for MedalRank,
+	   in rem like it: a larger default font size (a browser or system setting) grows the
+	   medallion with the text around it. The hairlines keep a floor in px. */
 	.badge {
-		--size: var(--badge-size, 56px);
-		--pip: max(5px, calc(var(--size) * 0.07));
+		--size: var(--badge-size, 3.5rem);
+		--pip: max(0.3125rem, calc(var(--size) * 0.07));
 		display: inline-flex;
 		flex-direction: column;
 		align-items: center;

@@ -131,6 +131,132 @@ export function nextThreshold(code, tier) {
 }
 
 /**
+ * The targets of the countable badges without tiers, mirroring PROGRESS_TARGETS in
+ * `badges.py` (olympus: the nine gods). The payload's progress entries carry no target, so
+ * with TIER_THRESHOLDS this is where the sheet's bars find theirs (see the badge progress
+ * design spec, "The 20 codes with progress").
+ */
+export const PROGRESS_TARGETS = {
+	legend: 3,
+	'full-set': 3,
+	decathlete: 10,
+	olympus: 9,
+	'back-to-back': 2,
+	threepeat: 3,
+	dynasty: 4,
+	'podium-regular': 3,
+	'on-the-rise': 2,
+	reign: 3,
+	comrades: 3,
+	'clean-sweep': 3,
+	'eternal-second': 2,
+	'lucky-charm': 3
+};
+
+/** The badges that can become impossible, each worded by its `badge.outOfReach.<code>`. */
+const CLOSING = ['eternal-second', 'lucky-charm', 'argonaut'];
+
+/**
+ * The 20 codes a progress entry may come for, in catalogue order: the tiered ones, those
+ * with a target, and argonaut, which has no counter and only ever comes out of reach. A bar
+ * needs `badge.count.<code>`, a closing badge `badge.outOfReach.<code>` (badges.test.js).
+ */
+export const PROGRESS_CODES = Object.keys(BADGES).filter(
+	(code) => isTiered(code) || hasOwn(PROGRESS_TARGETS, code) || CLOSING.includes(code)
+);
+
+/**
+ * The profile's progress entry for `code` (`progress` is the `progress` of /profile/<id>/),
+ * or null: without an entry (an older API, a refresh not run yet, a person added since) or
+ * for a code without progress, the sheet shows its own lines.
+ */
+export function progressFor(progress, code) {
+	if (!Array.isArray(progress) || !PROGRESS_CODES.includes(code)) return null;
+	return progress.find((entry) => entry?.code === code) ?? null;
+}
+
+/**
+ * The colour token a badge's metal fills a bar with: the metal itself, or the accent for a
+ * plain badge, as Badge.svelte rings it. No code with a progress target is plain today.
+ */
+export const fillFor = (metal) => (metal === 'plain' ? 'accent' : metal);
+
+/** A count from the payload: a whole number from 0, a missing one read as 0. */
+const whole = (n) => Math.max(0, Math.floor(Number(n) || 0));
+
+/**
+ * What the badge sheet draws for a progress entry (`{ code, value, best, reachable,
+ * discipline, partner, year }`), or null when there is nothing to draw (no entry, a code
+ * without progress, argonaut while reachable).
+ *
+ * Out of reach: `{ code, outOfReach: true }`, a line and no bar. Otherwise a bar:
+ * - `count`, the number the line shows, and `target`, the first threshold above the count
+ *   for a tiered badge (above the best run for ever-present, since only a longer run gives
+ *   a new tier), the fixed target otherwise;
+ * - `share` (0 to 1), the fill, over a tiered badge's whole track (0 to its top threshold);
+ * - `ticks`, one per tier (`{ threshold, share, lit, metal }`), lit once the count reaches
+ *   them, so a tick never contradicts its bar; none without tiers;
+ * - `topTier`: past the top threshold (ever-present: by its best run) the track is full,
+ *   every tick lit, the count is the one reached and `target` null;
+ * - `fill`, a colour token: the metal of the highest tick lit (`muted` before the first,
+ *   gold at the top tier), or the badge's own metal without tiers (`accent` for a plain one);
+ * - `best`, the best run for the « Meilleure série » note, when above the current one and
+ *   below the top tier, else null;
+ * - `discipline`, `partner` and `year`, which name the candidate the bar follows.
+ */
+export function progressView(entry) {
+	if (!entry || !PROGRESS_CODES.includes(entry.code)) return null;
+	const { code } = entry;
+	if (entry.reachable === false) return CLOSING.includes(code) ? { code, outOfReach: true } : null;
+
+	const value = whole(entry.value);
+	const best = entry.best == null ? null : whole(entry.best);
+	const named = { discipline: entry.discipline || null, partner: entry.partner ?? null, year: entry.year ?? null };
+	const note = (topTier) => (best !== null && best > value && !topTier ? best : null);
+
+	const thresholds = TIER_THRESHOLDS[code];
+	if (thresholds) {
+		const top = thresholds[thresholds.length - 1];
+		const reached = code === 'ever-present' ? Math.max(best ?? 0, value) : value;
+		const topTier = reached >= top;
+		const ticks = thresholds.map((threshold, i) => ({
+			threshold,
+			share: threshold / top,
+			lit: topTier || value >= threshold,
+			metal: TIER_METALS[i]
+		}));
+		const highest = ticks.filter((tick) => tick.lit).pop();
+		return {
+			code,
+			outOfReach: false,
+			count: topTier ? reached : value,
+			target: topTier ? null : thresholds.find((threshold) => threshold > reached),
+			share: topTier ? 1 : Math.min(value, top) / top,
+			topTier,
+			ticks,
+			fill: topTier ? 'gold' : (highest?.metal ?? 'muted'),
+			best: note(topTier),
+			...named
+		};
+	}
+
+	const target = PROGRESS_TARGETS[code];
+	if (!target) return null;
+	return {
+		code,
+		outOfReach: false,
+		count: value,
+		target,
+		share: Math.min(value, target) / target,
+		topTier: false,
+		ticks: [],
+		fill: fillFor(BADGES[code]),
+		best: note(false),
+		...named
+	};
+}
+
+/**
  * The share of players holding `code`, from the profile's `badge_stats`
  * (`{ players, holders: {code: n}, tiers: {code: [n1, n2, n3]} }`, see the design spec's
  * "Rarity"): `{ holders, players, percent }`, `percent` rounded to the nearest whole

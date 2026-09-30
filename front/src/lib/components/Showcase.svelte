@@ -14,7 +14,7 @@
 	export let badges = [];
 	/**
 	 * 'row': a leaderboard row, which is one link and cannot hold buttons, so the medallions
-	 * are aria-hidden at 20px and the row's hidden sentence names them (`showcaseLabel`).
+	 * are aria-hidden at 1.25rem and the row's hidden sentence names them (`showcaseLabel`).
 	 * 'interactive': the profile header, each medallion a button opening its BadgeSheet.
 	 */
 	export let mode = 'row';
@@ -22,6 +22,8 @@
 	export let collection = null;
 	/** interactive: the profile's `badge_stats`, for the sheet's rarity line, or null. */
 	export let badgeStats = null;
+	/** interactive: the profile's `progress`, for the sheet's progress bar, [] from an older API. */
+	export let progress = [];
 	/** interactive: the owner looks at an automatic showcase, so a quiet line says how it is picked. */
 	export let autoHint = false;
 
@@ -78,9 +80,9 @@
 		{#if autoHint}
 			<p class="hint">{t('showcase.autoHint')}</p>
 		{/if}
-		<BadgeSheet slot={activeSlot} open={activeSlot !== null} {badgeStats} on:close={closeSheet} />
+		<BadgeSheet slot={activeSlot} open={activeSlot !== null} {badgeStats} {progress} on:close={closeSheet} />
 	{:else}
-		<span class="showcase row" style:--badge-size="20px" aria-hidden="true" data-testid="showcase">
+		<span class="showcase row" style:--badge-size="1.25rem" aria-hidden="true" data-testid="showcase">
 			{#each shown as badge}
 				<Badge {badge} />
 			{/each}
@@ -95,22 +97,30 @@
 	}
 
 	/* Badge draws a pip row under each ring: its gap (8% of the size) then its pips (7%, at
-	   least 5px). A page setting `--showcase-hang: 1`, where the medallions sit inline after
-	   a name, lets that row hang below the line: the rings then centre on the name and a row
-	   with a showcase is no taller than one without. */
+	   least 0.3125rem). A page setting `--showcase-hang: 1`, where the medallions sit inline
+	   after a name, lets that row hang below the line: the rings then centre on the name and
+	   a row with a showcase is no taller than one without. */
 	.row {
 		flex: none;
 		gap: 4px;
 		margin-bottom: calc(
-			var(--showcase-hang, 0) * -1 * (var(--badge-size) * 0.08 + max(5px, var(--badge-size) * 0.07))
+			var(--showcase-hang, 0) * -1 * (var(--badge-size) * 0.08 + max(0.3125rem, var(--badge-size) * 0.07))
 		);
+	}
+
+	/* Below 600px the leaderboard gives the showcase a line of its own under the name, which
+	   five medallions can outgrow with a large default font size: they wrap. */
+	@media (max-width: 599.98px) {
+		.row {
+			flex-wrap: wrap;
+		}
 	}
 
 	/* Pulled back by the buttons' padding, so the rings line up with the name above. */
 	.interactive {
 		flex-wrap: wrap;
 		gap: 6px;
-		--badge-size: 40px;
+		--badge-size: 2.5rem;
 		margin: 0;
 		margin-inline-start: -3px;
 		padding: 0;
@@ -148,7 +158,7 @@
 	@media (min-width: 600px) {
 		.interactive {
 			gap: 8px;
-			--badge-size: 48px;
+			--badge-size: 3rem;
 		}
 	}
 </style>
