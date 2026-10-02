@@ -406,6 +406,7 @@ def setMyShowcase(request):
 WRONG_PASSWORD = {"error": "wrong_password"}
 
 
+@sensitive_variables("data")
 def _account_body(request):
     """The JSON object of an account request, {} when the body cannot be read."""
     try:
@@ -438,7 +439,7 @@ def _not_an_account_owner(user):
 @permission_classes([IsAuthenticated])
 @throttle_classes([PasswordCheckThrottle])
 @parser_classes([JSONParser])
-@sensitive_variables("password")
+@sensitive_variables("password", "data")
 def myEmail(request):
     refusal = _not_an_account_owner(request.user)
     if refusal:
@@ -504,7 +505,7 @@ def myPassword(request):
 @permission_classes([IsAuthenticated])
 @throttle_classes([PasswordCheckThrottle])
 @parser_classes([JSONParser])
-@sensitive_variables("password")
+@sensitive_variables("password", "data")
 def deactivateMe(request):
     refusal = _not_an_account_owner(request.user)
     if refusal:
