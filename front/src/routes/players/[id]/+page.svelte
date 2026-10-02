@@ -75,6 +75,9 @@
 					<span class="visually-hidden"> · {t('profile.positionHint')}</span>
 				</a>
 			{/if}
+			{#if owner}
+				<a class="quiet-link edit-account" href="/account">{t('account.edit')}</a>
+			{/if}
 		</div>
 
 		{#if showcaseBadges.length > 0}
@@ -307,6 +310,10 @@
 			grid-column: 2;
 			align-self: start;
 		}
+	}
+
+	.edit-account {
+		font-size: 0.875rem;
 	}
 
 	/* `anywhere` is the last resort for a single word wider than the line. */
