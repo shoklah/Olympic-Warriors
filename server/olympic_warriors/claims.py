@@ -85,8 +85,9 @@ def public_url():
     return base
 
 
-def claim_link(user):
-    """The front's claim page for `user`. Raises ImproperlyConfigured without a usable
+def claim_link(user, route="claim"):
+    """The front's page for `user`: `route` is `claim` (an organiser's link) or `reset` (the
+    mailed lost-password link), both honoured by the same token. Raises ImproperlyConfigured without a usable
     PUBLIC_URL, then Unclaimable when no link is for this user."""
     base = public_url()
     reason = unclaimable_reason(user)
@@ -94,7 +95,7 @@ def claim_link(user):
         raise Unclaimable(reason)
     uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
     token = default_token_generator.make_token(user)
-    return f"{base}/claim/{uidb64}/{token}"
+    return f"{base}/{route}/{uidb64}/{token}"
 
 
 def _user(uidb64):
@@ -140,6 +141,7 @@ def complete_claim(user, token, password):
         Token.objects.filter(user=locked).delete()
         key = Token.objects.create(user=locked).key
         profile, _ = UserProfile.objects.get_or_create(user=locked)
-        profile.claimed_at = timezone.now()
-        profile.save(update_fields=["claimed_at", "updated_at"])
+        if profile.claimed_at is None:  # a reset later keeps the first activation date
+            profile.claimed_at = timezone.now()
+            profile.save(update_fields=["claimed_at", "updated_at"])
     return key

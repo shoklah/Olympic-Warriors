@@ -81,7 +81,9 @@ from .throttling import (
     LoginRateThrottle,
     PasswordCheckThrottle,
     PhotoRateThrottle,
+    ResetEmailRateThrottle,
 )
+from .password_reset import send_reset
 from .models import (
     Player,
     Edition,
@@ -155,6 +157,12 @@ def claimAccount(request, uidb64, token):
     body, so a dead link is a 404 whatever the body; then a missing or blank password, or
     a body that is not JSON, is `password_missing`, and the validators give their own codes.
     """
+    return _claim_response(request, uidb64, token)
+
+
+@sensitive_variables("password")  # never in an error report
+def _claim_response(request, uidb64, token):
+    """The claim contract, shared by a claim link and a mailed reset link."""
     user = check_claim(uidb64, token)
     if user is None:
         return Response(INVALID_LINK, status=404)
@@ -175,6 +183,41 @@ def claimAccount(request, uidb64, token):
     if key is None:  # used or made unclaimable since check_claim()
         return Response(INVALID_LINK, status=404)
     return Response({"token": key, "user_id": user.pk})
+
+
+@extend_schema(
+    summary="Ask for a password-reset mail (always 200: nobody learns which emails exist)",
+    request=inline_serializer("ResetRequest", {"email": serializers.EmailField()}),
+    responses={
+        "200": OpenApiResponse(description="{}"),
+        "429": OpenApiResponse(description="Throttled"),
+    },
+)
+@api_view(["POST"])
+@authentication_classes([])
+@permission_classes([AllowAny])
+@throttle_classes([LoginRateThrottle, ResetEmailRateThrottle])
+@parser_classes([JSONParser])
+def requestPasswordReset(request):
+    try:
+        data = request.data
+    except ParseError:
+        data = {}
+    email = data.get("email") if isinstance(data, dict) else None
+    send_reset(email)
+    return Response({})
+
+
+@extend_schema(exclude=True)
+@api_view(["GET", "POST"])
+@authentication_classes([])
+@permission_classes([AllowAny])
+@throttle_classes([ClaimRateThrottle])
+@parser_classes([JSONParser])
+@sensitive_variables("password")
+def resetPassword(request, uidb64, token):
+    """A reset link: the claim contract (claims.py), reached from the mailed link."""
+    return _claim_response(request, uidb64, token)
 
 
 # The caller's own account: open to any token (IsAuthenticated), a player's included. The
