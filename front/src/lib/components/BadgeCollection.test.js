@@ -54,6 +54,15 @@ const badges = [
 const renderCollection = (list, locale = 'en') => renderWith(BadgeCollection, { collection: badgeCollection(list) }, locale);
 
 describe('BadgeCollection', () => {
+	it('names the collection with a hidden heading, unless the page already does', () => {
+		const { unmount } = renderCollection([]);
+		expect(screen.getByRole('heading', { level: 2, name: 'Badges' })).toBeInTheDocument();
+		unmount();
+
+		renderWith(BadgeCollection, { collection: badgeCollection([]), heading: false });
+		expect(screen.queryByRole('heading', { level: 2 })).toBeNull();
+	});
+
 	it('has a visually hidden "Badges" heading above the progress line', () => {
 		renderCollection(badges);
 		expect(screen.getByRole('heading', { level: 2, name: 'Badges' })).toBeInTheDocument();

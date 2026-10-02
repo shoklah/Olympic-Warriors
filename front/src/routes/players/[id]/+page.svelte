@@ -312,7 +312,11 @@
 		}
 	}
 
+	/* A 24px target at least (WCAG 2.5.8), the text centred in it. */
 	.edit-account {
+		display: inline-flex;
+		align-items: center;
+		min-height: 24px;
 		font-size: 0.875rem;
 	}
 

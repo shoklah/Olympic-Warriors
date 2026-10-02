@@ -337,7 +337,7 @@ export default {
 	'reset.title': 'New password',
 	'reset.greeting': 'Hello {name}',
 	'reset.submit': 'Change my password',
-	'reset.invalidLink': 'This link is no longer valid: request a new one from "Forgot password?"',
+	'reset.invalidLink': 'This link is no longer valid: request a new one from “Forgot password?”',
 	'claim.title': 'Activate my account',
 	'claim.greeting': 'Hello {name}',
 	'claim.username': 'Your username:',

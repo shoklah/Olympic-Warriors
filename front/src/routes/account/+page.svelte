@@ -113,6 +113,7 @@
 			progress={profile.progress ?? []}
 			editable
 			showcase={profile.showcase ?? null}
+			heading={false}
 		/>
 	</section>
 

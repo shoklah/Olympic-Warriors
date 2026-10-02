@@ -130,15 +130,21 @@ describe('reset page', () => {
 	it('says the link is no longer valid, with no form', () => {
 		renderWith(Page, { data: { state: 'invalid' }, form: null });
 
-		expect(screen.getByText(`This link is no longer valid: request a new one from "Forgot password?"`)).toBeInTheDocument();
+		expect(screen.getByText('This link is no longer valid: request a new one from “Forgot password?”')).toBeInTheDocument();
 		expect(screen.queryByLabelText('Password')).toBeNull();
 		expect(screen.queryByRole('button', { name: 'Change my password' })).toBeNull();
+	});
+
+	it('offers a new link from /forgot when the link is dead', () => {
+		renderWith(Page, { data: { state: 'invalid' }, form: null });
+
+		expect(screen.getByRole('link', { name: 'Forgot password?' })).toHaveAttribute('href', '/forgot');
 	});
 
 	it('switches to the invalid-link state when the link died before the submit', () => {
 		renderWith(Page, { data: ready, form: { invalid: true } });
 
-		expect(screen.getByText(`This link is no longer valid: request a new one from "Forgot password?"`)).toBeInTheDocument();
+		expect(screen.getByText('This link is no longer valid: request a new one from “Forgot password?”')).toBeInTheDocument();
 		expect(screen.queryByText(/Hello/)).toBeNull();
 		expect(screen.queryByLabelText('Password')).toBeNull();
 	});

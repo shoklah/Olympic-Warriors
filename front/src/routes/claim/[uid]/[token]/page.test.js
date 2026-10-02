@@ -135,6 +135,12 @@ describe('claim page', () => {
 		expect(screen.queryByRole('button', { name: 'Activate my account' })).toBeNull();
 	});
 
+	it('sends nobody to /forgot from a dead claim link: only an organiser makes a new one', () => {
+		renderWith(Page, { data: { state: 'invalid' }, form: null });
+
+		expect(screen.queryByRole('link')).toBeNull();
+	});
+
 	it('switches to the invalid-link state when the link died before the submit', () => {
 		renderWith(Page, { data: ready, form: { invalid: true } });
 

@@ -73,6 +73,8 @@
 	<section class="notice">
 		<h1>{t(titleKey)}</h1>
 		<p>{t(invalidKey)}</p>
+		<!-- Where a new link comes from, when the visitor can get one alone. -->
+		<slot name="invalid" />
 	</section>
 {:else if data.state === 'throttled'}
 	<section class="notice">
