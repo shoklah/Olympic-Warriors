@@ -747,6 +747,7 @@ class MeSerializer(serializers.Serializer):
     first_name = serializers.CharField()
     last_name = serializers.CharField()
     username = serializers.CharField(help_text="The login name")
+    email = serializers.EmailField(allow_blank=True, help_text="The address, blank when none")
     is_staff = serializers.BooleanField(help_text="An organiser")
     is_person = serializers.BooleanField(
         help_text="An active player of an active edition: has a profile, a photo and a showcase"

@@ -88,7 +88,7 @@ class MeSetup:
     def user(self, username, first_name, last_name, *editions, **flags):
         user = User.objects.create_user(
             username=username, first_name=first_name, last_name=last_name,
-            email=f"{username}@mail.example", **flags,
+            email=f"{username}@mail.example", password="old-password-x1", **flags,
         )
         for edition in editions:
             team = self.loups if edition == self.y2025 else None
@@ -119,6 +119,7 @@ class TestMe(MeSetup, APITestCase):
                 "first_name": "Léa",
                 "last_name": "Martin",
                 "username": "leamartin",
+                "email": "leamartin@mail.example",
                 "is_staff": False,
                 "is_person": True,
                 "photo": None,
@@ -195,13 +196,10 @@ class TestMe(MeSetup, APITestCase):
         with self.assertNumQueries(ME_QUERIES):
             self.me()
 
-    def test_the_email_stays_out(self):
+    def test_the_email_is_the_callers_own(self):
         self.login(self.lea)
 
-        content = self.client.get("/me/").content
-
-        self.assertNotIn(b"email", content)
-        self.assertNotIn(b"mail.example", content)
+        self.assertEqual(self.me()["email"], "leamartin@mail.example")
 
 
 def photo_upload(data=None, name="photo.jpg"):

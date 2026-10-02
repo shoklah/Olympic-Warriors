@@ -42,6 +42,9 @@ urlpatterns = [
     path("me/", views.getMe),
     path("me/photo/", views.myPhoto),
     path("me/showcase/", views.setMyShowcase),
+    path("me/email/", views.myEmail),
+    path("me/password/", views.myPassword),
+    path("me/deactivate/", views.deactivateMe),
     # users
     path("user/<int:user_id>/", views.getUser),
     path("users/", views.getUsers),
