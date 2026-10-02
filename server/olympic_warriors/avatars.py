@@ -110,7 +110,8 @@ def store_photo(profile, upload):
     try:
         with transaction.atomic():
             row = UserProfile.objects.select_for_update().get(pk=profile.pk)
-            if row.photo_locked:
+            # A deactivated (anonymized) person has no face to put back, like a locked one.
+            if row.photo_locked or row.anonymized:
                 raise PhotoError("photo_locked")
             for field, name, content in zip(
                 PHOTO_FIELDS, (f"{base}.webp", f"{base}-sm.webp"), contents
