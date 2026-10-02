@@ -14,6 +14,11 @@ describe('badge-codes', () => {
 		expect(badges.BADGES).toBe(codes.BADGES);
 		expect(badges.isKnownBadge).toBe(codes.isKnownBadge);
 		expect(badges.isTiered).toBe(codes.isTiered);
+		expect(badges.SHOWCASE_SIZE).toBe(codes.SHOWCASE_SIZE);
+	});
+
+	it('holds the one showcase size, the API\'s', () => {
+		expect(codes.SHOWCASE_SIZE).toBe(5);
 	});
 
 	// badges.js bundles every glyph (import.meta.glob, inlined as data URIs): a page that

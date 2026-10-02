@@ -10,8 +10,9 @@
 	 */
 	export let name = null;
 	/**
-	 * The diameter, a number of pixels or a CSS length. Without it `--avatar-size` comes from
-	 * the page (24px by default), so a media query around the avatar can change it.
+	 * The diameter, a number of pixels or a CSS length: in rem beside a name, so it grows with
+	 * the name under a larger default font size. Without it `--avatar-size` comes from the
+	 * page (1.5rem by default), so a media query around the avatar can change it.
 	 */
 	export let size = null;
 	/**
@@ -36,7 +37,7 @@
 <style>
 	/* `--avatar-size` lets a page scale it, as `--badge-size` does for Badge. */
 	.avatar {
-		--size: var(--avatar-size, 24px);
+		--size: var(--avatar-size, 1.5rem);
 		display: inline-grid;
 		place-items: center;
 		flex: none;

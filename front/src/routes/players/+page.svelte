@@ -33,7 +33,8 @@
 				{@const { shown, more } = shownPlaces(player.places)}
 				<li>
 					<a
-						class="row"
+						class="row ranked"
+						class:has-show={player.showcase?.length}
 						class:gold={player.position === 1}
 						class:silver={player.position === 2}
 						class:bronze={player.position === 3}
@@ -41,27 +42,25 @@
 						data-testid="player-row"
 					>
 						<span class="position"><MedalRank rank={player.position} /></span>
-						<Avatar photo={player.photo ?? null} name={player} size={32} lazy />
-						<span class="text">
-							<span class="head">
-								<span class="name">{fullName(player)}</span>
-								<Showcase badges={player.showcase ?? []} />
-							</span>
-							<span class="places" aria-hidden="true" data-testid="places">
-								{#each shown as place}
-									<span
-										class="num place"
-										class:gold={place.rank === 1}
-										class:silver={place.rank === 2}
-										class:bronze={place.rank === 3}>{place.rank}</span
-									>{' '}
-								{/each}
-								{#if more > 0}
-									<span class="num more">{t('players.more', { n: more })}</span>
-								{/if}
-							</span>
-							<span class="visually-hidden">{spoken(player)}</span>
+						<span class="avatar-cell"><Avatar photo={player.photo ?? null} name={player} size="2rem" lazy /></span>
+						<span class="name">{fullName(player)}</span>
+						{#if player.showcase?.length}
+							<span class="show"><Showcase badges={player.showcase} tips large /></span>
+						{/if}
+						<span class="places" aria-hidden="true" data-testid="places">
+							{#each shown as place}
+								<span
+									class="num place"
+									class:gold={place.rank === 1}
+									class:silver={place.rank === 2}
+									class:bronze={place.rank === 3}>{place.rank}</span
+								>{' '}
+							{/each}
+							{#if more > 0}
+								<span class="num more">{t('players.more', { n: more })}</span>
+							{/if}
 						</span>
+						<span class="visually-hidden">{spoken(player)}</span>
 						<span class="average" data-testid="average" aria-hidden="true">
 							<span class="num value">{formatAverage(player.average_rank, locale)}</span>
 							<span class="label long">{t('players.averageRank')}</span>
@@ -80,7 +79,7 @@
 				{@const showcase = showcaseLabel(player.showcase, locale)}
 				<li>
 					<a class="row waiting" href="/players/{player.id}" data-testid="unranked-row">
-						<Avatar photo={player.photo ?? null} name={player} size={32} lazy />
+						<Avatar photo={player.photo ?? null} name={player} size="2rem" lazy />
 						<span class="head">
 							<span class="name">{fullName(player)}</span>
 							<Showcase badges={player.showcase ?? []} />
@@ -138,6 +137,65 @@
 			background 0.2s ease;
 	}
 
+	/* The ranked row names its cells: the name, the showcase (when there is one) and the
+	   places stack in the middle column on a phone, and from 800px the showcase takes a column
+	   of its own across the name and places lines, at a larger size (five of them need the room). */
+	.row.ranked {
+		grid-template-areas:
+			'pos avatar name avg'
+			'pos avatar places avg';
+		row-gap: 2px;
+	}
+
+	.row.ranked.has-show {
+		grid-template-areas:
+			'pos avatar name avg'
+			'pos avatar show avg'
+			'pos avatar places avg';
+		row-gap: 3px;
+	}
+
+	.position {
+		grid-area: pos;
+	}
+
+	.avatar-cell {
+		grid-area: avatar;
+		display: flex;
+	}
+
+	.row.ranked .name {
+		grid-area: name;
+	}
+
+	.show {
+		grid-area: show;
+		min-width: 0;
+	}
+
+	.row.ranked .places {
+		grid-area: places;
+	}
+
+	.row.ranked .average {
+		grid-area: avg;
+	}
+
+	@media (min-width: 800px) {
+		.row.ranked.has-show {
+			grid-template-columns: 44px auto minmax(0, 1fr) auto auto;
+			grid-template-areas:
+				'pos avatar name show avg'
+				'pos avatar places show avg';
+			row-gap: 2px;
+		}
+
+		.show {
+			align-self: center;
+			margin-inline-end: 1.5rem;
+		}
+	}
+
 	.row.waiting {
 		grid-template-columns: auto minmax(0, 1fr) auto;
 	}
@@ -155,7 +213,11 @@
 		}
 	}
 
+	/* Lifted above the rows below, whose badges are positioned: a showcase tooltip hangs
+	   over them. */
 	.row:hover {
+		position: relative;
+		z-index: 1;
 		background: var(--line);
 		transform: translateY(-2px);
 		text-decoration: none;
@@ -176,10 +238,6 @@
 
 	.row.bronze {
 		border-left-color: var(--bronze);
-	}
-
-	.text {
-		min-width: 0;
 	}
 
 	.name {

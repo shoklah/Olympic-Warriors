@@ -5,16 +5,21 @@ import { translator } from './i18n';
 import {
 	BADGES,
 	FAMILIES,
+	PROGRESS_CODES,
+	PROGRESS_TARGETS,
 	TIER_THRESHOLDS,
 	badgeCollection,
 	badgeDetail,
 	badgeGlyph,
 	badgeMetal,
 	badgeRarity,
+	fillFor,
 	hasGlyph,
 	isKnownBadge,
 	isTiered,
 	nextThreshold,
+	progressFor,
+	progressView,
 	slotLabel
 } from './badges.js';
 
@@ -277,5 +282,189 @@ describe('slotLabel', () => {
 		const t = translator('fr');
 		expect(slotLabel(slotOf('clean-sweep', clean([2023, 2026])), t)).toBe('Razzia, badge obtenu 2 fois');
 		expect(slotLabel(slotOf('clean-sweep', []), t)).toBe('Razzia, badge à débloquer');
+	});
+});
+
+describe('PROGRESS_TARGETS and PROGRESS_CODES', () => {
+	/** The codes whose badge can become impossible, each with its « Plus atteignable » line. */
+	const CLOSING = ['eternal-second', 'lucky-charm', 'argonaut'];
+
+	it('mirrors the targets of the countable badges without tiers in badges.py', () => {
+		expect(PROGRESS_TARGETS).toEqual({
+			legend: 3, 'full-set': 3, decathlete: 10, olympus: 9, 'back-to-back': 2, threepeat: 3, dynasty: 4,
+			'podium-regular': 3, 'on-the-rise': 2, reign: 3, comrades: 3, 'clean-sweep': 3, 'eternal-second': 2,
+			'lucky-charm': 3
+		});
+	});
+
+	it('lists the 20 codes with progress, in catalogue order: the tiered ones, the targets and argonaut', () => {
+		expect(PROGRESS_CODES).toEqual([
+			'back-to-back', 'threepeat', 'dynasty', 'legend', 'podium-regular', 'full-set', 'eternal-second',
+			'on-the-rise', 'lucky-charm', 'veteran', 'argonaut', 'ever-present', 'comrades', 'networker', 'reign',
+			'specialist', 'all-rounder', 'decathlete', 'clean-sweep', 'olympus'
+		]);
+		expect([...PROGRESS_CODES].sort()).toEqual(
+			[...Object.keys(TIER_THRESHOLDS), ...Object.keys(PROGRESS_TARGETS), 'argonaut'].sort()
+		);
+		const order = Object.keys(BADGES);
+		const idx = PROGRESS_CODES.map((code) => order.indexOf(code));
+		expect(idx).toEqual([...idx].sort((a, b) => a - b));
+	});
+
+	it('words every progress code in both languages: a count line for a bar, a line once out of reach', () => {
+		for (const code of PROGRESS_CODES) {
+			for (const dict of [fr, en]) {
+				if (code === 'argonaut') {
+					expect(dict[`badge.count.${code}`], code).toBeUndefined();
+				} else {
+					expect(dict[`badge.count.${code}`], code).toEqual(expect.stringContaining('{fraction}'));
+				}
+				if (CLOSING.includes(code)) {
+					expect(dict[`badge.outOfReach.${code}`], code).toEqual(expect.any(String));
+				} else {
+					expect(dict[`badge.outOfReach.${code}`], code).toBeUndefined();
+				}
+			}
+		}
+	});
+});
+
+describe('progressFor', () => {
+	const veteran = { code: 'veteran', value: 7, best: null, reachable: true, discipline: null, partner: null, year: null };
+	const legend = { ...veteran, code: 'legend', value: 1 };
+
+	it("finds the profile's progress entry of a code", () => {
+		expect(progressFor([legend, veteran], 'veteran')).toBe(veteran);
+		expect(progressFor([legend, veteran], 'legend')).toBe(legend);
+	});
+
+	it('is null without an entry, for a code without progress, or without a list (an older API)', () => {
+		expect(progressFor([legend], 'veteran')).toBeNull();
+		expect(progressFor([{ ...veteran, code: 'champion' }], 'champion')).toBeNull();
+		expect(progressFor(undefined, 'veteran')).toBeNull();
+		expect(progressFor(null, 'veteran')).toBeNull();
+		expect(progressFor({ veteran }, 'veteran')).toBeNull();
+	});
+});
+
+describe('progressView', () => {
+	const entry = (code, extra = {}) => ({
+		code, value: 0, best: null, reachable: true, discipline: null, partner: null, year: null, ...extra
+	});
+	const ticks = (view) => view.ticks.map(({ threshold, lit, metal }) => [threshold, lit, metal]);
+
+	it('draws a tiered badge on one track to its top threshold, a tick per tier lit once the count reaches it', () => {
+		const view = progressView(entry('veteran', { value: 7 }));
+		expect(view).toMatchObject({ code: 'veteran', outOfReach: false, count: 7, target: 10, share: 0.7, topTier: false });
+		expect(ticks(view)).toEqual([[3, true, 'bronze'], [5, true, 'silver'], [10, false, 'gold']]);
+		expect(view.ticks.map((tick) => tick.share)).toEqual([0.3, 0.5, 1]);
+		// The fill takes the metal of the highest tick lit.
+		expect(view.fill).toBe('silver');
+	});
+
+	it('aims at the first threshold above the count: a tier just reached aims at the next one', () => {
+		const view = progressView(entry('veteran', { value: 3 }));
+		expect(view).toMatchObject({ count: 3, target: 5, fill: 'bronze' });
+		expect(ticks(view)).toEqual([[3, true, 'bronze'], [5, false, 'silver'], [10, false, 'gold']]);
+	});
+
+	it('fills in muted before the first tick, with nothing lit', () => {
+		const view = progressView(entry('networker', { value: 4 }));
+		expect(view).toMatchObject({ count: 4, target: 5, share: 0.2, fill: 'muted' });
+		expect(view.ticks.every((tick) => !tick.lit)).toBe(true);
+		expect(progressView(entry('veteran'))).toMatchObject({ count: 0, target: 3, share: 0, fill: 'muted' });
+	});
+
+	it("lights a specialist's ticks by its own discipline's count, and names the discipline", () => {
+		const view = progressView(entry('specialist', { value: 2, discipline: 'Darts' }));
+		expect(view).toMatchObject({ count: 2, target: 3, fill: 'bronze', discipline: 'Darts' });
+		expect(ticks(view)).toEqual([[2, true, 'bronze'], [3, false, 'silver'], [4, false, 'gold']]);
+	});
+
+	it('shows a full gold track, every tick lit, and the count alone at the top tier', () => {
+		const view = progressView(entry('veteran', { value: 12 }));
+		expect(view).toMatchObject({ count: 12, target: null, share: 1, topTier: true, fill: 'gold', best: null });
+		expect(view.ticks.every((tick) => tick.lit)).toBe(true);
+		expect(progressView(entry('veteran', { value: 10 }))).toMatchObject({ count: 10, topTier: true });
+	});
+
+	it("aims ever-present above its best run and keeps that best for the note", () => {
+		// Tier 2 held from a run of 6, a current run of 5: « 5 / 8 », the 4 lit by the run.
+		const view = progressView(entry('ever-present', { value: 5, best: 6 }));
+		expect(view).toMatchObject({ count: 5, target: 8, share: 5 / 8, topTier: false, fill: 'bronze', best: 6 });
+		expect(ticks(view)).toEqual([[4, true, 'bronze'], [6, false, 'silver'], [8, false, 'gold']]);
+	});
+
+	it("lights no tick for ever-present's short run below its best tier", () => {
+		const view = progressView(entry('ever-present', { value: 1, best: 6 }));
+		expect(view).toMatchObject({ count: 1, target: 8, fill: 'muted', best: 6 });
+		expect(view.ticks.every((tick) => !tick.lit)).toBe(true);
+	});
+
+	it('puts ever-present at the top tier by its best run, whatever the current one, with no note', () => {
+		const view = progressView(entry('ever-present', { value: 2, best: 9 }));
+		expect(view).toMatchObject({ count: 9, target: null, share: 1, topTier: true, fill: 'gold', best: null });
+		expect(view.ticks.every((tick) => tick.lit)).toBe(true);
+	});
+
+	it('draws a badge without tiers to its fixed target, in its own metal, with no tick', () => {
+		const view = progressView(entry('legend', { value: 1 }));
+		expect(view).toMatchObject({ count: 1, target: 3, share: 1 / 3, topTier: false, ticks: [], fill: 'gold' });
+		expect(progressView(entry('podium-regular', { value: 1, best: 1 })).fill).toBe('silver');
+		expect(progressView(entry('on-the-rise', { value: 1, best: 1 })).fill).toBe('bronze');
+	});
+
+	it('fills every badge without tiers in its catalogue metal', () => {
+		for (const code of Object.keys(PROGRESS_TARGETS)) {
+			expect(progressView(entry(code, { value: 1 })).fill, code).toBe(BADGES[code]);
+		}
+	});
+
+	it('caps the fill at the target', () => {
+		expect(progressView(entry('legend', { value: 5 })).share).toBe(1);
+	});
+
+	it("keeps a streak's best run for the note only when it is above the current run", () => {
+		expect(progressView(entry('back-to-back', { value: 0, best: 1 })).best).toBe(1);
+		expect(progressView(entry('podium-regular', { value: 2, best: 2 })).best).toBeNull();
+		expect(progressView(entry('legend', { value: 2 })).best).toBeNull();
+	});
+
+	it('carries the partner of comrades and the year of clean-sweep', () => {
+		const hugo = { id: 7, first_name: 'Hugo', last_name: 'Maurinier', photo: null };
+		expect(progressView(entry('comrades', { value: 2, partner: hugo }))).toMatchObject({
+			count: 2, target: 3, partner: hugo, discipline: null, year: null
+		});
+		expect(progressView(entry('clean-sweep', { value: 2, year: 2025 }))).toMatchObject({
+			count: 2, target: 3, year: 2025, partner: null, discipline: null
+		});
+	});
+
+	it('is out of reach, with no bar, for a badge that can no longer be earned', () => {
+		for (const code of ['eternal-second', 'lucky-charm', 'argonaut']) {
+			expect(progressView(entry(code, { value: null, reachable: false })), code).toEqual({ code, outOfReach: true });
+		}
+	});
+
+	it('draws nothing for a badge that cannot close sent as out of reach: the sheet keeps its own lines', () => {
+		expect(progressView(entry('veteran', { value: null, reachable: false }))).toBeNull();
+		expect(progressView(entry('legend', { value: null, reachable: false }))).toBeNull();
+	});
+
+	it('draws nothing for argonaut while reachable, a code without progress, or no entry', () => {
+		expect(progressView(entry('argonaut'))).toBeNull();
+		expect(progressView(entry('champion', { value: 1 }))).toBeNull();
+		expect(progressView(null)).toBeNull();
+	});
+
+	it('reads a missing count as 0', () => {
+		expect(progressView(entry('legend', { value: null }))).toMatchObject({ count: 0, share: 0 });
+	});
+});
+
+describe('fillFor', () => {
+	it("fills in a badge's metal, and in the accent for a plain badge, as its ring is drawn", () => {
+		expect(['gold', 'silver', 'bronze'].map(fillFor)).toEqual(['gold', 'silver', 'bronze']);
+		expect(fillFor('plain')).toBe('accent');
 	});
 });

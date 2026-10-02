@@ -15,7 +15,14 @@
  * above, plus tiers for the two tiered ones (veteran, specialist), to exercise the sheet's
  * rarity lines. The profile's `photo` has both sizes, and its `showcase` is automatic:
  * Xavier's three rarest earned codes by those holders (clean sweep 3, specialist 5,
- * comrades 8).
+ * comrades 8). Its `progress` is the rows a badge refresh would store for those badges, in
+ * catalogue order: every tiered code (veteran 3 toward 5, ever-present on a run of 1 with a
+ * best of 2, networker 4, specialist 2 in Relay, all-rounder 2), the codes without tiers not
+ * earned yet (a podium-regular run of 1 with a best of 2, among others), comrades toward its
+ * next partner (2 editions with Hugo, no photo, since Léa's badge is earned), lucky-charm and
+ * argonaut out of reach, and no clean-sweep row, that badge being earned. Like the badges,
+ * the progress rows are not derived from the editions and places above: they agree with the
+ * badges only (so eternal-second is still reachable, Xavier having no champion badge).
  * `profileUnranked` has nothing counted, no discipline places, no badge and no photo.
  * `allTime` is /discipline/10/all-time/ (Relay, 2024 and 2025): Léa and Hugo tied 1st on a
  * 1st and a 2nd place each, Inès 3rd on a single 1st place, Xavier 4th on a 4th place.
@@ -90,6 +97,35 @@ export const profile = {
 		holders: { veteran: 20, comrades: 8, specialist: 5, 'clean-sweep': 3 },
 		tiers: { veteran: [20, 6, 1], specialist: [5, 2, 0] }
 	},
+	progress: [
+		{ code: 'back-to-back', value: 0, best: 0, reachable: true, discipline: null, partner: null, year: null },
+		{ code: 'threepeat', value: 0, best: 0, reachable: true, discipline: null, partner: null, year: null },
+		{ code: 'dynasty', value: 0, best: 0, reachable: true, discipline: null, partner: null, year: null },
+		{ code: 'legend', value: 0, best: null, reachable: true, discipline: null, partner: null, year: null },
+		{ code: 'podium-regular', value: 1, best: 2, reachable: true, discipline: null, partner: null, year: null },
+		{ code: 'full-set', value: 2, best: null, reachable: true, discipline: null, partner: null, year: null },
+		{ code: 'eternal-second', value: 1, best: null, reachable: true, discipline: null, partner: null, year: null },
+		{ code: 'on-the-rise', value: 0, best: 1, reachable: true, discipline: null, partner: null, year: null },
+		{ code: 'lucky-charm', value: null, best: null, reachable: false, discipline: null, partner: null, year: null },
+		{ code: 'veteran', value: 3, best: null, reachable: true, discipline: null, partner: null, year: null },
+		{ code: 'argonaut', value: null, best: null, reachable: false, discipline: null, partner: null, year: null },
+		{ code: 'ever-present', value: 1, best: 2, reachable: true, discipline: null, partner: null, year: null },
+		{
+			code: 'comrades',
+			value: 2,
+			best: null,
+			reachable: true,
+			discipline: null,
+			partner: { id: 7, first_name: 'Hugo', last_name: 'Maurinier', photo: null },
+			year: null
+		},
+		{ code: 'networker', value: 4, best: null, reachable: true, discipline: null, partner: null, year: null },
+		{ code: 'reign', value: 0, best: 0, reachable: true, discipline: null, partner: null, year: null },
+		{ code: 'specialist', value: 2, best: null, reachable: true, discipline: 'Relay', partner: null, year: null },
+		{ code: 'all-rounder', value: 2, best: null, reachable: true, discipline: null, partner: null, year: null },
+		{ code: 'decathlete', value: 3, best: null, reachable: true, discipline: null, partner: null, year: null },
+		{ code: 'olympus', value: 2, best: null, reachable: true, discipline: null, partner: null, year: null }
+	],
 	photo: { large: '/media/avatars/34-9b8a7c6d5e4f.webp', small: '/media/avatars/34-9b8a7c6d5e4f-sm.webp' },
 	showcase: {
 		auto: true,

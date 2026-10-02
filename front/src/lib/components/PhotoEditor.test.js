@@ -574,6 +574,27 @@ describe('PhotoEditor', () => {
 		opener.remove();
 	});
 
+	it('stays open on Escape and the backdrop while a save is on its way', async () => {
+		let answer;
+		fetch.mockImplementation(() => new Promise((resolve) => (answer = resolve)));
+		const { component } = renderWith(PhotoEditor, { open: true, photo, name: xavier });
+		const closed = vi.fn();
+		component.$on('close', closed);
+		await choose();
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+		await waitFor(() => expect(fetch).toHaveBeenCalled());
+		await fireEvent.keyDown(window, { key: 'Escape' });
+		await fireEvent.click(screen.getByTestId('backdrop'));
+		expect(closed).not.toHaveBeenCalled();
+
+		// Once the refusal is in, Escape closes again.
+		answer(actionResult({ type: 'failure', status: 500, data: { action: 'photo', error: 'photo.error.failed' } }));
+		await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+		await fireEvent.keyDown(window, { key: 'Escape' });
+		expect(closed).toHaveBeenCalledTimes(1);
+	});
+
 	it('gives focus back to the opener after a successful save', async () => {
 		const opener = document.createElement('button');
 		document.body.append(opener);

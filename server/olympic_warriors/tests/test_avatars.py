@@ -147,18 +147,17 @@ class TestUserProfileModel(TestCase):
         self.assertIsNone(profile.claimed_at)
         self.assertIsNotNone(profile.updated_at)
 
-    def test_the_showcase_holds_at_most_three_catalogue_codes(self):
+    def test_the_showcase_holds_at_most_five_catalogue_codes(self):
         C = Badge.Codes
-        UserProfile(user=self.ana, showcase=[C.CHAMPION, C.GOAT, C.ROOKIE]).full_clean()
+        five = [C.CHAMPION, C.GOAT, C.ROOKIE, C.VETERAN, C.MVP]
+        UserProfile(user=self.ana, showcase=five).full_clean()
 
-        with self.assertRaises(ValidationError) as four:
-            UserProfile(
-                user=self.ana, showcase=[C.CHAMPION, C.GOAT, C.ROOKIE, C.VETERAN]
-            ).full_clean()
+        with self.assertRaises(ValidationError) as six:
+            UserProfile(user=self.ana, showcase=[*five, C.LEGEND]).full_clean()
         with self.assertRaises(ValidationError) as unknown:
             UserProfile(user=self.ana, showcase=["no-such-badge"]).full_clean()
 
-        self.assertIn("showcase", four.exception.message_dict)
+        self.assertIn("showcase", six.exception.message_dict)
         self.assertIn("showcase", unknown.exception.message_dict)
 
     def test_it_goes_with_its_user(self):

@@ -283,6 +283,14 @@ describe('showcase action', () => {
 		expect(JSON.parse(options.body)).toEqual({ codes: ['specialist', 'comrades', 'clean-sweep'] });
 	});
 
+	it('puts a whole showcase of five codes', async () => {
+		const codes = ['specialist', 'comrades', 'clean-sweep', 'veteran', 'champion'];
+		const { result, showcaseCall } = await runShowcase({ codes });
+
+		expect(result).toEqual({ ok: true, action: 'showcase' });
+		expect(JSON.parse(showcaseCall[1].body)).toEqual({ codes });
+	});
+
 	it('puts an empty list for a form without codes: back to automatic', async () => {
 		const { result, showcaseCall } = await runShowcase({
 			codes: [],
@@ -334,7 +342,7 @@ describe('showcase action', () => {
 	});
 
 	it.each([
-		['more than 3 codes', ['champion', 'veteran', 'rookie', 'comrades']],
+		['more than 5 codes', ['champion', 'veteran', 'rookie', 'comrades', 'goat', 'specialist']],
 		['a code twice', ['champion', 'champion']],
 		['an empty code', ['']],
 		['something that is not a badge code', ['../me/photo']],

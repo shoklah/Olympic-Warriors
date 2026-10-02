@@ -310,6 +310,13 @@ describe('BadgeCollection showcase selection (the owner)', () => {
 		]
 	};
 
+	/** Rookie and G.O.A.T earned too: six in all, one more than a showcase holds. */
+	const sixEarned = [
+		...badges,
+		{ code: 'rookie', tier: 0, years: [2024], discipline: null, partner: null },
+		{ code: 'goat', tier: 0, years: [2025], discipline: null, partner: null }
+	];
+
 	const choose = () => screen.getByRole('button', { name: 'Choose my showcase' });
 	const slot = (name) => screen.getByRole('button', { name: new RegExp(`^${name},`) });
 	/** The pick order a slot shows, or null. */
@@ -348,12 +355,12 @@ describe('BadgeCollection showcase selection (the owner)', () => {
 		await fireEvent.click(choose());
 
 		expect(screen.queryByRole('button', { name: 'Choose my showcase' })).toBeNull();
-		expect(screen.getByText('Pick up to 3 badges, in the order to show them.')).toHaveFocus();
+		expect(screen.getByText('Pick up to 5 badges, in the order to show them.')).toHaveFocus();
 		expect(slot('Veteran')).toHaveAttribute('aria-pressed', 'false');
 		expect(slot('Champion')).toHaveAttribute('aria-pressed', 'false');
 		expect(slot('Wooden spoon')).toBeDisabled();
 		expect(slot('Wooden spoon')).not.toHaveAttribute('aria-pressed');
-		expect(screen.getByRole('status')).toHaveTextContent('0 badges chosen out of 3');
+		expect(screen.getByRole('status')).toHaveTextContent('0 badges chosen out of 5');
 	});
 
 	it('starts empty when the showcase is automatic, whatever it shows', async () => {
@@ -371,7 +378,7 @@ describe('BadgeCollection showcase selection (the owner)', () => {
 			['Champion, badge earned 2 times', '2'],
 			['Veteran, badge earned', '1']
 		]);
-		expect(screen.getByRole('status')).toHaveTextContent('2 badges chosen out of 3');
+		expect(screen.getByRole('status')).toHaveTextContent('2 badges chosen out of 5');
 	});
 
 	it('numbers the picks in pick order, and renumbers when one is taken back', async () => {
@@ -403,23 +410,26 @@ describe('BadgeCollection showcase selection (the owner)', () => {
 		expect(slot('Veteran')).toHaveAttribute('aria-pressed', 'true');
 
 		await fireEvent.click(slot('Wooden spoon'));
-		expect(screen.getByRole('status')).toHaveTextContent('1 badge chosen out of 3');
+		expect(screen.getByRole('status')).toHaveTextContent('1 badge chosen out of 5');
 	});
 
-	it('refuses a fourth pick with a polite status line, which clears on the next change', async () => {
-		renderOwner();
+	it('refuses a sixth pick with a polite status line, which clears on the next change', async () => {
+		renderOwner(undefined, 'en', sixEarned);
 		await fireEvent.click(choose());
-		for (const name of ['Champion', 'Veteran', 'Specialist']) await fireEvent.click(slot(name));
+		for (const name of ['Champion', 'Veteran', 'Specialist', 'Rookie', 'G.O.A.T']) {
+			await fireEvent.click(slot(name));
+		}
+		expect(order(slot('G.O.A.T'))).toBe('5');
 
 		await fireEvent.click(slot('Comrades in arms'));
 		expect(slot('Comrades in arms')).toHaveAttribute('aria-pressed', 'false');
-		expect(screen.getByRole('status')).toHaveTextContent('3 badges at most');
+		expect(screen.getByRole('status')).toHaveTextContent('5 badges at most');
 		expect(screen.queryByRole('alert')).toBeNull();
 
 		await fireEvent.click(slot('Veteran'));
-		expect(screen.getByRole('status')).toHaveTextContent('2 badges chosen out of 3');
+		expect(screen.getByRole('status')).toHaveTextContent('4 badges chosen out of 5');
 		await fireEvent.click(slot('Comrades in arms'));
-		expect(order(slot('Comrades in arms'))).toBe('3');
+		expect(order(slot('Comrades in arms'))).toBe('5');
 	});
 
 	it('cancels without a request, restoring the pins, focus back on the choose button', async () => {
@@ -597,17 +607,18 @@ describe('BadgeCollection showcase selection (the owner)', () => {
 	});
 
 	it('speaks French', async () => {
-		renderOwner(pinned, 'fr');
+		renderOwner(pinned, 'fr', sixEarned);
 		await fireEvent.click(screen.getByRole('button', { name: 'Choisir ma vitrine' }));
 
-		expect(screen.getByText("Choisissez jusqu'à 3 badges, dans l'ordre où les montrer.")).toHaveFocus();
-		expect(screen.getByRole('status')).toHaveTextContent('2 badges choisis sur 3');
+		expect(screen.getByText("Choisissez jusqu'à 5 badges, dans l'ordre où les montrer.")).toHaveFocus();
+		expect(screen.getByRole('status')).toHaveTextContent('2 badges choisis sur 5');
 		expect(screen.getByRole('button', { name: 'Vétéran, badge obtenu' })).toHaveAccessibleDescription(
 			'Place 1 dans la vitrine. Jouer 3, 5 puis 10 éditions'
 		);
-		await fireEvent.click(screen.getByRole('button', { name: /^Spécialiste,/ }));
-		await fireEvent.click(screen.getByRole('button', { name: /^Compagnons d'armes,/ }));
-		expect(screen.getByRole('status')).toHaveTextContent('3 badges maximum');
+		for (const name of [/^Spécialiste,/, /^Bizut,/, /^G\.O\.A\.T,/, /^Compagnons d'armes,/]) {
+			await fireEvent.click(screen.getByRole('button', { name }));
+		}
+		expect(screen.getByRole('status')).toHaveTextContent('5 badges maximum');
 		expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Annuler' })).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: "Revenir à l'automatique" })).toBeInTheDocument();
@@ -616,6 +627,6 @@ describe('BadgeCollection showcase selection (the owner)', () => {
 	it('speaks French for no pick and one, 0 in the singular', async () => {
 		renderOwner(undefined, 'fr');
 		await fireEvent.click(screen.getByRole('button', { name: 'Choisir ma vitrine' }));
-		expect(screen.getByRole('status')).toHaveTextContent('0 badge choisi sur 3');
+		expect(screen.getByRole('status')).toHaveTextContent('0 badge choisi sur 5');
 	});
 });

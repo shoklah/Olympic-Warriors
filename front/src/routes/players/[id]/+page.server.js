@@ -1,6 +1,6 @@
 import { error, fail } from '@sveltejs/kit';
 import { apiGet, apiSend } from '$lib/api';
-import { isKnownBadge } from '$lib/badge-codes';
+import { SHOWCASE_SIZE, isKnownBadge } from '$lib/badge-codes';
 import { api } from '$lib/server/urls';
 import { TOKEN_COOKIE } from '$lib/session';
 
@@ -40,9 +40,6 @@ function photoError(err) {
 	const code = err?.body?.message;
 	return PHOTO_CODES.has(code) ? `photo.error.${code}` : FAILED;
 }
-
-/** A showcase holds this many badges at most, as `PUT /me/showcase/` checks. */
-const SHOWCASE_SIZE = 3;
 
 /**
  * The dictionary key for a failed showcase call: the API's only 400 is `invalid_showcase` (a
@@ -86,9 +83,9 @@ async function asOwner({ fetch, params }, action, token, keys, send) {
 
 /**
  * The `codes` fields of a showcase form in the order posted, which is the pick order, or
- * null when they cannot be a showcase: more than three, a file, a code the catalogue does
- * not know (the collection offers no slot for one), or a code twice. None at all is `[]`,
- * back to automatic. Whether the caller earned them is the API's call.
+ * null when they cannot be a showcase: more than SHOWCASE_SIZE, a file, a code the catalogue
+ * does not know (the collection offers no slot for one), or a code twice. None at all is
+ * `[]`, back to automatic. Whether the caller earned them is the API's call.
  */
 function showcaseCodes(form) {
 	const codes = form.getAll('codes');

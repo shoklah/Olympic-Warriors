@@ -477,9 +477,10 @@ class TestMyShowcase(MeSetup, APITestCase):
     """
     Léa's badges, and how many of the leaderboard's people hold each: specialist (tier 2,
     Relay) 1, goat 1 (Rémi and Bea hold it too, but are not people), veteran (tier 1) 2,
-    champion 2, rookie 3. Her automatic showcase is therefore specialist (1 holder, the
-    higher tier), goat (1), veteran (2, the higher tier). Legend is revoked and homecoming
-    is of an inactive edition: neither is earned.
+    champion 2, rookie 3, mvp 3. Her automatic showcase is therefore specialist (1 holder,
+    the higher tier), goat (1), veteran (2, the higher tier), champion (2), rookie (3, before
+    mvp in the catalogue): six earned, the five rarest shown. Legend is revoked and
+    homecoming is of an inactive edition: neither is earned.
     """
 
     def setUp(self):
@@ -487,6 +488,7 @@ class TestMyShowcase(MeSetup, APITestCase):
         badge = Badge.objects.create
         for user in (self.lea, self.bob, self.chloe):
             badge(user=user, code=C.ROOKIE, edition=self.y2025)
+            badge(user=user, code=C.MVP, edition=self.y2025, is_manual=True)
         for user in (self.lea, self.bob):
             badge(user=user, code=C.CHAMPION, edition=self.y2025)
             badge(user=user, code=C.VETERAN, edition=self.y2025, tier=1)
@@ -504,6 +506,8 @@ class TestMyShowcase(MeSetup, APITestCase):
             {"code": C.SPECIALIST, "tier": 2, "discipline": "Relay"},
             {"code": C.GOAT, "tier": 0, "discipline": None},
             {"code": C.VETERAN, "tier": 1, "discipline": None},
+            {"code": C.CHAMPION, "tier": 0, "discipline": None},
+            {"code": C.ROOKIE, "tier": 0, "discipline": None},
         ],
     }
 
@@ -533,6 +537,16 @@ class TestMyShowcase(MeSetup, APITestCase):
             self.me()["showcase"],
             {"auto": False, "codes": [C.CHAMPION, C.SPECIALIST, C.ROOKIE]},
         )
+
+    def test_five_pins_are_stored_and_shown(self):
+        pins = [C.MVP, C.ROOKIE, C.CHAMPION, C.VETERAN, C.GOAT]
+
+        response = self.put(pins)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([badge["code"] for badge in response.data["badges"]], pins)
+        self.assertFalse(response.data["auto"])
+        self.assertEqual(self.stored(), pins)
 
     def test_an_empty_list_is_back_to_automatic(self):
         self.put([C.ROOKIE])
@@ -597,7 +611,9 @@ class TestMyShowcase(MeSetup, APITestCase):
             "null": {"codes": None},
             "no codes": {},
             "a bare list": [C.CHAMPION],
-            "four codes": {"codes": [C.CHAMPION, C.ROOKIE, C.VETERAN, C.GOAT]},
+            "six codes, all earned": {
+                "codes": [C.CHAMPION, C.ROOKIE, C.VETERAN, C.GOAT, C.SPECIALIST, C.MVP]
+            },
             "a duplicate": {"codes": [C.CHAMPION, C.CHAMPION]},
             "a number": {"codes": [1]},
             "a null code": {"codes": [None]},
