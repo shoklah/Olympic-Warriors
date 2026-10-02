@@ -240,10 +240,6 @@
 		border-left-color: var(--bronze);
 	}
 
-	.text {
-		min-width: 0;
-	}
-
 	.name {
 		min-width: 0;
 		font-weight: 600;
