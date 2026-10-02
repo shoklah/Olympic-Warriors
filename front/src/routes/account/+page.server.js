@@ -5,6 +5,9 @@ import { PASSWORD_CODES } from '$lib/server/password-link';
 import { api } from '$lib/server/urls';
 import { TOKEN_COOKIE, tokenCookieOptions } from '$lib/session';
 
+/** Where a visitor goes to log in, then comes back here. */
+const LOGIN = '/login?next=/account';
+
 /** The word that confirms a deletion, in either language, compared trimmed and lower-cased. */
 const CONFIRM_WORDS = new Set(['supprimer', 'delete']);
 
@@ -14,13 +17,13 @@ const CONFIRM_WORDS = new Set(['supprimer', 'delete']);
  */
 export const load = async ({ fetch, cookies, setHeaders }) => {
 	const token = cookies.get(TOKEN_COOKIE);
-	if (!token) redirect(303, '/login');
+	if (!token) redirect(303, LOGIN);
 	setHeaders({ 'cache-control': 'private, no-store' });
 	let account;
 	try {
 		account = await apiGet(fetch, api('/me/'), token);
 	} catch (err) {
-		if (err?.status === 401 || err?.status === 403) redirect(303, '/login');
+		if (err?.status === 401 || err?.status === 403) redirect(303, LOGIN);
 		throw err;
 	}
 	if (account.is_staff || !account.is_person) error(404, 'No such page');

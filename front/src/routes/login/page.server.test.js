@@ -12,12 +12,12 @@ const post = (fields) => {
 	return new Request('http://localhost/login', { method: 'POST', body });
 };
 
-const login = ({ response = json(200, { token: 'abc' }), getClientAddress = () => '203.0.113.7' } = {}) => {
+const login = ({ next, response = json(200, { token: 'abc' }), getClientAddress = () => '203.0.113.7' } = {}) => {
 	const fetch = vi.fn().mockResolvedValue(response);
 	const cookies = { set: vi.fn() };
 	const result = actions.login({
 		cookies,
-		request: post({ username: 'ana', password: 'secret' }),
+		request: post({ username: 'ana', password: 'secret', ...(next === undefined ? {} : { next }) }),
 		fetch,
 		getClientAddress
 	});
@@ -51,5 +51,19 @@ describe('login action', () => {
 		expect(await result).toMatchObject({ status: 429, data: { username: 'ana', throttled: true } });
 		({ result } = login({ response: json(400, { non_field_errors: ['Unable to log in with provided credentials.'] }) }));
 		expect(await result).toMatchObject({ status: 400, data: { username: 'ana', throttled: false } });
+	});
+
+	it('returns to the local path of next, and goes home for anything else', async () => {
+		let { result } = login({ next: '/account' });
+		await expect(result).rejects.toMatchObject({ status: 302, location: '/account' });
+		for (const next of ['https://evil.example', '//evil.example', '/\\evil.example', '']) {
+			({ result } = login({ next }));
+			await expect(result).rejects.toMatchObject({ status: 302, location: '/' });
+		}
+	});
+
+	it('hands next back on a refusal, so a retry still returns there', async () => {
+		const { result } = login({ next: '/account', response: json(400, {}) });
+		expect(await result).toMatchObject({ status: 400, data: { next: '/account' } });
 	});
 });

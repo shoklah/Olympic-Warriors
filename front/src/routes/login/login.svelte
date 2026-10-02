@@ -1,5 +1,7 @@
 <script>
     export let form;
+    // Where to go after logging in (a local path, validated again by the action).
+    export let next = '';
     import { fly } from "svelte/transition";
     import {slide} from "svelte/transition";
     import {cubicOut, quintOut} from "svelte/easing";
@@ -32,6 +34,8 @@
            class:missing={form?.missing?.password}
            aria-invalid={form?.missing?.password ? 'true' : undefined}
            aria-describedby={form?.missing?.password ? 'password-error' : undefined}>
+
+    <input type="hidden" name="next" value={next}>
 
     <button>{t('login.submit')}</button>
     <a class="quiet-link" href="/forgot">{t('login.forgot')}</a>

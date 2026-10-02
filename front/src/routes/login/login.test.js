@@ -38,4 +38,14 @@ describe('login form', () => {
 		renderWith(Login, { form: null }, 'fr');
 		expect(screen.getByRole('link', { name: 'Mot de passe oublié ?' })).toHaveAttribute('href', '/forgot');
 	});
+
+	it('carries next to the action in a hidden field', () => {
+		const { container } = renderWith(Login, { form: null, next: '/account' }, 'en');
+		expect(container.querySelector('input[name="next"]')).toHaveValue('/account');
+	});
+
+	it('sends an empty next by default', () => {
+		const { container } = renderWith(Login, { form: null }, 'en');
+		expect(container.querySelector('input[name="next"]')).toHaveValue('');
+	});
 });

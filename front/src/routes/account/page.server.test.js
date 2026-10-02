@@ -30,7 +30,7 @@ describe('account load', () => {
 		const fetch = vi.fn();
 		await expect(load({ fetch, cookies: cookiesWith(null), setHeaders: vi.fn() })).rejects.toMatchObject({
 			status: 303,
-			location: '/login'
+			location: '/login?next=/account'
 		});
 		expect(fetch).not.toHaveBeenCalled();
 	});
@@ -60,7 +60,7 @@ describe('account load', () => {
 		const fetch = vi.fn(async () => json(401, { detail: 'Invalid token.' }));
 		await expect(load({ fetch, cookies: cookiesWith(), setHeaders: vi.fn() })).rejects.toMatchObject({
 			status: 303,
-			location: '/login'
+			location: '/login?next=/account'
 		});
 	});
 
