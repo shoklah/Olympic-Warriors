@@ -50,6 +50,7 @@ from zoneinfo import ZoneInfo
 
 from django.db.models import Count, Q
 
+from .anonymity import shown_names
 from .avatars import photo_urls
 from .models import Discipline, Edition, Player
 from .standings import compute_standings
@@ -342,10 +343,11 @@ def _record(user, parts):
     if counted_parts:
         average_rank = round(sum(part.rank for part in counted_parts) / len(counted_parts), 1)
     profile = _profile(user)
+    first_name, last_name = shown_names(user)
     return PlayerRecord(
         user_id=user.id,
-        first_name=user.first_name,
-        last_name=user.last_name,
+        first_name=first_name,
+        last_name=last_name,
         participations=parts,
         places=tuple(sorted(counted_parts, key=lambda part: (part.rank, -part.year))),
         counted=len(counted_parts),
@@ -523,7 +525,7 @@ def discipline_table(name):
     }
     players = (
         Player.objects.filter(is_active=True, edition_id__in=editions)
-        .select_related("user", "team")
+        .select_related("user__profile", "team")
         .order_by("id")
     )
     chosen = _one_row_per_edition(players)
@@ -546,8 +548,8 @@ def discipline_table(name):
         (
             DisciplineRow(
                 user_id=user_id,
-                first_name=user.first_name,
-                last_name=user.last_name,
+                first_name=shown_names(user)[0],
+                last_name=shown_names(user)[1],
                 places=tuple(sorted(places[user_id], key=lambda place: (place.rank, -place.year))),
                 position=None,
             )

@@ -20,6 +20,7 @@ from olympic_warriors.models import (
     BlindtestGuess,
     ResultTypes,
 )
+from .anonymity import shown_names
 from .avatars import small_photo_url
 from .badges import SHOWCASE_SIZE
 from .standings import compute_standings
@@ -242,13 +243,21 @@ class SummaryPlayerSerializer(serializers.ModelSerializer):
     small photo. EditionSummarySerializer joins each user's profile row into the players
     query, so the photo costs no query."""
 
-    first_name = serializers.CharField(source="user.first_name")
-    last_name = serializers.CharField(source="user.last_name")
+    first_name = serializers.SerializerMethodField()
+    last_name = serializers.SerializerMethodField()
     photo = serializers.SerializerMethodField()
 
     class Meta:
         model = Player
         fields = ("id", "user", "first_name", "last_name", "photo")
+
+    def get_first_name(self, obj):
+        """The user's first name, or the anonymous one."""
+        return shown_names(obj.user)[0]
+
+    def get_last_name(self, obj):
+        """The user's last name, or the anonymous one."""
+        return shown_names(obj.user)[1]
 
     @extend_schema_field(serializers.CharField(allow_null=True, help_text="128 px, or null"))
     def get_photo(self, obj):

@@ -25,6 +25,7 @@ from django.db import transaction
 from django.db.models import Subquery
 from django.utils import timezone
 
+from .anonymity import shown_names
 from .avatars import small_photo_url
 from .models import Badge, BadgeProgress, BadgeRefresh, BlindtestGuess, Edition, Game
 from .models.ResultTypes import ResultTypes
@@ -1224,10 +1225,11 @@ def _partner(user):
     one."""
     if user is None:
         return None
+    first_name, last_name = shown_names(user)
     return {
         "id": user.id,
-        "first_name": user.first_name,
-        "last_name": user.last_name,
+        "first_name": first_name,
+        "last_name": last_name,
         # select_related: no query, and no row reads as no photo.
         "photo": small_photo_url(getattr(user, "profile", None)),
     }

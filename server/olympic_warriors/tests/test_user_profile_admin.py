@@ -158,7 +158,7 @@ class TestUserProfileAdmin(MediaRootTestCase):
         self.assertContains(response, f'<img src="{self.ana.photo_small.url}"')
         self.assertContains(response, "G.O.A.T, Champion")
         form = response.context["adminform"].form
-        self.assertEqual(list(form.fields), ["photo_locked"])
+        self.assertEqual(list(form.fields), ["photo_locked", "anonymized"])
 
     def test_the_change_form_shows_the_empty_value_without_a_photo_or_pins(self):
         response = self.client.get(f"{PROFILES}{self.bob.pk}/change/")
