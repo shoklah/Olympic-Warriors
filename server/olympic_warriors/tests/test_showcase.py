@@ -602,3 +602,23 @@ class TestPhotosAndShowcases(EndpointSetup, TestCase):
                 self.assertNotIn(b"login-", response.content)
                 self.assertNotIn(b"mail.example", response.content)
                 self.assertNotIn(C.LEGEND.encode(), response.content)
+
+    def test_an_anonymized_person_is_masked_everywhere_and_leaks_no_login_or_email(self):
+        self.give_photo(self.chloe, anonymized=True)
+
+        for url in (
+            "/profiles/",
+            f"/profile/{self.chloe.id}/",
+            "/edition/year/2025/summary/",  # Chloé's roster seat
+            f"/discipline/{self.relay2025.id}/all-time/",  # Chloé's place
+        ):
+            with self.subTest(url=url):
+                response = self.client.get(url)
+                self.assertEqual(response.status_code, 200)
+                text = response.content.decode()
+                self.assertIn("anonyme", text)
+                self.assertNotIn("Chloé", text)
+                self.assertNotIn("Dupont", text)
+                self.assertNotIn("login-chloe", text)
+                self.assertNotIn("chloe@mail.example", text)
+                self.assertEqual(keys_in(response.json()) & PRIVATE_KEYS, set())

@@ -7,12 +7,18 @@ one.
 """
 
 import datetime
+import re
 
 from django.contrib.auth.models import User
+from django.core.cache import cache
 from django.test import override_settings
+from rest_framework.test import APITestCase
 
+from olympic_warriors import accounts
 from olympic_warriors.avatars import store_photo
+from olympic_warriors.claims import claim_link
 from olympic_warriors.models import Badge, UserProfile
+from olympic_warriors.tests.test_claims import PRIVATE_CACHE, ClaimSetup
 from olympic_warriors.tests.test_avatars import MediaRootTestCase, encode, picture, upload
 
 PROFILES = "/admin/olympic_warriors/userprofile/"
@@ -214,3 +220,41 @@ class TestUserProfileAdmin(MediaRootTestCase):
         response = self.client.get(f"{PROFILES}add/")
 
         self.assertEqual(response.status_code, 403)
+
+
+@PRIVATE_CACHE
+@override_settings(
+    PUBLIC_URL="https://ow.example",
+    STATICFILES_STORAGE="django.contrib.staticfiles.storage.StaticFilesStorage",
+)
+class TestReactivation(ClaimSetup, APITestCase):
+    """After a self-deactivation an organiser can give the person their account back, with a
+    fresh password only: the old one and the old links stay dead."""
+
+    def test_unmasking_and_reactivating_then_claiming_sets_a_new_password(self):
+        cache.clear()
+        accounts.deactivate(self.lea)
+        self.lea.refresh_from_db()
+        self.assertFalse(self.lea.check_password("old-password"))
+        self.client.force_login(User.objects.create_superuser("admin", "a@b.c", "pw"))
+        profile = UserProfile.objects.get(user=self.lea)
+
+        # The profile form with `anonymized` unticked (a checkbox absent from the POST)...
+        response = self.client.post(f"{PROFILES}{profile.pk}/change/", {"photo_locked": ""})
+        self.assertEqual(response.status_code, 302)
+        profile.refresh_from_db()
+        self.assertFalse(profile.anonymized)
+        # ...and the user's active flag, which the user admin edits.
+        User.objects.filter(pk=self.lea.pk).update(is_active=True)
+        self.lea.refresh_from_db()
+
+        self.client.logout()
+        link = claim_link(self.lea)
+        uidb64, token = re.fullmatch(r"https://ow\.example/claim/([^/]+)/([^/]+)", link).groups()
+        response = self.client.post(
+            f"/claim/{uidb64}/{token}/", {"password": "violet-harbour-lantern"}, format="json"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.lea.refresh_from_db()
+        self.assertTrue(self.lea.check_password("violet-harbour-lantern"))
+        self.assertFalse(self.lea.check_password("old-password"))

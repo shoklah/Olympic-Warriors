@@ -8,6 +8,7 @@ from django.test import override_settings
 from rest_framework.test import APITestCase
 
 from olympic_warriors import password_reset
+from olympic_warriors.throttling import LoginRateThrottle
 from olympic_warriors.models import UserProfile
 from olympic_warriors.tests.test_claims import INVALID, PRIVATE_CACHE, ClaimSetup, parts
 
@@ -120,6 +121,12 @@ class TestPasswordReset(ClaimSetup, APITestCase):
             self.assertEqual(self.ask("lea@mail.example").status_code, 200)
         self.assertIn("EMAIL_HOST is not set", logs.output[0])
         self.assertEqual(mail.outbox, [])
+
+    def test_a_reset_request_draws_on_the_per_ip_login_bucket(self):
+        limit = LoginRateThrottle().num_requests
+        for number in range(limit):
+            self.assertEqual(self.ask(f"nobody{number}@mail.example").status_code, 200)
+        self.assertEqual(self.ask("another@mail.example").status_code, 429)
 
     def test_the_address_is_throttled(self):
         for _ in range(3):
