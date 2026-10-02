@@ -69,3 +69,12 @@ class TestConfigFromEnvironment(SimpleTestCase):
         defaults = self.config(REQUIRED)
         self.assertEqual(defaults.PUBLIC_URL, "http://localhost:5173")
         self.assertEqual(defaults.PHOTO_THROTTLE_RATE, "10/hour")
+
+    def test_mail_and_account_throttle_defaults(self):
+        config = self.config(REQUIRED)
+        self.assertEqual(config.EMAIL_HOST, "")
+        self.assertEqual(config.EMAIL_PORT, 587)
+        self.assertTrue(config.EMAIL_USE_TLS)
+        self.assertEqual(config.DEFAULT_FROM_EMAIL, "Olympic Warriors <noreply@localhost>")
+        self.assertEqual(config.PASSWORD_THROTTLE_RATE, "10/hour")
+        self.assertEqual(config.RESET_EMAIL_THROTTLE_RATE, "3/hour")

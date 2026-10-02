@@ -76,6 +76,18 @@ class BaseConfig(BaseSettings):
     # direct API call, the front for a login through the site. DRF trusts that many entries
     # from the right; only correct if nothing reaches Django without passing one of them.
     NUM_PROXIES: int = 1
+    # Outgoing mail (password reset). Optional: with no EMAIL_HOST, dev prints mails on the
+    # console and prod sends nothing (password_reset logs an error).
+    EMAIL_HOST: str = ""
+    EMAIL_PORT: int = 587
+    EMAIL_HOST_USER: str = ""
+    EMAIL_HOST_PASSWORD: str = ""
+    EMAIL_USE_TLS: bool = True
+    DEFAULT_FROM_EMAIL: str = "Olympic Warriors <noreply@localhost>"
+    # Current-password checks per user (PUT /me/email/, PUT /me/password/, POST
+    # /me/deactivate/ together), and password-reset mails per address, DRF's rate format.
+    PASSWORD_THROTTLE_RATE: str = "10/hour"
+    RESET_EMAIL_THROTTLE_RATE: str = "3/hour"
 
     @model_validator(mode="after")
     def validate_log_level(self):

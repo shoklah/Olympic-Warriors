@@ -146,6 +146,20 @@ PASSWORD_RESET_TIMEOUT = 7 * 24 * 3600
 # production until set, and then the admin makes no link).
 PUBLIC_URL = settings.PUBLIC_URL
 
+# Outgoing mail: SMTP when EMAIL_HOST is set, else the console in dev; in prod without a host
+# the SMTP backend is kept so a reset request fails loudly in the log instead of vanishing.
+EMAIL_HOST = settings.EMAIL_HOST
+EMAIL_PORT = settings.EMAIL_PORT
+EMAIL_HOST_USER = settings.EMAIL_HOST_USER
+EMAIL_HOST_PASSWORD = settings.EMAIL_HOST_PASSWORD
+EMAIL_USE_TLS = settings.EMAIL_USE_TLS
+DEFAULT_FROM_EMAIL = settings.DEFAULT_FROM_EMAIL
+EMAIL_BACKEND = (
+    "django.core.mail.backends.console.EmailBackend"
+    if not settings.EMAIL_HOST and os.environ.get("ENV", "dev").lower() == "dev"
+    else "django.core.mail.backends.smtp.EmailBackend"
+)
+
 
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/
@@ -251,6 +265,8 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_RATES': {
         'login': settings.LOGIN_THROTTLE_RATE,
         'photo': settings.PHOTO_THROTTLE_RATE,
+        'password': settings.PASSWORD_THROTTLE_RATE,
+        'reset_email': settings.RESET_EMAIL_THROTTLE_RATE,
     },
     'NUM_PROXIES': settings.NUM_PROXIES,
 }
