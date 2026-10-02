@@ -16,7 +16,7 @@
 	setContext(ORGANISER, data.organiser);
 
 	// The hub, the login page and the claim page carry no section, so they get no bottom tab bar.
-	const NO_TAB_BAR = new Set(['/', '/[year=year]', '/login', '/claim/[uid]/[token]', '/account']);
+	const NO_TAB_BAR = new Set(['/', '/[year=year]', '/login', '/claim/[uid]/[token]', '/account', '/forgot', '/reset/[uid]/[token]']);
 
 	// An unmatched 404 has no route id: no section to show, so no tab bar either.
 	$: showTabBar = $page.route.id !== null && !NO_TAB_BAR.has($page.route.id);

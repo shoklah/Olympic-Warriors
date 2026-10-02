@@ -34,6 +34,7 @@
            aria-describedby={form?.missing?.password ? 'password-error' : undefined}>
 
     <button>{t('login.submit')}</button>
+    <a class="quiet-link" href="/forgot">{t('login.forgot')}</a>
 </form>
 
 <style>

@@ -28,4 +28,14 @@ describe('login form', () => {
 		expect(screen.getByText('Trop de tentatives : réessayez plus tard')).toBeInTheDocument();
 		expect(screen.queryByText(/vérifiez vos identifiants/)).toBeNull();
 	});
+
+	it('links to the password reset page', () => {
+		renderWith(Login, { form: null }, 'en');
+		expect(screen.getByRole('link', { name: 'Forgot password?' })).toHaveAttribute('href', '/forgot');
+	});
+
+	it('words the reset link in French', () => {
+		renderWith(Login, { form: null }, 'fr');
+		expect(screen.getByRole('link', { name: 'Mot de passe oublié ?' })).toHaveAttribute('href', '/forgot');
+	});
 });
