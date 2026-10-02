@@ -1,17 +1,9 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { apiGet, apiSend } from '$lib/api';
 import { ownerActions, statusOf } from '$lib/server/owner-actions';
+import { PASSWORD_CODES } from '$lib/server/password-link';
 import { api } from '$lib/server/urls';
 import { TOKEN_COOKIE, tokenCookieOptions } from '$lib/session';
-
-/** The password validators' codes, each worded as `claim.error.<code>` like on the claim page. */
-const PASSWORD_CODES = new Set([
-	'password_too_short',
-	'password_too_common',
-	'password_entirely_numeric',
-	'password_too_similar',
-	'password_missing'
-]);
 
 /** The word that confirms a deletion, in either language, compared trimmed and lower-cased. */
 const CONFIRM_WORDS = new Set(['supprimer', 'delete']);
