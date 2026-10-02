@@ -214,7 +214,6 @@ def requestPasswordReset(request):
 @permission_classes([AllowAny])
 @throttle_classes([ClaimRateThrottle])
 @parser_classes([JSONParser])
-@sensitive_variables("password")
 def resetPassword(request, uidb64, token):
     """A reset link: the claim contract (claims.py), reached from the mailed link."""
     return _claim_response(request, uidb64, token)
