@@ -10,6 +10,9 @@ services:
     # the last refresh is 30 days old, else it logs one "Nothing to refresh" line. It logs under
     # the crontab user's home (mkdir ~/logs once; /var/log needs root):
     # 0 2 * * * cd <repo> && docker compose -f <this file> exec -T server python manage.py refresh_badges --if-due >> $HOME/logs/olympic-warriors-badges.log 2>&1
+    # Password reset mail (optional, in prod.env; without EMAIL_HOST a reset request logs an error and sends nothing):
+    # EMAIL_HOST, EMAIL_PORT (587), EMAIL_HOST_USER, EMAIL_HOST_PASSWORD, EMAIL_USE_TLS (true),
+    # DEFAULT_FROM_EMAIL, PASSWORD_THROTTLE_RATE (10/hour per user), RESET_EMAIL_THROTTLE_RATE (3/hour per address).
     command: gunicorn olympic_warriors.wsgi:application --bind 0.0.0.0:3003
     # Loopback only: the login throttle trusts the last X-Forwarded-For entry (NUM_PROXIES=1),
     # so a client reaching Django without nginx or the front could name any IP. nginx reaches
