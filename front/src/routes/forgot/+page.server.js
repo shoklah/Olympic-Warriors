@@ -1,11 +1,12 @@
 import { fail } from '@sveltejs/kit';
 import { apiPost } from '$lib/api';
+import { statusOf } from '$lib/server/owner-actions';
 import { forwardedFor } from '$lib/server/forwarded-for';
 import { api } from '$lib/server/urls';
 
 export const actions = {
 	/**
-	 * Ask for a reset mail. Whatever the API says but 429, the page shows the same
+	 * Ask for a reset mail. Whatever the API says but 429 and an outage (5xx or no answer), the page shows the same
 	 * confirmation: it must not reveal which emails exist, and the API does not either. The
 	 * visitor's address is forwarded so the API's per-IP throttle counts visitors, not this
 	 * server.
@@ -16,7 +17,9 @@ export const actions = {
 		try {
 			await apiPost(fetch, api('/password-reset/'), { email }, null, forwardedFor(getClientAddress));
 		} catch (err) {
-			if (err?.status === 429) return fail(429, { error: 'login.throttled' });
+			const status = statusOf(err);
+			if (status === 429) return fail(429, { error: 'login.throttled' });
+			if (status >= 500) return fail(502, { error: 'forgot.error.failed' });
 		}
 		return { sent: true };
 	}

@@ -35,6 +35,12 @@ describe('forgot page', () => {
 		expect(screen.getByLabelText('Email address')).toHaveAccessibleDescription('Enter your email address');
 	});
 
+	it('words a failed send', () => {
+		renderWith(Page, { form: { error: 'forgot.error.failed' } }, 'fr');
+
+		expect(screen.getByRole('alert')).toHaveTextContent("L'envoi a échoué : réessayez plus tard");
+	});
+
 	it('speaks French', () => {
 		renderWith(Page, { form: null }, 'fr');
 

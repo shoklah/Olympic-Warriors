@@ -346,6 +346,7 @@ export default {
 	'forgot.submit': 'Envoyer le lien',
 	'forgot.sent': "Si cette adresse correspond à un compte, un lien vient d'être envoyé. Pensez à vérifier vos courriers indésirables.",
 	'forgot.error.missing': 'Saisissez votre adresse e-mail',
+	'forgot.error.failed': "L'envoi a échoué : réessayez plus tard",
 	'forgot.back': 'Retour à la connexion',
 	'reset.title': 'Nouveau mot de passe',
 	'reset.greeting': 'Bonjour {name}',

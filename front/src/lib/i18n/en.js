@@ -333,6 +333,7 @@ export default {
 	'forgot.submit': 'Send the link',
 	'forgot.sent': 'If this address matches an account, a link has just been sent. Remember to check your spam folder.',
 	'forgot.error.missing': 'Enter your email address',
+	'forgot.error.failed': 'Sending failed: please try again later',
 	'forgot.back': 'Back to login',
 	'reset.title': 'New password',
 	'reset.greeting': 'Hello {name}',
