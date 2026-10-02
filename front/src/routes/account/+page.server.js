@@ -75,11 +75,13 @@ export const actions = {
 		const form = await formOf(event.request);
 		const password = String(form.get('password') ?? '');
 		const email = String(form.get('email') ?? '').trim();
-		if (!password || !email) return fail(400, { action: 'email', error: 'account.error.missing' });
+		// The typed address comes back on a refusal, so the field keeps it (it is no secret); the
+		// password never does.
+		if (!password || !email) return fail(400, { action: 'email', error: 'account.error.missing', email });
 		try {
 			await jsonCall(event, token, 'PUT', '/me/email/', { password, email });
 		} catch (err) {
-			return fail(statusOf(err), { action: 'email', error: accountError(err) });
+			return fail(statusOf(err), { action: 'email', error: accountError(err), email });
 		}
 		return { ok: true, action: 'email' };
 	},

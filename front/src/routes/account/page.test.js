@@ -143,6 +143,89 @@ describe('account page', () => {
 		);
 	});
 
+	it('leaves focus alone when nothing was posted', () => {
+		renderWith(Page, { data, form: null });
+
+		expect(document.activeElement).toBe(document.body);
+		expect(document.querySelector('[aria-invalid]')).toBeNull();
+	});
+
+	it('ties a refused address to the email field, focuses it and keeps what was typed', () => {
+		renderWith(Page, {
+			data,
+			form: { action: 'email', error: 'account.error.invalid_email', email: 'typo@mail' }
+		});
+
+		const email = screen.getByRole('textbox', { name: 'Email address' });
+		expect(email).toHaveValue('typo@mail');
+		expect(email).toHaveAttribute('aria-invalid', 'true');
+		expect(email).toHaveAccessibleDescription('Invalid email address');
+		expect(within(section('Email address')).getByLabelText('Current password')).not.toHaveAttribute('aria-invalid');
+		expect(document.activeElement).toBe(email);
+	});
+
+	it('ties a wrong password to the current-password field of its own form', () => {
+		for (const [action, name] of [
+			['email', 'Email address'],
+			['password', 'Password'],
+			['deactivate', 'Delete my account']
+		]) {
+			const { unmount } = renderWith(Page, { data, form: { action, error: 'account.error.wrong_password' } });
+
+			const current = within(section(name)).getByLabelText('Current password');
+			expect(current, action).toHaveAttribute('aria-invalid', 'true');
+			expect(current, action).toHaveAccessibleDescription('Wrong current password');
+			expect(document.activeElement, action).toBe(current);
+			expect(document.querySelectorAll('[aria-invalid]'), action).toHaveLength(1);
+			unmount();
+		}
+	});
+
+	it('ties a mismatch to the confirmation field', () => {
+		renderWith(Page, { data, form: { action: 'password', error: 'account.error.mismatch' } });
+
+		const confirmation = screen.getByLabelText('Confirm the new password');
+		expect(confirmation).toHaveAttribute('aria-invalid', 'true');
+		expect(confirmation).toHaveAccessibleDescription('The two passwords do not match');
+		expect(document.activeElement).toBe(confirmation);
+	});
+
+	it("ties the validators' refusals to the new password and focuses it", () => {
+		renderWith(Page, {
+			data,
+			form: { action: 'password', errors: ['claim.error.password_too_short', 'claim.error.password_too_common'] }
+		});
+
+		const fresh = screen.getByLabelText('New password');
+		expect(fresh).toHaveAttribute('aria-invalid', 'true');
+		expect(fresh).toHaveAccessibleDescription('Password too short: 8 characters minimum Password too common');
+		expect(document.activeElement).toBe(fresh);
+	});
+
+	it('ties a missing confirmation word to its field', () => {
+		renderWith(Page, { data, form: { action: 'deactivate', error: 'account.error.confirmation' } });
+
+		const word = screen.getByLabelText('Type DELETE to confirm');
+		expect(word).toHaveAttribute('aria-invalid', 'true');
+		expect(word).toHaveAccessibleDescription('Type the requested word to confirm');
+		expect(document.activeElement).toBe(word);
+	});
+
+	it('focuses the message itself when no field is to blame', () => {
+		renderWith(Page, { data, form: { action: 'password', error: 'account.error.throttled' } });
+
+		const alert = within(section('Password')).getByRole('alert');
+		expect(alert).toHaveAttribute('tabindex', '-1');
+		expect(document.activeElement).toBe(alert);
+		expect(document.querySelector('[aria-invalid]')).toBeNull();
+	});
+
+	it('focuses the saved confirmation after a successful change', () => {
+		renderWith(Page, { data, form: { ok: true, action: 'email' } });
+
+		expect(document.activeElement).toBe(within(section('Email address')).getByRole('status'));
+	});
+
 	it('renders in French', () => {
 		render(Page, { props: { data, form: null } });
 

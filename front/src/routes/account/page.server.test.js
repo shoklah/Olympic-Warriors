@@ -109,8 +109,18 @@ describe('email action', () => {
 				cookies: cookiesWith()
 			});
 			expect(result.status).toBe(status);
-			expect(result.data).toEqual({ action: 'email', error });
+			expect(result.data).toEqual({ action: 'email', error, email: 'a@b.co' });
 		}
+	});
+
+	it('gives the typed address back on a refusal, so the field keeps it', async () => {
+		const fetch = vi.fn(async () => json(400, { error: 'invalid_email' }));
+		const result = await actions.email({
+			request: post('email', { password: 'pw', email: ' typo@mail ' }),
+			fetch,
+			cookies: cookiesWith()
+		});
+		expect(result.data.email).toBe('typo@mail');
 	});
 
 	it('refuses an empty field and a missing token without calling the API', async () => {
@@ -121,7 +131,7 @@ describe('email action', () => {
 			cookies: cookiesWith()
 		});
 		expect(empty.status).toBe(400);
-		expect(empty.data).toEqual({ action: 'email', error: 'account.error.missing' });
+		expect(empty.data).toEqual({ action: 'email', error: 'account.error.missing', email: 'a@b.co' });
 
 		const anonymous = await actions.email({
 			request: post('email', { password: 'pw', email: 'a@b.co' }),
@@ -278,5 +288,41 @@ describe('owner actions', () => {
 		const result = await actions.removePhoto({ request: post('removePhoto', {}), fetch, cookies: cookiesWith(), params: {} });
 		expect(result).toEqual({ ok: true, action: 'removePhoto' });
 		expect(fetch.mock.calls[1][0]).toBe('http://api/me/photo/');
+	});
+});
+
+describe('account actions and secrets', () => {
+	const responses = [
+		() => json(400, { error: 'wrong_password' }),
+		() => json(400, { error: 'invalid_email' }),
+		() => json(400, { errors: ['password_too_short'] }),
+		() => json(429, { detail: 'Request was throttled.' }),
+		() => json(500, {}),
+		() => json(200, {})
+	];
+	const posts = [
+		['email', { password: 'secret-current', email: 'a@b.co' }],
+		['email', { password: 'secret-current', email: '' }],
+		['password', { current: 'secret-current', new: 'secret-new', confirmation: 'secret-new' }],
+		['password', { current: 'secret-current', new: 'secret-new', confirmation: 'secret-other' }],
+		['password', { current: '', new: 'secret-new', confirmation: 'secret-new' }],
+		['deactivate', { password: 'secret-current', confirmation: 'DELETE' }],
+		['deactivate', { password: 'secret-current', confirmation: 'nope' }]
+	];
+
+	it('never send a password back to the page', async () => {
+		for (const [action, fields] of posts) {
+			for (const response of responses) {
+				const fetch = vi.fn(async () => response());
+				// A success redirects (deactivate), which carries no data at all.
+				const result = await actions[action]({ request: post(action, fields), fetch, cookies: cookiesWith() }).catch(
+					(redirect) => ({ status: redirect.status })
+				);
+				const text = JSON.stringify(result?.data ?? result);
+				for (const secret of ['secret-current', 'secret-new', 'secret-other']) {
+					expect(text, `${action} ${text}`).not.toContain(secret);
+				}
+			}
+		}
 	});
 });

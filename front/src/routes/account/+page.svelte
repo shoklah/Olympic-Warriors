@@ -1,4 +1,5 @@
 <script>
+	import { onMount } from 'svelte';
 	import Avatar from '$lib/components/Avatar.svelte';
 	import BadgeCollection from '$lib/components/BadgeCollection.svelte';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
@@ -23,6 +24,43 @@
 	$: passwordResult = resultOf('password');
 	$: deleteResult = resultOf('deactivate');
 	$: passwordErrors = passwordResult?.errors ?? [];
+
+	/** Each form's message element, by action: what its blamed field reads out, and what gets
+	 * focus when no field is to blame. */
+	const MESSAGE = { email: 'email-message', password: 'password-message', deactivate: 'danger-message' };
+
+	// The field each refusal blames, so it carries aria-invalid and reads the message out.
+	$: emailError = emailResult?.error;
+	$: passwordError = passwordResult?.error;
+	$: deleteError = deleteResult?.error;
+	$: blamed = {
+		emailAddress: emailError === 'account.error.invalid_email',
+		emailPassword: emailError === 'account.error.wrong_password',
+		currentPassword: passwordError === 'account.error.wrong_password',
+		newPassword: passwordErrors.length > 0,
+		confirmation: passwordError === 'account.error.mismatch',
+		word: deleteError === 'account.error.confirmation',
+		deletePassword: deleteError === 'account.error.wrong_password'
+	};
+	/** The attributes of a field: invalid and described by its form's message when blamed. */
+	const fieldState = (isBlamed, action) =>
+		isBlamed ? { 'aria-invalid': 'true', 'aria-describedby': MESSAGE[action] } : {};
+
+	/** Each action's section, where its posted result shows. */
+	const sections = {};
+
+	// Every form here is a plain POST, so a submit reloads the page with focus at the top and
+	// a message screen readers do not reliably announce: focus the field the message blames,
+	// else the message itself, as the claim and reset pages do.
+	onMount(() => {
+		const section = sections[form?.action];
+		if (!section) return;
+		const target =
+			section.querySelector('[aria-invalid="true"]') ?? document.getElementById(MESSAGE[form.action]);
+		if (!target) return;
+		target.focus();
+		target.scrollIntoView?.({ block: 'center' });
+	});
 
 	/** The photo editor is open. */
 	let editing = false;
@@ -80,35 +118,57 @@
 
 	<!-- Plain POSTs, never use:enhance: a password change stores a new token cookie, and a
 	     deletion clears it, so the whole page reloads as after /login. -->
-	<section aria-labelledby="account-email">
+	<section aria-labelledby="account-email" bind:this={sections.email}>
 		<h2 id="account-email">{t('account.section.email')}</h2>
 		<form method="POST" action="?/email">
 			<input type="text" name="username" autocomplete="username" value={account.username} readonly hidden />
 			<div class="field">
 				<label for="email-address">{t('account.email')}</label>
-				<input id="email-address" type="email" name="email" autocomplete="email" value={account.email} />
+				<input
+					id="email-address"
+					type="email"
+					name="email"
+					autocomplete="email"
+					value={emailResult?.email ?? account.email}
+					class:invalid={blamed.emailAddress}
+					{...fieldState(blamed.emailAddress, 'email')}
+				/>
 			</div>
 			<div class="field">
 				<label for="email-password">{t('account.currentPassword')}</label>
-				<input id="email-password" type="password" name="password" autocomplete="current-password" />
+				<input
+					id="email-password"
+					type="password"
+					name="password"
+					autocomplete="current-password"
+					class:invalid={blamed.emailPassword}
+					{...fieldState(blamed.emailPassword, 'email')}
+				/>
 			</div>
 			{#if emailResult?.error}
-				<p class="error" role="alert">{t(emailResult.error)}</p>
+				<p class="error" id="email-message" tabindex="-1" role="alert">{t(emailResult.error)}</p>
 			{:else if emailResult?.ok}
-				<p class="saved" role="status">{t('account.saved')}</p>
+				<p class="saved" id="email-message" tabindex="-1" role="status">{t('account.saved')}</p>
 			{/if}
 			<button class="submit">{t('account.saveEmail')}</button>
 		</form>
 	</section>
 
-	<section aria-labelledby="account-password">
+	<section aria-labelledby="account-password" bind:this={sections.password}>
 		<h2 id="account-password">{t('account.section.password')}</h2>
 		<form method="POST" action="?/password">
 			<!-- Tells a password manager which account the new password belongs to. -->
 			<input type="text" name="username" autocomplete="username" value={account.username} readonly hidden />
 			<div class="field">
 				<label for="password-current">{t('account.currentPassword')}</label>
-				<input id="password-current" type="password" name="current" autocomplete="current-password" />
+				<input
+					id="password-current"
+					type="password"
+					name="current"
+					autocomplete="current-password"
+					class:invalid={blamed.currentPassword}
+					{...fieldState(blamed.currentPassword, 'password')}
+				/>
 			</div>
 			<div class="field">
 				<label for="password-new">{t('account.newPassword')}</label>
@@ -117,23 +177,29 @@
 					type="password"
 					name="new"
 					autocomplete="new-password"
-					class:invalid={passwordErrors.length > 0}
-					aria-invalid={passwordErrors.length > 0 ? 'true' : undefined}
-					aria-describedby={passwordErrors.length > 0 ? 'password-errors' : undefined}
+					class:invalid={blamed.newPassword}
+					{...fieldState(blamed.newPassword, 'password')}
 				/>
 			</div>
 			<div class="field">
 				<label for="password-confirmation">{t('account.newPasswordConfirmation')}</label>
-				<input id="password-confirmation" type="password" name="confirmation" autocomplete="new-password" />
+				<input
+					id="password-confirmation"
+					type="password"
+					name="confirmation"
+					autocomplete="new-password"
+					class:invalid={blamed.confirmation}
+					{...fieldState(blamed.confirmation, 'password')}
+				/>
 			</div>
 			{#if passwordErrors.length > 0}
-				<div class="error" id="password-errors" role="alert">
+				<div class="error" id="password-message" tabindex="-1" role="alert">
 					{#each passwordErrors as key}<p>{t(key)}</p>{/each}
 				</div>
 			{:else if passwordResult?.error}
-				<p class="error" role="alert">{t(passwordResult.error)}</p>
+				<p class="error" id="password-message" tabindex="-1" role="alert">{t(passwordResult.error)}</p>
 			{:else if passwordResult?.ok}
-				<p class="saved" role="status">{t('account.saved')}</p>
+				<p class="saved" id="password-message" tabindex="-1" role="status">{t('account.saved')}</p>
 			{/if}
 			<button class="submit">{t('account.savePassword')}</button>
 		</form>
@@ -147,7 +213,7 @@
 		</form>
 	</section>
 
-	<section class="danger-zone" aria-labelledby="account-danger">
+	<section class="danger-zone" aria-labelledby="account-danger" bind:this={sections.deactivate}>
 		<h2 id="account-danger">{t('account.section.danger')}</h2>
 		<form method="POST" action="?/deactivate">
 			<p class="text">{t('account.dangerText')}</p>
@@ -162,14 +228,23 @@
 					autocapitalize="characters"
 					spellcheck="false"
 					placeholder={t('account.confirmWordValue')}
+					class:invalid={blamed.word}
+					{...fieldState(blamed.word, 'deactivate')}
 				/>
 			</div>
 			<div class="field">
 				<label for="danger-password">{t('account.currentPassword')}</label>
-				<input id="danger-password" type="password" name="password" autocomplete="current-password" />
+				<input
+					id="danger-password"
+					type="password"
+					name="password"
+					autocomplete="current-password"
+					class:invalid={blamed.deletePassword}
+					{...fieldState(blamed.deletePassword, 'deactivate')}
+				/>
 			</div>
 			{#if deleteResult?.error}
-				<p class="error" role="alert">{t(deleteResult.error)}</p>
+				<p class="error" id="danger-message" tabindex="-1" role="alert">{t(deleteResult.error)}</p>
 			{/if}
 			<button class="danger">{t('account.delete')}</button>
 		</form>
@@ -262,6 +337,12 @@
 
 	.error {
 		color: var(--loss);
+	}
+
+	/* Messages take focus only from the script, after a submit: no ring around a sentence. */
+	.error:focus,
+	.saved:focus {
+		outline: none;
 	}
 
 	.error p {
