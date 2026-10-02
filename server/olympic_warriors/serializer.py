@@ -251,11 +251,11 @@ class SummaryPlayerSerializer(serializers.ModelSerializer):
         model = Player
         fields = ("id", "user", "first_name", "last_name", "photo")
 
-    def get_first_name(self, obj):
+    def get_first_name(self, obj) -> str:
         """The user's first name, or the anonymous one."""
         return shown_names(obj.user)[0]
 
-    def get_last_name(self, obj):
+    def get_last_name(self, obj) -> str:
         """The user's last name, or the anonymous one."""
         return shown_names(obj.user)[1]
 
