@@ -5,6 +5,7 @@ never learns whether anyone matched, so every outcome here is silent.
 """
 
 import logging
+import threading
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -24,6 +25,19 @@ BODY = (
 )
 
 
+def dispatch(func, *args):
+    """Run `func(*args)` on a daemon thread, so the request answers in the same time whether
+    or not a mail goes out. Failures are logged, never raised."""
+
+    def run():
+        try:
+            func(*args)
+        except Exception:  # pylint: disable=broad-except  # SMTP down: nobody to tell
+            logger.exception("Password reset mail failed")
+
+    threading.Thread(target=run, daemon=True).start()
+
+
 def user_for_email(email):
     """The one user whose email is `email` (case-insensitive), else None: no match, or
     several, which would let one address reset another person's account."""
@@ -33,7 +47,8 @@ def user_for_email(email):
 
 def send_reset(email):
     """Mail the reset link when `email` names exactly one claimable person. Returns whether a
-    mail was sent; logs, never raises, on a missing PUBLIC_URL or a mail failure."""
+    mail was dispatched (it leaves on a thread, so timing never tells a match); logs, never
+    raises, on a missing PUBLIC_URL, a missing EMAIL_HOST or a mail failure."""
     if not isinstance(email, str) or not email.strip():
         return False
     user = user_for_email(email)
@@ -46,14 +61,14 @@ def send_reset(email):
     except ImproperlyConfigured:
         logger.error("Password reset requested but PUBLIC_URL is not set: no mail sent")
         return False
-    try:
-        send_mail(
-            SUBJECT,
-            BODY.format(name=user.first_name or user.username, link=link),
-            settings.DEFAULT_FROM_EMAIL,
-            [user.email],
-        )
-    except Exception:  # pylint: disable=broad-except  # SMTP down: the caller must not learn it
-        logger.exception("Password reset mail failed")
+    if not settings.EMAIL_HOST and settings.EMAIL_BACKEND.endswith("smtp.EmailBackend"):
+        logger.error("Password reset requested but EMAIL_HOST is not set: no mail sent")
         return False
+    dispatch(
+        send_mail,
+        SUBJECT,
+        BODY.format(name=user.first_name or user.username, link=link),
+        settings.DEFAULT_FROM_EMAIL,
+        [user.email],
+    )
     return True

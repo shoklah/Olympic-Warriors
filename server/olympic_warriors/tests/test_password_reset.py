@@ -1,13 +1,17 @@
 import re
+import threading
+from unittest import mock
 
 from django.core import mail
 from django.core.cache import cache
 from django.test import override_settings
 from rest_framework.test import APITestCase
 
+from olympic_warriors import password_reset
 from olympic_warriors.models import UserProfile
 from olympic_warriors.tests.test_claims import INVALID, PRIVATE_CACHE, ClaimSetup, parts
 
+REAL_DISPATCH = password_reset.dispatch
 GOOD = "violet-harbour-lantern"
 
 
@@ -17,6 +21,12 @@ class TestPasswordReset(ClaimSetup, APITestCase):
     def setUp(self):
         super().setUp()
         cache.clear()
+        # Mail leaves on a thread in production; run it inline so the outbox is filled.
+        patcher = mock.patch(
+            "olympic_warriors.password_reset.dispatch", lambda func, *args: func(*args)
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
         for user, email in (
             (self.lea, "lea@mail.example"),
             (self.staff, "ana@mail.example"),
@@ -71,6 +81,44 @@ class TestPasswordReset(ClaimSetup, APITestCase):
     @override_settings(PUBLIC_URL="")
     def test_no_public_url_no_mail_and_still_200(self):
         self.assertEqual(self.ask("lea@mail.example").status_code, 200)
+        self.assertEqual(mail.outbox, [])
+
+    def test_the_mail_leaves_on_a_thread_after_the_request(self):
+        started, release = threading.Event(), threading.Event()
+        sent = []
+
+        def slow_send(*args, **kwargs):
+            started.set()
+            release.wait(5)
+            sent.append(args)
+
+        with mock.patch("olympic_warriors.password_reset.dispatch", REAL_DISPATCH), \
+                mock.patch("olympic_warriors.password_reset.send_mail", slow_send):
+            before = set(threading.enumerate())
+            self.assertTrue(password_reset.send_reset("lea@mail.example"))
+            self.assertEqual(sent, [])  # returned before the send finished
+            self.assertTrue(started.wait(5))
+            release.set()
+            for thread in set(threading.enumerate()) - before:
+                thread.join(5)
+        self.assertEqual(len(sent), 1)
+
+    def test_a_failing_send_is_logged_not_raised(self):
+        with self.assertLogs("olympic_warriors.password_reset", "ERROR"):
+            before = set(threading.enumerate())
+            with mock.patch("olympic_warriors.password_reset.dispatch", REAL_DISPATCH), \
+                    mock.patch("olympic_warriors.password_reset.send_mail", side_effect=OSError):
+                password_reset.send_reset("lea@mail.example")
+                for thread in set(threading.enumerate()) - before:
+                    thread.join(5)
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.smtp.EmailBackend", EMAIL_HOST=""
+    )
+    def test_smtp_backend_without_a_host_logs_and_sends_nothing(self):
+        with self.assertLogs("olympic_warriors.password_reset", "ERROR") as logs:
+            self.assertEqual(self.ask("lea@mail.example").status_code, 200)
+        self.assertIn("EMAIL_HOST is not set", logs.output[0])
         self.assertEqual(mail.outbox, [])
 
     def test_the_address_is_throttled(self):
