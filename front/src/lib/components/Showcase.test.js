@@ -41,7 +41,7 @@ describe('Showcase on a leaderboard row', () => {
 
 		const root = screen.getByTestId('showcase');
 		expect(root).toHaveAttribute('aria-hidden', 'true');
-		expect(root.style.getPropertyValue('--badge-size')).toBe('1.25rem');
+		expect(source('src/lib/components/Showcase.svelte')).toMatch(/\.row \{\s*--badge-size: 1\.25rem;/);
 		expect(glyphs(root)).toEqual([
 			expect.stringMatching(/champion\.svg$/),
 			expect.stringMatching(/veteran\.svg$/),
@@ -100,6 +100,35 @@ describe('Showcase on a leaderboard row', () => {
 			const { container } = renderWith(Showcase, { badges });
 			expect(container.querySelector('*')).toBeNull();
 		}
+	});
+});
+
+describe('Showcase tooltips', () => {
+	it('gives each leaderboard medallion its name and rule, drawn by CSS from attributes', () => {
+		renderWith(Showcase, { badges: leaderboard[0].showcase, tips: true });
+
+		const root = screen.getByTestId('showcase');
+		expect(root.querySelectorAll('.tooltip')).toHaveLength(leaderboard[0].showcase.length);
+		const first = root.querySelector('.tooltip');
+		expect(first).toHaveAttribute('data-name', 'Champion');
+		expect(first.getAttribute('data-rule')).not.toBe('');
+		// Nothing of it joins the row's text, which the leaderboard's tests pin.
+		expect(root).toHaveTextContent('');
+	});
+
+	it('draws no tooltip by default', () => {
+		renderWith(Showcase, { badges: leaderboard[0].showcase });
+
+		expect(screen.getByTestId('showcase').querySelector('.tooltip')).toBeNull();
+	});
+
+	it("gives each profile medallion a tooltip hidden from assistive tech, beside its button", () => {
+		renderWith(Showcase, { badges: pinned, mode: 'interactive', collection });
+
+		const tips = screen.getByTestId('showcase').querySelectorAll('.tooltip');
+		expect(tips).toHaveLength(3);
+		expect(tips[0]).toHaveAttribute('aria-hidden', 'true');
+		expect(tips[0]).toHaveAttribute('data-name', 'Specialist');
 	});
 });
 
