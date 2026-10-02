@@ -548,12 +548,14 @@ def discipline_table(name):
         (
             DisciplineRow(
                 user_id=user_id,
-                first_name=shown_names(user)[0],
-                last_name=shown_names(user)[1],
+                first_name=first_name,
+                last_name=last_name,
                 places=tuple(sorted(places[user_id], key=lambda place: (place.rank, -place.year))),
                 position=None,
             )
-            for user_id, user in people.items()
+            for user_id, (first_name, last_name) in (
+                (user_id, shown_names(user)) for user_id, user in people.items()
+            )
         ),
         key=lambda row: (_places_key(row.places), *_by_name(row)),
     )
