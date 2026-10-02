@@ -21,6 +21,7 @@ from olympic_warriors.models import (
     ResultTypes,
 )
 from .avatars import small_photo_url
+from .badges import SHOWCASE_SIZE
 from .standings import compute_standings
 
 
@@ -218,7 +219,7 @@ class ShowcaseSerializer(serializers.Serializer):
     order, or the rarest earned badges when `auto`."""
 
     auto = serializers.BooleanField(help_text="No pin still earned: the rarest badges")
-    badges = ShowcaseBadgeSerializer(many=True, help_text="At most 3, in the order shown")
+    badges = ShowcaseBadgeSerializer(many=True, help_text=f"At most {SHOWCASE_SIZE}, in the order shown")
 
 
 # Edition summary: everything the public front needs for one edition in one payload.
@@ -610,7 +611,7 @@ class LeaderboardRowSerializer(serializers.Serializer):
         """The record's small URL, or None without a photo."""
         return obj.photo["small"] if obj.photo else None
 
-    @extend_schema_field(ShowcaseBadgeSerializer(many=True, help_text="At most 3, in order"))
+    @extend_schema_field(ShowcaseBadgeSerializer(many=True, help_text=f"At most {SHOWCASE_SIZE}, in order"))
     def get_showcase(self, obj):
         """The showcase's badges from context["showcases"], [] for someone without one."""
         badges = self.context.get("showcases", {}).get(obj.user_id, [])
