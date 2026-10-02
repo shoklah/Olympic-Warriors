@@ -58,5 +58,8 @@ def deactivate(user):
         profile.anonymized = True
         profile.save(update_fields=["showcase", "anonymized", "updated_at"])
         locked.is_active = False
-        locked.save(update_fields=["is_active"])
+        # A reactivation must not revive the old password, nor any older reset or claim link
+        # (the token hashes the password).
+        locked.set_unusable_password()
+        locked.save(update_fields=["is_active", "password"])
         Token.objects.filter(user=locked).delete()

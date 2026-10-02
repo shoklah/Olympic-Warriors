@@ -5,6 +5,7 @@ the account endpoints use.
 """
 
 from django.contrib.auth.models import User
+from django.contrib.auth.tokens import default_token_generator
 from django.core.exceptions import ValidationError
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIRequestFactory
@@ -66,6 +67,13 @@ class AccountsTests(MediaRootTestCase):
         self.assertFalse(self.user.is_active)
         self.assertTrue(UserProfile.objects.get(user=self.user).anonymized)
         self.assertFalse(Token.objects.filter(user=self.user).exists())
+
+    def test_deactivate_kills_the_password_and_old_links(self):
+        old_token = default_token_generator.make_token(self.user)
+        accounts.deactivate(self.user)
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.has_usable_password())
+        self.assertFalse(default_token_generator.check_token(self.user, old_token))
 
     def test_deactivate(self):
         profile = UserProfile.objects.create(user=self.user, showcase=["champion"])
