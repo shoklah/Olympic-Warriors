@@ -37,7 +37,7 @@ All `IsAuthenticated`, for person accounts only (404 `not_a_person` otherwise, s
 
 ### Anonymization
 - `UserProfile.anonymized` (`BooleanField`, default `False`, migration `0040`), editable in `UserProfileAdmin` with the filter and column. Reactivation by an organiser: untick `anonymized`, tick `is_active` on the user, generate a claim link (the password check on deactivation made the old one useless).
-- One helper, `display_name(user)`, returns `{"first_name": "Joueur", "last_name": "anonyme"}` (French as the data language) when the profile is anonymized. Every public payload built from a user goes through it: summary rosters, `/profiles/`, `/profile/<id>/`, `/discipline/<id>/all-time/`, badge partners. Photos and showcase are already empty; the front hides initials for an anonymized person through the masked name.
+- One helper, `display_name(user)`, returns `{"first_name": "Joueur", "last_name": "anonyme"}` (French as the data language) when the profile is anonymized. Every public payload built from a user goes through it: summary rosters, `/profiles/`, `/profile/<id>/`, `/discipline/<id>/all-time/`, badge partners. The photo is removed and the pins cleared on deactivation, so the showcase falls back to the automatic one (rarest earned badges, which carry no name); the front's initials come from the masked name.
 - The person stays on the leaderboard and keeps places and badges (`person_players()` is unchanged). `/profile/<id>/` still answers, with the masked name.
 - `test_showcase.py`'s privacy walk gains an anonymized case; the email appears in no payload but `/me/`.
 
