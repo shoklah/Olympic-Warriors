@@ -1,7 +1,8 @@
 """
 Lost password (spec 2026-10-02): a person gives their email and, if exactly one claimable
 person has it, gets a link to the front's /reset page, valid like a claim link. The caller
-never learns whether anyone matched, so every outcome here is silent.
+never learns whether anyone matched, so every outcome is silent for them; the server log
+says what happened (by user id, never by address).
 """
 
 import logging
@@ -45,25 +46,47 @@ def dispatch(func, *args):
     threading.Thread(target=run, daemon=True).start()
 
 
-def user_for_email(email):
-    """The one user whose email is `email` (case-insensitive), else None: no match, or
-    several, which would let one address reset another person's account."""
+def _lookup(email):
+    """(user, None) for the one user whose email is `email` (case-insensitive), else
+    (None, reason), the reason being worded for the log: no account, or several (which would
+    let one address reset another person's account)."""
     users = list(get_user_model().objects.filter(email__iexact=email.strip())[:2])
-    return users[0] if len(users) == 1 else None
+    if not users:
+        return None, "no account has that address"
+    if len(users) > 1:
+        return None, "several accounts share that address"
+    return users[0], None
+
+
+def user_for_email(email):
+    """The one user whose email is `email`, else None (see `_lookup`)."""
+    return _lookup(email)[0]
+
+
+def _send(user_id, *mail_args):
+    """Hand the mail to the SMTP server (on the dispatch thread) and log the outcome by user
+    id, never by address, so a missing mail can be told from a refused one."""
+    send_mail(*mail_args)
+    logger.info("Password reset: mail for user %s accepted by the mail server", user_id)
 
 
 def send_reset(email):
     """Mail the reset link when `email` names exactly one claimable person. Returns whether a
-    mail was dispatched (it leaves on a thread, so timing never tells a match); logs, never
-    raises, on a missing PUBLIC_URL, a missing EMAIL_HOST or a mail failure."""
+    mail was dispatched (it leaves on a thread, so timing never tells a match). The caller is
+    never told why nothing went out, but the server log is: every silent outcome logs its
+    reason at INFO, by user id and never by address, and a missing PUBLIC_URL or EMAIL_HOST
+    or a mail failure logs an error."""
     if not isinstance(email, str) or not email.strip():
+        logger.info("Password reset skipped: no usable email in the request")
         return False
-    user = user_for_email(email)
+    user, reason = _lookup(email)
     if user is None:
+        logger.info("Password reset skipped: %s", reason)
         return False
     try:
         link = claim_link(user, route="reset")
-    except Unclaimable:
+    except Unclaimable as refusal:
+        logger.info("Password reset skipped: user %s is not claimable (%s)", user.pk, refusal.reason)
         return False
     except ImproperlyConfigured:
         logger.error("Password reset requested but PUBLIC_URL is not set: no mail sent")
@@ -71,8 +94,10 @@ def send_reset(email):
     if not settings.EMAIL_HOST and settings.EMAIL_BACKEND.endswith("smtp.EmailBackend"):
         logger.error("Password reset requested but EMAIL_HOST is not set: no mail sent")
         return False
+    logger.info("Password reset: mail for user %s queued", user.pk)
     dispatch(
-        send_mail,
+        _send,
+        user.pk,
         SUBJECT,
         BODY.format(name=user.first_name or user.username, link=link, validity=validity()),
         settings.DEFAULT_FROM_EMAIL,

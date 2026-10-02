@@ -50,6 +50,44 @@ class TestPasswordReset(ClaimSetup, APITestCase):
         self.assertIsNotNone(link)
         return link.groups()
 
+    def logged(self, email):
+        """The INFO+ lines `send_reset(email)` logs, as one string (never the address)."""
+        with self.assertLogs("olympic_warriors.password_reset", "INFO") as logs:
+            self.ask(email)
+        text = "\n".join(logs.output)
+        if isinstance(email, str) and email:
+            self.assertNotIn(email.lower(), text.lower())
+        return text
+
+    def test_every_outcome_logs_why_without_the_address(self):
+        self.stranger.email = "twin@mail.example"
+        self.stranger.save(update_fields=["email"])
+        self.benched.email = "twin@mail.example"
+        self.benched.save(update_fields=["email"])
+        cases = (
+            ("", "no usable email"),
+            (5, "no usable email"),
+            ("nobody@mail.example", "no account has that address"),
+            ("twin@mail.example", "several accounts share that address"),
+            ("ana@mail.example", f"user {self.staff.pk} is not claimable (staff)"),
+            ("gone@mail.example", f"user {self.gone.pk} is not claimable (inactive)"),
+            ("sam@mail.example", "no account has that address"),
+        )
+        for email, expected in cases:
+            with self.subTest(email=email):
+                cache.clear()
+                if email == "sam@mail.example":
+                    # sam's address was reused above: this one is the not-a-person branch
+                    self.stranger.email = "sam@mail.example"
+                    self.stranger.save(update_fields=["email"])
+                    expected = f"user {self.stranger.pk} is not claimable (not_a_person)"
+                self.assertIn(expected, self.logged(email))
+
+    def test_a_sent_mail_logs_the_hand_over_to_the_smtp_server(self):
+        text = self.logged("lea@mail.example")
+        self.assertIn(f"mail for user {self.lea.pk} queued", text)
+        self.assertIn(f"mail for user {self.lea.pk} accepted by the mail server", text)
+
     def test_a_person_gets_a_link(self):
         response = self.ask("LEA@mail.example")
         self.assertEqual((response.status_code, response.data), (200, {}))

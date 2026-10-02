@@ -231,6 +231,13 @@ LOGGING = {
             "handlers": ["console"],
             "level": settings.LOG_LEVEL_CONSOLE,
         },
+        # What the code logs with getLogger(__name__) (password_reset, avatars, Edition): on the
+        # console, so `docker compose logs` shows them. Without it only WARNING and above
+        # reach stderr, through Python's last-resort handler, and INFO is lost.
+        "olympic_warriors": {
+            "handlers": ["console"],
+            "level": settings.LOG_LEVEL_CONSOLE,
+        },
     },
 }
 
