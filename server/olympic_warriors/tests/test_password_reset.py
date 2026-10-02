@@ -60,6 +60,14 @@ class TestPasswordReset(ClaimSetup, APITestCase):
         self.lea.refresh_from_db()
         self.assertTrue(self.lea.check_password(GOOD))
 
+    def test_the_mail_states_the_link_lifetime_from_the_setting(self):
+        for seconds, words in ((7 * 86400, "valable 7 jours"), (86400, "valable 1 jour"), (3600, "valable 1 jour")):
+            with self.subTest(seconds=seconds), override_settings(PASSWORD_RESET_TIMEOUT=seconds):
+                mail.outbox.clear()
+                cache.clear()
+                self.ask("lea@mail.example")
+                self.assertIn(f"({words})", mail.outbox[0].body)
+
     def test_everyone_else_gets_the_same_answer_and_no_mail(self):
         # Not about the throttle: each attempt gets a fresh per-IP budget (cache cleared),
         # since 7 calls from one test client would pass the 5/min login limit.

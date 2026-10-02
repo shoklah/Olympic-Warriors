@@ -20,9 +20,16 @@ SUBJECT = "Olympic Warriors : réinitialisation de votre mot de passe"
 BODY = (
     "Bonjour {name},\n\n"
     "Vous avez demandé à réinitialiser votre mot de passe. Ouvrez ce lien pour en choisir un "
-    "nouveau (valable 7 jours) :\n\n{link}\n\n"
+    "nouveau (valable {validity}) :\n\n{link}\n\n"
     "Si vous n'êtes pas à l'origine de cette demande, ignorez ce message : rien ne change.\n"
 )
+
+
+def validity():
+    """How long a link lives, in French whole days (at least one), from
+    PASSWORD_RESET_TIMEOUT."""
+    days = max(1, -(-settings.PASSWORD_RESET_TIMEOUT // 86400))
+    return f"{days} jour{'s' if days > 1 else ''}"
 
 
 def dispatch(func, *args):
@@ -67,7 +74,7 @@ def send_reset(email):
     dispatch(
         send_mail,
         SUBJECT,
-        BODY.format(name=user.first_name or user.username, link=link),
+        BODY.format(name=user.first_name or user.username, link=link, validity=validity()),
         settings.DEFAULT_FROM_EMAIL,
         [user.email],
     )
