@@ -27,9 +27,10 @@ class UserProfile(models.Model):
     # Set by an organiser: no more uploads (the person can still delete their photo).
     photo_locked = models.BooleanField(default=False)
     # The pinned badge codes, in the person's order; empty means the automatic showcase.
+    # size is badges.SHOWCASE_SIZE, repeated since badges.py imports the models.
     showcase = ArrayField(
         models.CharField(max_length=32, choices=Badge.Codes.choices),
-        size=3,
+        size=5,
         default=list,
         blank=True,
     )

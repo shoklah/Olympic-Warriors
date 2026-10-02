@@ -48,12 +48,12 @@ TABLES = (
     ("BlindtestGuess", BlindtestGuess, "blindtest_round__blindtest__edition"),
 )
 
-# Root models an edition export leaves out on purpose: badges are derived from the
-# edition's data, and badges.refresh() rebuilds them after an import (import_edition runs
-# it). Manual badges are not transferred, and --replace cascade-deletes the replaced
-# edition's ones. A UserProfile (photo, showcase, claim) is about a person, not an
-# edition, and lives on prod only.
-NOT_EXPORTED = frozenset({"Badge", "BadgeRefresh", "UserProfile"})
+# Root models an edition export leaves out on purpose: badges and their progress
+# (BadgeProgress) are derived from the edition's data, and badges.refresh() rebuilds them
+# after an import (import_edition runs it). Manual badges are not transferred, and
+# --replace cascade-deletes the replaced edition's ones. A UserProfile (photo, showcase,
+# claim) is about a person, not an edition, and lives on prod only.
+NOT_EXPORTED = frozenset({"Badge", "BadgeProgress", "BadgeRefresh", "UserProfile"})
 
 
 class TransferError(ValueError):

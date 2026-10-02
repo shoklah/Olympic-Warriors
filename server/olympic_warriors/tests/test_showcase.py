@@ -1,15 +1,15 @@
 """
 The badge showcase (see the player profile customization design spec under
 docs/superpowers/specs/, "Showcase"): badges.showcase() turns a person's badges, their
-stored pins and the rarity counts into the three badges their profile shows, with no query;
+stored pins and the rarity counts into the five badges their profile shows, with no query;
 badges.badges_by_user() reads many people's badges in the shape profile_badges() gives one
 person; profiles.person_ids() is the leaderboard's people without computing the leaderboard,
 the denominator of the rarity counts the automatic showcase reads.
 
 The public payloads (§6 of the spec): /profiles/ and /profile/<id>/ carry each person's photo
-and showcase, a comrades partner their photo, the summary's rosters the photo too, and none
-of them carries what only /me/ may (the login name, the email, the lock, the claim date, the
-raw pins).
+and showcase, a comrades partner their photo (of a badge, or of a progress entry on the
+profile), the summary's rosters the photo too, and none of them carries what only /me/ may
+(the login name, the email, the lock, the claim date, the raw pins).
 """
 
 from datetime import date, datetime, timezone
@@ -18,8 +18,8 @@ from unittest import mock
 from django.contrib.auth.models import User
 from django.test import SimpleTestCase, TestCase
 
-from olympic_warriors.badges import badges_by_user, profile_badges, showcase
-from olympic_warriors.models import Badge, Edition, UserProfile
+from olympic_warriors.badges import SHOWCASE_SIZE, badges_by_user, profile_badges, showcase
+from olympic_warriors.models import Badge, BadgeProgress, Edition, UserProfile
 from olympic_warriors.profiles import is_person, leaderboard, person_ids
 from olympic_warriors.tests.test_profiles import TODAY, EndpointSetup, ProfilesSetup
 
@@ -80,6 +80,20 @@ class TestShowcase(SimpleTestCase):
             },
         )
 
+    def test_five_pins_are_all_shown_in_the_persons_order(self):
+        pins = [C.MVP, C.ROOKIE, C.GOAT, C.CHAMPION, C.SPECIALIST]
+
+        self.assertEqual(
+            showcase(self.ENTRIES, pins, self.HOLDERS),
+            {
+                "auto": False,
+                "badges": [
+                    shown(C.MVP), shown(C.ROOKIE), shown(C.GOAT), shown(C.CHAMPION),
+                    shown(C.SPECIALIST, 1, "Darts"),
+                ],
+            },
+        )
+
     def test_one_or_two_pins_are_a_pinned_showcase_of_one_or_two(self):
         self.assertEqual(
             showcase(self.ENTRIES, [C.ROOKIE], self.HOLDERS),
@@ -105,12 +119,16 @@ class TestShowcase(SimpleTestCase):
         )
         self.assertTrue(showcase(self.ENTRIES, [C.LEGEND], self.HOLDERS)["auto"])
 
-    def test_automatic_is_the_three_rarest_earned_codes(self):
+    def test_automatic_is_the_five_rarest_earned_codes(self):
+        # Six earned: rookie, the most held (40), is the one left out.
         self.assertEqual(
             showcase(self.ENTRIES, [], self.HOLDERS),
             {
                 "auto": True,
-                "badges": [shown(C.GOAT), shown(C.MVP), shown(C.SPECIALIST, 1, "Darts")],
+                "badges": [
+                    shown(C.GOAT), shown(C.MVP), shown(C.SPECIALIST, 1, "Darts"),
+                    shown(C.CHAMPION), shown(C.VETERAN, 2),
+                ],
             },
         )
 
@@ -126,7 +144,10 @@ class TestShowcase(SimpleTestCase):
 
         self.assertEqual(
             showcase(entries, [], holders)["badges"],
-            [shown(C.SPECIALIST, 3, "Relay"), shown(C.VETERAN, 1), shown(C.CHAMPION)],
+            [
+                shown(C.SPECIALIST, 3, "Relay"), shown(C.VETERAN, 1), shown(C.CHAMPION),
+                shown(C.ROOKIE),
+            ],
         )
 
     def test_equally_rare_codes_of_the_same_tier_go_by_catalogue_order(self):
@@ -136,7 +157,7 @@ class TestShowcase(SimpleTestCase):
 
         self.assertEqual(
             [badge["code"] for badge in showcase(entries, [], holders)["badges"]],
-            [C.CHAMPION, C.ROOKIE, C.GOAT],
+            [C.CHAMPION, C.ROOKIE, C.GOAT, C.MVP],
         )
 
     def test_a_code_without_a_holder_count_is_the_rarest(self):
@@ -144,9 +165,11 @@ class TestShowcase(SimpleTestCase):
 
         badges = showcase(entries, [], {C.CHAMPION: 1, C.GOAT: 2})["badges"]
 
-        self.assertEqual([badge["code"] for badge in badges], [C.ROOKIE, C.MVP, C.CHAMPION])
+        self.assertEqual(
+            [badge["code"] for badge in badges], [C.ROOKIE, C.MVP, C.CHAMPION, C.GOAT]
+        )
 
-    def test_fewer_than_three_earned_codes_show_them_all(self):
+    def test_fewer_than_five_earned_codes_show_them_all(self):
         self.assertEqual(
             showcase([entry(C.ROOKIE)], [], {C.ROOKIE: 9}),
             {"auto": True, "badges": [shown(C.ROOKIE)]},
@@ -201,10 +224,19 @@ class TestShowcase(SimpleTestCase):
             [b["code"] for b in showcase(entries, [C.GOAT, C.GOAT], {})["badges"]], [C.GOAT]
         )
 
-    def test_at_most_three_badges_whatever_is_stored(self):
-        pins = [C.CHAMPION, C.ROOKIE, C.VETERAN, C.GOAT]
+    def test_at_most_five_badges_whatever_is_stored(self):
+        pins = [C.CHAMPION, C.ROOKIE, C.VETERAN, C.GOAT, C.SPECIALIST, C.MVP]
 
-        self.assertEqual(len(showcase(self.ENTRIES, pins, self.HOLDERS)["badges"]), 3)
+        self.assertEqual(
+            [b["code"] for b in showcase(self.ENTRIES, pins, self.HOLDERS)["badges"]],
+            pins[:5],
+        )
+
+    def test_the_stored_pins_hold_a_whole_showcase(self):
+        # UserProfile cannot import badges.py (which imports the models), so the field
+        # repeats the size as a literal: this keeps the two in step.
+        self.assertEqual(SHOWCASE_SIZE, 5)
+        self.assertEqual(UserProfile._meta.get_field("showcase").size, SHOWCASE_SIZE)
 
     def test_the_arguments_are_left_as_they_were(self):
         entries = [dict(e) for e in self.ENTRIES]
@@ -432,15 +464,16 @@ class TestPhotosAndShowcases(EndpointSetup, TestCase):
 
     # Showcases
 
-    def test_without_pins_a_row_shows_the_three_rarest_badges(self):
+    def test_without_pins_a_row_shows_the_rarest_badges_first(self):
         self.rarity_setup()
 
         rows = self.rows()
 
-        # goat has 1 holder; veteran and rookie 2 each, veteran held at a higher tier.
+        # goat has 1 holder; veteran and rookie 2 each, veteran held at a higher tier;
+        # champion 3.
         self.assertEqual(
             rows["Ana"]["showcase"],
-            [shown(C.GOAT), shown(C.VETERAN, 2), shown(C.ROOKIE)],
+            [shown(C.GOAT), shown(C.VETERAN, 2), shown(C.ROOKIE), shown(C.CHAMPION)],
         )
         self.assertEqual(rows["Bob"]["showcase"], [shown(C.ROOKIE), shown(C.CHAMPION)])
         self.assertEqual(rows["Dan"]["showcase"], [shown(C.VETERAN, 1)])
@@ -543,6 +576,14 @@ class TestPhotosAndShowcases(EndpointSetup, TestCase):
         self.badge(self.ana, C.CHAMPION, self.y2024)
         self.badge(self.ana, C.COMRADES, self.y2025, partner=self.chloe)
         self.badge(self.chloe, C.COMRADES, self.y2025, partner=self.ana)
+        # Progress entries naming a partner, whose login, email and claim must stay out too;
+        # the profiles walked below carry them.
+        BadgeProgress.objects.create(user=self.ana, code=C.COMRADES, value=1, partner=self.chloe)
+        BadgeProgress.objects.create(user=self.chloe, code=C.COMRADES, value=1, partner=self.ana)
+        self.assertEqual(
+            [entry["partner"]["id"] for entry in self.profile(self.ana)["progress"]],
+            [self.chloe.id],
+        )
 
         for url in (
             "/profiles/",

@@ -218,6 +218,69 @@ describe('player profile page', () => {
 		expect(screen.getByRole('dialog', { name: 'Comrades in arms' })).not.toHaveTextContent('of players');
 	});
 
+	describe("the sheet's progress", () => {
+		/** The sheet's count line as seen: the fraction read out in words left out. */
+		const countLine = () => {
+			const copy = screen.getByTestId('badge-progress-count').cloneNode(true);
+			copy.querySelectorAll('.visually-hidden').forEach((node) => node.remove());
+			return copy.textContent.replace(/\s+/g, ' ').trim();
+		};
+
+		it("shows a collection slot's count toward its next tier", async () => {
+			setSearch('?tab=badges');
+			renderWith(Page, { data: { profile } });
+
+			await fireEvent.click(collectionSlot('Loyalty', /^Veteran/));
+			expect(screen.getByRole('dialog', { name: 'Veteran' })).not.toHaveTextContent('Next tier');
+			expect(countLine()).toBe('3 / 5 editions');
+		});
+
+		it("shows a locked slot's bar, its best run and an out-of-reach line", async () => {
+			setSearch('?tab=badges');
+			renderWith(Page, { data: { profile } });
+
+			await fireEvent.click(collectionSlot('Streaks', /^Podium regular/));
+			expect(countLine()).toBe('1 / 3 podiums in a row');
+			expect(screen.getByRole('dialog', { name: 'Podium regular' })).toHaveTextContent('Best run: 2');
+			await fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+
+			await fireEvent.click(collectionSlot('Loyalty', /^Argonaut/));
+			expect(screen.getByRole('dialog', { name: 'Argonaut' })).toHaveTextContent(
+				'Out of reach: only for the players of the first edition'
+			);
+		});
+
+		it("shows a showcase medallion's count, with its discipline or its partner", async () => {
+			renderWith(Page, { data: { profile } });
+
+			await fireEvent.click(screen.getByRole('button', { name: 'Specialist, badge earned' }));
+			expect(countLine()).toBe('2 / 3 wins · Relay');
+			await fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+
+			await fireEvent.click(screen.getByRole('button', { name: 'Comrades in arms, badge earned' }));
+			expect(countLine()).toBe('2 / 3 editions together with HM Hugo Maurinier');
+			const dialog = screen.getByRole('dialog', { name: 'Comrades in arms' });
+			expect(within(dialog).getByRole('link', { name: 'Hugo Maurinier' })).toHaveAttribute('href', '/players/7');
+		});
+
+		it("keeps the sheet's own lines for a payload without progress, like an older API", async () => {
+			setSearch('?tab=badges');
+			const { progress, ...older } = profile;
+			renderWith(Page, { data: { profile: older } });
+
+			await fireEvent.click(collectionSlot('Loyalty', /^Veteran/));
+			expect(screen.getByRole('dialog', { name: 'Veteran' })).toHaveTextContent('Next tier: 5 editions');
+			expect(screen.queryByTestId('badge-progress')).toBeNull();
+		});
+
+		it('speaks French', async () => {
+			renderWith(Page, { data: { profile } }, 'fr');
+
+			await fireEvent.click(screen.getByRole('button', { name: 'Spécialiste, badge obtenu' }));
+			expect(countLine()).toBe('2 / 3 victoires · Relais');
+		});
+	});
+
 	it('shows the badge-count card linking to the Badges tab, its accessible name in shown-text order', () => {
 		renderWith(Page, { data: { profile } });
 

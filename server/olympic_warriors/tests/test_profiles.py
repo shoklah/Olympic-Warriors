@@ -1,8 +1,9 @@
 """
 Tests for olympic_warriors.profiles: a person's editions, places, averages and leaderboard place,
 computed from the edition standings, and the two public endpoints serving them, the profile
-with its badges (badges.profile_badges) and rarity stats (badges.badge_stats). The photos and
-showcases these endpoints carry are tested in test_showcase.py.
+with its badges (badges.profile_badges), rarity stats (badges.badge_stats) and badge progress
+(badges.progress_entries). The photos and showcases these endpoints carry are tested in
+test_showcase.py.
 """
 
 from datetime import date, datetime, timezone
@@ -14,9 +15,10 @@ from django.test import SimpleTestCase, TestCase
 from rest_framework.test import APIClient
 
 from olympic_warriors import badges as badges_module
-from olympic_warriors.badges import badge_stats
+from olympic_warriors.badges import badge_stats, progress_entries
 from olympic_warriors.models import (
     Badge,
+    BadgeProgress,
     Darts,
     Discipline,
     Edition,
@@ -52,7 +54,8 @@ LEADERBOARD_QUERIES = 2 + 3 * 2
 # Either endpoint: the leaderboard, then the badges (every person's in one query on
 # /profiles/, the one person's on /profile/<id>/) and the rarity stats: 4 + 3 per finished
 # edition with players. The photos, the pins and a comrades partner's photo ride on joins.
-# /profile/<id>/ adds profile_record()'s three per running edition the person has a team in.
+# /profile/<id>/ adds one for the person's badge progress, and profile_record()'s three per
+# running edition the person has a team in.
 PROFILES_QUERIES = 4 + 3 * 2
 # The discipline's name, the active editions holding it, their players, then three per such
 # edition with players (2024 and 2025 for DisciplinesSetup's Relay).
@@ -831,6 +834,7 @@ class TestProfileEndpoints(EndpointSetup, TestCase):
                 "counted": 2,
                 "average_rank": 1.0,
                 "badges": [],
+                "progress": [],  # no refresh has run
                 "badge_stats": {"players": 6, "holders": {}, "tiers": {}},
                 "photo": None,
                 "showcase": {"auto": True, "badges": []},
@@ -913,21 +917,29 @@ class TestProfileEndpoints(EndpointSetup, TestCase):
         self.give_photo(self.ana, showcase=[Badge.Codes.COMRADES])
         self.give_photo(self.chloe)
         UserProfile.objects.create(user=self.bob)
+        # Progress with partners: Chloé with a photo, Dan without a profile row.
+        self.progress_row(Badge.Codes.VETERAN, 2)
+        self.progress_row(Badge.Codes.COMRADES, 1, partner=self.chloe)
+        self.progress_row(Badge.Codes.COMRADES, 1, user=self.bob, partner=self.dan)
 
         with self.assertNumQueries(PROFILES_QUERIES):
             response = self.client.get("/profiles/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data[0]["photo"], self.photo_of(self.ana)["small"])
-        # Plus three for the standings of the running 2026, where Ana has a team; the
-        # photos, the pins and the partner's photo still cost nothing.
-        with self.assertNumQueries(PROFILES_QUERIES + 3):
+        # Plus one for the progress, and three for the standings of the running 2026, where
+        # Ana has a team; the photos, the pins and the partner's photo still cost nothing.
+        with self.assertNumQueries(PROFILES_QUERIES + 1 + 3):
             response = self.client.get(f"/profile/{self.ana.id}/")
         self.assertEqual(response.status_code, 200)
         comrades = next(b for b in response.data["badges"] if b["code"] == "comrades")
         self.assertEqual(comrades["partner"]["photo"], self.photo_of(self.chloe)["small"])
+        comrades = next(p for p in response.data["progress"] if p["code"] == "comrades")
+        self.assertEqual(comrades["partner"]["photo"], self.photo_of(self.chloe)["small"])
         # Bob plays no running edition.
-        with self.assertNumQueries(PROFILES_QUERIES):
-            self.assertEqual(self.client.get(f"/profile/{self.bob.id}/").status_code, 200)
+        with self.assertNumQueries(PROFILES_QUERIES + 1):
+            response = self.client.get(f"/profile/{self.bob.id}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["progress"][0]["partner"]["id"], self.dan.id)
 
     def test_nobody_to_list_costs_no_badge_query(self):
         Player.objects.all().delete()
@@ -1058,6 +1070,112 @@ class TestProfileEndpoints(EndpointSetup, TestCase):
         self.badge(Badge.Codes.ROOKIE, y2023)
 
         self.assertEqual(self.badges(), [self.entry("champion", [2024])])
+
+    # Progress
+
+    def progress_row(self, code, value, user=None, **kwargs):
+        """A stored BadgeProgress row, Ana's unless `user` is given."""
+        return BadgeProgress.objects.create(user=user or self.ana, code=code, value=value, **kwargs)
+
+    def progress(self, user=None):
+        """The `progress` of the user's profile, Ana's by default."""
+        response = self.client.get(f"/profile/{(user or self.ana).id}/")
+        self.assertEqual(response.status_code, 200)
+        return response.data["progress"]
+
+    @staticmethod
+    def progress_entry(
+        code, value, best=None, reachable=True, discipline=None, partner=None, year=None
+    ):
+        return {
+            "code": code, "value": value, "best": best, "reachable": reachable,
+            "discipline": discipline, "partner": partner, "year": year,
+        }
+
+    def test_a_refresh_gives_the_profile_its_progress(self):
+        # Ana won 2024 on Aigles, then 2025 on Loups with Chloé, Loups winning the Relay.
+        self.give_photo(self.chloe)
+        badges_module.refresh(TODAY)
+
+        progress = self.progress()
+
+        codes = [entry["code"] for entry in progress]
+        self.assertEqual(codes, sorted(codes, key=Badge.Codes.values.index))
+        self.assertEqual(len(set(codes)), len(codes))
+        by_code = {entry["code"]: entry for entry in progress}
+        self.assertEqual(by_code["veteran"], self.progress_entry("veteran", 2))
+        self.assertEqual(by_code["ever-present"], self.progress_entry("ever-present", 2, best=2))
+        self.assertEqual(
+            by_code["specialist"], self.progress_entry("specialist", 1, discipline="Relay")
+        )
+        self.assertEqual(by_code["clean-sweep"], self.progress_entry("clean-sweep", 1, year=2025))
+        # Out of reach: 2024 won before any 2nd place.
+        self.assertEqual(
+            by_code["eternal-second"],
+            self.progress_entry("eternal-second", None, reachable=False),
+        )
+        self.assertEqual(
+            by_code["comrades"],
+            self.progress_entry(
+                "comrades",
+                1,
+                partner={
+                    "id": self.chloe.id, "first_name": "Chloé", "last_name": "Dupont",
+                    "photo": self.photo_of(self.chloe)["small"],
+                },
+            ),
+        )
+
+    def test_progress_comes_in_catalogue_order(self):
+        # Stored against catalogue order: comrades (teammates), veteran (loyalty), legend
+        # (streaks and career).
+        self.progress_row(Badge.Codes.COMRADES, 0)
+        self.progress_row(Badge.Codes.VETERAN, 2)
+        self.progress_row(Badge.Codes.LEGEND, 2)
+
+        self.assertEqual(
+            self.progress(),
+            [
+                self.progress_entry("legend", 2),
+                self.progress_entry("veteran", 2),
+                self.progress_entry("comrades", 0),
+            ],
+        )
+
+    def test_a_person_without_progress_rows_has_an_empty_list(self):
+        # Gus joined the running 2026 after the last refresh: no row until the next one.
+        badges_module.refresh(TODAY)
+        gus = self.person("Gus", "Roux")
+        self.play(gus, self.y2026, self.sangliers)
+
+        self.assertEqual(self.progress(gus), [])
+        self.assertNotEqual(self.progress(), [])  # Ana's rows are there
+
+    def test_leaderboard_rows_carry_no_progress(self):
+        badges_module.refresh(TODAY)
+
+        response = self.client.get("/profiles/")
+
+        self.assertEqual(response.status_code, 200)
+        for row in response.data:
+            with self.subTest(name=row["first_name"]):
+                self.assertNotIn("progress", row)
+
+    def test_progress_entries_read_the_rows_and_the_partners_photos_in_one_query(self):
+        self.give_photo(self.chloe)
+        self.progress_row(Badge.Codes.COMRADES, 1, partner=self.chloe)
+        self.progress_row(Badge.Codes.COMRADES, 1, user=self.bob, partner=self.dan)  # no row
+
+        with self.assertNumQueries(1):
+            ana = progress_entries(self.ana.id)
+        with self.assertNumQueries(1):
+            bob = progress_entries(self.bob.id)
+
+        self.assertEqual(ana[0]["partner"]["photo"], self.photo_of(self.chloe)["small"])
+        self.assertEqual(
+            bob[0]["partner"],
+            {"id": self.dan.id, "first_name": "Dan", "last_name": "Petit", "photo": None},
+        )
 
 
 class TestDisciplineTable(DisciplinesSetup, TestCase):

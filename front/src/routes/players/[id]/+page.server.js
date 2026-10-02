@@ -83,9 +83,9 @@ async function asOwner({ fetch, params }, action, token, keys, send) {
 
 /**
  * The `codes` fields of a showcase form in the order posted, which is the pick order, or
- * null when they cannot be a showcase: more than three, a file, a code the catalogue does
- * not know (the collection offers no slot for one), or a code twice. None at all is `[]`,
- * back to automatic. Whether the caller earned them is the API's call.
+ * null when they cannot be a showcase: more than SHOWCASE_SIZE, a file, a code the catalogue
+ * does not know (the collection offers no slot for one), or a code twice. None at all is
+ * `[]`, back to automatic. Whether the caller earned them is the API's call.
  */
 function showcaseCodes(form) {
 	const codes = form.getAll('codes');

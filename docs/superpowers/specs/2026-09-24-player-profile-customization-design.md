@@ -49,6 +49,10 @@ Decisions taken while grilling (2026-09-24):
 13. **The showcase holds 3 badges.** It shows on the **profile header** and on the
     **leaderboard rows** (a second line under the name on phones). Pins are by **badge
     code**. Until a player pins anything, it shows their **3 rarest badges**.
+    *Revised 2026-09-30 (Hugo): the showcase holds **5 badges**, pinned or automatic
+    (`SHOWCASE_SIZE = 5`, migration `0038_userprofile_showcase_five`). Stored pins of up to
+    3 stay valid. On a phone the profile header gives the five their own line under the
+    avatar and the name; the rest of this spec reads "5" wherever it says the size.*
 
 ## Definitions
 
@@ -70,10 +74,10 @@ Decisions taken while grilling (2026-09-24):
 - **Earned codes.** The codes of a person's active badges of active editions, the same
   filter as `profile_badges`.
 - **Showcase.**
-  - **Pinned**: the stored codes (at most 3, in the player's order) that are still
+  - **Pinned**: the stored codes (at most 5, in the player's order) that are still
     earned. When the player has pins and none of them is still earned, the showcase is
     automatic instead.
-  - **Automatic**: the person's 3 rarest earned codes. Rarer means fewer holders in
+  - **Automatic**: the person's 5 rarest earned codes. Rarer means fewer holders in
     `badge_stats(...)["holders"]` over the leaderboard's people, the profile's rarity
     counts; ties go to the higher tier held, then to catalogue order.
   - Each showcase entry is drawn like a collection slot's medallion: the entry with the
@@ -259,9 +263,9 @@ URLs with no query.
   body, with or without a photo, and creates no row. It works even when the profile is
   locked, and it is never throttled: a player can always take their own face down. A user
   who is not a person gets the 404.
-- `PUT /me/showcase/` (`IsAuthenticated`, JSON `{codes: [...]}`) accepts 0 to 3 distinct
+- `PUT /me/showcase/` (`IsAuthenticated`, JSON `{codes: [...]}`) accepts 0 to 5 distinct
   codes, each currently earned by the caller, and answers 400 `{"error":
-  "invalid_showcase"}` otherwise: not a list, more than 3, a duplicate, a non-string, a code
+  "invalid_showcase"}` otherwise: not a list, more than 5, a duplicate, a non-string, a code
   outside the catalogue, a code not earned, or an unreadable body. A user who is not a
   person gets the 404. `[]` means "back to automatic". The order is kept. It returns the
   new `{auto, badges}` showcase. Its rarity counts are `badge_stats` over the
@@ -437,9 +441,9 @@ next. Nothing else changes for a visitor.
   `/me/…` writes touch the caller's own profile whatever page posts. A 413 (a proxy's
   body limit) and a 429 map to their keys by status.
 - **Showcase editing.** The Badges tab gains « Choisir ma vitrine ». In selection mode:
-  - earned slots become toggle buttons with `aria-pressed` and a 1–3 order chip;
+  - earned slots become toggle buttons with `aria-pressed` and a 1–5 order chip;
   - locked slots are disabled;
-  - a fourth pick is refused with a status line (« 3 badges maximum »);
+  - a sixth pick is refused with a status line (« 5 badges maximum »);
   - « Enregistrer », « Annuler » and « Revenir à l'automatique » close the mode.
 
   The `showcase` action posts the codes, after checking there are at most `SHOWCASE_SIZE`
@@ -451,8 +455,10 @@ next. Nothing else changes for a visitor.
 
 ### `Showcase.svelte`
 
-- Three `Badge` medallions in pin order.
-- **Profile header** (every visitor): under the name, above the tabs. Each medallion is a
+- Up to five `Badge` medallions in pin order.
+- **Profile header** (every visitor): above the tabs; below 600px on a line of its own
+  under the avatar and the name, from 600px beside the avatar under the position (five
+  medallions do not fit beside a 96px avatar on a phone). Each medallion is a
   button that opens the existing `BadgeSheet` for its slot. When the showcase is
   automatic and the viewer is the owner, a quiet hint reads « Automatique : vos badges
   les plus rares ».

@@ -1,6 +1,6 @@
 """
 Import an edition exported with export_edition, giving every row a fresh id, then refresh
-the badges (badges.refresh()) after a real import.
+the badges and their progress (badges.refresh()) after a real import.
 """
 
 import json
@@ -58,7 +58,8 @@ class Command(BaseCommand):
                 )
                 raise CommandError(f"Badge refresh failed: {exc}") from exc
             self.stdout.write(
-                f"Badges: {badges.added} added, {badges.removed} removed, {badges.kept} kept."
+                f"Badges: {badges.added} added, {badges.removed} removed, {badges.kept} kept. "
+                f"Progress rows: {badges.progress} written."
             )
 
     def _print(self, report):

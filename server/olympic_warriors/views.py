@@ -55,7 +55,15 @@ from .serializer import (
     HeldDisciplineSerializer,
 )
 from .avatars import MAX_BYTES, PhotoError, photo_urls, remove_photo, store_photo
-from .badges import badge_stats, badges_by_user, profile_badges, showcase, valid_pins
+from .badges import (
+    SHOWCASE_SIZE,
+    badge_stats,
+    badges_by_user,
+    profile_badges,
+    progress_entries,
+    showcase,
+    valid_pins,
+)
 from .claims import check_claim, complete_claim
 from .profiles import (
     discipline_table,
@@ -303,7 +311,7 @@ def myPhoto(request):
         "ShowcasePins",
         {
             "codes": serializers.ListField(
-                child=serializers.CharField(), max_length=3,
+                child=serializers.CharField(), max_length=SHOWCASE_SIZE,
                 help_text="Distinct badge codes the caller has earned, in the order shown",
             )
         },
@@ -311,8 +319,8 @@ def myPhoto(request):
     responses={
         "200": ShowcaseSerializer,
         "400": OpenApiResponse(
-            description='{"error": "invalid_showcase"}: not a list, more than 3, a duplicate, '
-            "or a code the caller has not earned"
+            description=f'{{"error": "invalid_showcase"}}: not a list, more than {SHOWCASE_SIZE}, '
+            "a duplicate, or a code the caller has not earned"
         ),
         "404": OpenApiResponse(description="Not a person"),
     },
@@ -322,7 +330,7 @@ def myPhoto(request):
 @parser_classes([JSONParser])
 def setMyShowcase(request):
     """
-    Store {codes} as the caller's pins (badges.valid_pins: at most 3 distinct codes, each
+    Store {codes} as the caller's pins (badges.valid_pins: at most 5 distinct codes, each
     earned now) and answer the showcase the profile now shows. An unreadable body is the
     same 400 as a bad list. The rarity counts of the automatic showcase are over the
     leaderboard's people, as on the profile (person_ids(), without computing the
@@ -518,7 +526,7 @@ def getProfiles(request):
 @extend_schema(
     summary=(
         "One person's editions, average rank, discipline places, position, badges, "
-        "badge rarity stats, photo and showcase"
+        "badge progress, badge rarity stats, photo and showcase"
     ),
     responses={
         "200": ProfileSerializer,
@@ -533,7 +541,7 @@ def getProfile(request, user_id):
     # user ids are also the rarity stats' denominator (everyone on /players). The record's
     # discipline places also count the person's running editions, like the all-time tables.
     # The record carries the photo and the pins, and the showcase reuses the badges and the
-    # stats, so neither costs a query.
+    # stats, so neither costs a query. The badge progress is the last refresh's, one query.
     records, record = profile_record(user_id)
     if record is None:
         return Response({"error": "Player not found"}, status=404)
@@ -541,6 +549,7 @@ def getProfile(request, user_id):
     stats = badge_stats([r.user_id for r in records])
     context = {
         "badges": badges,
+        "progress": progress_entries(user_id),
         "badge_stats": stats,
         "showcase": showcase(badges, record.pins, stats["holders"]),
     }

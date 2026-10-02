@@ -320,13 +320,14 @@ def paris(moment):
 
 @action(description="Recalculer les badges (toutes les éditions)", permissions=["change"])
 def refresh_badges(modeladmin, request, queryset):  # pylint: disable=unused-argument
-    """Rebuild every computed badge: streaks and tables span editions, so the selection
-    does not matter."""
+    """Rebuild every computed badge and the badge progress: streaks and tables span
+    editions, so the selection does not matter."""
     report = refresh()
     modeladmin.message_user(
         request,
         f"Badges recalculés à {paris(report.refreshed_at):%H:%M} (heure de Paris) : "
-        f"ajout(s) {report.added}, retrait(s) {report.removed}, inchangé(s) {report.kept}.",
+        f"ajout(s) {report.added}, retrait(s) {report.removed}, inchangé(s) {report.kept}. "
+        f"Progression : {report.progress} ligne(s) mise(s) à jour.",
     )
 
 

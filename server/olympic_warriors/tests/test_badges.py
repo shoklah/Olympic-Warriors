@@ -1,17 +1,41 @@
 """
 Tests for olympic_warriors.badges: every computed badge rule, read through earned() on
-small histories. Hand-ranked editions (Team.final_rank) make the place, streak, loyalty,
+small histories, and the progress toward the badges whose rule is a count, read through
+compute(). Hand-ranked editions (Team.final_rank) make the place, streak, loyalty,
 teammate and hall of fame histories quick to build; discipline and game rules use
-revealed disciplines with results and games.
+revealed disciplines with results and games. Every test built on World also checks, as
+it tears down, that the raw progress counters agree with the rules over its data.
 """
 
-from datetime import date
+from collections import defaultdict
+from datetime import date, timedelta
 from datetime import time as dt_time
+from functools import cache
+from unittest import mock
 
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from olympic_warriors.badges import FAMILIES, KINDS, earned, history
+from olympic_warriors import profiles
+from olympic_warriors.badges import (
+    ALL_ROUNDER_TIERS,
+    EVER_PRESENT_TIERS,
+    FAMILIES,
+    GODS,
+    KINDS,
+    NETWORKER_TIERS,
+    PROGRESS_TARGETS,
+    SPECIALIST_TIERS,
+    TIERED_CODES,
+    VETERAN_TIERS,
+    Progress,
+    _counters,
+    _badges_and_reigns,
+    _progress,
+    compute,
+    earned,
+    history,
+)
 from olympic_warriors.models import (
     Badge,
     Basketball,
@@ -43,14 +67,277 @@ from olympic_warriors.models import (
     Volleyball,
 )
 from olympic_warriors.models.ResultTypes import ResultTypes
+from olympic_warriors.profiles import _sort_key
+from olympic_warriors.standings import compute_standings
 
 C = Badge.Codes
 TODAY = date(2031, 1, 1)
 PLACE_CODES = (C.CHAMPION, C.RUNNER_UP, C.BRONZE, C.CHOCOLATE, C.WOODEN_SPOON)
 
+# The 20 codes with progress, in catalogue order: the five tiered ones, the fourteen of
+# PROGRESS_TARGETS, and argonaut, whose only row is out of reach.
+PROGRESS_CODES = (
+    C.BACK_TO_BACK,
+    C.THREEPEAT,
+    C.DYNASTY,
+    C.LEGEND,
+    C.PODIUM_REGULAR,
+    C.FULL_SET,
+    C.ETERNAL_SECOND,
+    C.ON_THE_RISE,
+    C.LUCKY_CHARM,
+    C.VETERAN,
+    C.ARGONAUT,
+    C.EVER_PRESENT,
+    C.COMRADES,
+    C.NETWORKER,
+    C.REIGN,
+    C.SPECIALIST,
+    C.ALL_ROUNDER,
+    C.DECATHLETE,
+    C.CLEAN_SWEEP,
+    C.OLYMPUS,
+)
+# The codes whose row carries a best run.
+STREAK_CODES = (
+    C.EVER_PRESENT,
+    C.BACK_TO_BACK,
+    C.THREEPEAT,
+    C.DYNASTY,
+    C.PODIUM_REGULAR,
+    C.ON_THE_RISE,
+    C.REIGN,
+)
+
+
+def tier_of(tiers, count):
+    """The highest tier `count` reaches in a tier table ({threshold: tier}, or its pairs), 0
+    below the first threshold."""
+    return max((tier for threshold, tier in dict(tiers).items() if count >= threshold), default=0)
+
 
 class World:
-    """Builds histories: finished editions whose teams are hand-ranked, and people on them."""
+    """
+    Builds histories: finished editions whose teams are hand-ranked, and people on them.
+    Tearing down, it checks that the raw progress counters agree with the rules on whatever
+    the test built (assert_counters_agree).
+    """
+
+    def tearDown(self):
+        try:
+            self.assert_counters_agree()
+        finally:
+            super().tearDown()
+
+    def assert_counters_agree(self):
+        """
+        The design spec's "The raw counters and the rules agree": replayed the day after each
+        active edition's end in turn, every person's raw counters of that History against
+        the badges its rules earn (agree), then the rows compute() would keep (rows_hold).
+        An edition's standings depend on its data alone, not on the day, so the replay
+        computes them once per edition rather than once per day.
+        """
+        ends = Edition.objects.filter(is_active=True).values_list("end_date", flat=True)
+        with mock.patch.object(profiles, "compute_standings", cache(compute_standings)):
+            for day in sorted({end + timedelta(days=1) for end in ends}):
+                self.agree_on(day)
+
+    def agree_on(self, day):
+        """assert_counters_agree() on the History of `day`."""
+        h = history(day)
+        found, reigns = _badges_and_reigns(h)
+        counters = _counters(h, reigns)
+        self.assertEqual(set(counters), set(h.users), day)
+        badges = defaultdict(list)
+        for badge in found:
+            badges[badge.user_id].append(badge)
+        for user_id, counts in counters.items():
+            self.agree(h, counts, badges[user_id], f"user {user_id} on {day}")
+        self.rows_hold(h, counters, found, day)
+
+    def agree(self, h, counts, badges, where):
+        """One person's counters against their badges `badges`, L being the last edition of
+        the sequence."""
+        codes = {badge.code for badge in badges}
+        last = h.sequence[-1].id if h.sequence else None
+        at_last = {badge.code for badge in badges if badge.edition_id == last}
+
+        def tier(code, discipline=""):
+            return max(
+                (b.tier for b in badges if b.code == code and b.discipline == discipline),
+                default=0,
+            )
+
+        # Tiered: the counter's tier is the highest earned; ever-present's from its best run,
+        # specialist's per discipline name.
+        for code, tiers, count in (
+            (C.VETERAN, VETERAN_TIERS, counts.played),
+            (C.EVER_PRESENT, EVER_PRESENT_TIERS, counts.present_run[1]),
+            (C.NETWORKER, NETWORKER_TIERS, counts.mates),
+            (C.ALL_ROUNDER, ALL_ROUNDER_TIERS, counts.disciplines_won),
+        ):
+            self.assertEqual(tier_of(tiers, count), tier(code), f"{code}, {where}")
+        names = set(counts.wins) | {b.discipline for b in badges if b.code == C.SPECIALIST}
+        for name in names:
+            won, _ = counts.wins.get(name, (0, None))
+            self.assertEqual(
+                tier_of(SPECIALIST_TIERS, won), tier(C.SPECIALIST, name), f"{name}, {where}"
+            )
+
+        # Counts that can jump: earned exactly when the counter reaches the target.
+        for code, count in (
+            (C.LEGEND, counts.titles),
+            (C.FULL_SET, counts.places),
+            (C.DECATHLETE, counts.podiums),
+            (C.OLYMPUS, counts.gods),
+        ):
+            self.assertEqual(count >= PROGRESS_TARGETS[code], code in codes, f"{code}, {where}")
+
+        # Streaks: the current run is at the target exactly when the badge was earned at L,
+        # and the best run reached it exactly when it was ever earned.
+        for code, (current, best) in (
+            (C.BACK_TO_BACK, counts.title_run),
+            (C.THREEPEAT, counts.title_run),
+            (C.DYNASTY, counts.title_run),
+            (C.PODIUM_REGULAR, counts.podium_run),
+            (C.ON_THE_RISE, counts.rise_run),
+            (C.REIGN, counts.reign_run),
+        ):
+            target = PROGRESS_TARGETS[code]
+            self.assertEqual(current == target, code in at_last, f"{code}, {where}")
+            self.assertEqual(best >= target, code in codes, f"{code}, {where}")
+            self.assertLessEqual(current, best, f"{code}, {where}")
+
+        # Per key: comrades with a partner at 3 editions shared, clean-sweep at an edition of
+        # 3 discipline wins.
+        partners = {b.partner_id for b in badges if b.code == C.COMRADES}
+        for partner in set(counts.together) | partners:
+            shared, _ = counts.together.get(partner, (0, None))
+            self.assertEqual(
+                shared >= PROGRESS_TARGETS[C.COMRADES], partner in partners, f"{partner}, {where}"
+            )
+        swept = {b.edition_id for b in badges if b.code == C.CLEAN_SWEEP}
+        for i, edition in enumerate(h.sequence):
+            self.assertEqual(
+                counts.sweeps.get(i, 0) >= PROGRESS_TARGETS[C.CLEAN_SWEEP],
+                edition.id in swept,
+                f"{edition.year}, {where}",
+            )
+
+        # The two that can close: out of reach means not earned, reachable and not earned
+        # means below the target, earned means the counter reached it.
+        for code, count, closed in (
+            (C.ETERNAL_SECOND, counts.seconds, counts.seconds_closed),
+            (C.LUCKY_CHARM, counts.lucky, counts.lucky_closed),
+        ):
+            if closed:
+                self.assertNotIn(code, codes, where)
+            elif code in codes:
+                self.assertGreaterEqual(count, PROGRESS_TARGETS[code], f"{code}, {where}")
+            else:
+                self.assertLess(count, PROGRESS_TARGETS[code], f"{code}, {where}")
+        # eternal-second closes exactly at an edition won, unless already earned.
+        self.assertEqual(
+            counts.seconds_closed, counts.titles > 0 and C.ETERNAL_SECOND not in codes, where
+        )
+
+        # Argonaut: out of reach exactly when the first edition is over and it is not earned.
+        self.assertEqual(
+            counts.argonaut_closed,
+            h.first_edition_id is not None and C.ARGONAUT not in codes,
+            where,
+        )
+
+    def rows_hold(self, h, counters, found, where):
+        """
+        The rows compute() keeps from these counters are exactly the expected ones
+        (expected_rows): one per person and code, each with the value, best run, reach,
+        discipline, partner and year its counters give; no value exactly when out of reach,
+        a best run on streaks only, and a value of 0 naming nothing.
+        """
+        actual = {}
+        for row in _progress(h, counters, found):
+            key, name = (row.user_id, row.code), f"user {row.user_id}, {row.code}, {where}"
+            self.assertNotIn(key, actual, f"two rows for {name}")
+            self.assertEqual(row.value is None, not row.reachable, name)
+            self.assertEqual(row.best is None, row.code not in STREAK_CODES, name)
+            if not row.value:
+                self.assertEqual((row.discipline, row.partner_id, row.year), ("", None, None), name)
+            actual[key] = (
+                row.value, row.best, row.reachable, row.discipline, row.partner_id, row.year
+            )
+        expected = self.expected_rows(h, counters, found)
+        for key in sorted(set(actual) | set(expected)):
+            user_id, code = key
+            self.assertEqual(actual.get(key), expected.get(key), f"user {user_id}, {code}, {where}")
+
+    @staticmethod
+    def expected_rows(h, counters, found):
+        """
+        The rows the design spec's "Which rows exist" and its counter bullets ask for, from
+        each person's counters: {(user id, code): (value, best, reachable, discipline,
+        partner id, year)}. Every tiered code; a non-tiered one while not earned (argonaut
+        only once out of reach); comrades unless earned with no partner below the target.
+        """
+        held = {(badge.user_id, badge.code) for badge in found}
+        top, users = max(SPECIALIST_TIERS), h.users
+        expected = {}
+        for user_id, c in counters.items():
+            # Specialist: the most wins below the top tier first, then the latest win, then
+            # the name; with every name at the top tier, the most wins first.
+            names = sorted(
+                (won >= top, -won, -latest, _sort_key(name), name)
+                for name, (won, latest) in c.wins.items()
+            )
+            specialist = (c.wins[names[0][-1]][0], names[0][-1]) if names else (0, "")
+            tiered = {
+                C.VETERAN: (c.played, None, ""),
+                C.EVER_PRESENT: (*c.present_run, ""),
+                C.NETWORKER: (c.mates, None, ""),
+                C.SPECIALIST: (specialist[0], None, specialist[1]),
+                C.ALL_ROUNDER: (c.disciplines_won, None, ""),
+            }
+            for code, (value, best, discipline) in tiered.items():
+                expected[(user_id, code)] = (value, best, True, discipline, None, None)
+
+            until_earned = {
+                C.LEGEND: (c.titles, None),
+                C.FULL_SET: (c.places, None),
+                C.DECATHLETE: (c.podiums, None),
+                C.OLYMPUS: (c.gods, None),
+                C.BACK_TO_BACK: c.title_run,
+                C.THREEPEAT: c.title_run,
+                C.DYNASTY: c.title_run,
+                C.PODIUM_REGULAR: c.podium_run,
+                C.ON_THE_RISE: c.rise_run,
+                C.REIGN: c.reign_run,
+                C.ETERNAL_SECOND: (None if c.seconds_closed else c.seconds, None),
+                C.LUCKY_CHARM: (None if c.lucky_closed else c.lucky, None),
+            }
+            if c.argonaut_closed:
+                until_earned[C.ARGONAUT] = (None, None)
+            for code, (value, best) in until_earned.items():
+                if (user_id, code) not in held:
+                    expected[(user_id, code)] = (value, best, value is not None, "", None, None)
+            if (user_id, C.CLEAN_SWEEP) not in held:
+                won, i = max(((won, i) for i, won in c.sweeps.items()), default=(0, None))
+                year = None if i is None else h.sequence[i].year
+                expected[(user_id, C.CLEAN_SWEEP)] = (won, None, True, "", None, year)
+
+            # Comrades: the most editions together below the target, then the latest, then
+            # the last name, first name and id.
+            below = sorted(
+                (-shared, -latest, _sort_key(users[p].last_name), _sort_key(users[p].first_name), p)
+                for p, (shared, latest) in c.together.items()
+                if shared < PROGRESS_TARGETS[C.COMRADES]
+            )
+            if below:
+                partner = below[0][-1]
+                shared, _ = c.together[partner]
+                expected[(user_id, C.COMRADES)] = (shared, None, True, "", partner, None)
+            elif (user_id, C.COMRADES) not in held:
+                expected[(user_id, C.COMRADES)] = (0, None, True, "", None, None)
+        return expected
 
     def edition(
         self, year, size=4, host="Paris", ranks=None, finished=True, ranked=True, spectator=True
@@ -123,6 +410,17 @@ def years_of(user, code, today=TODAY):
 def places_of(user, today=TODAY):
     """The user's place badges as sorted (code, year), whatever the other rules give."""
     return sorted((c, year) for c, year, *_ in badges_of(user, today) if c in PLACE_CODES)
+
+
+def progress_of(user, today=TODAY):
+    """The user's progress rows on `today`, as {code: Progress}."""
+    return {row.code: row for row in compute(today)[1] if row.user_id == user.id}
+
+
+def counters_of(user, today=TODAY):
+    """The user's raw progress counters on `today`."""
+    h = history(today)
+    return _counters(h, _badges_and_reigns(h)[1])[user.id]
 
 
 class TestHistory(World, TestCase):
@@ -1943,6 +2241,407 @@ class TestGames(World, TestCase):
         self.assertEqual(games_of(self.ana, C.PERFECT_PITCH), [])
 
 
+class TestProgressTargets(TestCase):
+    def test_the_targets_of_the_non_tiered_badges(self):
+        # full-set's rule compares the places won with {1, 2, 3}, not with its target of 3.
+        self.assertEqual(
+            PROGRESS_TARGETS,
+            {
+                C.LEGEND: 3,
+                C.FULL_SET: 3,
+                C.DECATHLETE: 10,
+                C.OLYMPUS: len(GODS),
+                C.BACK_TO_BACK: 2,
+                C.THREEPEAT: 3,
+                C.DYNASTY: 4,
+                C.PODIUM_REGULAR: 3,
+                C.ON_THE_RISE: 2,
+                C.REIGN: 3,
+                C.COMRADES: 3,
+                C.CLEAN_SWEEP: 3,
+                C.ETERNAL_SECOND: 2,
+                C.LUCKY_CHARM: 3,
+            },
+        )
+        self.assertEqual(len(GODS), 9)
+
+    def test_the_codes_with_progress(self):
+        self.assertEqual(
+            set(PROGRESS_TARGETS) | TIERED_CODES | {C.ARGONAUT}, set(PROGRESS_CODES)
+        )
+        self.assertEqual(len(PROGRESS_CODES), 20)
+        self.assertEqual(
+            [code for code in Badge.Codes.values if code in PROGRESS_CODES], list(PROGRESS_CODES)
+        )
+
+
+class TestProgress(World, TestCase):
+    """The rows compute() returns beside the badges, on hand-ranked histories."""
+
+    def test_a_person_without_a_finished_edition_reads_zero(self):
+        # Ana only plays the running 2030 edition, and 2021 is over without her: a row for
+        # every code with progress, all at 0, and argonaut out of reach.
+        self.edition(2021)
+        e2030, t2030 = self.edition(2030, finished=False)
+        ana = self.person("Ana")
+        self.seat(ana, e2030, t2030[0])
+
+        expected = {
+            code: Progress(ana.id, code, 0, best=0 if code in STREAK_CODES else None)
+            for code in PROGRESS_CODES
+        }
+        expected[C.ARGONAUT] = Progress(ana.id, C.ARGONAUT, None, reachable=False)
+        self.assertEqual(progress_of(ana), expected)
+
+    def test_no_argonaut_row_before_the_first_edition_is_over(self):
+        e2030, t2030 = self.edition(2030, finished=False)
+        ana = self.person("Ana")
+        self.seat(ana, e2030, t2030[0])
+
+        rows = progress_of(ana)
+        self.assertNotIn(C.ARGONAUT, rows)
+        self.assertEqual(set(rows), set(PROGRESS_CODES) - {C.ARGONAUT})
+
+    def test_argonaut_has_a_row_only_once_out_of_reach(self):
+        ana, bob = self.person("Ana"), self.person("Bob")
+        self.play(ana, [3, 3])
+        self.play(bob, [None, 3])
+        spectator = User.objects.get(username="u-Spectator2021")
+
+        self.assertNotIn(C.ARGONAUT, progress_of(ana))
+        self.assertNotIn(C.ARGONAUT, progress_of(spectator))
+        self.assertEqual(
+            progress_of(bob)[C.ARGONAUT], Progress(bob.id, C.ARGONAUT, None, reachable=False)
+        )
+        self.assertNotIn(C.ARGONAUT, progress_of(bob, today=date(2021, 9, 22)))
+
+    def test_a_streak_reads_its_current_run_and_its_best(self):
+        ana = self.person("Ana")
+        self.play(ana, [2, 3, 4, 3])  # podiums in a row: 1, 2, 0, 1
+
+        self.assertEqual(
+            progress_of(ana)[C.PODIUM_REGULAR], Progress(ana.id, C.PODIUM_REGULAR, 1, best=2)
+        )
+
+    def test_a_missed_edition_breaks_the_current_run(self):
+        ana = self.person("Ana")
+        self.play(ana, [1, 1, None])  # titles in a row: 1, 2, 0
+
+        rows = progress_of(ana)
+        self.assertNotIn(C.BACK_TO_BACK, rows)  # earned in 2022
+        self.assertEqual(rows[C.THREEPEAT], Progress(ana.id, C.THREEPEAT, 0, best=2))
+        self.assertEqual(rows[C.DYNASTY], Progress(ana.id, C.DYNASTY, 0, best=2))
+        self.assertEqual(rows[C.PODIUM_REGULAR], Progress(ana.id, C.PODIUM_REGULAR, 0, best=2))
+
+    def test_the_title_run_feeds_the_title_streaks_not_yet_earned(self):
+        ana = self.person("Ana")
+        self.play(ana, [1, 1, 1, 4, 1])  # titles in a row: 1, 2, 3, 0, 1
+
+        rows = progress_of(ana)
+        self.assertEqual(
+            [code for code in (C.BACK_TO_BACK, C.THREEPEAT, C.DYNASTY) if code in rows],
+            [C.DYNASTY],
+        )
+        self.assertEqual(rows[C.DYNASTY], Progress(ana.id, C.DYNASTY, 1, best=3))
+
+    def test_on_the_rise_counts_the_rises_in_a_row(self):
+        ana = self.person("Ana")
+        self.play(ana, [6, 4])
+
+        self.assertEqual(
+            progress_of(ana)[C.ON_THE_RISE], Progress(ana.id, C.ON_THE_RISE, 1, best=1)
+        )
+
+    def test_on_the_rise_reads_zero_after_an_unranked_edition(self):
+        # One rise, then a team without a rank: the rule's run falls to 0, below the 1 of a
+        # first ranked edition, and the counter to 0, not -1.
+        ana = self.person("Ana")
+        e2023, t2023 = self.edition(2023, ranks=[1, 2, 3, None])
+        self.play(ana, [6, 4])
+        self.seat(ana, e2023, t2023[3])
+
+        self.assertEqual(
+            progress_of(ana)[C.ON_THE_RISE], Progress(ana.id, C.ON_THE_RISE, 0, best=1)
+        )
+
+    def test_ever_present_reads_the_current_run_and_the_best(self):
+        # Tier 2 held from a run of 6: the current run of 5 aims at the 8 above the best.
+        later = date(2033, 1, 1)  # after the twelfth edition, 2032
+        ana = self.person("Ana")
+        self.play(ana, [5] * 6 + [None] + [5] * 5)
+
+        self.assertEqual(tiers_of(ana, C.EVER_PRESENT, later), [(2024, 1), (2026, 2)])
+        self.assertEqual(
+            progress_of(ana, later)[C.EVER_PRESENT], Progress(ana.id, C.EVER_PRESENT, 5, best=6)
+        )
+
+    def test_ever_present_at_its_top_tier_with_a_short_run(self):
+        ana = self.person("Ana")
+        self.play(ana, [5] * 8 + [None, 5])
+
+        self.assertEqual(tiers_of(ana, C.EVER_PRESENT), [(2024, 1), (2026, 2), (2028, 3)])
+        self.assertEqual(
+            progress_of(ana)[C.EVER_PRESENT], Progress(ana.id, C.EVER_PRESENT, 1, best=8)
+        )
+
+    def test_a_tiered_row_stays_at_the_top_tier(self):
+        ana = self.person("Ana")
+        self.play(ana, [4] * 10)
+
+        self.assertEqual(tiers_of(ana, C.VETERAN), [(2023, 1), (2025, 2), (2030, 3)])
+        self.assertEqual(progress_of(ana)[C.VETERAN], Progress(ana.id, C.VETERAN, 10))
+
+    def test_a_count_row_goes_once_earned(self):
+        ana, bob = self.person("Ana"), self.person("Bob")
+        self.play(ana, [1, 4, 1, 4])
+        self.play(bob, [3, 1, 2, 3])
+
+        rows = progress_of(ana)
+        self.assertEqual(rows[C.LEGEND], Progress(ana.id, C.LEGEND, 2))
+        self.assertEqual(rows[C.FULL_SET], Progress(ana.id, C.FULL_SET, 1))
+        rows = progress_of(bob)
+        self.assertEqual(rows[C.LEGEND], Progress(bob.id, C.LEGEND, 1))
+        self.assertNotIn(C.FULL_SET, rows)  # 3rd, 1st then 2nd: earned in 2023
+
+    def test_reign_reads_zero_after_losing_the_top(self):
+        # Tables: 2022 Ana (1, 1) 1st; 2023 Ana still 1st over Bob (1, 2, 2); 2024 Bob
+        # (1, 1, 2, 2) takes the top, his extra places counting in his favour.
+        ana, bob = self.person("Ana"), self.person("Bob")
+        self.play(ana, [1, 1])
+        self.play(bob, [2, 2, 1, 1])
+
+        self.assertEqual(progress_of(ana)[C.REIGN], Progress(ana.id, C.REIGN, 0, best=2))
+        self.assertEqual(progress_of(bob)[C.REIGN], Progress(bob.id, C.REIGN, 1, best=1))
+
+    def test_eternal_second_is_out_of_reach_once_an_edition_is_won(self):
+        ana, bob, cat = self.person("Ana"), self.person("Bob"), self.person("Cat")
+        self.play(ana, [2, 1])  # a title before a second 2nd place
+        self.play(bob, [3, 2])
+        self.play(cat, [2, 2])
+
+        self.assertEqual(
+            progress_of(ana)[C.ETERNAL_SECOND],
+            Progress(ana.id, C.ETERNAL_SECOND, None, reachable=False),
+        )
+        self.assertEqual(progress_of(bob)[C.ETERNAL_SECOND], Progress(bob.id, C.ETERNAL_SECOND, 1))
+        self.assertNotIn(C.ETERNAL_SECOND, progress_of(cat))
+
+    def test_eternal_second_earned_before_a_title_has_no_row(self):
+        ana = self.person("Ana")
+        self.play(ana, [2, 2, 1])
+
+        self.assertNotIn(C.ETERNAL_SECOND, progress_of(ana))
+
+    def test_lucky_charm_is_out_of_reach_once_an_early_edition_is_off_the_podium(self):
+        ana, bob = self.person("Ana"), self.person("Bob")
+        self.play(ana, [2, 4, 1])
+        self.play(bob, [3, 1])
+
+        self.assertEqual(
+            progress_of(ana)[C.LUCKY_CHARM], Progress(ana.id, C.LUCKY_CHARM, None, reachable=False)
+        )
+        self.assertEqual(progress_of(bob)[C.LUCKY_CHARM], Progress(bob.id, C.LUCKY_CHARM, 2))
+
+    def test_lucky_charm_counts_the_counted_editions_only(self):
+        # 2022 played without a team counts for nothing: the first three counted are 2021,
+        # 2023 and 2024, and the last one is off the podium.
+        ana = self.person("Ana")
+        self.play(ana, [2, None, 3, 5])
+        self.seat(ana, Edition.objects.get(year=2022))
+
+        self.assertEqual(
+            progress_of(ana)[C.LUCKY_CHARM], Progress(ana.id, C.LUCKY_CHARM, None, reachable=False)
+        )
+        self.assertEqual(
+            progress_of(ana, today=date(2024, 1, 1))[C.LUCKY_CHARM],
+            Progress(ana.id, C.LUCKY_CHARM, 2),
+        )
+
+    def test_rows_only_for_the_codes_with_progress(self):
+        ana = self.person("Ana")
+        self.play(ana, [1, 6, 1, 1])
+
+        self.assertLessEqual(set(progress_of(ana)), set(PROGRESS_CODES))
+        self.assertIn(C.CHAMPION, {badge[0] for badge in badges_of(ana)})
+
+
+class TestComradesProgress(World, TestCase):
+    """Ana's comrades row: the partner closest to 3 editions together among those below."""
+
+    def setUp(self):
+        self.ana, self.bob, self.chloe = (self.person(n) for n in ("Ana", "Bob", "Chloé"))
+
+    def meet(self, year, *mates):
+        """Ana and `mates` on the same team in a new edition of `year`."""
+        edition, teams = self.edition(year)
+        for user in (self.ana, *mates):
+            self.seat(user, edition, teams[0])
+
+    def comrades(self, user=None):
+        return progress_of(user or self.ana).get(C.COMRADES)
+
+    def test_the_partner_with_the_most_editions_together(self):
+        self.meet(2021, self.bob)
+        self.meet(2022, self.bob, self.chloe)
+
+        self.assertEqual(
+            counters_of(self.ana).together, {self.bob.id: (2, 1), self.chloe.id: (1, 1)}
+        )
+        self.assertEqual(
+            self.comrades(), Progress(self.ana.id, C.COMRADES, 2, partner_id=self.bob.id)
+        )
+
+    def test_a_tie_goes_to_the_latest_edition_together(self):
+        self.meet(2021, self.bob)
+        self.meet(2022, self.chloe)
+
+        self.assertEqual(
+            self.comrades(), Progress(self.ana.id, C.COMRADES, 1, partner_id=self.chloe.id)
+        )
+
+    def test_then_to_the_last_name(self):
+        zoe = User.objects.create(username="u-Zoe", first_name="Zoé", last_name="Aubert")
+        self.meet(2021, self.bob, zoe)
+
+        self.assertEqual(self.comrades(), Progress(self.ana.id, C.COMRADES, 1, partner_id=zoe.id))
+
+    def test_then_to_the_first_name_accents_aside(self):
+        elodie, fanny = self.person("Élodie"), self.person("Fanny")
+        self.meet(2021, fanny, elodie)
+
+        self.assertEqual(
+            self.comrades(), Progress(self.ana.id, C.COMRADES, 1, partner_id=elodie.id)
+        )
+
+    def test_networker_counts_the_distinct_teammates(self):
+        self.meet(2021, self.bob, self.chloe)
+        self.meet(2022, self.bob)
+
+        self.assertEqual(progress_of(self.ana)[C.NETWORKER], Progress(self.ana.id, C.NETWORKER, 2))
+        self.assertEqual(progress_of(self.bob)[C.NETWORKER], Progress(self.bob.id, C.NETWORKER, 2))
+
+    def test_after_a_first_partner_the_next_one(self):
+        for year in (2021, 2022, 2023):
+            self.meet(year, self.bob)
+        self.meet(2024, self.bob, self.chloe)
+
+        self.assertEqual(comrades_of(self.ana), [(2023, self.bob.id)])
+        self.assertEqual(
+            self.comrades(), Progress(self.ana.id, C.COMRADES, 1, partner_id=self.chloe.id)
+        )
+
+    def test_no_row_once_every_partner_is_at_three(self):
+        for year in (2021, 2022, 2023, 2024):
+            self.meet(year, self.bob)
+
+        self.assertIsNone(self.comrades())
+        self.assertIsNone(self.comrades(self.bob))
+
+    def test_without_a_teammate_it_reads_zero(self):
+        edition, teams = self.edition(2021)
+        self.seat(self.ana, edition, teams[0])  # alone on the team
+        self.seat(self.bob, edition)  # no team
+
+        self.assertEqual(self.comrades(), Progress(self.ana.id, C.COMRADES, 0))
+        self.assertEqual(self.comrades(self.bob), Progress(self.bob.id, C.COMRADES, 0))
+
+
+class TestDisciplineProgress(DisciplineWorld, TestCase):
+    def test_the_discipline_counts(self):
+        # Ana's team is 1st in Relay and 2nd in Darts of a 4-team edition, 1st in Dance of a
+        # 2-team one: three podiums, but the 2-team edition's does not count for decathlete.
+        ana, bob, cat, dan = (self.person(n) for n in ("Ana", "Bob", "Cat", "Dan"))
+        self.four(
+            2021, [ana, bob, cat, dan], [(Relay, [40, 30, 20, 10]), (Darts, [30, 40, 20, 10])]
+        )
+        self.win(ana, 2022, Dance)
+
+        rows = progress_of(ana)
+        self.assertEqual(rows[C.ALL_ROUNDER], Progress(ana.id, C.ALL_ROUNDER, 2))
+        self.assertEqual(rows[C.DECATHLETE], Progress(ana.id, C.DECATHLETE, 2))
+        self.assertEqual(rows[C.OLYMPUS], Progress(ana.id, C.OLYMPUS, 2))  # Hermes, Apollo
+
+    def test_olympus_counts_the_gods_not_the_disciplines(self):
+        # Darts and Petanque are both Artemis's: three disciplines won, two gods.
+        ana = self.person("Ana")
+        self.win(ana, 2021, Darts, Petanque)
+        self.win(ana, 2022, Relay)
+
+        rows = progress_of(ana)
+        self.assertEqual(rows[C.ALL_ROUNDER], Progress(ana.id, C.ALL_ROUNDER, 3))
+        self.assertEqual(rows[C.OLYMPUS], Progress(ana.id, C.OLYMPUS, 2))
+
+    def test_specialist_shows_the_most_wins_below_the_top_tier(self):
+        ana = self.person("Ana")
+        self.win(ana, 2021, Relay, Darts)
+        self.win(ana, 2022, Relay, Darts)
+        self.win(ana, 2023, Relay)
+        self.win(ana, 2024, Relay, Petanque)
+
+        self.assertEqual(
+            counters_of(ana).wins, {"Relay": (4, 3), "Darts": (2, 1), "Petanque": (1, 3)}
+        )
+        self.assertEqual(
+            progress_of(ana)[C.SPECIALIST], Progress(ana.id, C.SPECIALIST, 2, discipline="Darts")
+        )
+
+    def test_specialist_ties_go_to_the_latest_win(self):
+        ana = self.person("Ana")
+        self.win(ana, 2021, Relay, Darts)
+        self.win(ana, 2022, Darts)
+        self.win(ana, 2023, Relay)
+
+        self.assertEqual(
+            progress_of(ana)[C.SPECIALIST], Progress(ana.id, C.SPECIALIST, 2, discipline="Relay")
+        )
+
+    def test_then_to_the_name(self):
+        ana = self.person("Ana")
+        self.win(ana, 2021, Relay, Darts)
+        self.win(ana, 2022, Relay, Darts)
+
+        self.assertEqual(
+            progress_of(ana)[C.SPECIALIST], Progress(ana.id, C.SPECIALIST, 2, discipline="Darts")
+        )
+
+    def test_every_discipline_at_the_top_tier_shows_the_best(self):
+        ana = self.person("Ana")
+        for year in (2021, 2022, 2023, 2024):
+            self.win(ana, year, Relay, Darts)
+        self.win(ana, 2025, Relay)
+
+        self.assertEqual(
+            progress_of(ana)[C.SPECIALIST], Progress(ana.id, C.SPECIALIST, 5, discipline="Relay")
+        )
+
+    def test_a_discipline_won_twice_in_one_edition_counts_once(self):
+        ana = self.person("Ana")
+        self.win(ana, 2021, Relay, Relay)
+
+        self.assertEqual(
+            progress_of(ana)[C.SPECIALIST], Progress(ana.id, C.SPECIALIST, 1, discipline="Relay")
+        )
+
+    def test_clean_sweep_shows_the_best_edition_the_latest_among_equals(self):
+        ana = self.person("Ana")
+        self.win(ana, 2021, Relay, Darts)
+        self.win(ana, 2022, Petanque)
+        self.win(ana, 2023, Relay, Relay)  # two disciplines of one name: two wins
+        self.computed(2024, ana)  # nothing won
+
+        self.assertEqual(counters_of(ana).sweeps, {0: 2, 1: 1, 2: 2})
+        self.assertEqual(
+            progress_of(ana)[C.CLEAN_SWEEP], Progress(ana.id, C.CLEAN_SWEEP, 2, year=2023)
+        )
+
+    def test_clean_sweep_earned_has_no_row(self):
+        ana = self.person("Ana")
+        self.win(ana, 2021, Relay, Darts, Petanque)
+        self.win(ana, 2022, Relay)
+
+        self.assertNotIn(C.CLEAN_SWEEP, progress_of(ana))
+
+
 # profiles._load (2 + 3 per sequence edition), then games and blindtest guesses; the
 # discipline rules read the results compute_standings already loaded (disciplines_of).
 BADGES_QUERIES = lambda editions: 4 + 3 * editions  # noqa: E731
@@ -1978,6 +2677,26 @@ class TestQueries(World, TestCase):
             found = earned(TODAY)
 
         self.assertIn(C.PERFECT_PITCH, {badge.code for badge in found})
+
+    def test_the_progress_adds_no_query(self):
+        # Ana, Bob and Chloé share a team in 2021 and 2022, so the comrades tie-break reads
+        # the partners' names, and 2021 ranks a revealed Relay, which Ana's team wins.
+        ana, bob, chloe = (self.person(n) for n in ("Ana", "Bob", "Chloé"))
+        for year in (2021, 2022, 2023):
+            edition, teams = self.edition(year)
+            for user in (ana, bob, chloe) if year < 2023 else (ana,):
+                self.seat(user, edition, teams[0])
+            if year == 2021:
+                relay = Relay.objects.create(edition=edition, reveal_score=True)
+                for team, points in zip(teams, (40, 30, 20, 10)):
+                    TeamResult.objects.filter(discipline=relay, team=team).update(points=points)
+
+        with self.assertNumQueries(BADGES_QUERIES(3)):
+            found, progress = compute(TODAY)
+
+        self.assertEqual(found, earned(TODAY))
+        self.assertIn(Progress(ana.id, C.COMRADES, 2, partner_id=bob.id), progress)
+        self.assertIn(Progress(ana.id, C.SPECIALIST, 1, discipline="Relay"), progress)
 
     def test_an_empty_sequence_costs_only_the_load(self):
         # An unfinished edition with a roster is not in the sequence yet: _load's 2 queries,

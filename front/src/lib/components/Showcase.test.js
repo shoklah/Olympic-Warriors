@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { fireEvent, screen, within } from '@testing-library/svelte';
 import { afterEach, describe, expect, it } from 'vitest';
 import { renderWith } from '$lib/test-utils';
@@ -14,6 +15,19 @@ const pinned = [
 	{ code: 'clean-sweep', tier: 0, discipline: null }
 ];
 const unknown = { code: 'future-badge', tier: 0, discipline: null };
+/** A whole showcase: five badges, each earned. */
+const five = [
+	{ code: 'champion', tier: 0, discipline: null },
+	{ code: 'veteran', tier: 2, discipline: null },
+	{ code: 'networker', tier: 1, discipline: null },
+	{ code: 'rookie', tier: 0, discipline: null },
+	{ code: 'goat', tier: 0, discipline: null }
+];
+const fiveEarned = badgeCollection(five.map((badge) => ({ ...badge, years: [2025], partner: null })));
+
+// Vitest runs from the front root, and component styles are not loaded under jsdom: the
+// sizes are read from the sources.
+const source = (path) => readFileSync(path, 'utf8');
 
 const glyphs = (root) => [...root.querySelectorAll('img')].map((img) => img.getAttribute('src'));
 
@@ -22,12 +36,12 @@ afterEach(() => {
 });
 
 describe('Showcase on a leaderboard row', () => {
-	it('draws the medallions in pin order, hidden from assistive tech, at 20px, with nothing to press', () => {
+	it('draws the medallions in pin order, hidden from assistive tech, at 1.25rem, with nothing to press', () => {
 		renderWith(Showcase, { badges: leaderboard[0].showcase });
 
 		const root = screen.getByTestId('showcase');
 		expect(root).toHaveAttribute('aria-hidden', 'true');
-		expect(root.style.getPropertyValue('--badge-size')).toBe('20px');
+		expect(root.style.getPropertyValue('--badge-size')).toBe('1.25rem');
 		expect(glyphs(root)).toEqual([
 			expect.stringMatching(/champion\.svg$/),
 			expect.stringMatching(/veteran\.svg$/),
@@ -52,6 +66,33 @@ describe('Showcase on a leaderboard row', () => {
 		renderWith(Showcase, { badges: [unknown, ...leaderboard[0].showcase.slice(0, 1)] });
 
 		expect(glyphs(screen.getByTestId('showcase'))).toEqual([expect.stringMatching(/champion\.svg$/)]);
+	});
+
+	it('draws a whole showcase of five', () => {
+		renderWith(Showcase, { badges: five });
+
+		expect(glyphs(screen.getByTestId('showcase'))).toHaveLength(5);
+	});
+
+	// The pip row under each ring (Badge: a gap of 8% of the size, then pips of 7%, at least
+	// 0.3125rem) is what a hanging row pulls back, so the two formulas must agree at any
+	// default font size, or a row with a showcase grows taller than one without.
+	it("hangs its pip row by Badge's own gap and pip floor", () => {
+		const badge = source('src/lib/components/Badge.svelte');
+		const showcase = source('src/lib/components/Showcase.svelte');
+		expect(badge).toMatch(/gap: calc\(var\(--size\) \* 0\.08\);/);
+		expect(badge).toMatch(/--pip: max\(0\.3125rem, calc\(var\(--size\) \* 0\.07\)\);/);
+		expect(showcase).toMatch(
+			/var\(--showcase-hang, 0\) \* -1 \* \(var\(--badge-size\) \* 0\.08 \+ max\(0\.3125rem, var\(--badge-size\) \* 0\.07\)\)/
+		);
+	});
+
+	// On a phone the leaderboard puts the showcase on its own line under the name: with a
+	// large default font size five medallions can outgrow it, so they wrap.
+	it('wraps below 600px', () => {
+		expect(source('src/lib/components/Showcase.svelte')).toMatch(
+			/@media \(max-width: 599\.98px\) \{\s*\.row \{\s*flex-wrap: wrap;/
+		);
 	});
 
 	it('renders nothing at all for a person without a badge, not even an empty line', () => {
@@ -114,6 +155,19 @@ describe('Showcase in the profile header', () => {
 
 		expect(screen.getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual([
 			'Clean sweep, badge earned 2 times'
+		]);
+	});
+
+	it('gives each badge of a whole showcase of five its button', () => {
+		renderHeader({ badges: five, collection: fiveEarned });
+
+		const buttons = within(screen.getByRole('list', { name: 'Showcase' })).getAllByRole('button');
+		expect(buttons.map((b) => b.getAttribute('aria-label'))).toEqual([
+			'Champion, badge earned',
+			'Veteran, badge earned',
+			'Networker, badge earned',
+			'Rookie, badge earned',
+			'G.O.A.T, badge earned'
 		]);
 	});
 
