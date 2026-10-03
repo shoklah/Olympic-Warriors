@@ -146,6 +146,23 @@ PASSWORD_RESET_TIMEOUT = 7 * 24 * 3600
 # production until set, and then the admin makes no link).
 PUBLIC_URL = settings.PUBLIC_URL
 
+# Outgoing mail: SMTP when EMAIL_HOST is set, else the console in dev; in prod without a host
+# the SMTP backend is kept so a reset request fails loudly in the log instead of vanishing.
+EMAIL_HOST = settings.EMAIL_HOST
+EMAIL_PORT = settings.EMAIL_PORT
+EMAIL_HOST_USER = settings.EMAIL_HOST_USER
+EMAIL_HOST_PASSWORD = settings.EMAIL_HOST_PASSWORD
+EMAIL_USE_TLS = settings.EMAIL_USE_TLS
+DEFAULT_FROM_EMAIL = settings.DEFAULT_FROM_EMAIL
+_console_mail = not settings.EMAIL_HOST and os.environ.get("ENV", "dev").lower() == "dev"
+EMAIL_BACKEND = (
+    "django.core.mail.backends.console.EmailBackend"
+    if _console_mail
+    else "django.core.mail.backends.smtp.EmailBackend"
+)
+# False only for SMTP without a host: a reset request then logs an error instead of sending.
+MAIL_CAN_SEND = _console_mail or bool(settings.EMAIL_HOST)
+
 
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/
@@ -217,6 +234,13 @@ LOGGING = {
             "handlers": ["console"],
             "level": settings.LOG_LEVEL_CONSOLE,
         },
+        # What the code logs with getLogger(__name__) (password_reset, avatars, Edition): on the
+        # console, so `docker compose logs` shows them. Without it only WARNING and above
+        # reach stderr, through Python's last-resort handler, and INFO is lost.
+        "olympic_warriors": {
+            "handlers": ["console"],
+            "level": settings.LOG_LEVEL_CONSOLE,
+        },
     },
 }
 
@@ -251,6 +275,8 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_RATES': {
         'login': settings.LOGIN_THROTTLE_RATE,
         'photo': settings.PHOTO_THROTTLE_RATE,
+        'password': settings.PASSWORD_THROTTLE_RATE,
+        'reset_email': settings.RESET_EMAIL_THROTTLE_RATE,
     },
     'NUM_PROXIES': settings.NUM_PROXIES,
 }

@@ -747,14 +747,29 @@ class UserProfileAdmin(ClaimLinksPermission, ModelAdmin):
     request_only_active.
     """
 
-    list_display = ["name", "thumbnail", "photo_locked", "claimed_at", "updated_at"]
+    list_display = [
+        "name",
+        "thumbnail",
+        "photo_locked",
+        "anonymized",
+        "claimed_at",
+        "updated_at",
+    ]
     list_editable = ["photo_locked"]
-    list_filter = ["photo_locked", HasPhotoFilter, ClaimedFilter]
+    list_filter = ["photo_locked", "anonymized", HasPhotoFilter, ClaimedFilter]
     list_select_related = ("user",)
     search_fields = ["user__first_name", "user__last_name", "user__username"]
     ordering = ["user__last_name", "user__first_name", "user__username"]
     actions = [remove_photos, remove_and_lock, generate_claim_links]
-    fields = ["user", "photo_preview", "photo_locked", "pinned", "claimed_at", "updated_at"]
+    fields = [
+        "user",
+        "photo_preview",
+        "photo_locked",
+        "anonymized",
+        "pinned",
+        "claimed_at",
+        "updated_at",
+    ]
     readonly_fields = ["user", "photo_preview", "pinned", "claimed_at", "updated_at"]
 
     @display(description="name", ordering="user__last_name")

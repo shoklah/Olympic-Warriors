@@ -158,8 +158,8 @@ describe('Header', () => {
 		it('shows an account pill linking to their profile, with a logout beside it', () => {
 			renderWith(Header, { me: lea }, 'en');
 
-			const link = screen.getByRole('link', { name: 'Léa · My profile' });
-			expect(link).toHaveAttribute('href', '/players/7');
+			const link = screen.getByRole('link', { name: 'Léa · My account' });
+			expect(link).toHaveAttribute('href', '/account');
 			// The small photo, then the first name; the avatar says nothing to assistive tech.
 			expect(link).toHaveTextContent(/^Léa$/);
 			expect(link.querySelector('img')).toHaveAttribute('src', '/media/7-sm.webp');
@@ -179,7 +179,7 @@ describe('Header', () => {
 		it('draws the initials without a photo', () => {
 			renderWith(Header, { me: { ...lea, photo: null } }, 'en');
 
-			const link = screen.getByRole('link', { name: 'Léa · My profile' });
+			const link = screen.getByRole('link', { name: 'Léa · My account' });
 			expect(link.querySelector('img')).toBeNull();
 			expect(link).toHaveTextContent(/^LM\s*Léa$/);
 		});
@@ -189,18 +189,18 @@ describe('Header', () => {
 			const { rerender } = renderWith(Header, { me: lea }, 'en');
 
 			await rerender({ me: { ...lea, first_name: 'Lou', photo: { large: '/l2.webp', small: '/s2.webp' } } });
-			const link = screen.getByRole('link', { name: 'Lou · My profile' });
+			const link = screen.getByRole('link', { name: 'Lou · My account' });
 			expect(link.querySelector('img')).toHaveAttribute('src', '/s2.webp');
 
 			await rerender({ me: { ...lea, photo: null } });
-			expect(screen.getByRole('link', { name: 'Léa · My profile' }).querySelector('img')).toBeNull();
+			expect(screen.getByRole('link', { name: 'Léa · My account' }).querySelector('img')).toBeNull();
 		});
 
 		it('folds the pill and the logout into the menu panel, one row', () => {
 			renderWith(Header, { me: lea }, 'en');
 
 			const panel = document.getElementById('header-settings');
-			const link = within(panel).getByRole('link', { name: 'Léa · My profile' });
+			const link = within(panel).getByRole('link', { name: 'Léa · My account' });
 			const logout = within(panel).getByRole('button', { name: 'Log out' });
 			// One row of the panel holds both, as the ORGA row holds the pill and its action.
 			expect(link.closest('#header-settings > *')).toBe(logout.closest('#header-settings > *'));
@@ -211,7 +211,7 @@ describe('Header', () => {
 		it('words the account pill in French', () => {
 			renderWith(Header, { me: lea }, 'fr');
 
-			expect(screen.getByRole('link', { name: 'Léa · Mon profil' })).toHaveAttribute('href', '/players/7');
+			expect(screen.getByRole('link', { name: 'Léa · Mon compte' })).toHaveAttribute('href', '/account');
 			expect(screen.getByRole('button', { name: 'Se déconnecter' })).toHaveTextContent(/^Se déconnecter$/);
 			expect(screen.queryByRole('link', { name: 'Connexion' })).toBeNull();
 		});
@@ -239,7 +239,7 @@ describe('Header', () => {
 			expect(button.querySelector('img')).toHaveAttribute('src', '/s.webp');
 			expect(button).toHaveTextContent(/^Orga\s*Se déconnecter$/);
 			// ORGA stays the way out: no account pill beside it.
-			expect(screen.queryByRole('link', { name: /Mon profil/ })).toBeNull();
+			expect(screen.queryByRole('link', { name: /Mon compte/ })).toBeNull();
 			expect(screen.getAllByRole('button', { name: /Se déconnecter/ })).toHaveLength(1);
 		});
 

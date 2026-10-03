@@ -28,4 +28,29 @@ describe('login form', () => {
 		expect(screen.getByText('Trop de tentatives : réessayez plus tard')).toBeInTheDocument();
 		expect(screen.queryByText(/vérifiez vos identifiants/)).toBeNull();
 	});
+
+	it('links to the password reset page', () => {
+		renderWith(Login, { form: null }, 'en');
+		expect(screen.getByRole('link', { name: 'Forgot password?' })).toHaveAttribute('href', '/forgot');
+	});
+
+	it('words the reset link in French', () => {
+		renderWith(Login, { form: null }, 'fr');
+		expect(screen.getByRole('link', { name: 'Mot de passe oublié ?' })).toHaveAttribute('href', '/forgot');
+	});
+
+	it('carries next to the action in a hidden field', () => {
+		const { container } = renderWith(Login, { form: null, next: '/account' }, 'en');
+		expect(container.querySelector('input[name="next"]')).toHaveValue('/account');
+	});
+
+	it('carries whatever next it is given, as given: the action validates it', () => {
+		const { container } = renderWith(Login, { form: null, next: '/players/12?tab=badges' }, 'en');
+		expect(container.querySelector('input[name="next"]')).toHaveValue('/players/12?tab=badges');
+	});
+
+	it('sends an empty next by default', () => {
+		const { container } = renderWith(Login, { form: null }, 'en');
+		expect(container.querySelector('input[name="next"]')).toHaveValue('');
+	});
 });

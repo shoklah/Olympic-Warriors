@@ -518,6 +518,23 @@ describe('player profile page', () => {
 		expect(within(card).getByText('+1')).toBeInTheDocument();
 	});
 
+	describe('owner view: the account link', () => {
+		const accountLink = () => screen.queryByRole('link', { name: 'Edit my account' });
+
+		it('gives the owner a link to /account, and nobody else', () => {
+			const { unmount } = renderWith(Page, { data: { profile, me: xavier } });
+			expect(accountLink()).toHaveAttribute('href', '/account');
+			unmount();
+
+			const second = renderWith(Page, { data: { profile, me: null } });
+			expect(accountLink()).toBeNull();
+			second.unmount();
+
+			renderWith(Page, { data: { profile, me: { ...xavier, id: 12 } } });
+			expect(accountLink()).toBeNull();
+		});
+	});
+
 	describe('owner view: the photo', () => {
 		afterEach(() => {
 			document.body.style.overflow = '';

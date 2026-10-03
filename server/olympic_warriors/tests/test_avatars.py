@@ -428,6 +428,18 @@ class TestStorePhoto(MediaRootTestCase):
         self.assertEqual((self.profile.photo.name, self.profile.photo_small.name), ("", ""))
         self.assertEqual(self.avatar_files(), [])
 
+    def test_an_anonymized_profile_refuses_an_upload_even_when_read_before_it(self):
+        stale = UserProfile.objects.get(pk=self.profile.pk)
+        UserProfile.objects.filter(pk=self.profile.pk).update(anonymized=True)
+
+        with self.assertRaises(PhotoError) as caught:
+            store_photo(stale, upload(encode(picture(), "JPEG")))
+
+        self.assertEqual(caught.exception.code, "photo_locked")
+        self.profile.refresh_from_db()
+        self.assertFalse(self.profile.photo)
+        self.assertEqual(self.avatar_files(), [])
+
     def test_replacing_deletes_the_old_files_once_committed(self):
         store_photo(self.profile, upload(encode(picture(), "JPEG")))
         self.profile.refresh_from_db()

@@ -38,10 +38,15 @@ urlpatterns = [
     path("auth/token/", views.ThrottledObtainAuthToken.as_view(), name="auth_token"),
     # claim links (public: the link is the credential)
     path("claim/<str:uidb64>/<str:token>/", views.claimAccount),
+    path("password-reset/", views.requestPasswordReset),
+    path("password-reset/<str:uidb64>/<str:token>/", views.resetPassword),
     # the caller's own account (any token; the photo and the showcase need a person)
     path("me/", views.getMe),
     path("me/photo/", views.myPhoto),
     path("me/showcase/", views.setMyShowcase),
+    path("me/email/", views.myEmail),
+    path("me/password/", views.myPassword),
+    path("me/deactivate/", views.deactivateMe),
     # users
     path("user/<int:user_id>/", views.getUser),
     path("users/", views.getUsers),

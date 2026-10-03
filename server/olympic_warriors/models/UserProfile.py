@@ -36,6 +36,10 @@ class UserProfile(models.Model):
     )
     # When the person set a password through a claim link.
     claimed_at = models.DateTimeField(null=True, blank=True)
+    # Set when the person deleted their account: login is off and every public payload shows
+    # an anonymous name (anonymity.shown_names) while places and badges stay. An organiser
+    # reverses it by unticking this and reactivating the user.
+    anonymized = models.BooleanField(default=False)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):

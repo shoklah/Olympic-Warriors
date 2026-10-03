@@ -13,7 +13,8 @@ from the admin.
 
 Today players cannot log in at all. Every user created by the registration import or by
 `import_edition` gets a random 8-character password that nobody receives, and nothing
-sends email. A token is effectively an organiser's token. This spec therefore has
+sends email (as of this spec: the lost-password mail came with the 2026-10-02 account
+management spec). A token is effectively an organiser's token. This spec therefore has
 three parts:
 
 1. **Lock the API**, so a player's token can reach only what a player may see.
@@ -26,7 +27,9 @@ Decisions taken while grilling (2026-09-24):
 2. **Scope: the photo and the badge showcase.** No nickname, bio, colour, banner or
    leaderboard opt-out, so there is no free text to moderate.
 3. **First access through a claim link** that an organiser creates in the admin and sends
-   however they like (WhatsApp, Messenger). No email.
+   however they like (WhatsApp, Messenger). No email. (Still true of claim links; since
+   the account management spec of 2026-10-02 the app sends one mail, the lost-password
+   mail, over SMTP.)
 4. **Login is username and password.** The claim page shows the username and lets the
    player choose a password, and login goes through the existing `/auth/token/` and
    `/login`.
