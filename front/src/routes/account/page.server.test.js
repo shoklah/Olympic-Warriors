@@ -64,14 +64,22 @@ describe('account load', () => {
 		});
 	});
 
-	it('is a 404 for an organiser and for someone who is not a person', async () => {
-		for (const account of [{ ...me, is_staff: true }, { ...me, is_person: false }]) {
-			const fetch = vi.fn(async () => json(200, account));
-			await expect(load({ fetch, cookies: cookiesWith(), setHeaders: vi.fn() })).rejects.toMatchObject({
-				status: 404
-			});
-			expect(fetch).toHaveBeenCalledTimes(1);
-		}
+	it('sends an organiser home with a 303: they have nothing to edit here', async () => {
+		const fetch = vi.fn(async () => json(200, { ...me, is_staff: true }));
+		await expect(load({ fetch, cookies: cookiesWith(), setHeaders: vi.fn() })).rejects.toMatchObject({
+			status: 303,
+			location: '/'
+		});
+		expect(fetch).toHaveBeenCalledTimes(1);
+	});
+
+	it('sends someone who is not a person home with a 303 too', async () => {
+		const fetch = vi.fn(async () => json(200, { ...me, is_person: false }));
+		await expect(load({ fetch, cookies: cookiesWith(), setHeaders: vi.fn() })).rejects.toMatchObject({
+			status: 303,
+			location: '/'
+		});
+		expect(fetch).toHaveBeenCalledTimes(1);
 	});
 });
 

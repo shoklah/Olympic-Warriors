@@ -1,4 +1,4 @@
-import { error, fail, redirect } from '@sveltejs/kit';
+import { fail, redirect } from '@sveltejs/kit';
 import { apiGet, apiSend, statusOf } from '$lib/api';
 import { ownerActions } from '$lib/server/owner-actions';
 import { PASSWORD_CODES } from '$lib/server/password-link';
@@ -12,8 +12,10 @@ const LOGIN = '/login?next=/account';
 const CONFIRM_WORDS = new Set(['supprimer', 'delete']);
 
 /**
- * The page is the caller's own: a visitor (or a dead token) goes to /login, anyone who is
- * not a non-staff person gets a 404. Never cached: it shows the username and the email.
+ * The page is the caller's own: a visitor (or a dead token) goes to /login, and a logged-in
+ * organiser or someone who is not a person, who has nothing to edit here, goes home (so
+ * logging in through /login?next=/account never lands them on an error). Never cached: it
+ * shows the username and the email.
  */
 export const load = async ({ fetch, cookies, setHeaders }) => {
 	const token = cookies.get(TOKEN_COOKIE);
@@ -26,7 +28,7 @@ export const load = async ({ fetch, cookies, setHeaders }) => {
 		if (err?.status === 401 || err?.status === 403) redirect(303, LOGIN);
 		throw err;
 	}
-	if (account.is_staff || !account.is_person) error(404, 'No such page');
+	if (account.is_staff || !account.is_person) redirect(303, '/');
 	const profile = await apiGet(fetch, api(`/profile/${account.id}/`));
 	return {
 		account: { id: account.id, username: account.username, email: account.email ?? '' },

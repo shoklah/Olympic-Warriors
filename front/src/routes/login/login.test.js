@@ -44,6 +44,11 @@ describe('login form', () => {
 		expect(container.querySelector('input[name="next"]')).toHaveValue('/account');
 	});
 
+	it('carries whatever next it is given, as given: the action validates it', () => {
+		const { container } = renderWith(Login, { form: null, next: '/players/12?tab=badges' }, 'en');
+		expect(container.querySelector('input[name="next"]')).toHaveValue('/players/12?tab=badges');
+	});
+
 	it('sends an empty next by default', () => {
 		const { container } = renderWith(Login, { form: null }, 'en');
 		expect(container.querySelector('input[name="next"]')).toHaveValue('');
