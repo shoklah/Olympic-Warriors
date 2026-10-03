@@ -1,8 +1,9 @@
 """
 Claim links: how a person gets an account (see the player profile customization design spec
-under docs/superpowers/specs/). Nothing sends email: an organiser generates a link in the
-admin and sends it however they like; the person opens it, sees their username, and chooses
-a password.
+under docs/superpowers/specs/). The app never mails a claim link: an organiser generates
+one in the admin and sends it by hand, however they like; the person opens it, sees their
+username, and chooses a password. The only mail the app sends is the lost-password mail
+(password_reset.py, over SMTP), whose /reset link the same token honours.
 
 The rules:
 - a user is claimable when they are a person (an active Player in an active edition, the

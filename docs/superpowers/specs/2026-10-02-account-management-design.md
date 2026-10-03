@@ -64,5 +64,5 @@ All `IsAuthenticated`, for person accounts only (404 `not_a_person` otherwise, s
 - A player with no or a mistyped email cannot self-reset and must ask an organiser for a claim link; the neutral response gives no feedback.
 - Email changes are unverified, so a typo silently breaks reset for that player.
 - Anonymization is display-level: the real name stays in the database, and a roster's order still follows the real surname.
-- Two users sharing an email switch off each other's self-reset (nobody matches), and one person can enter another's address: changes are unverified, so an address can collide with someone else's.
+- Two active users sharing an email switch off each other's self-reset (nobody matches), and one person can enter another's address: changes are unverified, so an address can collide with someone else's.
 - No notice is shown after a deletion: the visitor just lands on `/`.
