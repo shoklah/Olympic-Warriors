@@ -45,6 +45,17 @@ describe('account page', () => {
 		}
 	});
 
+	it('shows an organiser who plays every section but the deletion', () => {
+		const staff = { ...data, account: { ...data.account, is_staff: true } };
+		renderWith(Page, { data: staff, form: null });
+
+		for (const name of ['Photo', 'Badge showcase', 'Email address', 'Password', 'Session']) {
+			expect(screen.getByRole('heading', { level: 2, name })).toBeInTheDocument();
+		}
+		expect(screen.queryByRole('heading', { level: 2, name: 'Delete my account' })).toBeNull();
+		expect(screen.queryByRole('button', { name: 'Delete my account' })).toBeNull();
+	});
+
 	it('opens the photo editor from the photo section', async () => {
 		renderWith(Page, { data, form: null });
 

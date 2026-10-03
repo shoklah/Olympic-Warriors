@@ -12,10 +12,11 @@ const LOGIN = '/login?next=/account';
 const CONFIRM_WORDS = new Set(['supprimer', 'delete']);
 
 /**
- * The page is the caller's own: a visitor (or a dead token) goes to /login, and a logged-in
- * organiser or someone who is not a person, who has nothing to edit here, goes home (so
- * logging in through /login?next=/account never lands them on an error). Never cached: it
- * shows the username and the email.
+ * The page is the caller's own: a visitor (or a dead token) goes to /login, and someone logged
+ * in who is not a person (an organiser who never played included), with nothing to edit here,
+ * goes home (so logging in through /login?next=/account never lands them on an error). An
+ * organiser who plays gets the page, `is_staff` hiding the deletion the API refuses them.
+ * Never cached: it shows the username and the email.
  */
 export const load = async ({ fetch, cookies, setHeaders }) => {
 	const token = cookies.get(TOKEN_COOKIE);
@@ -28,10 +29,15 @@ export const load = async ({ fetch, cookies, setHeaders }) => {
 		if (err?.status === 401 || err?.status === 403) redirect(303, LOGIN);
 		throw err;
 	}
-	if (account.is_staff || !account.is_person) redirect(303, '/');
+	if (!account.is_person) redirect(303, '/');
 	const profile = await apiGet(fetch, api(`/profile/${account.id}/`));
 	return {
-		account: { id: account.id, username: account.username, email: account.email ?? '' },
+		account: {
+			id: account.id,
+			username: account.username,
+			email: account.email ?? '',
+			is_staff: account.is_staff === true
+		},
 		profile
 	};
 };
@@ -41,6 +47,7 @@ function accountError(err) {
 	if (statusOf(err) === 429) return 'account.error.throttled';
 	const code = err?.body?.message;
 	if (code === 'wrong_password' || code === 'invalid_email') return `account.error.${code}`;
+	if (code === 'organiser_cannot_deactivate') return 'account.error.organiser';
 	return 'account.error.failed';
 }
 
