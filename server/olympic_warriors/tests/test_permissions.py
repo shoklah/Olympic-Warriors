@@ -45,6 +45,8 @@ PUBLIC = {
     "auth/token/",
     # a claim link: the link is the credential (its POST shares the login throttle)
     "claim/<str:uidb64>/<str:token>/",
+    "password-reset/",
+    "password-reset/<str:uidb64>/<str:token>/",
     # what the front reads: the editions, the summary, the disciplines, the profiles, and a
     # discipline's all-time table with its index (the disciplines page's « Palmarès » deck)
     "editions/",
@@ -68,6 +70,9 @@ PLAYER = {
     "me/",
     "me/photo/",
     "me/showcase/",
+    "me/email/",
+    "me/password/",
+    "me/deactivate/",
     "game/<int:game_id>/",
     "games/",
     "games/discipline/<int:discipline_id>/",

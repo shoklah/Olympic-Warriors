@@ -80,3 +80,28 @@ class PhotoRateThrottle(UserRateThrottle):
         if request.method != "PUT":
             return True
         return super().allow_request(request, view)
+
+
+class PasswordCheckThrottle(UserRateThrottle):
+    """The current-password checks of /me/email/, /me/password/ and /me/deactivate/, per
+    user, at the "password" rate (PASSWORD_THROTTLE_RATE): every request counts, right or
+    wrong, so a stolen session cannot guess the password."""
+
+    scope = "password"
+
+
+class ResetEmailRateThrottle(SimpleRateThrottle):
+    """Reset requests per address ("reset_email" rate), counted whether or not the address
+    belongs to anyone, so the 429 reveals nothing. A body without a usable email is not
+    counted here (the per-IP login throttle still is)."""
+
+    scope = "reset_email"
+
+    def get_cache_key(self, request, view):
+        try:
+            email = request.data.get("email") if isinstance(request.data, dict) else None
+        except Exception:  # pylint: disable=broad-except  # unparsable body
+            return None
+        if not isinstance(email, str) or not email.strip():
+            return None
+        return self.cache_format % {"scope": self.scope, "ident": email.strip().lower()}

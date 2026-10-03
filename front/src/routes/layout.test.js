@@ -38,10 +38,13 @@ describe('root layout', () => {
 		expect(screen.getAllByRole('link', { name: 'Players' }).length).toBeGreaterThan(1);
 	});
 
-	it('gives the login and claim pages no tab bar', () => {
+	it('gives the login, claim, account, forgot and reset pages no tab bar', () => {
 		for (const [routeId, pathname] of [
 			['/login', '/login'],
-			['/claim/[uid]/[token]', '/claim/MzQ/claim-token-demo']
+			['/claim/[uid]/[token]', '/claim/MzQ/claim-token-demo'],
+			['/account', '/account'],
+			['/forgot', '/forgot'],
+			['/reset/[uid]/[token]', '/reset/MzQ/claim-token-demo']
 		]) {
 			const { container, unmount } = renderAt(routeId, pathname);
 

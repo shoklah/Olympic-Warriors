@@ -17,6 +17,8 @@
 	export let editable = false;
 	/** profile.showcase ({ auto, badges }), or null (an older API): the pins a selection starts from. */
 	export let showcase = null;
+	/** The hidden « Badges » heading; false where the page already heads the collection. */
+	export let heading = true;
 
 	const t = useT();
 
@@ -279,7 +281,7 @@
 
 <svelte:window on:keydown={onWindowKey} />
 
-<h2 class="visually-hidden">{t('profile.badges')}</h2>
+{#if heading}<h2 class="visually-hidden">{t('profile.badges')}</h2>{/if}
 
 <div class="progress">
 	<p>{t('badge.progress', { n: collection.earned, total: collection.total })}</p>

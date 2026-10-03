@@ -54,6 +54,7 @@ from .serializer import (
     DisciplineAllTimeSerializer,
     HeldDisciplineSerializer,
 )
+from . import accounts
 from .avatars import MAX_BYTES, PhotoError, photo_urls, remove_photo, store_photo
 from .badges import (
     SHOWCASE_SIZE,
@@ -64,7 +65,7 @@ from .badges import (
     showcase,
     valid_pins,
 )
-from .claims import check_claim, complete_claim
+from .claims import check_claim, complete_claim, unclaimable_reason, unresettable_reason
 from .profiles import (
     discipline_table,
     held_disciplines,
@@ -75,7 +76,14 @@ from .profiles import (
     profile_record,
 )
 from .permissions import IsOrganiser
-from .throttling import ClaimRateThrottle, LoginRateThrottle, PhotoRateThrottle
+from .throttling import (
+    ClaimRateThrottle,
+    LoginRateThrottle,
+    PasswordCheckThrottle,
+    PhotoRateThrottle,
+    ResetEmailRateThrottle,
+)
+from .password_reset import send_reset
 from .models import (
     Player,
     Edition,
@@ -149,7 +157,14 @@ def claimAccount(request, uidb64, token):
     body, so a dead link is a 404 whatever the body; then a missing or blank password, or
     a body that is not JSON, is `password_missing`, and the validators give their own codes.
     """
-    user = check_claim(uidb64, token)
+    return _claim_response(request, uidb64, token)
+
+
+@sensitive_variables("password")  # never in an error report
+def _claim_response(request, uidb64, token, rule=unclaimable_reason):
+    """The claim contract, shared by a claim link and a mailed reset link, `rule` saying who
+    the link may serve (claims.LINK_RULES: a reset link also serves organisers)."""
+    user = check_claim(uidb64, token, rule=rule)
     if user is None:
         return Response(INVALID_LINK, status=404)
     if request.method == "GET":
@@ -163,12 +178,47 @@ def claimAccount(request, uidb64, token):
     if not isinstance(password, str) or not password.strip():
         return Response({"errors": ["password_missing"]}, status=400)
     try:
-        key = complete_claim(user, token, password)
+        key = complete_claim(user, token, password, rule=rule)
     except ValidationError as error:
         return Response({"errors": [e.code for e in error.error_list]}, status=400)
     if key is None:  # used or made unclaimable since check_claim()
         return Response(INVALID_LINK, status=404)
     return Response({"token": key, "user_id": user.pk})
+
+
+@extend_schema(
+    summary="Ask for a password-reset mail (always 200: nobody learns which emails exist)",
+    request=inline_serializer("ResetRequest", {"email": serializers.EmailField()}),
+    responses={
+        "200": OpenApiResponse(description="{}"),
+        "429": OpenApiResponse(description="Throttled"),
+    },
+)
+@api_view(["POST"])
+@authentication_classes([])
+@permission_classes([AllowAny])
+@throttle_classes([LoginRateThrottle, ResetEmailRateThrottle])
+@parser_classes([JSONParser])
+def requestPasswordReset(request):
+    try:
+        data = request.data
+    except ParseError:
+        data = {}
+    email = data.get("email") if isinstance(data, dict) else None
+    send_reset(email)
+    return Response({})
+
+
+@extend_schema(exclude=True)
+@api_view(["GET", "POST"])
+@authentication_classes([])
+@permission_classes([AllowAny])
+@throttle_classes([ClaimRateThrottle])
+@parser_classes([JSONParser])
+def resetPassword(request, uidb64, token):
+    """A reset link: the claim contract (claims.py), reached from the mailed link, which also
+    serves organisers."""
+    return _claim_response(request, uidb64, token, rule=unresettable_reason)
 
 
 # The caller's own account: open to any token (IsAuthenticated), a player's included. The
@@ -229,6 +279,7 @@ def getMe(request):
                 "first_name": user.first_name,
                 "last_name": user.last_name,
                 "username": user.username,
+                "email": user.email,
                 "is_staff": user.is_staff,
                 "is_person": user.is_person,
                 "photo": photo_urls(profile),
@@ -351,6 +402,119 @@ def setMyShowcase(request):
     profile.save(update_fields=["showcase", "updated_at"])  # never the photo fields
     holders = badge_stats(person_ids())["holders"]
     return Response(ShowcaseSerializer(showcase(entries, codes, holders)).data)
+
+
+WRONG_PASSWORD = {"error": "wrong_password"}
+
+
+@sensitive_variables("data")
+def _account_body(request):
+    """The JSON object of an account request, {} when the body cannot be read."""
+    try:
+        data = request.data
+    except ParseError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _not_an_account_owner(user):
+    """404 response for anyone who is not a non-staff person, else None."""
+    if user.is_staff or user.is_superuser or not is_person(user):
+        return Response(NOT_A_PERSON, status=404)
+    return None
+
+
+@extend_schema(
+    summary="Change the caller's email (current password required)",
+    request=inline_serializer(
+        "EmailChange", {"password": serializers.CharField(), "email": serializers.EmailField()}
+    ),
+    responses={
+        "200": inline_serializer("EmailChanged", {"email": serializers.EmailField()}),
+        "400": OpenApiResponse(description='{"error": "wrong_password" | "invalid_email"}'),
+        "404": OpenApiResponse(description="Not a player account"),
+        "429": OpenApiResponse(description="Too many password checks"),
+    },
+)
+@api_view(["PUT"])
+@permission_classes([IsAuthenticated])
+@throttle_classes([PasswordCheckThrottle])
+@parser_classes([JSONParser])
+@sensitive_variables("password", "data")
+def myEmail(request):
+    refusal = _not_an_account_owner(request.user)
+    if refusal:
+        return refusal
+    data = _account_body(request)
+    password = data.get("password")
+    if not accounts.password_ok(request.user, password):
+        return Response(WRONG_PASSWORD, status=400)
+    try:
+        accounts.change_email(request.user, data.get("email"))
+    except ValidationError:
+        return Response({"error": "invalid_email"}, status=400)
+    return Response({"email": request.user.email})
+
+
+@extend_schema(
+    summary="Change the caller's password (current password required); ends every older session",
+    request=inline_serializer(
+        "PasswordChange", {"current": serializers.CharField(), "new": serializers.CharField()}
+    ),
+    responses={
+        "200": inline_serializer("PasswordChanged", {"token": serializers.CharField()}),
+        "400": OpenApiResponse(
+            description='{"error": "wrong_password"} or {"errors": [validator codes]}'
+        ),
+        "404": OpenApiResponse(description="Not a player account"),
+        "429": OpenApiResponse(description="Too many password checks"),
+    },
+)
+@api_view(["PUT"])
+@permission_classes([IsAuthenticated])
+@throttle_classes([PasswordCheckThrottle])
+@parser_classes([JSONParser])
+@sensitive_variables("current", "new", "data")
+def myPassword(request):
+    refusal = _not_an_account_owner(request.user)
+    if refusal:
+        return refusal
+    data = _account_body(request)
+    if not accounts.password_ok(request.user, data.get("current")):
+        return Response(WRONG_PASSWORD, status=400)
+    new = data.get("new")
+    if not isinstance(new, str) or not new.strip():
+        return Response({"errors": ["password_missing"]}, status=400)
+    try:
+        key = accounts.change_password(request.user, new)
+    except ValidationError as error:
+        return Response({"errors": [e.code for e in error.error_list]}, status=400)
+    return Response({"token": key})
+
+
+@extend_schema(
+    summary="Deactivate the caller's account (current password required)",
+    request=inline_serializer("Deactivate", {"password": serializers.CharField()}),
+    responses={
+        "204": OpenApiResponse(description="Account off, name masked, token deleted"),
+        "400": OpenApiResponse(description='{"error": "wrong_password"}'),
+        "404": OpenApiResponse(description="Not a player account"),
+        "429": OpenApiResponse(description="Too many password checks"),
+    },
+)
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+@throttle_classes([PasswordCheckThrottle])
+@parser_classes([JSONParser])
+@sensitive_variables("password", "data")
+def deactivateMe(request):
+    refusal = _not_an_account_owner(request.user)
+    if refusal:
+        return refusal
+    if not accounts.password_ok(request.user, _account_body(request).get("password")):
+        return Response(WRONG_PASSWORD, status=400)
+    accounts.deactivate(request.user)
+    return Response(status=204)
 
 
 # Users

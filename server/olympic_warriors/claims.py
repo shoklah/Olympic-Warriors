@@ -1,8 +1,9 @@
 """
 Claim links: how a person gets an account (see the player profile customization design spec
-under docs/superpowers/specs/). Nothing sends email: an organiser generates a link in the
-admin and sends it however they like; the person opens it, sees their username, and chooses
-a password.
+under docs/superpowers/specs/). The app never mails a claim link: an organiser generates
+one in the admin and sends it by hand, however they like; the person opens it, sees their
+username, and chooses a password. The only mail the app sends is the lost-password mail
+(password_reset.py, over SMTP), whose /reset link the same token honours.
 
 The rules:
 - a user is claimable when they are a person (an active Player in an active edition, the
@@ -75,6 +76,18 @@ def is_claimable(user):
     return unclaimable_reason(user) is None
 
 
+def unresettable_reason(user):
+    """INACTIVE or NOT_A_PERSON, or None for a user who may reset their password by mail:
+    an active organiser (staff or superuser), who has no profile and never plays, or an
+    active person. Unlike a claim link, which an organiser hands to someone else and so must
+    never carry admin rights, a reset link goes only to the address on the account itself."""
+    if not user.is_active:
+        return INACTIVE
+    if user.is_staff or user.is_superuser:
+        return None
+    return None if is_person(user) else NOT_A_PERSON
+
+
 def public_url():
     """PUBLIC_URL without its trailing slash, or ImproperlyConfigured unless it is an
     absolute http(s) address: empty or relative, a link would lead nowhere."""
@@ -85,16 +98,24 @@ def public_url():
     return base
 
 
-def claim_link(user):
-    """The front's claim page for `user`. Raises ImproperlyConfigured without a usable
-    PUBLIC_URL, then Unclaimable when no link is for this user."""
+# Which users each front page's link is for: a link's route names the eligibility rule its
+# endpoint applies (unclaimable_reason or unresettable_reason, None meaning eligible).
+LINK_RULES = {"claim": unclaimable_reason, "reset": unresettable_reason}
+
+
+def claim_link(user, route="claim"):
+    """The front's page for `user`: `route` is `claim` (an organiser's link, for claimable
+    users) or `reset` (the mailed lost-password link, which also serves organisers), both
+    honoured by the same token; its rule is LINK_RULES[route] (KeyError for another route).
+    Raises ImproperlyConfigured without a usable PUBLIC_URL, then Unclaimable when no such
+    link is for this user."""
     base = public_url()
-    reason = unclaimable_reason(user)
+    reason = LINK_RULES[route](user)
     if reason is not None:
         raise Unclaimable(reason)
     uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
     token = default_token_generator.make_token(user)
-    return f"{base}/claim/{uidb64}/{token}"
+    return f"{base}/{route}/{uidb64}/{token}"
 
 
 def _user(uidb64):
@@ -109,37 +130,42 @@ def _user(uidb64):
     return get_user_model().objects.filter(pk=pk).first()
 
 
-def check_claim(uidb64, token):
-    """The claimable user a valid, unexpired link is for, else None whatever went wrong."""
+def check_claim(uidb64, token, rule=unclaimable_reason):
+    """The user a valid, unexpired link is for, eligible under `rule` (a LINK_RULES value:
+    unclaimable_reason for a claim link, unresettable_reason for a reset link), else None
+    whatever went wrong."""
     user = _user(uidb64)
     if user is None or not default_token_generator.check_token(user, token):
         return None
-    if not is_claimable(user):
+    if rule(user) is not None:
         return None
     return user
 
 
 @sensitive_variables("password")  # never in an error report
-def complete_claim(user, token, password):
+def complete_claim(user, token, password, rule=unclaimable_reason):
     """
     Set the password chosen through the link (`user` from check_claim(), `token` the link's
     token) and return the user's new DRF token key. Raises django's ValidationError when the
     password fails AUTH_PASSWORD_VALIDATORS; returns None, changing nothing, when the link
     no longer holds once the user's row is locked (used meanwhile, or the user is no longer
-    claimable).
+    eligible under `rule`, the one check_claim() applied).
     """
     validate_password(password, user)
     with transaction.atomic():
         locked = get_user_model().objects.select_for_update().filter(pk=user.pk).first()
         if locked is None or not default_token_generator.check_token(locked, token):
             return None
-        if not is_claimable(locked):
+        if rule(locked) is not None:
             return None
         locked.set_password(password)
         locked.save(update_fields=["password"])
         Token.objects.filter(user=locked).delete()
         key = Token.objects.create(user=locked).key
-        profile, _ = UserProfile.objects.get_or_create(user=locked)
-        profile.claimed_at = timezone.now()
-        profile.save(update_fields=["claimed_at", "updated_at"])
+        # Only a person has a profile: an organiser resetting their password gets no row.
+        if is_person(locked):
+            profile, _ = UserProfile.objects.get_or_create(user=locked)
+            if profile.claimed_at is None:  # a reset later keeps the first activation date
+                profile.claimed_at = timezone.now()
+                profile.save(update_fields=["claimed_at", "updated_at"])
     return key

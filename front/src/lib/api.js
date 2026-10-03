@@ -27,6 +27,10 @@ function errorBody(body, fallback) {
 	return codes ? { message, errors: codes.filter((code) => typeof code === 'string') } : { message };
 }
 
+/** A failed call's status when fail() can carry it, else 500. */
+export const statusOf = (err) =>
+	Number.isInteger(err?.status) && err.status >= 400 && err.status <= 599 ? err.status : 500;
+
 /** The DRF token header when a token is given, nothing otherwise. */
 const authHeaders = (token) => (token ? { authorization: `Token ${token}` } : {});
 
