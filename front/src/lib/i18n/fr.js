@@ -36,8 +36,8 @@ export default {
 	'account.saved': 'Modifications enregistrées',
 	'account.dangerText':
 		'Votre compte sera désactivé et votre nom masqué sur le site. Vos résultats et badges restent visibles sous « Joueur anonyme ». Un organisateur peut réactiver le compte.',
-	'account.confirmWord': 'Tapez SUPPRIMER pour confirmer',
-	'account.confirmWordValue': 'SUPPRIMER',
+	'account.confirmWord': 'Tapez « {word} » pour confirmer',
+	'account.confirmWordValue': 'Supprimer',
 	'account.delete': 'Supprimer mon compte',
 	'account.error.wrong_password': 'Mot de passe actuel incorrect',
 	'account.error.invalid_email': 'Adresse e-mail invalide',

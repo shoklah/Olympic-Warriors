@@ -32,8 +32,8 @@ export default {
 	'account.saved': 'Changes saved',
 	'account.dangerText':
 		'Your account will be deactivated and your name hidden on the site. Your results and badges stay visible under the name “Joueur anonyme”. An organiser can reactivate the account.',
-	'account.confirmWord': 'Type DELETE to confirm',
-	'account.confirmWordValue': 'DELETE',
+	'account.confirmWord': 'Type “{word}” to confirm',
+	'account.confirmWordValue': 'Delete',
 	'account.delete': 'Delete my account',
 	'account.error.wrong_password': 'Wrong current password',
 	'account.error.invalid_email': 'Invalid email address',

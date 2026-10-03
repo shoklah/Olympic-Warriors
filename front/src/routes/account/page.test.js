@@ -101,7 +101,7 @@ describe('account page', () => {
 		const danger = section('Delete my account');
 		const form = within(danger).getByRole('button', { name: 'Delete my account' }).closest('form');
 		expect(form).toHaveAttribute('action', '?/deactivate');
-		expect(within(form).getByLabelText('Type DELETE to confirm')).toHaveAttribute('placeholder', 'DELETE');
+		expect(within(form).getByLabelText('Type “Delete” to confirm')).toHaveAttribute('placeholder', 'Delete');
 		expect(within(form).getByLabelText('Current password')).toHaveAttribute('type', 'password');
 		expect(within(danger).getByText(/Your account will be deactivated/)).toBeInTheDocument();
 	});
@@ -205,7 +205,7 @@ describe('account page', () => {
 	it('ties a missing confirmation word to its field', () => {
 		renderWith(Page, { data, form: { action: 'deactivate', error: 'account.error.confirmation' } });
 
-		const word = screen.getByLabelText('Type DELETE to confirm');
+		const word = screen.getByLabelText('Type “Delete” to confirm');
 		expect(word).toHaveAttribute('aria-invalid', 'true');
 		expect(word).toHaveAccessibleDescription('Type the requested word to confirm');
 		expect(document.activeElement).toBe(word);
@@ -232,7 +232,7 @@ describe('account page', () => {
 		expect(screen.getByRole('heading', { level: 1, name: 'Mon compte' })).toBeInTheDocument();
 		expect(screen.getByRole('textbox', { name: 'Adresse e-mail' })).toHaveValue('x@mail.example');
 		expect(screen.getByText('Identifiant : xavierbaby')).toBeInTheDocument();
-		expect(screen.getByLabelText('Tapez SUPPRIMER pour confirmer')).toHaveAttribute('placeholder', 'SUPPRIMER');
+		expect(screen.getByLabelText('Tapez « Supprimer » pour confirmer')).toHaveAttribute('placeholder', 'Supprimer');
 		expect(screen.getByRole('button', { name: 'Supprimer mon compte' })).toBeInTheDocument();
 	});
 });

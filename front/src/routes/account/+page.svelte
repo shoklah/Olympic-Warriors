@@ -220,13 +220,12 @@
 			<p class="text">{t('account.dangerText')}</p>
 			<input type="text" name="username" autocomplete="username" value={account.username} readonly hidden />
 			<div class="field">
-				<label for="danger-confirmation">{t('account.confirmWord')}</label>
+				<label for="danger-confirmation">{t('account.confirmWord', { word: t('account.confirmWordValue') })}</label>
 				<input
 					id="danger-confirmation"
 					type="text"
 					name="confirmation"
 					autocomplete="off"
-					autocapitalize="characters"
 					spellcheck="false"
 					placeholder={t('account.confirmWordValue')}
 					class:invalid={blamed.word}
