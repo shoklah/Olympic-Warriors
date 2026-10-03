@@ -70,6 +70,10 @@ class TestConfigFromEnvironment(SimpleTestCase):
         self.assertEqual(defaults.PUBLIC_URL, "http://localhost:5173")
         self.assertEqual(defaults.PHOTO_THROTTLE_RATE, "10/hour")
 
+    def test_mail_can_send_is_a_bool_in_the_test_environment(self):
+        from django.conf import settings as django_settings
+        self.assertIsInstance(django_settings.MAIL_CAN_SEND, bool)
+
     def test_mail_and_account_throttle_defaults(self):
         config = self.config(REQUIRED)
         self.assertEqual(config.EMAIL_HOST, "")

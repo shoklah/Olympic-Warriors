@@ -154,11 +154,14 @@ EMAIL_HOST_USER = settings.EMAIL_HOST_USER
 EMAIL_HOST_PASSWORD = settings.EMAIL_HOST_PASSWORD
 EMAIL_USE_TLS = settings.EMAIL_USE_TLS
 DEFAULT_FROM_EMAIL = settings.DEFAULT_FROM_EMAIL
+_console_mail = not settings.EMAIL_HOST and os.environ.get("ENV", "dev").lower() == "dev"
 EMAIL_BACKEND = (
     "django.core.mail.backends.console.EmailBackend"
-    if not settings.EMAIL_HOST and os.environ.get("ENV", "dev").lower() == "dev"
+    if _console_mail
     else "django.core.mail.backends.smtp.EmailBackend"
 )
+# False only for SMTP without a host: a reset request then logs an error instead of sending.
+MAIL_CAN_SEND = _console_mail or bool(settings.EMAIL_HOST)
 
 
 # Internationalization

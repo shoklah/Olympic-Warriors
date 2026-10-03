@@ -95,7 +95,7 @@ def send_reset(email):
     except ImproperlyConfigured:
         logger.error("Password reset requested but PUBLIC_URL is not set: no mail sent")
         return False
-    if not settings.EMAIL_HOST and settings.EMAIL_BACKEND.endswith("smtp.EmailBackend"):
+    if not settings.MAIL_CAN_SEND:
         logger.error("Password reset requested but EMAIL_HOST is not set: no mail sent")
         return False
     logger.info("Password reset: mail for user %s queued", user.pk)

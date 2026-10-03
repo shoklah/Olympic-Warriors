@@ -227,10 +227,8 @@ class TestPasswordReset(ClaimSetup, APITestCase):
                 for thread in set(threading.enumerate()) - before:
                     thread.join(5)
 
-    @override_settings(
-        EMAIL_BACKEND="django.core.mail.backends.smtp.EmailBackend", EMAIL_HOST=""
-    )
-    def test_smtp_backend_without_a_host_logs_and_sends_nothing(self):
+    @override_settings(MAIL_CAN_SEND=False)
+    def test_mail_that_cannot_be_sent_logs_and_sends_nothing(self):
         with self.assertLogs("olympic_warriors.password_reset", "ERROR") as logs:
             self.assertEqual(self.ask("lea@mail.example").status_code, 200)
         self.assertIn("EMAIL_HOST is not set", logs.output[0])
