@@ -70,7 +70,8 @@ class TestPasswordReset(ClaimSetup, APITestCase):
             (5, "no usable email"),
             ("nobody@mail.example", "no account has that address"),
             ("twin@mail.example", "several accounts share that address"),
-            ("gone@mail.example", f"user {self.gone.pk} cannot reset its password (inactive)"),
+            # a deactivated account is not looked up at all
+            ("gone@mail.example", "no account has that address"),
             ("sam@mail.example", "no account has that address"),
         )
         for email, expected in cases:
@@ -170,6 +171,26 @@ class TestPasswordReset(ClaimSetup, APITestCase):
         self.stranger.email = "lea@mail.example"
         self.stranger.save(update_fields=["email"])
         self.ask("lea@mail.example")
+        self.assertEqual(mail.outbox, [])
+
+    def test_an_inactive_account_sharing_the_address_does_not_block_the_live_one(self):
+        self.gone.email = "LEA@mail.example"
+        self.gone.save(update_fields=["email"])
+        self.ask("lea@mail.example")
+        self.assertEqual([m.to for m in mail.outbox], [["lea@mail.example"]])
+        uidb64, _ = self.mailed_link()
+        self.assertEqual(uidb64, parts(self.lea)[0])
+
+    def test_two_active_users_sharing_an_email_still_get_nothing(self):
+        self.gone.email = "lea@mail.example"
+        self.gone.save(update_fields=["email"])
+        self.staff.email = "lea@mail.example"
+        self.staff.save(update_fields=["email"])
+        self.assertIn("several accounts share that address", self.logged("lea@mail.example"))
+        self.assertEqual(mail.outbox, [])
+
+    def test_an_inactive_user_alone_is_no_account(self):
+        self.assertIn("no account has that address", self.logged("gone@mail.example"))
         self.assertEqual(mail.outbox, [])
 
     @override_settings(PUBLIC_URL="")

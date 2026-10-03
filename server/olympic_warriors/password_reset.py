@@ -47,10 +47,14 @@ def dispatch(func, *args):
 
 
 def _lookup(email):
-    """(user, None) for the one user whose email is `email` (case-insensitive), else
+    """(user, None) for the one active user whose email is `email` (case-insensitive), else
     (None, reason), the reason being worded for the log: no account, or several (which would
-    let one address reset another person's account)."""
-    users = list(get_user_model().objects.filter(email__iexact=email.strip())[:2])
+    let one address reset another person's account). A deactivated account keeps its email
+    but is never looked up: it can reset nothing, and counting it would block the live
+    account sharing its address."""
+    users = list(
+        get_user_model().objects.filter(is_active=True, email__iexact=email.strip())[:2]
+    )
     if not users:
         return None, "no account has that address"
     if len(users) > 1:
@@ -59,7 +63,7 @@ def _lookup(email):
 
 
 def user_for_email(email):
-    """The one user whose email is `email`, else None (see `_lookup`)."""
+    """The one active user whose email is `email`, else None (see `_lookup`)."""
     return _lookup(email)[0]
 
 
