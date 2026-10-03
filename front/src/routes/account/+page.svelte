@@ -120,7 +120,7 @@
 	<!-- Plain POSTs, never use:enhance: a password change stores a new token cookie, and a
 	     deletion clears it, so the whole page reloads as after /login. -->
 	<section aria-labelledby="account-email" bind:this={sections.email}>
-		<h2 id="account-email">{t('account.section.email')}</h2>
+		<h2 id="account-email">{t('account.email')}</h2>
 		<form method="POST" action="?/email">
 			<input type="text" name="username" autocomplete="username" value={account.username} readonly hidden />
 			<div class="field">
@@ -215,7 +215,7 @@
 	</section>
 
 	<section class="danger-zone" aria-labelledby="account-danger" bind:this={sections.deactivate}>
-		<h2 id="account-danger">{t('account.section.danger')}</h2>
+		<h2 id="account-danger">{t('account.delete')}</h2>
 		<form method="POST" action="?/deactivate">
 			<p class="text">{t('account.dangerText')}</p>
 			<input type="text" name="username" autocomplete="username" value={account.username} readonly hidden />

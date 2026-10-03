@@ -21,7 +21,7 @@
 
 	$: smallPhoto = me?.photo?.small ?? null;
 	// The accessible name starts with the visible first name (WCAG 2.5.3).
-	$: accountName = me?.first_name ? `${me.first_name} · ${t('account.myAccount')}` : t('account.myAccount');
+	$: accountName = me?.first_name ? `${me.first_name} · ${t('account.title')}` : t('account.title');
 
 	$: editions = $page.data.editions ?? [];
 	// On an error page the year in the URL may be one with no edition, so fall back to the latest.
@@ -134,7 +134,7 @@
 					{#if me.is_person}
 						<a class="who" href="/account" aria-label={accountName}>
 							<Avatar photo={smallPhoto} name={me} size="1.5rem" />
-							<span class="name">{me.first_name || t('account.myAccount')}</span>
+							<span class="name">{me.first_name || t('account.title')}</span>
 						</a>
 					{:else}
 						<!-- No active player row any more, so no profile page to link to. -->
