@@ -1,5 +1,5 @@
 import { fail } from '@sveltejs/kit';
-import { apiGet, apiSend } from '$lib/api';
+import { apiGet, apiSend, statusOf } from '$lib/api';
 import { SHOWCASE_SIZE, isKnownBadge } from '$lib/badge-codes';
 import { api } from '$lib/server/urls';
 import { TOKEN_COOKIE } from '$lib/session';
@@ -9,10 +9,6 @@ const FAILED = 'photo.error.failed';
 
 /** The API's photo refusal codes (spec §5), each worded as `photo.error.<code>`. */
 const PHOTO_CODES = new Set(['missing', 'too_large', 'bad_format', 'too_many_pixels', 'photo_locked']);
-
-/** A failed call's status when fail() can carry it, else 500. */
-export const statusOf = (err) =>
-	Number.isInteger(err?.status) && err.status >= 400 && err.status <= 599 ? err.status : 500;
 
 /**
  * The dictionary key for a failed photo call. nginx refuses an oversized body (413) before

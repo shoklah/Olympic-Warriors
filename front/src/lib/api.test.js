@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { apiGet, apiPost, apiPatch, apiSend } from './api.js';
+import { apiGet, apiPost, apiPatch, apiSend, statusOf } from './api.js';
 
 const jsonResponse = (status, body) =>
 	new Response(JSON.stringify(body), {
@@ -223,5 +223,19 @@ describe('apiSend', () => {
 	it('maps a network failure to 502', async () => {
 		const fetch = vi.fn().mockRejectedValue(new TypeError('fetch failed'));
 		await expect(apiSend(fetch, 'http://api/me/photo/', { method: 'DELETE' })).rejects.toMatchObject({ status: 502 });
+	});
+});
+
+describe('statusOf', () => {
+	it('keeps a 4xx or 5xx status', () => {
+		expect(statusOf({ status: 400 })).toBe(400);
+		expect(statusOf({ status: 429 })).toBe(429);
+		expect(statusOf({ status: 599 })).toBe(599);
+	});
+
+	it('falls back to 500 for a status outside 400-599 or none', () => {
+		for (const err of [{ status: 302 }, { status: 600 }, { status: 404.5 }, { status: '404' }, {}, null, undefined, new Error('x')]) {
+			expect(statusOf(err)).toBe(500);
+		}
 	});
 });

@@ -1,6 +1,5 @@
 import { fail } from '@sveltejs/kit';
-import { apiPost } from '$lib/api';
-import { statusOf } from '$lib/server/owner-actions';
+import { apiPost, statusOf } from '$lib/api';
 import { forwardedFor } from '$lib/server/forwarded-for';
 import { api } from '$lib/server/urls';
 

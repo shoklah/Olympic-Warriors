@@ -1,7 +1,6 @@
 import { fail, redirect } from '@sveltejs/kit';
-import { apiGet, apiPost } from '$lib/api';
+import { apiGet, apiPost, statusOf } from '$lib/api';
 import { forwardedFor } from '$lib/server/forwarded-for';
-import { statusOf } from '$lib/server/owner-actions';
 import { api } from '$lib/server/urls';
 import { TOKEN_COOKIE, tokenCookieOptions } from '$lib/session';
 
