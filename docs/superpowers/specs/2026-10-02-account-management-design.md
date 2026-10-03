@@ -14,7 +14,7 @@ Date: 2026-10-02. Extends the player accounts spec (`2026-09-24-player-profile-c
 - **Email change:** current password required, new address saved at once, no verification.
 - **Account deletion:** disables login and keeps history. The name is masked at display time through a flag, so an organiser can reverse it. No data is erased.
 - **Page placement:** new `/account` page. The camera button and « Choisir ma vitrine » stay on the public profile too.
-- **Staff:** organisers (`is_staff`/`is_superuser`) have no `/account` and no reset: they keep the Django admin for their own password and email, as with claim links.
+- **Staff:** organisers (`is_staff`/`is_superuser`) have no `/account` (they keep the Django admin for their email and profile), but they can reset a lost password by email (decided 2026-10-03): a reset link goes only to the account's own address, so unlike a claim link it hands over no rights. Claim links still refuse staff, and a reset leaves an organiser who never played without a `UserProfile` row.
 
 ## Backend
 

@@ -161,9 +161,10 @@ def claimAccount(request, uidb64, token):
 
 
 @sensitive_variables("password")  # never in an error report
-def _claim_response(request, uidb64, token):
-    """The claim contract, shared by a claim link and a mailed reset link."""
-    user = check_claim(uidb64, token)
+def _claim_response(request, uidb64, token, reset=False):
+    """The claim contract, shared by a claim link and a mailed reset link (`reset`, which
+    also serves organisers)."""
+    user = check_claim(uidb64, token, reset=reset)
     if user is None:
         return Response(INVALID_LINK, status=404)
     if request.method == "GET":
@@ -177,7 +178,7 @@ def _claim_response(request, uidb64, token):
     if not isinstance(password, str) or not password.strip():
         return Response({"errors": ["password_missing"]}, status=400)
     try:
-        key = complete_claim(user, token, password)
+        key = complete_claim(user, token, password, reset=reset)
     except ValidationError as error:
         return Response({"errors": [e.code for e in error.error_list]}, status=400)
     if key is None:  # used or made unclaimable since check_claim()
@@ -215,8 +216,9 @@ def requestPasswordReset(request):
 @throttle_classes([ClaimRateThrottle])
 @parser_classes([JSONParser])
 def resetPassword(request, uidb64, token):
-    """A reset link: the claim contract (claims.py), reached from the mailed link."""
-    return _claim_response(request, uidb64, token)
+    """A reset link: the claim contract (claims.py), reached from the mailed link, which also
+    serves organisers."""
+    return _claim_response(request, uidb64, token, reset=True)
 
 
 # The caller's own account: open to any token (IsAuthenticated), a player's included. The

@@ -75,6 +75,18 @@ def is_claimable(user):
     return unclaimable_reason(user) is None
 
 
+def unresettable_reason(user):
+    """INACTIVE or NOT_A_PERSON, or None for a user who may reset their password by mail:
+    an active organiser (staff or superuser), who has no profile and never plays, or an
+    active person. Unlike a claim link, which an organiser hands to someone else and so must
+    never carry admin rights, a reset link goes only to the address on the account itself."""
+    if not user.is_active:
+        return INACTIVE
+    if user.is_staff or user.is_superuser:
+        return None
+    return None if is_person(user) else NOT_A_PERSON
+
+
 def public_url():
     """PUBLIC_URL without its trailing slash, or ImproperlyConfigured unless it is an
     absolute http(s) address: empty or relative, a link would lead nowhere."""
@@ -86,11 +98,12 @@ def public_url():
 
 
 def claim_link(user, route="claim"):
-    """The front's page for `user`: `route` is `claim` (an organiser's link) or `reset` (the
-    mailed lost-password link), both honoured by the same token. Raises ImproperlyConfigured without a usable
-    PUBLIC_URL, then Unclaimable when no link is for this user."""
+    """The front's page for `user`: `route` is `claim` (an organiser's link, for claimable
+    users) or `reset` (the mailed lost-password link, which also serves organisers), both
+    honoured by the same token. Raises ImproperlyConfigured without a usable PUBLIC_URL, then
+    Unclaimable when no such link is for this user."""
     base = public_url()
-    reason = unclaimable_reason(user)
+    reason = unresettable_reason(user) if route == "reset" else unclaimable_reason(user)
     if reason is not None:
         raise Unclaimable(reason)
     uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
@@ -110,18 +123,25 @@ def _user(uidb64):
     return get_user_model().objects.filter(pk=pk).first()
 
 
-def check_claim(uidb64, token):
-    """The claimable user a valid, unexpired link is for, else None whatever went wrong."""
+def _eligible(user, reset):
+    """Whether `user` may use a link: a reset link serves unresettable_reason() None, a claim
+    link only claimable users."""
+    return (unresettable_reason(user) if reset else unclaimable_reason(user)) is None
+
+
+def check_claim(uidb64, token, reset=False):
+    """The user a valid, unexpired link is for (claimable, or resettable for a reset link),
+    else None whatever went wrong."""
     user = _user(uidb64)
     if user is None or not default_token_generator.check_token(user, token):
         return None
-    if not is_claimable(user):
+    if not _eligible(user, reset):
         return None
     return user
 
 
 @sensitive_variables("password")  # never in an error report
-def complete_claim(user, token, password):
+def complete_claim(user, token, password, reset=False):
     """
     Set the password chosen through the link (`user` from check_claim(), `token` the link's
     token) and return the user's new DRF token key. Raises django's ValidationError when the
@@ -134,14 +154,16 @@ def complete_claim(user, token, password):
         locked = get_user_model().objects.select_for_update().filter(pk=user.pk).first()
         if locked is None or not default_token_generator.check_token(locked, token):
             return None
-        if not is_claimable(locked):
+        if not _eligible(locked, reset):
             return None
         locked.set_password(password)
         locked.save(update_fields=["password"])
         Token.objects.filter(user=locked).delete()
         key = Token.objects.create(user=locked).key
-        profile, _ = UserProfile.objects.get_or_create(user=locked)
-        if profile.claimed_at is None:  # a reset later keeps the first activation date
-            profile.claimed_at = timezone.now()
-            profile.save(update_fields=["claimed_at", "updated_at"])
+        # Only a person has a profile: an organiser resetting their password gets no row.
+        if is_person(locked):
+            profile, _ = UserProfile.objects.get_or_create(user=locked)
+            if profile.claimed_at is None:  # a reset later keeps the first activation date
+                profile.claimed_at = timezone.now()
+                profile.save(update_fields=["claimed_at", "updated_at"])
     return key

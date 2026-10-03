@@ -2,6 +2,7 @@ import re
 import threading
 from unittest import mock
 
+from django.contrib.auth.models import User
 from django.core import mail
 from django.core.cache import cache
 from django.test import override_settings
@@ -69,8 +70,7 @@ class TestPasswordReset(ClaimSetup, APITestCase):
             (5, "no usable email"),
             ("nobody@mail.example", "no account has that address"),
             ("twin@mail.example", "several accounts share that address"),
-            ("ana@mail.example", f"user {self.staff.pk} is not claimable (staff)"),
-            ("gone@mail.example", f"user {self.gone.pk} is not claimable (inactive)"),
+            ("gone@mail.example", f"user {self.gone.pk} cannot reset its password (inactive)"),
             ("sam@mail.example", "no account has that address"),
         )
         for email, expected in cases:
@@ -80,7 +80,7 @@ class TestPasswordReset(ClaimSetup, APITestCase):
                     # sam's address was reused above: this one is the not-a-person branch
                     self.stranger.email = "sam@mail.example"
                     self.stranger.save(update_fields=["email"])
-                    expected = f"user {self.stranger.pk} is not claimable (not_a_person)"
+                    expected = f"user {self.stranger.pk} cannot reset its password (not_a_person)"
                 self.assertIn(expected, self.logged(email))
 
     def test_a_sent_mail_logs_the_hand_over_to_the_smtp_server(self):
@@ -110,14 +110,61 @@ class TestPasswordReset(ClaimSetup, APITestCase):
         # Not about the throttle: each attempt gets a fresh per-IP budget (cache cleared),
         # since 7 calls from one test client would pass the 5/min login limit.
         for email in (
-            "nobody@mail.example", "ana@mail.example", "gone@mail.example",
-            "sam@mail.example", "", None, 5,
+            "nobody@mail.example", "gone@mail.example", "sam@mail.example", "", None, 5,
         ):
             with self.subTest(email=email):
                 cache.clear()
                 response = self.ask(email)
                 self.assertEqual((response.status_code, response.data), (200, {}))
         self.assertEqual(mail.outbox, [])
+
+    def organiser(self, username="orga", **flags):
+        """An organiser who never played: staff, an email, no Player row."""
+        return User.objects.create_user(
+            username=username, first_name="Olga", email=f"{username}@mail.example",
+            password="old-password-x1", is_staff=True, **flags,
+        )
+
+    def test_an_organiser_can_reset_their_password(self):
+        orga = self.organiser()
+        self.assertEqual(self.ask("orga@mail.example").status_code, 200)
+        self.assertEqual(mail.outbox[0].to, ["orga@mail.example"])
+        uidb64, token = self.mailed_link()
+        self.assertEqual(
+            self.client.get(f"/password-reset/{uidb64}/{token}/").data,
+            {"first_name": "Olga", "username": "orga"},
+        )
+        response = self.reset(uidb64, token)
+        self.assertEqual(response.status_code, 200)
+        orga.refresh_from_db()
+        self.assertTrue(orga.check_password(GOOD))
+        # An organiser is not a person: the reset leaves no profile row behind.
+        self.assertFalse(UserProfile.objects.filter(user=orga).exists())
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {response.data['token']}")
+        self.assertEqual(self.client.get("/me/").data["is_staff"], True)
+
+    def test_a_superuser_can_reset_their_password(self):
+        self.boss.email = "boss@mail.example"
+        self.boss.save(update_fields=["email"])
+        self.ask("boss@mail.example")
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(self.reset(*self.mailed_link()).status_code, 200)
+
+    def test_an_inactive_organiser_gets_nothing(self):
+        self.organiser(is_active=False)
+        self.ask("orga@mail.example")
+        self.assertEqual(mail.outbox, [])
+
+    def test_a_reset_link_is_not_a_claim_link_for_an_organiser(self):
+        orga = self.organiser()
+        uidb64, token = parts(orga)
+        for response in (
+            self.client.get(f"/claim/{uidb64}/{token}/"),
+            self.client.post(f"/claim/{uidb64}/{token}/", {"password": GOOD}, format="json"),
+        ):
+            self.assertEqual((response.status_code, response.data), (404, INVALID))
+        orga.refresh_from_db()
+        self.assertTrue(orga.check_password("old-password-x1"))
 
     def test_two_users_sharing_an_email_get_nothing(self):
         self.stranger.email = "lea@mail.example"
@@ -194,8 +241,8 @@ class TestPasswordReset(ClaimSetup, APITestCase):
         self.assertEqual(second.status_code, 200)
         self.assertEqual(UserProfile.objects.get(user=self.lea).claimed_at, first)
 
-    def test_a_link_dies_when_its_user_stops_being_claimable(self):
-        for change in ({"is_staff": True}, {"is_active": False}):
+    def test_a_link_dies_when_its_user_is_deactivated(self):
+        for change in ({"is_active": False},):
             with self.subTest(change=change):
                 uidb64, token = parts(self.lea)
                 for key, value in change.items():

@@ -1,8 +1,8 @@
 """
-Lost password (spec 2026-10-02): a person gives their email and, if exactly one claimable
-person has it, gets a link to the front's /reset page, valid like a claim link. The caller
-never learns whether anyone matched, so every outcome is silent for them; the server log
-says what happened (by user id, never by address).
+Lost password (spec 2026-10-02): a person or an organiser gives their email and, if exactly
+one active user of that kind has it, gets a link to the front's /reset page, valid like a
+claim link. The caller never learns whether anyone matched, so every outcome is silent for
+them; the server log says what happened (by user id, never by address).
 """
 
 import logging
@@ -71,7 +71,7 @@ def _send(user_id, *mail_args):
 
 
 def send_reset(email):
-    """Mail the reset link when `email` names exactly one claimable person. Returns whether a
+    """Mail the reset link when `email` names exactly one user who may reset (claims.unresettable_reason: an active person or organiser). Returns whether a
     mail was dispatched (it leaves on a thread, so timing never tells a match). The caller is
     never told why nothing went out, but the server log is: every silent outcome logs its
     reason at INFO, by user id and never by address, and a missing PUBLIC_URL or EMAIL_HOST
@@ -86,7 +86,7 @@ def send_reset(email):
     try:
         link = claim_link(user, route="reset")
     except Unclaimable as refusal:
-        logger.info("Password reset skipped: user %s is not claimable (%s)", user.pk, refusal.reason)
+        logger.info("Password reset skipped: user %s cannot reset its password (%s)", user.pk, refusal.reason)
         return False
     except ImproperlyConfigured:
         logger.error("Password reset requested but PUBLIC_URL is not set: no mail sent")
