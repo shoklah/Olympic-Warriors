@@ -65,7 +65,7 @@ from .badges import (
     showcase,
     valid_pins,
 )
-from .claims import check_claim, complete_claim
+from .claims import check_claim, complete_claim, unclaimable_reason, unresettable_reason
 from .profiles import (
     discipline_table,
     held_disciplines,
@@ -161,10 +161,10 @@ def claimAccount(request, uidb64, token):
 
 
 @sensitive_variables("password")  # never in an error report
-def _claim_response(request, uidb64, token, reset=False):
-    """The claim contract, shared by a claim link and a mailed reset link (`reset`, which
-    also serves organisers)."""
-    user = check_claim(uidb64, token, reset=reset)
+def _claim_response(request, uidb64, token, rule=unclaimable_reason):
+    """The claim contract, shared by a claim link and a mailed reset link, `rule` saying who
+    the link may serve (claims.LINK_RULES: a reset link also serves organisers)."""
+    user = check_claim(uidb64, token, rule=rule)
     if user is None:
         return Response(INVALID_LINK, status=404)
     if request.method == "GET":
@@ -178,7 +178,7 @@ def _claim_response(request, uidb64, token, reset=False):
     if not isinstance(password, str) or not password.strip():
         return Response({"errors": ["password_missing"]}, status=400)
     try:
-        key = complete_claim(user, token, password, reset=reset)
+        key = complete_claim(user, token, password, rule=rule)
     except ValidationError as error:
         return Response({"errors": [e.code for e in error.error_list]}, status=400)
     if key is None:  # used or made unclaimable since check_claim()
@@ -218,7 +218,7 @@ def requestPasswordReset(request):
 def resetPassword(request, uidb64, token):
     """A reset link: the claim contract (claims.py), reached from the mailed link, which also
     serves organisers."""
-    return _claim_response(request, uidb64, token, reset=True)
+    return _claim_response(request, uidb64, token, rule=unresettable_reason)
 
 
 # The caller's own account: open to any token (IsAuthenticated), a player's included. The

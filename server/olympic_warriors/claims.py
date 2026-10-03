@@ -98,13 +98,19 @@ def public_url():
     return base
 
 
+# Which users each front page's link is for: a link's route names the eligibility rule its
+# endpoint applies (unclaimable_reason or unresettable_reason, None meaning eligible).
+LINK_RULES = {"claim": unclaimable_reason, "reset": unresettable_reason}
+
+
 def claim_link(user, route="claim"):
     """The front's page for `user`: `route` is `claim` (an organiser's link, for claimable
     users) or `reset` (the mailed lost-password link, which also serves organisers), both
-    honoured by the same token. Raises ImproperlyConfigured without a usable PUBLIC_URL, then
-    Unclaimable when no such link is for this user."""
+    honoured by the same token; its rule is LINK_RULES[route] (KeyError for another route).
+    Raises ImproperlyConfigured without a usable PUBLIC_URL, then Unclaimable when no such
+    link is for this user."""
     base = public_url()
-    reason = unresettable_reason(user) if route == "reset" else unclaimable_reason(user)
+    reason = LINK_RULES[route](user)
     if reason is not None:
         raise Unclaimable(reason)
     uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
@@ -124,38 +130,33 @@ def _user(uidb64):
     return get_user_model().objects.filter(pk=pk).first()
 
 
-def _eligible(user, reset):
-    """Whether `user` may use a link: a reset link serves unresettable_reason() None, a claim
-    link only claimable users."""
-    return (unresettable_reason(user) if reset else unclaimable_reason(user)) is None
-
-
-def check_claim(uidb64, token, reset=False):
-    """The user a valid, unexpired link is for (claimable, or resettable for a reset link),
-    else None whatever went wrong."""
+def check_claim(uidb64, token, rule=unclaimable_reason):
+    """The user a valid, unexpired link is for, eligible under `rule` (a LINK_RULES value:
+    unclaimable_reason for a claim link, unresettable_reason for a reset link), else None
+    whatever went wrong."""
     user = _user(uidb64)
     if user is None or not default_token_generator.check_token(user, token):
         return None
-    if not _eligible(user, reset):
+    if rule(user) is not None:
         return None
     return user
 
 
 @sensitive_variables("password")  # never in an error report
-def complete_claim(user, token, password, reset=False):
+def complete_claim(user, token, password, rule=unclaimable_reason):
     """
     Set the password chosen through the link (`user` from check_claim(), `token` the link's
     token) and return the user's new DRF token key. Raises django's ValidationError when the
     password fails AUTH_PASSWORD_VALIDATORS; returns None, changing nothing, when the link
     no longer holds once the user's row is locked (used meanwhile, or the user is no longer
-    claimable).
+    eligible under `rule`, the one check_claim() applied).
     """
     validate_password(password, user)
     with transaction.atomic():
         locked = get_user_model().objects.select_for_update().filter(pk=user.pk).first()
         if locked is None or not default_token_generator.check_token(locked, token):
             return None
-        if not _eligible(locked, reset):
+        if rule(locked) is not None:
             return None
         locked.set_password(password)
         locked.save(update_fields=["password"])
