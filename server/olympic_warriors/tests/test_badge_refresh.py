@@ -269,7 +269,7 @@ class TestRefresh(World, TestCase):
         self.assertFalse(Badge.objects.filter(pk=old.pk).exists())
         self.assertEqual(self.places(self.ana), [C.RUNNER_UP])
         self.assertEqual(self.places(self.bob), [C.CHAMPION])
-        self.assertEqual((report.added, report.removed), (2, 2))  # the two swapped places
+        self.assertEqual((report.added, report.removed), (3, 3))  # the two swapped places and goat
         self.assertEqual(stored(), wanted())
 
     def test_a_revoked_row_stays_revoked(self):
@@ -425,6 +425,25 @@ class TestRefresh(World, TestCase):
         self.assertEqual(out, self.first_run_output())
         self.assertEqual(stored(), wanted())
         self.assertEqual(stored_progress(), wanted_progress())
+
+    def test_a_dry_run_lists_the_rows_and_stores_nothing(self):
+        out = self.run_command("--dry-run", "--verbose-rows")
+
+        self.assertIn("Dry run: nothing was stored.", out)
+        self.assertIn("+ ", out)
+        self.assertEqual(stored(), {})
+        self.assertFalse(Badge.objects.filter(is_manual=False).exists())
+
+    def test_verbose_rows_lists_the_removed_ones_too(self):
+        refresh(TODAY)
+        first, second = self.teams[:2]
+        Team.objects.filter(pk=first.pk).update(final_rank=2)
+        Team.objects.filter(pk=second.pk).update(final_rank=1)
+
+        out = self.run_command("--verbose-rows")
+
+        self.assertIn("  - ", out)
+        self.assertIn("  + ", out)
 
     def test_the_command_refreshes_even_when_not_due(self):
         stamp(datetime(2030, 12, 31, 10, tzinfo=dt_timezone.utc))  # the day before TODAY
