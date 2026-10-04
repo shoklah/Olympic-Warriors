@@ -29,6 +29,9 @@ class Edition(models.Model):
     end_date = models.DateField()
     registration_form = models.FileField(upload_to="registration_forms/", null=True, blank=True)
     photos_url = models.URLField(blank=True, null=True)
+    # False while the dates are provisional (an edition created early so players can
+    # register): the hub then hides the date range and the countdown.
+    dates_confirmed = models.BooleanField(default=True)
     is_active = models.BooleanField(default=True)
 
     def __str__(self) -> str:
