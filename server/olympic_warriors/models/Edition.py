@@ -8,8 +8,24 @@ from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils.crypto import get_random_string
 
-from ..registration import EMAIL, NAME, compute_ratings, parse_name, resolve_columns
-from .Player import Player, PlayerRating
+from ..registration import (
+    CONFIRMED,
+    EMAIL,
+    FREQUENCY,
+    GLOBAL_LEVEL,
+    IMPORTED_SPORT,
+    NAME,
+    SPORTS,
+    WISHES,
+    clean_text,
+    compute_ratings,
+    parse_confirmation,
+    parse_frequency,
+    parse_name,
+    resolve_columns,
+    resolve_extras,
+)
+from .Player import Player, PlayerRating, PlayerSport
 
 FALLBACK_EMAIL_DOMAIN = "olympicwarriors.com"
 
@@ -63,6 +79,7 @@ class Edition(models.Model):
             registration_form.seek(0)
         df = pd.read_csv(registration_form)
         columns, ratings = resolve_columns(df)
+        extras = resolve_extras(df)
         if EMAIL not in columns:
             logger.warning(
                 "Registration form for edition %s has no email column; "
@@ -97,11 +114,27 @@ class Edition(models.Model):
                     user.save(update_fields=["email"])
 
                 try:
+                    defaults = {
+                        "rating": round(row["Global_Rating"]),
+                        "global_level": round(row[GLOBAL_LEVEL]),
+                        "is_active": True,
+                    }
+                    if FREQUENCY in extras:
+                        defaults["sport_frequency"] = parse_frequency(row[extras[FREQUENCY]])
+                    if WISHES in extras:
+                        defaults["team_wishes"] = clean_text(row[extras[WISHES]])
+                    if CONFIRMED in extras:
+                        defaults["attendance_confirmed"] = parse_confirmation(
+                            row[extras[CONFIRMED]]
+                        )
                     player, _ = Player.objects.update_or_create(
-                        user=user,
-                        edition=self,
-                        defaults={"rating": round(row["Global_Rating"]), "is_active": True},
+                        user=user, edition=self, defaults=defaults
                     )
+                    history = clean_text(row[extras[SPORTS]]) if SPORTS in extras else ""
+                    if history:
+                        PlayerSport.objects.update_or_create(
+                            player=player, sport=IMPORTED_SPORT, defaults={"notes": history}
+                        )
                     for name, spec in ratings.items():
                         PlayerRating.objects.update_or_create(
                             player=player,

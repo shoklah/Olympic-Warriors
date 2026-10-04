@@ -3,15 +3,23 @@ import pandas as pd
 from django.test import SimpleTestCase
 
 from olympic_warriors.registration import (
+    CONFIRMED,
     EMAIL,
+    FREQUENCY,
     FORM_PROFILES,
     GLOBAL_LEVEL,
     NAME,
     RATINGS,
+    SPORTS,
+    WISHES,
+    clean_text,
     compute_ratings,
+    parse_confirmation,
+    parse_frequency,
     parse_name,
     rate,
     resolve_columns,
+    resolve_extras,
 )
 
 SKILL_SENTENCE = (
@@ -352,3 +360,79 @@ class RateTests(SimpleTestCase):
 
     def test_skills_outside_the_weights_are_ignored(self):
         self.assertEqual(rate({"a": 6, "b": 6, "zzz": 1}, self.WEIGHTS, 8), (6, 7.6))
+
+
+class ExtrasTests(SimpleTestCase):
+    def test_finds_the_optional_columns_that_are_present(self):
+        extras = resolve_extras(make_df())  # frequency and confirmation, no sports or wishes
+
+        self.assertEqual(
+            extras,
+            {
+                FREQUENCY: "A quelle fréquence pratiques-tu du sport ? ",
+                CONFIRMED: "Je confirme que je serai là ! 💪",
+            },
+        )
+
+    def test_finds_all_four_in_the_2026_wording(self):
+        df = pd.DataFrame(
+            columns=[
+                "A quelle fréquence pratiques-tu du sport ? ",
+                "Quels sont les sports que tu as pratiqué (dans toute ta vie et à tout niveau) ?",
+                "Idéalement, avec qui souhaiterais-tu être ou ne pas être en équipe ? \n(Ces demandes)",
+                "Je confirme que je serai là ! 💪",
+            ]
+        )
+
+        self.assertEqual(set(resolve_extras(df)), {FREQUENCY, SPORTS, WISHES, CONFIRMED})
+
+    def test_the_2024_wording(self):
+        df = pd.DataFrame(
+            columns=[
+                "Avec qui souhaiterais-tu être ou ne pas être en équipe ? (confidentiel)",
+                "J'ai payé mon inscription et je confirme que je serai là.",
+            ]
+        )
+
+        self.assertEqual(set(resolve_extras(df)), {WISHES, CONFIRMED})
+
+    def test_nothing_is_required(self):
+        self.assertEqual(resolve_extras(pd.DataFrame(columns=["Prénom et Nom"])), {})
+
+    def test_parse_frequency_maps_the_five_answers(self):
+        answers = {
+            "Moins d'une fois par mois": "rare",
+            "Moins d'une fois par semaine mais plusieurs fois par mois": "monthly",
+            "Environ une heure par semaine": "hour",
+            "Au moins deux heures par semaine": "two_hours",
+            "Au moins quatre heures par semaine": "four_hours",
+        }
+        for text, code in answers.items():
+            self.assertEqual(parse_frequency(text), code)
+
+    def test_parse_frequency_tolerates_spacing_case_and_curly_apostrophes(self):
+        self.assertEqual(parse_frequency("  moins d’une fois par MOIS "), "rare")
+
+    def test_parse_frequency_leaves_the_unknown_blank(self):
+        self.assertEqual(parse_frequency("Souvent"), "")
+        self.assertEqual(parse_frequency(float("nan")), "")
+
+    def test_the_frequency_codes_are_the_models(self):
+        from olympic_warriors.models.Player import SportFrequency  # imports Django models
+
+        codes = {parse_frequency(t) for t in (
+            "Moins d'une fois par mois", "Environ une heure par semaine",
+            "Au moins deux heures par semaine", "Au moins quatre heures par semaine",
+            "Moins d'une fois par semaine mais plusieurs fois par mois",
+        )}
+        self.assertEqual(codes, set(SportFrequency.values))
+
+    def test_parse_confirmation(self):
+        self.assertTrue(parse_confirmation("Oui"))
+        self.assertTrue(parse_confirmation(" oui "))
+        self.assertFalse(parse_confirmation("Non"))
+        self.assertFalse(parse_confirmation(float("nan")))
+
+    def test_clean_text(self):
+        self.assertEqual(clean_text("  Avec Bob \n"), "Avec Bob")
+        self.assertEqual(clean_text(float("nan")), "")

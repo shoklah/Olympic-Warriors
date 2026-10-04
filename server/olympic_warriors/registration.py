@@ -17,6 +17,23 @@ NAME_HEADER = "Prénom et Nom"
 EMAIL_HEADER = "Adresse e-mail"
 GLOBAL_LEVEL_PREFIX = "Sur une échelle de 1 à 10, comment estimes-tu ton niveau global"
 
+# Optional columns that rode along in every form but were never stored: how often the
+# person does sport, their sports history, who they want (or not) in their team, and the
+# "I will be there" confirmation. Matched like the others, by a stable fragment; a form
+# without one simply leaves the answer blank.
+FREQUENCY = "Frequency"
+SPORTS = "Sports"
+WISHES = "Wishes"
+CONFIRMED = "Confirmed"
+
+FREQUENCY_HEADER_PREFIX = "A quelle fréquence pratiques-tu du sport"
+SPORTS_HEADER_PREFIX = "Quels sont les sports que tu as pratiqué"
+WISHES_FRAGMENT = "souhaiterais-tu être ou ne pas être en équipe"
+CONFIRMATION_PREFIXES = ("Je confirme que je serai là", "J'ai payé mon inscription")
+
+# What the sports history of an imported row is filed under (PlayerSport.sport).
+IMPORTED_SPORT = "Historique (import)"
+
 # Skill name -> PlayerRating identifier, weighting coefficient, and the French
 # criterion that appears between brackets in the form header. One dict per
 # form generation; profiles are tried in FORM_PROFILES order.
@@ -172,6 +189,58 @@ def parse_name(raw):
 BOOST_BELOW = 4
 BOOST_GLOBAL_ABOVE = 4
 BOOST_FACTOR = 2.5
+
+
+def _normalise(text):
+    """Lower-case, single-spaced, straight apostrophes: how answers are compared."""
+    return " ".join(str(text).replace("’", "'").lower().split())
+
+
+# Normalised form answer -> SportFrequency value (a test keeps the values equal).
+FREQUENCIES = {
+    "moins d'une fois par mois": "rare",
+    "moins d'une fois par semaine mais plusieurs fois par mois": "monthly",
+    "environ une heure par semaine": "hour",
+    "au moins deux heures par semaine": "two_hours",
+    "au moins quatre heures par semaine": "four_hours",
+}
+
+
+def parse_frequency(raw):
+    """The SportFrequency value of a form answer, "" for a blank or unknown one."""
+    return FREQUENCIES.get(_normalise(raw), "") if isinstance(raw, str) else ""
+
+
+def parse_confirmation(raw):
+    """True for a "Oui" in the confirmation column."""
+    return isinstance(raw, str) and _normalise(raw) in {"oui", "yes"}
+
+
+def clean_text(raw):
+    """A free-text cell, stripped; "" for a blank one (pandas NaN)."""
+    return raw.strip() if isinstance(raw, str) else ""
+
+
+def resolve_extras(df):
+    """
+    Map the optional answers to the DataFrame's actual headers.
+
+    :return: {FREQUENCY | SPORTS | WISHES | CONFIRMED: header} for the columns present.
+    :raises ValueError: if a fragment matches two headers.
+    """
+    headers = list(df.columns)
+    wanted = {
+        FREQUENCY: lambda h: str(h).strip().startswith(FREQUENCY_HEADER_PREFIX),
+        SPORTS: lambda h: str(h).strip().startswith(SPORTS_HEADER_PREFIX),
+        WISHES: lambda h: WISHES_FRAGMENT in str(h),
+        CONFIRMED: lambda h: str(h).strip().startswith(CONFIRMATION_PREFIXES),
+    }
+    extras = {}
+    for key, predicate in wanted.items():
+        header = _find_column(headers, predicate, key)
+        if header is not None:
+            extras[key] = header
+    return extras
 
 
 def rate(skills, weights, global_level):
