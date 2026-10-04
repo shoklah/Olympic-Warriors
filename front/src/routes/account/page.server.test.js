@@ -44,7 +44,10 @@ describe('account load', () => {
 		expect(fetch.mock.calls[0][0]).toBe('http://api/me/');
 		expect(fetch.mock.calls[0][1].headers).toEqual({ authorization: 'Token t' });
 		expect(fetch.mock.calls[1][0]).toBe('http://api/profile/34/');
-		expect(data).toEqual({ account: { id: 34, username: 'xavierbaby', email: 'x@mail.example' }, profile });
+		expect(data).toEqual({
+			account: { id: 34, username: 'xavierbaby', email: 'x@mail.example', is_staff: false },
+			profile
+		});
 		expect(setHeaders).toHaveBeenCalledWith({ 'cache-control': 'private, no-store' });
 	});
 
@@ -64,8 +67,17 @@ describe('account load', () => {
 		});
 	});
 
-	it('sends an organiser home with a 303: they have nothing to edit here', async () => {
-		const fetch = vi.fn(async () => json(200, { ...me, is_staff: true }));
+	it('serves an organiser who plays, flagged as staff', async () => {
+		const fetch = vi.fn(async (url) =>
+			url === 'http://api/me/' ? json(200, { ...me, is_staff: true }) : json(200, profile)
+		);
+		const data = await load({ fetch, cookies: cookiesWith(), setHeaders: vi.fn() });
+		expect(data.account).toEqual({ id: 34, username: 'xavierbaby', email: 'x@mail.example', is_staff: true });
+		expect(data.profile).toEqual(profile);
+	});
+
+	it('sends an organiser who never played home with a 303: they have nothing to edit here', async () => {
+		const fetch = vi.fn(async () => json(200, { ...me, is_staff: true, is_person: false }));
 		await expect(load({ fetch, cookies: cookiesWith(), setHeaders: vi.fn() })).rejects.toMatchObject({
 			status: 303,
 			location: '/'
@@ -259,7 +271,9 @@ describe('deactivate action', () => {
 	it('keeps the session and maps the refusal on failure', async () => {
 		for (const [response, status, error] of [
 			[json(400, { error: 'wrong_password' }), 400, 'account.error.wrong_password'],
-			[json(429, { detail: 'Request was throttled.' }), 429, 'account.error.throttled']
+			[json(429, { detail: 'Request was throttled.' }), 429, 'account.error.throttled'],
+			// The page offers no deletion to an organiser; the API refuses one all the same.
+			[json(400, { error: 'organiser_cannot_deactivate' }), 400, 'account.error.organiser']
 		]) {
 			const fetch = vi.fn(async () => response);
 			const cookies = cookiesWith();

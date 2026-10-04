@@ -10,8 +10,8 @@
 	/**
 	 * Who is logged in, the root layout's `data.me`, or null. A prop rather than a Svelte
 	 * context: `invalidateAll()` (after a new photo) re-runs the root load without remounting
-	 * the header, and only a prop follows it. An organiser keeps the ORGA pill, with their
-	 * avatar in it when they also play; anyone else logged in gets the account pill.
+	 * the header, and only a prop follows it. An organiser keeps the ORGA logout pill, with the
+	 * account pill beside it when they also play; anyone else logged in gets the account pill.
 	 */
 	export let me = null;
 
@@ -113,16 +113,22 @@
 		     (`display: contents`), a panel under the bar behind the menu button below. -->
 		<div id="header-settings" class="settings" class:open>
 			{#if organiser}
+				{#if me?.is_person}
+					<!-- An organiser who plays has an account page like any player: the same link,
+					     beside the ORGA pill (its own row in the phone menu), never inside it. -->
+					<div class="account">
+						<a class="who" href="/account" aria-label={accountName}>
+							<Avatar photo={smallPhoto} name={me} size="1.5rem" />
+							<span class="name">{me.first_name || t('account.title')}</span>
+						</a>
+					</div>
+				{/if}
 				<!-- A plain POST like the language switch: the redirect reloads the page as a visitor. -->
 				<form method="POST" action="/logout" class="orga">
 					<input type="hidden" name="redirectTo" value={here} />
 					<!-- The accessible name must contain the visible text (WCAG 2.5.3). -->
-					<button class:with-avatar={me?.is_person} aria-label="{t('orga.pill')} · {t('orga.logout')}">
-						<!-- One group, so the phone menu keeps the avatar beside the pill. -->
+					<button aria-label="{t('orga.pill')} · {t('orga.logout')}">
 						<span class="who">
-							{#if me?.is_person}
-								<Avatar photo={smallPhoto} name={me} size="1.5rem" />
-							{/if}
 							<span class="pill">{t('orga.pill')}</span>
 						</span>
 						<span class="menu-text">{t('orga.logout')}</span>
@@ -355,20 +361,14 @@
 		outline-offset: 2px;
 	}
 
-	/* The avatar sits in the rim: 10px round a 1.5rem avatar (24px at the default font size)
-	   in a 44px pill. */
-	.orga button.with-avatar {
-		padding-left: 9px;
-	}
-
 	.who {
 		display: inline-flex;
 		align-items: center;
 		gap: 0.45em;
 	}
 
-	/* A logged-in player: avatar and first name, quiet like the login pill, then the round
-	   logout button. */
+	/* A logged-in player (an organiser who plays too): avatar and first name, quiet like the
+	   login pill, then the round logout button (the ORGA pill for an organiser). */
 	.account {
 		display: flex;
 		align-items: center;
@@ -642,8 +642,7 @@
 		}
 
 		/* The whole row is the button: the ORGA pill on the left, the action on the right. */
-		.orga button,
-		.orga button.with-avatar {
+		.orga button {
 			flex: 1;
 			display: flex;
 			align-items: center;

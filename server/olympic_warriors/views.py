@@ -418,10 +418,14 @@ def _account_body(request):
 
 
 def _not_an_account_owner(user):
-    """404 response for anyone who is not a non-staff person, else None."""
-    if user.is_staff or user.is_superuser or not is_person(user):
+    """404 response for anyone who is not a person, else None. An organiser who plays owns an
+    account like any player (deletion aside, see deactivateMe)."""
+    if not is_person(user):
         return Response(NOT_A_PERSON, status=404)
     return None
+
+
+ORGANISER_CANNOT_DEACTIVATE = {"error": "organiser_cannot_deactivate"}
 
 
 @extend_schema(
@@ -493,11 +497,14 @@ def myPassword(request):
 
 
 @extend_schema(
-    summary="Deactivate the caller's account (current password required)",
+    summary="Deactivate the caller's account (current password required; never an organiser's)",
     request=inline_serializer("Deactivate", {"password": serializers.CharField()}),
     responses={
         "204": OpenApiResponse(description="Account off, name masked, token deleted"),
-        "400": OpenApiResponse(description='{"error": "wrong_password"}'),
+        "400": OpenApiResponse(
+            description='{"error": "organiser_cannot_deactivate"} for a staff or superuser caller'
+            ' (checked before the password, nothing changes) or {"error": "wrong_password"}'
+        ),
         "404": OpenApiResponse(description="Not a player account"),
         "429": OpenApiResponse(description="Too many password checks"),
     },
@@ -511,6 +518,10 @@ def deactivateMe(request):
     refusal = _not_an_account_owner(request.user)
     if refusal:
         return refusal
+    # Before the password check: an organiser's account is never deleted from here, so the
+    # answer is the same whatever the password and tells nothing about it.
+    if request.user.is_staff or request.user.is_superuser:
+        return Response(ORGANISER_CANNOT_DEACTIVATE, status=400)
     if not accounts.password_ok(request.user, _account_body(request).get("password")):
         return Response(WRONG_PASSWORD, status=400)
     accounts.deactivate(request.user)
