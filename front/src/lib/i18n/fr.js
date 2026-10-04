@@ -51,6 +51,7 @@ export default {
 	'hub.hours': 'Heures',
 	'hub.minutes': 'Minutes',
 	'hub.seconds': 'Secondes',
+	'hub.datesTbc': 'Dates à venir',
 	'hub.ranking': 'Classement',
 	'hub.editions': 'Éditions',
 	'hub.players': 'Joueurs',

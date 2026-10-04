@@ -47,6 +47,7 @@ export default {
 	'hub.hours': 'Hours',
 	'hub.minutes': 'Minutes',
 	'hub.seconds': 'Seconds',
+	'hub.datesTbc': 'Dates to be announced',
 	'hub.ranking': 'Ranking',
 	'hub.editions': 'Editions',
 	'hub.players': 'Players',

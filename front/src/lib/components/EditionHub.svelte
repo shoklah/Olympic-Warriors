@@ -17,7 +17,9 @@
 	$: columns = [summary.disciplines.slice(0, half), summary.disciplines.slice(half)];
 
 	let now = new Date();
-	$: phase = editionPhase(edition, now);
+	// An explicit false only: a server that predates the flag sends none.
+	$: confirmed = edition.dates_confirmed !== false;
+	$: phase = confirmed ? editionPhase(edition, now) : 'upcoming';
 	$: parts = countdownParts(edition, now);
 
 	onMount(() => {
@@ -46,9 +48,13 @@
 	{/each}
 </div>
 
-<p class="where">{edition.host} · {formatDateRange(edition.start_date, edition.end_date, locale)}</p>
+<p class="where">
+	{edition.host} · {confirmed
+		? formatDateRange(edition.start_date, edition.end_date, locale)
+		: t('hub.datesTbc')}
+</p>
 
-{#if phase === 'upcoming'}
+{#if confirmed && phase === 'upcoming'}
 	<div id="countdown">
 		<div class="label"><span class="num">{parts.days}</span>{t('hub.days')}</div>
 		<div class="label"><span class="num">{parts.hours}</span>{t('hub.hours')}</div>
