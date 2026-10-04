@@ -44,6 +44,7 @@ export default {
 	'account.error.missing': 'Remplissez tous les champs',
 	'account.error.mismatch': 'Les deux mots de passe ne correspondent pas',
 	'account.error.confirmation': 'Tapez le mot demandé pour confirmer',
+	'account.error.organiser': 'Un organisateur ne peut pas supprimer son compte ici',
 	'account.error.throttled': 'Trop de tentatives : réessayez plus tard',
 	'account.error.failed': 'La modification a échoué : réessayez plus tard',
 	'hub.days': 'Jours',

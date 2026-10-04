@@ -227,20 +227,50 @@ describe('Header', () => {
 	});
 
 	describe('for an organiser', () => {
-		it('puts their avatar in the ORGA pill when they are a person', () => {
-			renderWith(
-				Header,
-				{ me: { id: 3, first_name: 'Hugo', last_name: 'M', photo: { large: '/l.webp', small: '/s.webp' }, is_person: true } },
-				'fr',
-				true
-			);
+		const hugo = {
+			id: 3,
+			first_name: 'Hugo',
+			last_name: 'M',
+			photo: { large: '/l.webp', small: '/s.webp' },
+			is_person: true
+		};
 
-			const button = screen.getByRole('button', { name: 'Orga · Se déconnecter' });
-			expect(button.querySelector('img')).toHaveAttribute('src', '/s.webp');
-			expect(button).toHaveTextContent(/^Orga\s*Se déconnecter$/);
-			// ORGA stays the way out: no account pill beside it.
-			expect(screen.queryByRole('link', { name: /Mon compte/ })).toBeNull();
-			expect(screen.getAllByRole('button', { name: /Se déconnecter/ })).toHaveLength(1);
+		it('links their account beside the ORGA logout pill when they are a person', () => {
+			renderWith(Header, { me: hugo }, 'en', true);
+
+			const link = screen.getByRole('link', { name: 'Hugo · My account' });
+			expect(link).toHaveAttribute('href', '/account');
+			// The avatar, then the visible first name the accessible name starts with.
+			expect(link).toHaveTextContent(/^Hugo$/);
+			expect(link.querySelector('img')).toHaveAttribute('src', '/s.webp');
+
+			// The ORGA pill is the way out alone: clicking the avatar never logs out.
+			const button = screen.getByRole('button', { name: 'Orga · Log out' });
+			expect(button.querySelector('img')).toBeNull();
+			expect(button).toHaveTextContent(/^Orga\s*Log out$/);
+			expect(button.closest('form')).toHaveAttribute('action', '/logout');
+			expect(link.closest('form')).toBeNull();
+			expect(screen.getAllByRole('button', { name: /Log out/ })).toHaveLength(1);
+		});
+
+		it('gives the account link and the ORGA logout a menu row each', () => {
+			renderWith(Header, { me: hugo }, 'en', true);
+
+			const panel = document.getElementById('header-settings');
+			const link = within(panel).getByRole('link', { name: 'Hugo · My account' });
+			const button = within(panel).getByRole('button', { name: 'Orga · Log out' });
+			const rowOf = (el) => el.closest('#header-settings > *');
+			expect(rowOf(link)).not.toBeNull();
+			expect(rowOf(link)).not.toBe(rowOf(button));
+		});
+
+		it('words the organiser account link in French', () => {
+			renderWith(Header, { me: hugo }, 'fr', true);
+
+			expect(screen.getByRole('link', { name: 'Hugo · Mon compte' })).toHaveAttribute('href', '/account');
+			expect(screen.getByRole('button', { name: 'Orga · Se déconnecter' })).toHaveTextContent(
+				/^Orga\s*Se déconnecter$/
+			);
 		});
 
 		it('keeps the ORGA pill bare for an organiser who never played', () => {
@@ -254,6 +284,8 @@ describe('Header', () => {
 			// No initials either: the text is the pill and its action, nothing else.
 			const button = screen.getByRole('button', { name: 'Orga · Se déconnecter' });
 			expect(button).toHaveTextContent(/^Orga\s*Se déconnecter$/);
+			// Nothing to edit at /account for someone who never played.
+			expect(screen.queryByRole('link', { name: /Mon compte/ })).toBeNull();
 		});
 	});
 

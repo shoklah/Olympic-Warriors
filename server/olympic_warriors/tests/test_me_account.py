@@ -61,12 +61,63 @@ class TestAccountEndpoints(MeSetup, APITestCase):
         self.lea.refresh_from_db()
         self.assertTrue(self.lea.is_active)
 
-    def test_not_for_non_persons_or_staff(self):
-        for user in (self.olga, self.bea, self.chloe):
+    def test_not_for_non_persons(self):
+        # Olga is an organiser who never played, Bea a user whose only player row is inactive.
+        for user in (self.olga, self.bea):
             self.login(user)
             for method, path in (("put", "/me/email/"), ("put", "/me/password/"), ("post", "/me/deactivate/")):
                 r = getattr(self.client, method)(path, {}, format="json")
                 self.assertEqual((r.status_code, r.data), (404, NOT_A_PERSON), (user.username, path))
+
+    def test_an_organiser_who_plays_changes_their_email(self):
+        self.login(self.chloe)
+        r = self.client.put("/me/email/", {"password": GOOD, "email": "Chloe@New.example"}, format="json")
+        self.assertEqual((r.status_code, r.data), (200, {"email": "chloe@new.example"}))
+        self.chloe.refresh_from_db()
+        self.assertEqual(self.chloe.email, "chloe@new.example")
+
+    def test_an_organiser_who_plays_changes_their_password(self):
+        self.login(self.chloe)
+        old = Token.objects.get(user=self.chloe).key
+        r = self.client.put(
+            "/me/password/", {"current": GOOD, "new": "a-brand-new-pass-77"}, format="json"
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertNotEqual(r.data["token"], old)
+        self.chloe.refresh_from_db()
+        self.assertTrue(self.chloe.check_password("a-brand-new-pass-77"))
+        self.assertTrue(self.chloe.is_staff)
+        # The old session is over, and the new token is still an organiser's.
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {old}")
+        self.assertEqual(self.client.get("/me/").status_code, 401)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {r.data['token']}")
+        me = self.client.get("/me/")
+        self.assertEqual(me.status_code, 200)
+        self.assertTrue(me.data["is_staff"])
+
+    def test_an_organiser_cannot_delete_their_account(self):
+        self.login(self.chloe)
+        r = self.client.post("/me/deactivate/", {"password": GOOD}, format="json")
+        self.assertEqual((r.status_code, r.data), (400, {"error": "organiser_cannot_deactivate"}))
+        self.chloe.refresh_from_db()
+        self.assertTrue(self.chloe.is_active)
+        self.assertTrue(self.chloe.check_password(GOOD))
+        self.assertFalse(UserProfile.objects.filter(user=self.chloe, anonymized=True).exists())
+        self.assertEqual(self.client.get("/me/").status_code, 200)  # token kept
+
+    def test_the_organiser_refusal_comes_before_the_password_check(self):
+        # Same answer whatever the password, so the refusal tells nothing about it.
+        self.login(self.chloe)
+        r = self.client.post("/me/deactivate/", {"password": "wrong"}, format="json")
+        self.assertEqual((r.status_code, r.data), (400, {"error": "organiser_cannot_deactivate"}))
+
+    def test_a_superuser_who_plays_cannot_delete_their_account(self):
+        self.lea.is_superuser = True
+        self.lea.save(update_fields=["is_superuser"])
+        r = self.client.post("/me/deactivate/", {"password": GOOD}, format="json")
+        self.assertEqual((r.status_code, r.data), (400, {"error": "organiser_cannot_deactivate"}))
+        self.lea.refresh_from_db()
+        self.assertTrue(self.lea.is_active)
 
     def test_the_password_check_is_throttled(self):
         for _ in range(10):

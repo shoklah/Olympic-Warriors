@@ -214,41 +214,45 @@
 		</form>
 	</section>
 
-	<section class="danger-zone" aria-labelledby="account-danger" bind:this={sections.deactivate}>
-		<h2 id="account-danger">{t('account.delete')}</h2>
-		<form method="POST" action="?/deactivate">
-			<p class="text">{t('account.dangerText')}</p>
-			<input type="text" name="username" autocomplete="username" value={account.username} readonly hidden />
-			<div class="field">
-				<label for="danger-confirmation">{t('account.confirmWord', { word: t('account.confirmWordValue') })}</label>
-				<input
-					id="danger-confirmation"
-					type="text"
-					name="confirmation"
-					autocomplete="off"
-					spellcheck="false"
-					placeholder={t('account.confirmWordValue')}
-					class:invalid={blamed.word}
-					{...fieldState(blamed.word, 'deactivate')}
-				/>
-			</div>
-			<div class="field">
-				<label for="danger-password">{t('account.currentPassword')}</label>
-				<input
-					id="danger-password"
-					type="password"
-					name="password"
-					autocomplete="current-password"
-					class:invalid={blamed.deletePassword}
-					{...fieldState(blamed.deletePassword, 'deactivate')}
-				/>
-			</div>
-			{#if deleteResult?.error}
-				<p class="error" id="danger-message" tabindex="-1" role="alert">{t(deleteResult.error)}</p>
-			{/if}
-			<button class="danger">{t('account.delete')}</button>
-		</form>
-	</section>
+	<!-- An organiser's account is never deleted from here (the API refuses it too): an
+	     organiser who plays gets every section above, not this one. -->
+	{#if !account.is_staff}
+		<section class="danger-zone" aria-labelledby="account-danger" bind:this={sections.deactivate}>
+			<h2 id="account-danger">{t('account.delete')}</h2>
+			<form method="POST" action="?/deactivate">
+				<p class="text">{t('account.dangerText')}</p>
+				<input type="text" name="username" autocomplete="username" value={account.username} readonly hidden />
+				<div class="field">
+					<label for="danger-confirmation">{t('account.confirmWord', { word: t('account.confirmWordValue') })}</label>
+					<input
+						id="danger-confirmation"
+						type="text"
+						name="confirmation"
+						autocomplete="off"
+						spellcheck="false"
+						placeholder={t('account.confirmWordValue')}
+						class:invalid={blamed.word}
+						{...fieldState(blamed.word, 'deactivate')}
+					/>
+				</div>
+				<div class="field">
+					<label for="danger-password">{t('account.currentPassword')}</label>
+					<input
+						id="danger-password"
+						type="password"
+						name="password"
+						autocomplete="current-password"
+						class:invalid={blamed.deletePassword}
+						{...fieldState(blamed.deletePassword, 'deactivate')}
+					/>
+				</div>
+				{#if deleteResult?.error}
+					<p class="error" id="danger-message" tabindex="-1" role="alert">{t(deleteResult.error)}</p>
+				{/if}
+				<button class="danger">{t('account.delete')}</button>
+			</form>
+		</section>
+	{/if}
 </div>
 
 <style>

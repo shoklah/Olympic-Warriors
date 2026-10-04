@@ -40,6 +40,7 @@ export default {
 	'account.error.missing': 'Fill in every field',
 	'account.error.mismatch': 'The two passwords do not match',
 	'account.error.confirmation': 'Type the requested word to confirm',
+	'account.error.organiser': 'An organiser cannot delete their account here',
 	'account.error.throttled': 'Too many attempts: try again later',
 	'account.error.failed': 'The change failed: try again later',
 	'hub.days': 'Days',
