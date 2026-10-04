@@ -229,7 +229,7 @@ class ShowcaseSerializer(serializers.Serializer):
 class SummaryEditionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Edition
-        fields = ("id", "year", "host", "start_date", "end_date", "photos_url")
+        fields = ("id", "year", "host", "start_date", "end_date", "photos_url", "dates_confirmed")
 
 
 class SummaryDisciplineSerializer(serializers.ModelSerializer):

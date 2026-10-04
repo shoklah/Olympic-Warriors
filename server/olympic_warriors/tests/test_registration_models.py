@@ -5,6 +5,7 @@ from django.test import TestCase
 
 from olympic_warriors.models import Edition, Player, PlayerSport, RegistrationSkill
 from olympic_warriors.models.Player import SportFrequency
+from olympic_warriors.tests.test_showcase import PRIVATE_KEYS, keys_in
 
 
 def make_edition(year=2027):
@@ -77,3 +78,28 @@ class TestRegistrationSkill(TestCase):
 
         edition.delete()
         self.assertEqual(RegistrationSkill.objects.count(), 0)
+
+
+class TestPrivateAnswersStayPrivate(TestCase):
+    def test_no_public_payload_carries_a_registration_answer(self):
+        edition = make_edition(2026)
+        player = Player.objects.create(
+            user=User.objects.create(username="ana", first_name="Ana", last_name="Lopez"),
+            edition=edition,
+            rating=5,
+            global_level=7,
+            dietary_restrictions="Sans gluten",
+            sport_frequency="hour",
+            team_wishes="Avec Bob",
+            attendance_confirmed=True,
+        )
+        PlayerSport.objects.create(player=player, sport="Judo", notes="Ceinture orange")
+
+        for url in ("/edition/year/2026/summary/", "/profiles/", f"/profile/{player.user_id}/"):
+            with self.subTest(url=url):
+                response = self.client.get(url)
+
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(keys_in(response.json()) & PRIVATE_KEYS, set())
+                for secret in ("Sans gluten", "Avec Bob", "Ceinture orange"):
+                    self.assertNotIn(secret.encode(), response.content)
