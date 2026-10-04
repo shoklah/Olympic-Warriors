@@ -1080,28 +1080,37 @@ class TestHallOfFame(World, TestCase):
     places, identical places share a position, and the teamless spectators have none.
     """
 
-    def test_the_first_edition_gives_nothing(self):
-        # A second edition in the sequence, but nothing counted in it: still no table.
+    def test_the_first_edition_gives_goat_alone(self):
+        # The table after one counted edition is only that edition's ranking: goat for its
+        # leader, none of the other hall of fame badges.
         ana = self.person("Ana")
         self.play(ana, [1, None])
 
-        self.assertEqual([b for b in badges_of(ana) if b[0] in FAME_CODES], [])
+        self.assertEqual([b[:2] for b in badges_of(ana) if b[0] in FAME_CODES], [(C.GOAT, 2021)])
 
-    def test_goat_from_the_second_edition(self):
+    def test_goat_from_the_first_edition_and_the_next_leader(self):
         ana, bob = self.person("Ana"), self.person("Bob")
         self.play(ana, [1, 2])  # places 1, 2: 1st
-        self.play(bob, [None, 1])  # place 1: 2nd
+        self.play(bob, [2, 1])  # places 2, 1: 1st too, shared
 
-        self.assertEqual(years_of(ana, C.GOAT), [2022])
-        self.assertEqual(years_of(bob, C.GOAT), [])
+        self.assertEqual(years_of(ana, C.GOAT), [2021])
+        self.assertEqual(years_of(bob, C.GOAT), [2022])
+
+    def test_goat_for_a_later_leader(self):
+        ana, bob = self.person("Ana"), self.person("Bob")
+        self.play(ana, [1, 2])
+        self.play(bob, [2, 1])
+        self.play(bob, [2, 1, 1])
+
+        self.assertEqual(years_of(bob, C.GOAT), [2022])
 
     def test_goat_once_even_when_shared(self):
         ana, bob = self.person("Ana"), self.person("Bob")
         self.play(ana, [1, 1, 1])
         self.play(bob, [1, 1, 1])  # the same team: the same places
 
-        self.assertEqual(years_of(ana, C.GOAT), [2022])
-        self.assertEqual(years_of(bob, C.GOAT), [2022])
+        self.assertEqual(years_of(ana, C.GOAT), [2021])
+        self.assertEqual(years_of(bob, C.GOAT), [2021])
         self.assertEqual(years_of(ana, C.ALONE_AT_THE_TOP), [])
         self.assertEqual(years_of(bob, C.ALONE_AT_THE_TOP), [])
 

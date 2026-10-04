@@ -400,25 +400,26 @@ def _teammates(h):
 
 def _tables(h):
     """
-    (sequence index, counted, {user id: position}) for every all-time table the hall of fame
-    reads: the /players leaderboard built from the editions up to that index, from the first
-    index at which two editions of the sequence have counted participations (the table after
-    a single edition is only that edition's ranking, which the place badges cover). counted
-    says whether the edition at that index has counted participations of its own.
+    (sequence index, counted, early, {user id: position}) for every all-time table the hall of
+    fame reads: the /players leaderboard built from the editions up to that index, from the
+    first index at which an edition of the sequence has counted participations. early marks the
+    tables built while only one edition has counted (only that edition's ranking, which the
+    place badges cover): they give goat alone. counted says whether the edition at that index
+    has counted participations of its own.
     """
     with_counted = 0
     for i in range(len(h.sequence)):
         counted = any(i in seats and seats[i].counts for seats in h.seats.values())
         if counted:
             with_counted += 1
-        if with_counted < 2:
+        if with_counted < 1:
             continue
         records = []
         for user_id, seats in h.seats.items():
             parts = tuple(seats[j] for j in sorted(seats, reverse=True) if j <= i)
             if parts:
                 records.append(_record(h.users[user_id], parts))
-        yield i, counted, {record.user_id: record.position for record in _place(records)}
+        yield i, counted, with_counted < 2, {record.user_id: record.position for record in _place(records)}
 
 
 FAME = ((C.HALL_OF_FAME_PODIUM, 3), (C.HALL_OF_FAMER, 10))
@@ -426,7 +427,8 @@ FAME = ((C.HALL_OF_FAME_PODIUM, 3), (C.HALL_OF_FAMER, 10))
 
 def _hall_of_fame(h):
     """
-    goat, alone-at-the-top, hall-of-fame-podium and hall-of-famer (once each), reign (once
+    goat (also from the table after the first edition with counted participations, which
+    gives nothing else), alone-at-the-top, hall-of-fame-podium and hall-of-famer (once each), reign (once
     per streak), kingslayer and rocket (at every table earned). A table after an edition
     where no participation counts (nothing ranked yet) breaks every reign, as an unranked
     edition breaks a place streak: missing data never counts. It is the previous table
@@ -438,8 +440,14 @@ def _hall_of_fame(h):
     out, reached = [], set()
     reign, longest = Counter(), Counter()
     previous = None
-    for i, counted, positions in _tables(h):
+    for i, counted, early, positions in _tables(h):
         edition_id = h.sequence[i].id
+        if early:
+            for user_id, position in positions.items():
+                if position == 1 and (user_id, C.GOAT) not in reached:
+                    reached.add((user_id, C.GOAT))
+                    out.append(Earned(user_id, C.GOAT, edition_id))
+            continue
         leaders = [user_id for user_id, position in positions.items() if position == 1]
         for user_id, position in positions.items():
             if position is None:

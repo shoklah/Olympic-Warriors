@@ -269,7 +269,7 @@ class TestRefresh(World, TestCase):
         self.assertFalse(Badge.objects.filter(pk=old.pk).exists())
         self.assertEqual(self.places(self.ana), [C.RUNNER_UP])
         self.assertEqual(self.places(self.bob), [C.CHAMPION])
-        self.assertEqual((report.added, report.removed), (2, 2))  # the two swapped places
+        self.assertEqual((report.added, report.removed), (3, 3))  # the two swapped places and goat
         self.assertEqual(stored(), wanted())
 
     def test_a_revoked_row_stays_revoked(self):
