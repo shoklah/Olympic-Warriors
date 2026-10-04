@@ -8,6 +8,10 @@
 
 **Tech Stack:** Django 4.2 + DRF, pandas (CSV import), PostgreSQL via `docker compose`, SvelteKit 2 / Svelte 4 with Vitest.
 
+**Accepted trade-offs (Hugo, 2026-10-05):**
+- Between this slice and slice 2, the CSV import stores each player's team wishes, sports history and presence tick, and **account deletion (`accounts.deactivate`) does not yet clear them**; slice 2 adds the clearing. State this gap in the PR description.
+- The CSV import **overwrites** the new answers on a re-import, exactly as it overwrites ratings today (the CSV is the truth when uploaded), including answers a player gave in the app.
+
 **Out of this slice (slice 2/3 of the spec):** `UserProfile.invited`, `LateRegistration`, the `/registration/` API, `/me/`'s `can_register`, the invite and late-pass admin tools, the registration open/closed state shown in the admin, the `/register` page.
 
 **Deviation from the spec, deliberate:** `PlayerSport.notes` is a `TextField` with a 200-character *validator* instead of a 200-character column, because the CSV import stores a whole free-text sports history in one row (2026 answers reach 424 characters) and must not truncate it. The validator still guards admin edits and the slice-2 API writes the field through a serializer that enforces 200.
@@ -448,7 +452,7 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 - Create: `server/olympic_warriors/migrations/0042_seed_registration_skills.py`
 - Test: `server/olympic_warriors/tests/test_registration_seed.py`
 
-- [ ] **Step 1: Check prod before writing the seed (needs Hugo).** The seed maps 2024 to the 2024 profile and every edition from 2025 on to the 2025 profile; earlier editions get nothing. Ask Hugo to run this **read-only** query on prod and paste the output; do not run it yourself.
+- [x] **Step 1: Check prod before writing the seed — DONE 2026-10-05, read-only, over SSH with Hugo's approval.** Result: editions 2021–2026 exist; ratings exist only for 2024 (24 players, the 2024 identifiers: `OBS` present, `STMN` named « Endurance and Cardio »), 2025 (21) and 2026 (18) (the 2025 identifiers: `CARD` present, `STMN` named « Endurance »); 2021–2023 have none. The mapping below is confirmed, no change. Original instructions kept for reference: The seed maps 2024 to the 2024 profile and every edition from 2025 on to the 2025 profile; earlier editions get nothing. Ask Hugo to run this **read-only** query on prod and paste the output; do not run it yourself.
 
 ```bash
 docker compose exec server python manage.py shell -c "
