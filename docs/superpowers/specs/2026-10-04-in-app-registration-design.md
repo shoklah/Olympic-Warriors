@@ -108,7 +108,7 @@ Django: the shared rating function including the 2.5 rule against the existing C
 
 ## Rollout, three PRs from `dev`
 
-1. Models, migrations (including the skills seeding and `dates_confirmed`), the skills admin with its locking and both actions, the shared rating function, the CSV import changes. No user-visible change except the hub's `dates_confirmed` condition.
+1. Models, migrations (including the skills seeding and `dates_confirmed`; the `Edition` window and form-text fields wait for slice 2, which reads them), the skills admin with its locking and both actions, the shared rating function, the CSV import changes. No user-visible change except the hub's `dates_confirmed` condition.
 2. `invited`, the invite action, `/me/`'s `can_register`, and the registration API.
 3. The front `/register` page, the claim redirect, the header link and the calls to action.
 

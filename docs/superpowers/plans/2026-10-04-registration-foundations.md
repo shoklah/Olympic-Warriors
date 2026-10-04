@@ -12,7 +12,7 @@
 - Between this slice and slice 2, the CSV import stores each player's team wishes, sports history and presence tick, and **account deletion (`accounts.deactivate`) does not yet clear them**; slice 2 adds the clearing. State this gap in the PR description.
 - The CSV import **overwrites** the new answers on a re-import, exactly as it overwrites ratings today (the CSV is the truth when uploaded), including answers a player gave in the app.
 
-**Out of this slice (slice 2/3 of the spec):** `UserProfile.invited`, `LateRegistration`, the `/registration/` API, `/me/`'s `can_register`, the invite and late-pass admin tools, the registration open/closed state shown in the admin, the `/register` page.
+**Out of this slice (slice 2/3 of the spec):** the six `Edition` fields only the open/closed rule and the form read (`registration_opens`, `registration_closes`, `registration_intro_fr/en`, `skills_month_fr/en`, moved to slice 2 by Hugo on 2026-10-05 so nothing unused ships), `UserProfile.invited`, `LateRegistration`, the `/registration/` API, `/me/`'s `can_register`, the invite and late-pass admin tools, the registration open/closed state shown in the admin, the `/register` page.
 
 **Deviation from the spec, deliberate:** `PlayerSport.notes` is a `TextField` with a 200-character *validator* instead of a 200-character column, because the CSV import stores a whole free-text sports history in one row (2026 answers reach 424 characters) and must not truncate it. The validator still guards admin edits and the slice-2 API writes the field through a serializer that enforces 200.
 
@@ -25,13 +25,13 @@
 | `server/olympic_warriors/registration.py` (modify) | Add `rate()` (the one rating formula), `resolve_extras()` and the cell parsers for the optional CSV columns; `compute_ratings` calls `rate()`. |
 | `server/olympic_warriors/models/Player.py` (modify) | `SportFrequency`, five new `Player` fields, `PlayerSport`. |
 | `server/olympic_warriors/models/RegistrationSkill.py` (create) | The per-edition skill (label, identifier, weight, order). |
-| `server/olympic_warriors/models/Edition.py` (modify) | Seven new fields; the CSV import stores the new answers. |
+| `server/olympic_warriors/models/Edition.py` (modify) | `dates_confirmed`; the CSV import stores the new answers. |
 | `server/olympic_warriors/models/__init__.py` (modify) | Export `PlayerSport`, `RegistrationSkill`. |
 | `server/olympic_warriors/migrations/0041_registration_foundations.py` (generated) | Schema. |
 | `server/olympic_warriors/migrations/0042_seed_registration_skills.py` (create) | Data: skills of the existing editions. |
 | `server/olympic_warriors/questionnaire.py` (create) | `skills_locked`, `copy_skills`, `recompute_ratings`. |
 | `server/olympic_warriors/transfer.py` (modify) | Private fields never exported, `RegistrationSkill` exported, `PlayerSport` not. |
-| `server/olympic_warriors/admin.py` (modify) | Edition fieldsets + locked skills inline + two actions; Player columns, filters, sports inline. |
+| `server/olympic_warriors/admin.py` (modify) | Edition `dates_confirmed` + locked skills inline + two actions; Player columns, filters, sports inline. |
 | `server/olympic_warriors/serializer.py` (modify) | `dates_confirmed` in `SummaryEditionSerializer`. |
 | `front/src/lib/components/EditionHub.svelte` (modify), `front/src/lib/i18n/fr.js`, `en.js` | « Dates à venir » while dates are unconfirmed. |
 | Tests | `tests/test_registration.py`, `test_registration_models.py` (new), `test_registration_seed.py` (new), `test_questionnaire.py` (new), `test_registration_admin.py` (new), `test_edition_import.py`, `test_transfer.py`, `test_summary.py`, `test_showcase.py`, `test_player_admin.py`, `EditionHub.test.js`. |
@@ -207,17 +207,9 @@ def make_edition(year=2027):
     )
 
 
-class TestEditionRegistrationFields(TestCase):
-    def test_defaults_keep_existing_editions_unchanged(self):
-        edition = make_edition()
-
-        self.assertTrue(edition.dates_confirmed)
-        self.assertIsNone(edition.registration_opens)
-        self.assertIsNone(edition.registration_closes)
-        self.assertEqual(edition.registration_intro_fr, "")
-        self.assertEqual(edition.registration_intro_en, "")
-        self.assertEqual(edition.skills_month_fr, "")
-        self.assertEqual(edition.skills_month_en, "")
+class TestEditionDatesConfirmed(TestCase):
+    def test_existing_and_new_editions_have_confirmed_dates_by_default(self):
+        self.assertTrue(make_edition().dates_confirmed)
 
 
 class TestPlayerRegistrationFields(TestCase):
@@ -395,19 +387,15 @@ class RegistrationSkill(models.Model):
         return f"{self.identifier} ({self.edition.year})"
 ```
 
-- [ ] **Step 5: Add the Edition fields.** In `models/Edition.py`, after `photos_url = ...`:
+- [ ] **Step 5: Add the Edition field.** In `models/Edition.py`, after `photos_url = ...`:
 
 ```python
-    # The in-app registration. It is open only between registration_opens and
-    # registration_closes (see the spec); until the dates are confirmed the hub hides them.
-    registration_opens = models.DateField(null=True, blank=True)
-    registration_closes = models.DateField(null=True, blank=True)
-    registration_intro_fr = models.TextField(blank=True, default="")
-    registration_intro_en = models.TextField(blank=True, default="")
-    skills_month_fr = models.CharField(max_length=30, blank=True, default="")
-    skills_month_en = models.CharField(max_length=30, blank=True, default="")
+    # False while the dates are provisional (an edition created early so players can
+    # register): the hub then hides the date range and the countdown.
     dates_confirmed = models.BooleanField(default=True)
 ```
+
+(The registration window and the form texts, `registration_opens`, `registration_closes`, `registration_intro_fr/en`, `skills_month_fr/en`, arrive with slice 2, next to the code that reads them.)
 
 - [ ] **Step 6: Export the models.** In `models/__init__.py` replace the first line and add one:
 
@@ -424,7 +412,7 @@ from .RegistrationSkill import RegistrationSkill
 docker compose exec server python manage.py makemigrations olympic_warriors -n registration_foundations
 ```
 
-Expected: `0041_registration_foundations.py` creating `RegistrationSkill` and `PlayerSport` and adding the seven `Edition` and five `Player` fields. Read the generated file once; if Django also lists unrelated changes, stop and report.
+Expected: `0041_registration_foundations.py` creating `RegistrationSkill` and `PlayerSport` and adding the `Edition.dates_confirmed` field and the five `Player` fields. Read the generated file once; if Django also lists unrelated changes, stop and report.
 
 - [ ] **Step 8: Run the model tests and the migration check**
 
@@ -1544,11 +1532,10 @@ class TestEditionAdmin(TestCase):
         )
         return response, [str(m) for m in response.context["messages"]]
 
-    def test_the_change_page_renders_with_the_registration_fieldset_and_skills(self):
+    def test_the_change_page_renders_with_dates_confirmed_and_the_skills(self):
         response = self.client.get(f"{EDITIONS}{self.previous.pk}/change/")
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "registration_opens")
         self.assertContains(response, "dates_confirmed")
         self.assertContains(response, "registrationskill_set-TOTAL_FORMS")
 
@@ -1739,35 +1726,15 @@ Replace `EditionAdmin`'s attributes (keep `changelist_view`):
     search_fields = ["year"]
     actions = [refresh_badges, copy_questionnaire, recompute_player_ratings]
     inlines = [RegistrationSkillInline]
-    fieldsets = (
-        (
-            None,
-            {
-                "fields": (
-                    "year",
-                    "host",
-                    "start_date",
-                    "end_date",
-                    "dates_confirmed",
-                    "photos_url",
-                    "registration_form",
-                    "is_active",
-                )
-            },
-        ),
-        (
-            "Inscription",
-            {
-                "fields": (
-                    "registration_opens",
-                    "registration_closes",
-                    "registration_intro_fr",
-                    "registration_intro_en",
-                    "skills_month_fr",
-                    "skills_month_en",
-                )
-            },
-        ),
+    fields = (
+        "year",
+        "host",
+        "start_date",
+        "end_date",
+        "dates_confirmed",
+        "photos_url",
+        "registration_form",
+        "is_active",
     )
 ```
 
@@ -2009,7 +1976,7 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 - [ ] **Step 1: Document the questionnaire.** In `CLAUDE.md`, after the paragraph that starts `**Registration import:**`, add:
 
 ```markdown
-**Registration questionnaire** (spec `2026-10-04-in-app-registration-design.md`, slice 1): an edition's skills are data, `RegistrationSkill` (`name_fr`, `name_en`, `identifier`, `weight`, `order`, `is_active`; unique `(edition, identifier)`), seeded by migration `0042` (2024 from the 2024 profile, every later edition from the 2025 one, earlier ones nothing); `FORM_PROFILES` stays only for importing old CSVs. `registration.rate(skills, weights, global_level)` is the one rating formula (weights-averaged skills clipped to 1..10, ×2.5 when under 4 with a global answer above 4, blended `(weighted + 4 × global) / 5`, rounded to two decimals; `Player.rating` is its rounded value), shared by the CSV import and `questionnaire.recompute_ratings`. `Player` gains private per-edition answers: `global_level` (the raw global answer, stored because the blend cannot be inverted; null on editions imported before it), `dietary_restrictions`, `sport_frequency` (`SportFrequency`, the five answers of the form), `team_wishes`, `attendance_confirmed` (the self-declared « payé et présent » tick), and `PlayerSport` rows (sport, level, practice, `duration_months`, `notes`; `notes` is a `TextField` with a 200-character validator so the import keeps a whole history). The CSV import fills `global_level`, frequency, wishes and the tick through `resolve_extras` (optional columns, matched by header fragment) and files the free-text sports answer as one `PlayerSport` row named « Historique (import) ». None of it is in a public payload (`PRIVATE_KEYS` in `test_showcase.py`), and `transfer.PRIVATE_FIELDS`/`NOT_EXPORTED` keep it out of `export_edition` (`global_level` travels; `RegistrationSkill` is exported). `Edition` gains `registration_opens`/`registration_closes`, FR/EN intro and skills-month texts (not used by any view yet) and `dates_confirmed` (default true): while it is false the hub shows « Dates à venir » instead of the date range and countdown and never offers the ranking, and `SummaryEditionSerializer` carries it. Admin: the Edition page edits them with a `RegistrationSkill` inline whose `LockedSkillFormSet` refuses adding, deleting or re-identifying a skill once any player of the edition has a `PlayerRating` (`questionnaire.skills_locked`), plus the actions « Copier le questionnaire de l'édition précédente » (`copy_skills`) and « Recalculer les notes » (`recompute_ratings`, any edition, skipping players without a `global_level` or missing a skill and counting them); the Player admin shows the tick and a dietary column, filters on them and on frequency, and edits the sports inline. Not built yet (slices 2 and 3): invitations, the late pass, the `/registration/` API, the open/closed rule and the `/register` page.
+**Registration questionnaire** (spec `2026-10-04-in-app-registration-design.md`, slice 1): an edition's skills are data, `RegistrationSkill` (`name_fr`, `name_en`, `identifier`, `weight`, `order`, `is_active`; unique `(edition, identifier)`), seeded by migration `0042` (2024 from the 2024 profile, every later edition from the 2025 one, earlier ones nothing); `FORM_PROFILES` stays only for importing old CSVs. `registration.rate(skills, weights, global_level)` is the one rating formula (weights-averaged skills clipped to 1..10, ×2.5 when under 4 with a global answer above 4, blended `(weighted + 4 × global) / 5`, rounded to two decimals; `Player.rating` is its rounded value), shared by the CSV import and `questionnaire.recompute_ratings`. `Player` gains private per-edition answers: `global_level` (the raw global answer, stored because the blend cannot be inverted; null on editions imported before it), `dietary_restrictions`, `sport_frequency` (`SportFrequency`, the five answers of the form), `team_wishes`, `attendance_confirmed` (the self-declared « payé et présent » tick), and `PlayerSport` rows (sport, level, practice, `duration_months`, `notes`; `notes` is a `TextField` with a 200-character validator so the import keeps a whole history). The CSV import fills `global_level`, frequency, wishes and the tick through `resolve_extras` (optional columns, matched by header fragment) and files the free-text sports answer as one `PlayerSport` row named « Historique (import) ». None of it is in a public payload (`PRIVATE_KEYS` in `test_showcase.py`), and `transfer.PRIVATE_FIELDS`/`NOT_EXPORTED` keep it out of `export_edition` (`global_level` travels; `RegistrationSkill` is exported). `Edition` gains `dates_confirmed` (default true): while it is false the hub shows « Dates à venir » instead of the date range and countdown and never offers the ranking, and `SummaryEditionSerializer` carries it. Admin: the Edition page edits them with a `RegistrationSkill` inline whose `LockedSkillFormSet` refuses adding, deleting or re-identifying a skill once any player of the edition has a `PlayerRating` (`questionnaire.skills_locked`), plus the actions « Copier le questionnaire de l'édition précédente » (`copy_skills`) and « Recalculer les notes » (`recompute_ratings`, any edition, skipping players without a `global_level` or missing a skill and counting them); the Player admin shows the tick and a dietary column, filters on them and on frequency, and edits the sports inline. Not built yet (slices 2 and 3): the registration window and form texts on `Edition`, invitations, the late pass, the `/registration/` API, the open/closed rule and the `/register` page; `accounts.deactivate` does not yet clear the private answers either (slice 2).
 ```
 
 - [ ] **Step 2: Run every check CI runs**
