@@ -10,6 +10,7 @@ from olympic_warriors.registration import (
     RATINGS,
     compute_ratings,
     parse_name,
+    rate,
     resolve_columns,
 )
 
@@ -318,3 +319,36 @@ class ComputeRatings2024Tests(SimpleTestCase):
 
         self.assertEqual(out.loc[0, "Weighted_Rating"], 6)
         self.assertEqual(out.loc[0, "Global_Rating"], 7.6)
+
+
+class RateTests(SimpleTestCase):
+    WEIGHTS = {"a": 1, "b": 3}
+
+    def test_weights_the_skills_then_blends_the_global_level(self):
+        weighted, global_rating = rate({"a": 10, "b": 2}, self.WEIGHTS, 5)
+
+        self.assertEqual(weighted, 4.0)  # (10 + 2 * 3) / 4
+        self.assertEqual(global_rating, 4.8)  # (4 + 5 * 4) / 5
+
+    def test_a_weak_weighted_rating_with_a_confident_global_level_is_boosted(self):
+        weighted, global_rating = rate({"a": 2, "b": 2}, self.WEIGHTS, 6)
+
+        self.assertEqual(weighted, 5.0)  # 2 * 2.5
+        self.assertEqual(global_rating, 5.8)
+
+    def test_no_boost_when_the_global_level_is_low(self):
+        weighted, global_rating = rate({"a": 2, "b": 2}, self.WEIGHTS, 3)
+
+        self.assertEqual(weighted, 2)
+        self.assertEqual(global_rating, 2.8)
+
+    def test_the_boundaries_do_not_boost(self):
+        self.assertEqual(rate({"a": 4, "b": 4}, self.WEIGHTS, 8)[0], 4)  # weighted exactly 4
+        self.assertEqual(rate({"a": 3, "b": 3}, self.WEIGHTS, 4)[0], 3)  # global exactly 4
+
+    def test_the_rating_stays_on_the_scale(self):
+        self.assertEqual(rate({"a": 1, "b": 1}, self.WEIGHTS, 1), (1, 1.0))
+        self.assertEqual(rate({"a": 10, "b": 10}, self.WEIGHTS, 10), (10, 10.0))
+
+    def test_skills_outside_the_weights_are_ignored(self):
+        self.assertEqual(rate({"a": 6, "b": 6, "zzz": 1}, self.WEIGHTS, 8), (6, 7.6))

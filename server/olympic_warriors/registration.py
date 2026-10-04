@@ -167,6 +167,34 @@ def parse_name(raw):
     return first_name, last_name, username
 
 
+# A weak self-assessment on the skills but a confident global estimate is treated as
+# under-reporting: the weighted rating is multiplied by 2.5 (historical rule).
+BOOST_BELOW = 4
+BOOST_GLOBAL_ABOVE = 4
+BOOST_FACTOR = 2.5
+
+
+def rate(skills, weights, global_level):
+    """
+    The one rating formula, for one player. The CSV import, the in-app registration and
+    the "recalculate ratings" admin action all go through it, so they cannot drift.
+
+    :param skills: {key: 1..10 rating} holding at least every key of weights.
+    :param weights: {key: positive weight}.
+    :param global_level: the player's own global estimate, 1..10.
+    :return: (weighted, global_rating): the weights-averaged skills clipped to 1..10 and
+             boosted when under-reported, then the blend with the global level, clipped
+             to 1..10 and rounded to two decimals. Player.rating is round(global_rating).
+    """
+    total = sum(weights.values())
+    weighted = sum(skills[key] * weight for key, weight in weights.items()) / total
+    weighted = min(max(weighted, 1), 10)
+    if weighted < BOOST_BELOW and global_level > BOOST_GLOBAL_ABOVE:
+        weighted *= BOOST_FACTOR
+    global_rating = round(min(max((weighted + global_level * 4) / 5, 1), 10), 2)
+    return weighted, global_rating
+
+
 def compute_ratings(df, columns, ratings=RATINGS):
     """
     Rename resolved columns to internal names and add Weighted_Rating and
@@ -194,15 +222,11 @@ def compute_ratings(df, columns, ratings=RATINGS):
     if problems:
         raise ValueError("Invalid ratings in registration form: " + "; ".join(problems))
 
-    total_coef = sum(spec["coef"] for spec in ratings.values())
-    weighted = sum(df[name] * spec["coef"] for name, spec in ratings.items()) / total_coef
-    weighted = weighted.clip(lower=1, upper=10)
-
-    # A weak self-assessment on the skills but a confident global estimate is
-    # treated as under-reporting: multiply by 2.5 (historical rule).
-    boost = (weighted < 4) & (df[GLOBAL_LEVEL] > 4)
-    weighted = weighted.where(~boost, weighted * 2.5)
-    df["Weighted_Rating"] = weighted
-
-    df["Global_Rating"] = ((weighted + df[GLOBAL_LEVEL] * 4) / 5).clip(lower=1, upper=10).round(2)
+    weights = {name: spec["coef"] for name, spec in ratings.items()}
+    results = [
+        rate({name: row[name] for name in weights}, weights, row[GLOBAL_LEVEL])
+        for _, row in df.iterrows()
+    ]
+    df["Weighted_Rating"] = [weighted for weighted, _ in results]
+    df["Global_Rating"] = [global_rating for _, global_rating in results]
     return df
