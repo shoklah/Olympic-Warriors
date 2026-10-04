@@ -27,6 +27,7 @@ docker compose exec server python manage.py export_edition 2026 --out /server/ed
 docker compose exec server python manage.py import_edition /server/edition-2026.json --dry-run     # add --replace to overwrite that year
 docker compose exec server python manage.py refresh_badges             # rebuild the computed badges and their progress
 docker compose exec server python manage.py refresh_badges --if-due    # the same, only when due (a host crontab runs it daily in prod)
+docker compose exec server python manage.py refresh_badges --dry-run --verbose-rows   # list the badges a refresh would add (+) and remove (-), then roll back
 pylint --load-plugins pylint_django --ignore=lib server/               # what CI runs (advisory, no .pylintrc)
 ```
 

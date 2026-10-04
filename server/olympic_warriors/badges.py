@@ -1066,6 +1066,8 @@ class RefreshReport:
     kept: int
     progress: int
     refreshed_at: datetime
+    added_rows: tuple = ()  # the rows added and removed, as Badge instances (unsaved when added)
+    removed_rows: tuple = ()
 
 
 KEY_FIELDS = ("user_id", "code", "edition_id", "tier", "discipline", "partner_id")
@@ -1111,7 +1113,9 @@ def refresh(today=None):
             for key, e in wanted.items()
             if key not in stored
         ]
+        removed_rows = ()
         if gone:
+            removed_rows = tuple(Badge.objects.filter(id__in=gone).select_related("user", "edition"))
             Badge.objects.filter(id__in=gone).delete()
         if new:
             Badge.objects.bulk_create(new)
@@ -1120,7 +1124,7 @@ def refresh(today=None):
         state.save(update_fields=["refreshed_at"])
     return RefreshReport(
         added=len(new), removed=len(gone), kept=len(wanted) - len(new), progress=written,
-        refreshed_at=state.refreshed_at,
+        refreshed_at=state.refreshed_at, added_rows=tuple(new), removed_rows=removed_rows,
     )
 
 
