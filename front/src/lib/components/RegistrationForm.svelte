@@ -271,6 +271,7 @@
 				<legend>{t('register.sports.legend')}</legend>
 				{#each values.sports as row, i}
 					<div class="sport" role="group" aria-label="{t('register.sports.sport')} {i + 1}">
+						<div class="fields">
 						<div class="field">
 							<label for="sport-{i}-sport">{t('register.sports.sport')}</label>
 							<input id="sport-{i}-sport" type="text" name="sport.{i}.sport" maxlength="80" bind:value={row.sport} />
@@ -305,13 +306,29 @@
 							<label for="sport-{i}-notes">{t('register.sports.notes')}</label>
 							<input id="sport-{i}-notes" type="text" name="sport.{i}.notes" maxlength="200" bind:value={row.notes} />
 						</div>
-						<button type="button" class="pill remove" on:click={() => removeSport(i)}>
-							{t('register.sports.remove', { n: i + 1 })}
+						</div>
+						<button
+							type="button"
+							class="icon-button remove"
+							title={t('register.sports.remove', { n: i + 1 })}
+							aria-label={t('register.sports.remove', { n: i + 1 })}
+							on:click={() => removeSport(i)}
+						>
+							<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+								<path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-12M9 7V4h6v3" />
+							</svg>
 						</button>
 					</div>
 				{/each}
-				<button type="button" class="pill" disabled={values.sports.length >= MAX_SPORTS} on:click={addSport}>
-					{t('register.sports.add')}
+				<button
+					type="button"
+					class="icon-button add"
+					disabled={values.sports.length >= MAX_SPORTS}
+					title={t('register.sports.add')}
+					aria-label={t('register.sports.add')}
+					on:click={addSport}
+				>
+					<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14" /></svg>
 				</button>
 			</fieldset>
 		</div>
@@ -583,13 +600,59 @@
 		align-items: center;
 		padding: 0.25rem 0;
 	}
+	fieldset + fieldset {
+		margin-top: 1.5rem;
+	}
 	.sport {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.75rem;
+		padding: 0.75rem 0;
+		border-bottom: 1px solid var(--line);
+	}
+	.fields {
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
 		gap: 0.5rem 0.75rem;
 		align-items: end;
-		padding: 0.75rem 0;
-		border-bottom: 1px solid var(--line);
+	}
+	.icon-button {
+		display: inline-grid;
+		place-items: center;
+		width: 2.5rem;
+		height: 2.5rem;
+		padding: 0;
+		border-radius: 999px;
+		border: 1px solid var(--line-strong);
+		background: transparent;
+		color: var(--muted);
+		cursor: pointer;
+	}
+	.icon-button:hover:not(:disabled),
+	.icon-button:focus-visible {
+		color: var(--accent);
+		border-color: var(--accent);
+	}
+	.icon-button:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
+	}
+	.icon-button svg {
+		width: 1.25rem;
+		height: 1.25rem;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	/* Level with the first row of inputs: skip the first label (its line and the field's gap). */
+	.remove {
+		align-self: start;
+		margin-top: calc(1lh + 0.25rem);
+	}
+	.add {
+		margin-top: 0.75rem;
 	}
 	.field.wide {
 		grid-column: 1 / -1;
