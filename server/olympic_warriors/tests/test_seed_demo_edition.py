@@ -11,6 +11,7 @@ from django.core.management.base import CommandError
 from django.test import TestCase, override_settings
 
 from olympic_warriors import builder, registration
+from olympic_warriors.management.commands.seed_demo_edition import AVOIDANCE, _plain, split_wishes
 from olympic_warriors.models import (
     Edition, Player, PlayerRating, PlayerSport, RegistrationSkill, Team,
 )
@@ -101,8 +102,8 @@ class TestSeedDemoEdition(TestCase):
         self.assertTrue(data["registration_open"])
         self.assertEqual(len(data["players"]), len(NAMES))
         texts = [p["team_with"] for p in data["players"] if p["team_with"]]
-        self.assertIn("peu importe", texts)
-        self.assertIn("Quelqu'un d'inconnu", texts)
+        self.assertTrue(any(t.startswith("Peu importe") for t in texts))
+        self.assertTrue(any("Antoine Dupont" in t for t in texts))  # nobody of the roster
         self.assertTrue(any(p["team_avoid"] for p in data["players"]))
         self.assertTrue(any(p["sports"] for p in data["players"]))
         incomplete = [p for p in data["players"] if not p["ratings"] and not p["sport_frequency"]]
@@ -183,6 +184,23 @@ class TestSeedDemoEdition(TestCase):
         self.assertTrue(high and low)
         self.assertGreater(sum(high) / len(high), sum(low) / len(low))
         self.assertTrue(Player.objects.filter(edition__year=2040).exclude(dietary_restrictions="").exists())
+
+    def test_generated_wishes_read_like_the_forms_and_sit_in_the_right_field(self):
+        make_source()
+
+        run()
+
+        players = list(Player.objects.filter(edition__year=2040))
+        for player in players:
+            self.assertFalse(AVOIDANCE.search(_plain(player.team_with)), player.team_with)
+            if player.team_avoid:
+                self.assertTrue(AVOIDANCE.search(_plain(player.team_avoid)), player.team_avoid)
+            self.assertLessEqual(len(player.team_with), 500)
+        withs = [p.team_with for p in players if p.team_with]
+        self.assertTrue(any("\n" in t for t in withs), "a list over several lines")
+        self.assertTrue(any("😁" in t or "😅" in t or "❤️" in t for t in withs), "emoji")
+        self.assertTrue(any(p.team_with and p.team_avoid for p in players), "both wishes at once")
+        self.assertTrue(any(p.team_avoid for p in players))
 
     def test_is_deterministic(self):
         make_source()
@@ -314,3 +332,40 @@ class TestSeedDemoEditionForm(TestCase):
         with self.assertRaises(CommandError):
             run("--form", path)
         self.assertFalse(Edition.objects.filter(year=2040).exists())
+
+
+class TestSplitWishes(TestCase):
+    """The form's single wishes question, as its real answers are worded, split into the two fields."""
+
+    def test_a_plain_wish_is_all_with(self):
+        for text in [
+            "Avec Emma ! Ou un membre du Comité",
+            "Juliette \nThomas \nEmma (pour le ❤️)",
+            "Antoine dupont si il est la, sinon je me contenterais de Sarah",
+            "Pas de préférence",
+            "s'en carre l'oignon",
+        ]:
+            self.assertEqual(split_wishes(text), (text, ""), text)
+
+    def test_wishing_to_avoid_someone_is_all_avoid(self):
+        for text in ["Ne pas être avec Marie", "Je ne veux pas être avec Paul", "Eviter Paul svp", "Surtout pas avec Léa"]:
+            self.assertEqual(split_wishes(text), ("", text), text)
+
+    def test_not_wanting_to_be_a_burden_is_no_avoidance(self):
+        text = 'Pas de personne en particulier, mais je veux bien être avec des gens "chill" (je ne veux pas être le boulet de ceux qui ont la gagne à tout prix 😅)'
+        self.assertEqual(split_wishes(text), (text, ""))
+
+    def test_a_mix_is_split_clause_by_clause(self):
+        self.assertEqual(
+            split_wishes("Ne pas être avec Florentin ou Victor. Le reste pas de préférence"),
+            ("Le reste pas de préférence", "Ne pas être avec Florentin ou Victor."),
+        )
+        self.assertEqual(
+            split_wishes("Idéalement avec Léa ! Pas avec Paul"),
+            ("Idéalement avec Léa !", "Pas avec Paul"),
+        )
+
+    def test_nothing_stays_nothing_and_long_texts_are_cut(self):
+        self.assertEqual(split_wishes(""), ("", ""))
+        self.assertEqual(len(split_wishes("x" * 800)[0]), 500)
+        self.assertEqual(len(split_wishes("Pas avec " + "x" * 800)[1]), 500)

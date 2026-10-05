@@ -25,7 +25,7 @@ docker compose exec server python manage.py createsu                   # superus
 docker compose exec server python manage.py create_tokens_for_users    # backfill DRF tokens
 docker compose exec server python manage.py export_edition 2026 --out /server/edition-2026.json   # edition -> JSON without ids
 docker compose exec server python manage.py import_edition /server/edition-2026.json --dry-run     # add --replace to overwrite that year
-docker compose exec server python manage.py seed_demo_edition [--remove]   # demo edition 2040 from 2026's players (a missing global level is derived through the form's formula, and the generated frequency, sports and dietary answers stay coherent with each other); DEBUG only, or STAGE_DEMO=True on staging (random demo-admin password, printed once)
+docker compose exec server python manage.py seed_demo_edition [--remove]   # demo edition 2040 from 2026's players (a missing global level is derived through the form's formula, and the generated frequency, sports and dietary answers stay coherent with each other; the generated wishes are worded like the real form's answers; `--form <csv>` reads the real answers instead, splitting the form's single wishes question into `team_with` and `team_avoid` clause by clause through `split_wishes`); DEBUG only, or STAGE_DEMO=True on staging (random demo-admin password, printed once)
 docker compose exec server python manage.py send_claim_links --dry-run   # who would be mailed a claim link (drop --dry-run to send)
 docker compose exec server python manage.py refresh_badges             # rebuild the computed badges and their progress
 docker compose exec server python manage.py refresh_badges --if-due    # the same, only when due (a host crontab runs it daily in prod)

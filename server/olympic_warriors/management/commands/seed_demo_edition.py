@@ -44,17 +44,40 @@ HELP = (
     "for their skills and rating. Generated, deterministically and coherent with each other "
     "and with the form's answers: sport frequency (following the rating), sports (level and "
     "practice following the frequency, duration, notes), dietary restrictions, and the "
-    "team_with / team_avoid texts built from the roster's names (two players are left "
+    "team_with / team_avoid texts built from the roster's names, worded like the real form's "
+    "answers (two players are left "
     "incomplete: no per-skill ratings, frequency or sports, like a legacy import)."
 )
 
 
-AVOIDANCE = re.compile(r"ne pas|pas etre|pas avec|eviter|ne veux pas")
+# A clause that says who not to be with (on accent-free lower case): "ne pas être avec X",
+# "pas avec X", "éviter X", "je ne veux pas être avec X". "Je ne veux pas être le boulet" is not one.
+AVOIDANCE = re.compile(
+    r"(?:\bpas|\bjamais)\s+(?:etre\s+|me\s+mettre\s+|en\s+equipe\s+)*avec\b"
+    r"|\beviter\b|\bsurtout\s+pas\b"
+)
+CLAUSES = re.compile(r"(?<=[.!?;])\s+|\n+")
 WISH_LIMIT = 500
 
 
 def _plain(text):
     return unicodedata.normalize("NFKD", text.lower()).encode("ascii", "ignore").decode()
+
+
+def split_wishes(text):
+    """
+    (team_with, team_avoid) of the form's single wishes question, which the in-app form asks as
+    two. A text with no clause about who to avoid is all « with » and one that is all about
+    avoiding is all « avoid », both left as written; a mix is split clause by clause.
+    """
+    clauses = [c for c in CLAUSES.split(text) if c.strip()]
+    avoid = [c for c in clauses if AVOIDANCE.search(_plain(c))]
+    if not avoid:
+        return text[:WISH_LIMIT], ""
+    if len(avoid) == len(clauses):
+        return "", text[:WISH_LIMIT]
+    kept = [c for c in clauses if c not in avoid]
+    return " ".join(c.strip() for c in kept)[:WISH_LIMIT], " ".join(c.strip() for c in avoid)[:WISH_LIMIT]
 
 
 def read_form(path):
@@ -73,14 +96,13 @@ def read_form(path):
         except ValueError:
             continue
         get = lambda key: registration.clean_text(row[extras[key]]) if key in extras else ""
-        wishes_text = get(registration.WISHES)[:WISH_LIMIT]
-        avoid = bool(AVOIDANCE.search(_plain(wishes_text)))
+        team_with, team_avoid = split_wishes(get(registration.WISHES))
         rows[username] = (
             registration.parse_frequency(row[extras[registration.FREQUENCY]])
             if registration.FREQUENCY in extras else "",
             get(registration.SPORTS),
-            "" if avoid else wishes_text,
-            wishes_text if avoid else "",
+            team_with,
+            team_avoid,
         )
     return rows
 
@@ -141,8 +163,11 @@ def with_typo(first_name):
 
 def wishes(players):
     """
-    {player index: (team_with, team_avoid)} over the roster sorted by name. Wishers are the
-    first players, their targets come from the end, so reruns on one roster are identical.
+    {player index: (team_with, team_avoid)} over the roster sorted by name, worded the way the
+    real form's answers are (first names, full names, nicknames and typos, lists over several
+    lines, « peu importe », names of people who are not players, emoji, a mix of both wishes)
+    and covering what the builder's name matcher must handle. Wishers are the first players,
+    their targets come from the end, so reruns on one roster are identical.
     """
     n = len(players)
     firsts = [p.user.first_name for p in players]
@@ -150,37 +175,51 @@ def wishes(players):
     shared = [f for f in dict.fromkeys(firsts) if firsts.count(f) > 1]
     result = {}
 
-    def target(k):
-        index = (n - 1 - k) % n
+    def target(k, offset=0):
+        index = (n - 1 - k - offset) % n
         return index if index != k else None
+
+    def name_of(k, offset=0, first=False):
+        index = target(k, offset)
+        if index is None:
+            return None
+        return firsts[index] if first else full_name(players[index])
 
     def put(k, with_=None, avoid=None):
         if k < n:
-            result[k] = (with_ or "", avoid or "")
+            result[k] = ((with_ or "")[:WISH_LIMIT], (avoid or "")[:WISH_LIMIT])
 
     # A mutual pair by full name.
     if n >= 2:
-        put(0, full_name(players[1]))
-        put(1, full_name(players[0]))
-    # A unique first name only.
+        put(0, f"Avec {full_name(players[1])} !")
+        put(1, f"Être en équipe avec {full_name(players[0])}")
+    # A unique first name only, or a member of the organisation.
     pool = [i for i in reversed(unique) if i > 2]
     if pool:
-        put(2, firsts[pool[0]])
+        put(2, f"Avec {firsts[pool[0]]} ! Ou un membre du Comité")
     # The ambiguous case: a first name two players share.
     if shared:
-        put(3, shared[0])
+        put(3, f"Je voudrais être avec {shared[0]} si possible svp 😁")
     # A one-typo first name.
     if len(pool) > 1:
-        put(4, with_typo(firsts[pool[1]]))
-    # A comma list of two names.
+        put(4, f"{with_typo(firsts[pool[1]])} ")
+    # A list over several lines, one of them with a comment.
     if n >= 8 and target(5) is not None and target(6) is not None:
-        put(5, f"{full_name(players[target(5)])}, {full_name(players[target(6)])}")
-    put(6, "peu importe")
-    put(7, "Quelqu'un d'inconnu")
-    # Two « à éviter » pairs.
-    for k in (9, 10):
-        if target(k) is not None and k < n:
-            put(k, None, full_name(players[target(k)]))
+        put(5, f"{name_of(5, first=True)} \n{name_of(6)} \n{name_of(5, 2, first=True) or name_of(6, 2, first=True)} (pour le ❤️)")
+    # No preference, or one with a name nobody has, or both of them at once.
+    put(6, f"Peu importe / {name_of(6, first=True)}" if target(6) is not None else "Peu importe")
+    put(7, f"Antoine Dupont si il est là, sinon je me contenterais de {name_of(7, first=True) or 'Sarah'}")
+    put(8, "M'en fous (mais svp prenez en compte le fait que je ne sais pas du tout jouer au volley)")
+    # Two « à éviter » asks, one of them naming two people and giving a general answer.
+    if target(9) is not None:
+        put(9, None, f"Ne pas être avec {name_of(9)}")
+    if target(10) is not None and target(10, 1) is not None:
+        put(10, None, f"Ne pas être avec {name_of(10, first=True)} ou {name_of(10, 1, first=True)}. Le reste pas de préférence")
+    # Both wishes at once, as the in-app form takes them, and a wish with no name in it.
+    if target(11) is not None and target(11, 1) is not None:
+        put(11, f"Idéalement, je souhaiterai être avec {name_of(11).upper()}", f"Pas avec {name_of(11, 1, first=True)}")
+    put(12, "Pas de personne en particulier, mais je veux bien être avec des gens « chill » (je ne veux pas être le boulet de ceux qui ont la gagne à tout prix 😅)")
+    put(13, "Une petite préférence avec les premiers participants des olympiades")
     return result
 
 
