@@ -160,7 +160,9 @@ def _one(entry, name, edition, granted_by):
             if not user.is_active:
                 return InviteResult(entry.line, name, CONFLICT, "compte désactivé")
             status = REUSED
-            if not usable_email(user.email):
+            # Never put an address on an organiser's account: a lost-password mail goes
+            # to the address on the account.
+            if not usable_email(user.email) and not (user.is_staff or user.is_superuser):
                 user.email = entry.email
                 user.save(update_fields=["email"])
         else:

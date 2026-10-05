@@ -122,6 +122,17 @@ class TestInvite(TestCase):
 
         self.assertEqual((result.status, result.link), (CONFLICT, ""))
 
+    def test_a_pasted_address_is_never_written_on_an_organisers_account(self):
+        boss = User.objects.create(
+            username="bigboss", email="bigboss@olympicwarriors.com", is_superuser=True
+        )
+
+        [result] = self.run_invite("Big Boss, attacker@example.com")
+
+        boss.refresh_from_db()
+        self.assertEqual((result.status, result.link), (STAFF, ""))
+        self.assertEqual(boss.email, "bigboss@olympicwarriors.com")
+
     def test_a_staff_account_is_flagged_invited_with_no_link_ever(self):
         boss = User.objects.create(username="boss", email="boss@example.com", is_staff=True)
 

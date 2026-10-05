@@ -47,7 +47,7 @@ def _text(data, key, limit, fail):
     raw = data.get(key)
     if raw is None:
         return ""
-    if not isinstance(raw, str):
+    if not isinstance(raw, str) or "\x00" in raw:  # Postgres refuses a NUL in a text column
         fail("invalid_text")
         return ""
     raw = raw.strip()
@@ -152,12 +152,12 @@ def _sport(row, fail):
         return {}
     name = row.get("sport")
     name = name.strip() if isinstance(name, str) else ""
-    if not name or len(name) > MAX_SPORT_NAME:
+    if not name or len(name) > MAX_SPORT_NAME or "\x00" in name:
         fail("invalid_sport")
-    level = row.get("level") or ""
-    if level not in ("", *PlayerSport.Level.values):
+    level = "" if row.get("level") is None else row["level"]
+    if level not in ("", *PlayerSport.Level.values):  # a non-string never matches
         fail("invalid_sport")
-    practice = row.get("practice") or ""
+    practice = "" if row.get("practice") is None else row["practice"]
     if practice not in ("", *PlayerSport.Practice.values):
         fail("invalid_sport")
     months = row.get("duration_months")
@@ -166,7 +166,7 @@ def _sport(row, fail):
     notes = row.get("notes")
     if notes is None:
         notes = ""
-    if not isinstance(notes, str):
+    if not isinstance(notes, str) or "\x00" in notes:
         fail("invalid_sport")
         notes = ""
     notes = notes.strip()

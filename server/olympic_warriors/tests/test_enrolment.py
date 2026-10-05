@@ -124,6 +124,26 @@ class TestValidate(Setup):
         self.assertEqual(self.codes(good(team_wishes=5)), ["invalid_text"])
         validate(good(team_wishes="x" * 1000, dietary_restrictions="x" * 500), self.skills, False)
 
+    def test_a_nul_byte_is_refused_not_a_server_error(self):
+        # Postgres refuses a NUL in a text column: it must be a 400, never a 500.
+        self.assertEqual(self.codes(good(team_wishes="a\x00b")), ["invalid_text"])
+        self.assertEqual(self.codes(good(dietary_restrictions="\x00")), ["invalid_text"])
+        self.assertEqual(self.codes(good(sports=[{"sport": "Ju\x00do"}])), ["invalid_sport"])
+        self.assertEqual(
+            self.codes(good(sports=[{"sport": "Judo", "notes": "x\x00"}])), ["invalid_sport"]
+        )
+
+    def test_a_non_string_level_or_practice_is_refused(self):
+        for bad in (0, False, [], {}, 5):
+            with self.subTest(bad=bad):
+                self.assertEqual(
+                    self.codes(good(sports=[{"sport": "Judo", "level": bad}])), ["invalid_sport"]
+                )
+                self.assertEqual(
+                    self.codes(good(sports=[{"sport": "Judo", "practice": bad}])),
+                    ["invalid_sport"],
+                )
+
     def test_the_presence_tick_is_required(self):
         self.assertEqual(self.codes(good(attendance_confirmed=False)), ["attendance_required"])
         self.assertEqual(self.codes(good(attendance_confirmed="true")), ["attendance_required"])
