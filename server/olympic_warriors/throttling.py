@@ -1,6 +1,7 @@
 """
 The only throttled requests: the login throttle, on the token endpoint, a claim link's POST
-and the admin login form, per client IP; and the photo throttle, on a photo upload, per user.
+and the admin login form, per client IP; the photo throttle, on a photo upload, per user; and the registration throttle, on a
+registration save, per user.
 """
 
 import ipaddress
@@ -88,6 +89,19 @@ class PasswordCheckThrottle(UserRateThrottle):
     wrong, so a stolen session cannot guess the password."""
 
     scope = "password"
+
+
+class RegistrationRateThrottle(UserRateThrottle):
+    """Registration saves per user, at the "registration" rate (REGISTRATION_THROTTLE_RATE,
+    30/hour by default): every PUT counts, refused or not. PUT only (a function view has one
+    throttle list for all its methods, hence the method check, as in PhotoRateThrottle)."""
+
+    scope = "registration"
+
+    def allow_request(self, request, view):
+        if request.method != "PUT":
+            return True
+        return super().allow_request(request, view)
 
 
 class ResetEmailRateThrottle(SimpleRateThrottle):

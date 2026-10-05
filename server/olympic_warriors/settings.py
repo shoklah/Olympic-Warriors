@@ -277,6 +277,7 @@ REST_FRAMEWORK = {
         'photo': settings.PHOTO_THROTTLE_RATE,
         'password': settings.PASSWORD_THROTTLE_RATE,
         'reset_email': settings.RESET_EMAIL_THROTTLE_RATE,
+        'registration': settings.REGISTRATION_THROTTLE_RATE,
     },
     'NUM_PROXIES': settings.NUM_PROXIES,
 }

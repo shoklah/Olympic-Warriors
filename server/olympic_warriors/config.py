@@ -88,6 +88,8 @@ class BaseConfig(BaseSettings):
     # /me/deactivate/ together), and password-reset mails per address, DRF's rate format.
     PASSWORD_THROTTLE_RATE: str = "10/hour"
     RESET_EMAIL_THROTTLE_RATE: str = "3/hour"
+    # Registration saves (PUT /registration/) per user, DRF's rate format.
+    REGISTRATION_THROTTLE_RATE: str = "30/hour"
 
     @model_validator(mode="after")
     def validate_log_level(self):
