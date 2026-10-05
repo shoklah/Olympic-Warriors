@@ -58,7 +58,10 @@ TABLES = (
 # person's private sports history, like the Player fields in PRIVATE_FIELDS.
 # LateRegistration is an organiser's decision about a person on one database.
 NOT_EXPORTED = frozenset(
-    {"Badge", "BadgeProgress", "BadgeRefresh", "UserProfile", "PlayerSport", "LateRegistration"}
+    {
+        "Badge", "BadgeProgress", "BadgeRefresh", "UserProfile", "PlayerSport",
+        "LateRegistration", "TeamDraft",
+    }
 )
 
 # Personal answers given at registration never leave their database; an import leaves
