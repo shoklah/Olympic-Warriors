@@ -1,6 +1,6 @@
 <script>
 	import { createEventDispatcher } from 'svelte';
-	import { useT } from '$lib/i18n';
+	import { useLocale, useT } from '$lib/i18n';
 	import { fullName } from '$lib/players';
 	import PlayerCard from './PlayerCard.svelte';
 
@@ -17,17 +17,23 @@
 	export let showRequests = true;
 
 	const t = useT();
+	const locale = useLocale();
 	const dispatch = createEventDispatcher();
 	$: byId = new Map(players.map((p) => [p.id, p]));
 	$: proposed = teams.length > 0;
 	$: count = proposed ? teams.length : Math.ceil(players.length / perTeam);
 	$: unmet = result?.unmet ?? [];
-	$: skillName = (s) => s.name_fr;
+	const skillName = (s) => (locale === 'en' ? s.name_en : s.name_fr);
 
 	function drop(event, to) {
 		event.preventDefault();
 		const id = Number(event.dataTransfer?.getData('text/plain'));
 		if (byId.has(id)) dispatch('move', { id, to });
+	}
+	function setPerTeam(event) {
+		const value = Number(event.currentTarget.value);
+		if (Number.isInteger(value) && value >= 2 && value <= 20) dispatch('perTeam', value);
+		else event.currentTarget.value = perTeam; // the field shows what the page holds
 	}
 	const nameOf = (id) => (byId.has(id) ? fullName(byId.get(id)) : '');
 </script>
@@ -44,7 +50,7 @@
 			value={perTeam}
 			disabled={proposed}
 			aria-describedby={proposed ? 'per-team-hint' : undefined}
-			on:change={(event) => dispatch('perTeam', Number(event.currentTarget.value))}
+			on:change={setPerTeam}
 		/>
 		{#if proposed}<p class="hint" id="per-team-hint">{t('builder.perTeamLocked')}</p>{/if}
 	</div>
@@ -90,7 +96,7 @@
 			<h3>{t('builder.tray')}</h3>
 			<ul>
 				{#each unplaced as id (id)}
-					<PlayerCard player={byId.get(id)} teamCount={teams.length || count} incomplete={incomplete.has(id)} notes={showRequests ? notesFor(byId.get(id)) : []} on:move />
+					<PlayerCard player={byId.get(id)} teamCount={teams.length} incomplete={incomplete.has(id)} notes={showRequests ? notesFor(byId.get(id)) : []} on:move />
 				{/each}
 			</ul>
 		</section>

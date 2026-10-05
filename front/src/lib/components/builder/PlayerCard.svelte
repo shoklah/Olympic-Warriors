@@ -35,11 +35,13 @@
 	{#if incomplete}<span class="badge">{t('builder.incomplete')}</span>{/if}
 	{#each notes as note}<span class="note">{note}</span>{/each}
 	<span class="actions">
+		{#if targets.length > 0 || index !== -1}
 		<select aria-label={t('builder.move', { name })} on:change={change}>
 			<option value="">{t('builder.moveTo')}</option>
 			{#each targets as i}<option value={i}>{t('builder.team', { n: i + 1 })}</option>{/each}
 			{#if index !== -1}<option value="tray">{t('builder.moveToTray')}</option>{/if}
 		</select>
+		{/if}
 		{#if index !== -1}
 			<button
 				type="button"
