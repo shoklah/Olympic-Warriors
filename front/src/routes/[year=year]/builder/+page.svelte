@@ -282,6 +282,8 @@
 
 <style>
 	.page {
+		/* The board wants room: use the width the screen has instead of the reading column. */
+		--page: min(100% - 2rem, 110rem);
 		padding-bottom: 3rem;
 	}
 	h1 {
