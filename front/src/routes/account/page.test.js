@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from '@testing-library/svelte';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderWith } from '$lib/test-utils';
 import Page from './+page.svelte';
 import { profile } from '$lib/fixtures/players.js';
@@ -245,5 +245,75 @@ describe('account page', () => {
 		expect(screen.getByText('Identifiant : xavierbaby')).toBeInTheDocument();
 		expect(screen.getByLabelText('Tapez « Supprimer » pour confirmer')).toHaveAttribute('placeholder', 'Supprimer');
 		expect(screen.getByRole('button', { name: 'Supprimer mon compte' })).toBeInTheDocument();
+	});
+});
+
+describe('account page for an invited newcomer', () => {
+	const invitee = {
+		account: { id: 41, username: 'newbie', email: 'n@mail.example', is_staff: false, is_person: false },
+		profile: null,
+		registration: null,
+		me: { id: 41, first_name: 'Nina', last_name: 'Neuf', photo: null, is_person: false, can_register: true, photo_locked: false }
+	};
+
+	it('shows the email, password and session sections but no photo or showcase', () => {
+		renderWith(Page, { data: invitee, form: null });
+
+		expect(screen.getByRole('heading', { level: 1, name: 'My account' })).toBeInTheDocument();
+		for (const name of ['Email address', 'Password', 'Session']) {
+			expect(screen.getByRole('heading', { level: 2, name })).toBeInTheDocument();
+		}
+		expect(screen.queryByRole('heading', { level: 2, name: 'Photo' })).toBeNull();
+		expect(screen.queryByRole('heading', { level: 2, name: 'Badge showcase' })).toBeNull();
+	});
+
+	it('has no profile crumb to link to', () => {
+		renderWith(Page, { data: invitee, form: null });
+
+		const breadcrumb = screen.getByRole('navigation', { name: 'Breadcrumb' });
+		expect(within(breadcrumb).getByRole('link', { name: 'Players' })).toBeInTheDocument();
+		expect(within(breadcrumb).queryByRole('link', { name: /Nina/ })).toBeNull();
+	});
+});
+
+describe('the registration link', () => {
+	const open = {
+		...data,
+		me: { ...data.me, can_register: true },
+		latestYear: 2027,
+		editions: [{ year: 2027, start_date: '2027-09-18', registration_opens: '2027-01-01', registration_closes: null }]
+	};
+
+	beforeEach(() => vi.useFakeTimers());
+	afterEach(() => vi.useRealTimers());
+
+	it('links the registration while it is open', () => {
+		vi.setSystemTime(new Date('2027-06-01T10:00:00Z'));
+		renderWith(Page, { data: open, form: null });
+
+		expect(within(section('Registration')).getByRole('link', { name: 'Registration 2027' })).toHaveAttribute('href', '/register');
+	});
+
+	it('shows no section once it is closed, for someone who cannot register, or without a window', () => {
+		vi.setSystemTime(new Date('2027-09-18T10:00:00Z'));
+		const closed = renderWith(Page, { data: open, form: null });
+		expect(screen.queryByRole('heading', { level: 2, name: 'Registration' })).toBeNull();
+		closed.unmount();
+
+		vi.setSystemTime(new Date('2027-06-01T10:00:00Z'));
+		const cannot = renderWith(Page, { data: { ...open, me: { ...open.me, can_register: false } }, form: null });
+		expect(screen.queryByRole('heading', { level: 2, name: 'Registration' })).toBeNull();
+		cannot.unmount();
+
+		renderWith(Page, { data: { ...open, editions: [] }, form: null });
+		expect(screen.queryByRole('heading', { level: 2, name: 'Registration' })).toBeNull();
+	});
+
+	it('words it in French', () => {
+		vi.setSystemTime(new Date('2027-06-01T10:00:00Z'));
+		renderWith(Page, { data: open, form: null }, 'fr');
+
+		expect(screen.getByRole('heading', { level: 2, name: 'Inscription' })).toBeInTheDocument();
+		expect(screen.getByRole('link', { name: 'Inscription 2027' })).toBeInTheDocument();
 	});
 });

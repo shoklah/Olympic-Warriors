@@ -45,7 +45,7 @@ describe('account load', () => {
 		expect(fetch.mock.calls[0][1].headers).toEqual({ authorization: 'Token t' });
 		expect(fetch.mock.calls[1][0]).toBe('http://api/profile/34/');
 		expect(data).toEqual({
-			account: { id: 34, username: 'xavierbaby', email: 'x@mail.example', is_staff: false },
+			account: { id: 34, username: 'xavierbaby', email: 'x@mail.example', is_staff: false, is_person: true },
 			profile
 		});
 		expect(setHeaders).toHaveBeenCalledWith({ 'cache-control': 'private, no-store' });
@@ -57,6 +57,31 @@ describe('account load', () => {
 		);
 		const data = await load({ fetch, cookies: cookiesWith(), setHeaders: vi.fn() });
 		expect(data.account.email).toBe('');
+	});
+
+	const invitee = { ...me, is_person: false, can_register: true };
+	const registrationBody = { edition: { year: 2027 }, state: { is_open: true, reason: '' }, registration: null };
+
+	it('serves an invited newcomer without asking for a profile they do not have', async () => {
+		const fetch = vi.fn(async (url) => {
+			if (url === 'http://api/me/') return json(200, invitee);
+			if (url === 'http://api/registration/') return json(200, registrationBody);
+			throw new Error(`unexpected ${url}`);
+		});
+
+		const data = await load({ fetch, cookies: cookiesWith(), setHeaders: vi.fn() });
+
+		expect(data.profile).toBeNull();
+		expect(data.account).toMatchObject({ id: 34, is_person: false });
+		expect(fetch.mock.calls.some(([url]) => url.includes('/profile/'))).toBe(false);
+	});
+
+	it('still sends someone who cannot register home', async () => {
+		const fetch = vi.fn(async () => json(200, { ...me, is_person: false, can_register: false }));
+
+		await expect(load({ fetch, cookies: cookiesWith(), setHeaders: vi.fn() })).rejects.toMatchObject({
+			status: 303, location: '/'
+		});
 	});
 
 	it('sends a dead token to /login too', async () => {
@@ -72,7 +97,13 @@ describe('account load', () => {
 			url === 'http://api/me/' ? json(200, { ...me, is_staff: true }) : json(200, profile)
 		);
 		const data = await load({ fetch, cookies: cookiesWith(), setHeaders: vi.fn() });
-		expect(data.account).toEqual({ id: 34, username: 'xavierbaby', email: 'x@mail.example', is_staff: true });
+		expect(data.account).toEqual({
+			id: 34,
+			username: 'xavierbaby',
+			email: 'x@mail.example',
+			is_staff: true,
+			is_person: true
+		});
 		expect(data.profile).toEqual(profile);
 	});
 
