@@ -422,8 +422,10 @@
 				{t('register.attendance')}
 			</label>
 
-			<p class="notes">{t('register.visibility')}</p>
-			<p class="notes">{t('register.retention')}</p>
+			<div class="notices">
+				<p class="notes">{t('register.visibility')}</p>
+				<p class="notes">{t('register.retention')}</p>
+			</div>
 		</div>
 
 		<div class="nav-buttons">
@@ -471,6 +473,18 @@
 		letter-spacing: 0;
 		margin: 0 0 0.75rem;
 	}
+	.step[data-step='3'] {
+		display: grid;
+		gap: 1.75rem;
+	}
+	.step[data-step='3'] .field,
+	.step[data-step='3'] .email {
+		margin: 0;
+	}
+	.notices {
+		display: grid;
+		gap: 0.25rem;
+	}
 	.step[hidden],
 	.final[hidden],
 	.withdraw[hidden],
@@ -504,9 +518,16 @@
 	}
 	.progress li {
 		flex: 1;
+		display: flex;
 	}
 	.step-name {
 		width: 100%;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 0.125rem;
+		text-align: center;
 		padding: 0.5rem;
 		background: transparent;
 		border: 1px solid var(--line);
@@ -514,6 +535,12 @@
 		color: var(--muted);
 		font: inherit;
 		cursor: pointer;
+	}
+	@media (min-width: 600px) {
+		.step-name {
+			flex-direction: row;
+			gap: 0.5rem;
+		}
 	}
 	.step-name[aria-current='step'] {
 		color: var(--ink);
