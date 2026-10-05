@@ -614,8 +614,8 @@
 	}
 	.fields {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
-		gap: 0.5rem 0.75rem;
+		grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+		gap: 0.75rem;
 		align-items: end;
 	}
 	.icon-button {
@@ -664,7 +664,7 @@
 		gap: 0.5rem;
 		align-items: end;
 	}
-	.duration .field {
+	.fields .field {
 		margin-bottom: 0;
 	}
 	.field.short input {
