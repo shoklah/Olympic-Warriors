@@ -11,7 +11,7 @@ from django.contrib.admin.forms import AdminAuthenticationForm
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ImproperlyConfigured, ValidationError
 from django.db import transaction
-from django.forms import ModelChoiceField, ModelForm
+from django.forms import BaseInlineFormSet, ModelChoiceField, ModelForm
 from django.http import HttpRequest
 from django.utils.html import format_html
 from django.utils.translation import gettext_lazy
@@ -19,6 +19,7 @@ from .avatars import remove_photo
 from .badges import refresh
 from .claims import INACTIVE, NOT_A_PERSON, STAFF, Unclaimable, claim_link, public_url
 from .profiles import PARIS
+from .questionnaire import QuestionnaireError, copy_skills, recompute_ratings, skills_locked
 from .throttling import LoginRateThrottle
 from .models import (
     MANUAL_CODES,
@@ -27,6 +28,8 @@ from .models import (
     UserProfile,
     Player,
     PlayerRating,
+    PlayerSport,
+    RegistrationSkill,
     Team,
     Edition,
     Discipline,
@@ -135,6 +138,53 @@ class PlayerRatingInline(TabularInline):
     extra = 1
 
 
+class PlayerSportInline(TabularInline):
+    """
+    Inline for the PlayerSport model to be accessed from the Player model.
+    """
+
+    model = PlayerSport
+    extra = 0
+
+
+class LockedSkillFormSet(BaseInlineFormSet):
+    """
+    The skills of an edition whose players have answered: weights, labels, order and
+    activation stay editable, but adding or deleting a skill or changing an identifier
+    would leave stored answers incomplete or orphaned, so it is refused.
+    """
+
+    LOCKED = (
+        "Le jeu de compétences est verrouillé : des joueurs ont déjà une note pour cette "
+        "édition. Seuls les poids, libellés, l'ordre et l'activation sont modifiables."
+    )
+
+    def clean(self):
+        super().clean()
+        if self.instance.pk is None or not skills_locked(self.instance):
+            return
+        for form in self.forms:
+            existing = form.instance.pk is not None
+            if existing and (self._should_delete_form(form) or "identifier" in form.changed_data):
+                raise ValidationError(self.LOCKED)
+            if not existing and form.has_changed():
+                raise ValidationError(self.LOCKED)
+
+
+class RegistrationSkillInline(TabularInline):
+    """
+    Inline for the RegistrationSkill model to be accessed from the Edition model.
+    """
+
+    model = RegistrationSkill
+    formset = LockedSkillFormSet
+    fields = ("order", "identifier", "name_fr", "name_en", "weight", "is_active")
+
+    def get_extra(self, request, obj=None, **kwargs):
+        """No blank rows on a locked edition: adding is refused there anyway."""
+        return 0 if obj is not None and skills_locked(obj) else 3
+
+
 class PlayerInlineForm(ModelForm):
     """
     On the team page `team` is the inline's hidden foreign key, and the tabular inline
@@ -156,6 +206,14 @@ class PlayerInline(TabularInline):
     model = Player
     form = PlayerInlineForm
     extra = 1
+    # The registration answers are edited on the Player page, not once per roster row.
+    exclude = (
+        "global_level",
+        "dietary_restrictions",
+        "sport_frequency",
+        "team_wishes",
+        "attendance_confirmed",
+    )
 
 
 class RugbyEventInline(TabularInline):
@@ -235,14 +293,38 @@ class ClaimLinksPermission:  # pylint: disable=too-few-public-methods
         return request.user.has_perm("auth.change_user")
 
 
+class DietaryFilter(SimpleListFilter):
+    """Players who gave dietary restrictions, or none."""
+
+    title = "restrictions alimentaires"
+    parameter_name = "dietary"
+
+    def lookups(self, request, model_admin):
+        return (("yes", "Renseignées"), ("no", "Aucune"))
+
+    def queryset(self, request, queryset):
+        if self.value() == "yes":
+            return queryset.exclude(dietary_restrictions="")
+        if self.value() == "no":
+            return queryset.filter(dietary_restrictions="")
+        return queryset
+
+
 class PlayerAdmin(ClaimLinksPermission, ModelAdmin):
     """
     Admin dashboard configuration for the Player model.
     """
 
-    list_display = ["user", "rating", "team", "edition"]
+    list_display = ["user", "rating", "team", "edition", "attendance_confirmed", "has_dietary"]
     list_editable = ["team"]
-    list_filter = ["team", "edition", "is_active"]
+    list_filter = [
+        "team",
+        "edition",
+        "is_active",
+        "attendance_confirmed",
+        "sport_frequency",
+        DietaryFilter,
+    ]
     list_select_related = ["user", "edition", "team"]
     search_fields = [
         "user__first_name",
@@ -251,8 +333,13 @@ class PlayerAdmin(ClaimLinksPermission, ModelAdmin):
         "team__name",
         "edition__year",
     ]
-    inlines = [PlayerRatingInline]
+    inlines = [PlayerRatingInline, PlayerSportInline]
     actions = [generate_claim_links]
+
+    @display(boolean=True, description="Restrictions alimentaires")
+    def has_dietary(self, obj):
+        """Whether the player gave dietary restrictions."""
+        return bool(obj.dietary_restrictions)
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         """Teams labelled `name (year)`, newest edition first."""
@@ -331,6 +418,44 @@ def refresh_badges(modeladmin, request, queryset):  # pylint: disable=unused-arg
     )
 
 
+@action(description="Copier le questionnaire de l'édition précédente", permissions=["change"])
+def copy_questionnaire(modeladmin, request, queryset):
+    """Seed an edition's skills from the closest earlier edition that has any."""
+    for edition in queryset.order_by("year"):
+        try:
+            year, count = copy_skills(edition)
+        except QuestionnaireError as error:
+            modeladmin.message_user(request, f"{edition.year} : {error}", messages.WARNING)
+        else:
+            modeladmin.message_user(
+                request, f"{edition.year} : {count} compétence(s) copiée(s) depuis {year}."
+            )
+
+
+@action(description="Recalculer les notes", permissions=["change"])
+def recompute_player_ratings(modeladmin, request, queryset):
+    """Recompute Player.rating from the stored answers with the current weights, after a
+    weight change. Any edition; players without a stored global answer are skipped."""
+    for edition in queryset.order_by("year"):
+        report = recompute_ratings(edition)
+        if not report.has_questionnaire:
+            modeladmin.message_user(
+                request,
+                f"{edition.year} : Aucun questionnaire pour cette édition.",
+                messages.WARNING,
+            )
+            continue
+        text = (
+            f"{edition.year} : {report.updated} note(s) mise(s) à jour, "
+            f"{report.unchanged} inchangée(s)"
+        )
+        if report.no_global_level:
+            text += f", {report.no_global_level} joueur(s) ignoré(s) : réponse globale inconnue"
+        if report.incomplete:
+            text += f", {report.incomplete} joueur(s) ignoré(s) : compétences manquantes"
+        modeladmin.message_user(request, text + ".")
+
+
 class EditionAdmin(ModelAdmin):
     """
     Admin dashboard configuration for the Edition model.
@@ -339,7 +464,18 @@ class EditionAdmin(ModelAdmin):
     list_display = ["year"]
     list_filter = ["is_active"]
     search_fields = ["year"]
-    actions = [refresh_badges]
+    actions = [refresh_badges, copy_questionnaire, recompute_player_ratings]
+    inlines = [RegistrationSkillInline]
+    fields = (
+        "year",
+        "host",
+        "start_date",
+        "end_date",
+        "dates_confirmed",
+        "photos_url",
+        "registration_form",
+        "is_active",
+    )
 
     def changelist_view(self, request, extra_context=None):
         """

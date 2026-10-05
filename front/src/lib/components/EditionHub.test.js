@@ -120,4 +120,38 @@ describe('EditionHub', () => {
 
 		expect(screen.getByRole('link', { name: 'Joueurs' })).toHaveAttribute('href', '/players');
 	});
+	describe('with unconfirmed dates', () => {
+		const unconfirmed = { ...summary, edition: { ...summary.edition, dates_confirmed: false } };
+
+		it('hides the countdown and the date range', () => {
+			vi.setSystemTime(new Date('2026-09-17T07:00:00Z'));
+			renderWith(EditionHub, { summary: unconfirmed, editions });
+
+			expect(screen.getByText('Paris · Dates to be announced')).toBeInTheDocument();
+			expect(screen.queryByText('Days')).toBeNull();
+			expect(screen.queryByText(/September/)).toBeNull();
+		});
+
+		it('never offers the ranking, even once the provisional start has passed', () => {
+			vi.setSystemTime(new Date('2026-09-19T08:00:00Z'));
+			renderWith(EditionHub, { summary: unconfirmed, editions });
+
+			expect(screen.queryByRole('link', { name: 'Ranking' })).toBeNull();
+			expect(screen.getByRole('link', { name: 'Players' })).toBeInTheDocument();
+		});
+
+		it('says it in French', () => {
+			vi.setSystemTime(new Date('2026-09-17T07:00:00Z'));
+			renderWith(EditionHub, { summary: unconfirmed, editions }, 'fr');
+
+			expect(screen.getByText('Paris · Dates à venir')).toBeInTheDocument();
+		});
+
+		it('treats a payload without the flag as confirmed', () => {
+			vi.setSystemTime(new Date('2026-09-17T07:00:00Z'));
+			renderWith(EditionHub, { summary, editions });
+
+			expect(screen.getByText('Paris · 19 – 20 September 2026')).toBeInTheDocument();
+		});
+	});
 });

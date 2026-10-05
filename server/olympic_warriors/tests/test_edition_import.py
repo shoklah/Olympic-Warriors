@@ -6,7 +6,7 @@ from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 
-from olympic_warriors.models import Edition, Player, PlayerRating
+from olympic_warriors.models import Edition, Player, PlayerRating, PlayerSport
 
 FIXTURE = Path(__file__).parent / "fixtures" / "registration_2026_sample.csv"
 
@@ -157,6 +157,51 @@ class EditionImportTests(TestCase):
         with self.assertRaises(ValueError) as ctx:
             self.edition.save()
         self.assertIn("alicemartin", str(ctx.exception))
+
+    def test_stores_the_global_level_and_the_private_answers(self):
+        alice = Player.objects.get(user__username="alicemartin", edition=self.edition)
+
+        self.assertEqual(alice.global_level, 8)
+        self.assertEqual(alice.sport_frequency, "two_hours")
+        self.assertEqual(alice.team_wishes, "Avec Bob")
+        self.assertTrue(alice.attendance_confirmed)
+        self.assertEqual(alice.dietary_restrictions, "")  # not in the form
+        chloe = Player.objects.get(user__username="chloédelatour", edition=self.edition)
+        self.assertEqual(chloe.sport_frequency, "rare")
+        self.assertEqual(chloe.global_level, 5)
+
+    def test_keeps_the_sports_history_whole_as_one_row(self):
+        alice = Player.objects.get(user__username="alicemartin", edition=self.edition)
+
+        sports = list(alice.playersport_set.all())
+        self.assertEqual([s.sport for s in sports], ["Historique (import)"])
+        self.assertEqual(sports[0].notes, "Escalade - 10 ans - amateur")
+
+    def test_a_duplicated_imported_sports_row_does_not_fail_the_reimport(self):
+        alice = Player.objects.get(user__username="alicemartin", edition=self.edition)
+        PlayerSport.objects.create(player=alice, sport="Historique (import)", notes="Ajouté à la main")
+        original = FIXTURE.read_text(encoding="utf-8")
+        changed = original.replace("Escalade - 10 ans - amateur", "Escalade - 12 ans - amateur")
+        self.assertNotEqual(changed, original)
+        self.edition.registration_form = SimpleUploadedFile("changed.csv", changed.encode("utf-8"))
+
+        self.edition.save()
+
+        notes = sorted(alice.playersport_set.values_list("notes", flat=True))
+        self.assertEqual(len(notes), 2)
+        self.assertIn("Escalade - 12 ans - amateur", notes)
+
+    def test_reimport_replaces_the_answers_without_duplicating_the_sports_row(self):
+        original = FIXTURE.read_text(encoding="utf-8")
+        changed = original.replace("Avec Bob", "Plutôt avec Thomas")
+        self.assertNotEqual(changed, original)
+        self.edition.registration_form = SimpleUploadedFile("changed.csv", changed.encode("utf-8"))
+        self.edition.save()
+
+        alice = Player.objects.get(user__username="alicemartin", edition=self.edition)
+        self.assertEqual(alice.team_wishes, "Plutôt avec Thomas")
+        self.assertEqual(alice.playersport_set.count(), 1)
+        self.assertEqual(PlayerSport.objects.count(), 4)
 
 
 FIXTURE_2024 = Path(__file__).parent / "fixtures" / "registration_2024_sample.csv"
