@@ -4,19 +4,24 @@ Admin dashboard configuration for the Olympic Warriors app.
 
 import math
 
+from django import forms
 from django.contrib import messages
 from django.contrib.admin import action, display, site, ModelAdmin, SimpleListFilter, TabularInline
 from django.contrib.admin.actions import delete_selected as stock_delete_selected
 from django.contrib.admin.forms import AdminAuthenticationForm
 from django.contrib.auth import get_user_model
-from django.core.exceptions import ImproperlyConfigured, ValidationError
+from django.core.exceptions import ImproperlyConfigured, PermissionDenied, ValidationError
 from django.db import transaction
 from django.forms import BaseInlineFormSet, ModelChoiceField, ModelForm
 from django.http import HttpRequest
+from django.shortcuts import redirect
+from django.template.response import TemplateResponse
+from django.urls import path, reverse
 from django.utils.html import format_html
 from django.utils.translation import gettext_lazy
 from .avatars import remove_photo
 from .badges import refresh
+from . import invitations
 from .claims import INACTIVE, NOT_A_PERSON, STAFF, Unclaimable, claim_link, public_url
 from .profiles import PARIS
 from .registration_state import CLOSED, NOT_CONFIGURED, NOT_YET_OPEN, registration_state
@@ -943,6 +948,39 @@ class LateRegistrationAdmin(ModelAdmin):
         return False
 
 
+class InviteForm(forms.Form):
+    """One person (three fields) or a paste of `Prénom Nom, email` lines, or both."""
+
+    first_name = forms.CharField(label="Prénom", required=False)
+    last_name = forms.CharField(label="Nom", required=False)
+    email = forms.EmailField(label="Email", required=False)
+    lines = forms.CharField(
+        label="Une personne par ligne : Prénom Nom, email",
+        widget=forms.Textarea(attrs={"rows": 10, "cols": 70}),
+        required=False,
+    )
+    late_pass = forms.BooleanField(
+        label="Inscription tardive (même hors période d'inscription)", required=False
+    )
+
+    def clean(self):
+        data = super().clean()
+        single = [data.get(k) for k in ("first_name", "last_name", "email")]
+        if any(single) and not (data.get("first_name") and data.get("email")):
+            raise forms.ValidationError("Pour une personne seule : prénom et email sont requis.")
+        if not any(single) and not (data.get("lines") or "").strip():
+            raise forms.ValidationError("Saisissez une personne ou collez une liste.")
+        return data
+
+    def text(self):
+        """The paste, with the single person appended as one more line."""
+        lines = (self.cleaned_data.get("lines") or "").strip()
+        if self.cleaned_data.get("first_name"):
+            name = f"{self.cleaned_data['first_name']} {self.cleaned_data.get('last_name', '')}"
+            lines = (lines + "\n" if lines else "") + f"{name.strip()}, {self.cleaned_data['email']}"
+        return lines
+
+
 class UserProfileAdmin(ClaimLinksPermission, ModelAdmin):
     """
     Photo moderation. Organisers never upload a photo (every face on the site was put there
@@ -980,6 +1018,67 @@ class UserProfileAdmin(ClaimLinksPermission, ModelAdmin):
         "updated_at",
     ]
     readonly_fields = ["user", "photo_preview", "pinned", "claimed_at", "updated_at"]
+
+    change_list_template = "admin/olympic_warriors/userprofile/change_list.html"
+
+    def get_urls(self):
+        custom = [
+            path(
+                "invite/",
+                self.admin_site.admin_view(self.invite_view),
+                name="olympic_warriors_userprofile_invite",
+            )
+        ]
+        return custom + super().get_urls()
+
+    def invite_view(self, request):
+        """Create or reuse accounts from a paste and show each person's claim link (in
+        messages only, never logged). Needs the right to add and to change users: a link
+        sets a password and the page creates users."""
+        if not request.user.has_perms(["auth.add_user", "auth.change_user"]):
+            raise PermissionDenied
+        form = InviteForm(request.POST if request.method == "POST" else None)
+        if request.method == "POST" and form.is_valid():
+            entries, problems = invitations.parse_lines(form.text())
+            try:
+                results = invitations.invite(
+                    entries, problems, form.cleaned_data["late_pass"], granted_by=request.user
+                )
+            except ImproperlyConfigured:
+                self.message_user(
+                    request,
+                    "PUBLIC_URL n'est pas configurée : aucun compte créé, aucun lien généré.",
+                    messages.ERROR,
+                )
+            except LookupError:
+                self.message_user(request, "Aucune édition : aucun compte créé.", messages.ERROR)
+            else:
+                self._report(request, results)
+                return redirect(reverse("admin:olympic_warriors_userprofile_invite"))
+        context = {**self.admin_site.each_context(request), "form": form, "title": "Inviter des joueurs", "opts": self.model._meta}
+        return TemplateResponse(request, "admin/olympic_warriors/userprofile/invite.html", context)
+
+    def _report(self, request, results):
+        for result in results:
+            head = f"Ligne {result.line} : {result.name}"
+            if result.status == invitations.CREATED or result.status == invitations.REUSED:
+                verb = "créé" if result.status == invitations.CREATED else "compte existant réutilisé"
+                text = f"{head} ({verb}) : {result.link}"
+                if result.late_pass:
+                    text += " (inscription tardive : envoyer aussi l'adresse /register)"
+                if result.warning:
+                    self.message_user(request, f"{text} — ATTENTION : {result.warning}", messages.WARNING)
+                else:
+                    self.message_user(request, text)
+            elif result.status == invitations.STAFF:
+                self.message_user(request, f"{head} (organisateur, déjà un compte) : {result.detail}")
+            else:
+                label = {
+                    invitations.CONFLICT: "conflit",
+                    invitations.MALFORMED: "ligne illisible",
+                    invitations.DUPLICATE: "doublon",
+                }[result.status]
+                self.message_user(request, f"{head} : {label}, {result.detail}", messages.WARNING)
 
     @display(description="name", ordering="user__last_name")
     def name(self, obj):

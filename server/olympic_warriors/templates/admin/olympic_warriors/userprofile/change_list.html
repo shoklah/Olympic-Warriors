@@ -1,0 +1,5 @@
+{% extends "admin/change_list.html" %}
+{% block object-tools-items %}
+  <li><a href="{% url 'admin:olympic_warriors_userprofile_invite' %}" class="addlink">Inviter des joueurs</a></li>
+  {{ block.super }}
+{% endblock %}
