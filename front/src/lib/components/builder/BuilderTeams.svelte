@@ -25,8 +25,18 @@
 	$: unmet = result?.unmet ?? [];
 	const skillName = (s) => (locale === 'en' ? s.name_en : s.name_fr);
 
+	// The column a card is being dragged over: 'tray' or the team's index.
+	let over = null;
+	function dragOver(event, key) {
+		event.preventDefault();
+		over = key;
+	}
+	function dragLeave(event) {
+		if (!event.currentTarget.contains(event.relatedTarget)) over = null;
+	}
 	function drop(event, to) {
 		event.preventDefault();
+		over = null;
 		const id = Number(event.dataTransfer?.getData('text/plain'));
 		if (byId.has(id)) dispatch('move', { id, to });
 	}
@@ -92,7 +102,14 @@
 
 <div class="board">
 	{#if unplaced.length > 0}
-		<section class="column tray" aria-label={t('builder.tray')} on:dragover|preventDefault on:drop={(e) => drop(e, null)}>
+		<section
+			class="column tray"
+			class:over={over === 'tray'}
+			aria-label={t('builder.tray')}
+			on:dragover={(e) => dragOver(e, 'tray')}
+			on:dragleave={dragLeave}
+			on:drop={(e) => drop(e, null)}
+		>
 			<h3>{t('builder.tray')}</h3>
 			<ul>
 				{#each unplaced as id (id)}
@@ -102,7 +119,14 @@
 		</section>
 	{/if}
 	{#each teams as team, i}
-		<section class="column" aria-label={t('builder.team', { n: i + 1 })} on:dragover|preventDefault on:drop={(e) => drop(e, i)}>
+		<section
+			class="column"
+			class:over={over === i}
+			aria-label={t('builder.team', { n: i + 1 })}
+			on:dragover={(e) => dragOver(e, i)}
+			on:dragleave={dragLeave}
+			on:drop={(e) => drop(e, i)}
+		>
 			<h3>{t('builder.team', { n: i + 1 })}</h3>
 			<p class="stats">
 				<span>{t('builder.size', { n: team.players.length })}</span>
@@ -236,6 +260,10 @@
 		background: var(--bg-sunken);
 		border: 1px solid var(--line);
 		border-radius: var(--radius);
+	}
+	.column.over {
+		border-color: var(--accent);
+		background: var(--bg-raised);
 	}
 	.column h3 {
 		margin: 0;
