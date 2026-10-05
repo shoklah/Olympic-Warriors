@@ -2537,7 +2537,50 @@ git commit -m "[DOCS] document the registration pages
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 ```
 
-- [ ] **Step 4: Hand over.** Report the branch (`feat/registration-ui`), the test and build results, and the deploy note: the front needs the slice 2 API (`/registration/`, `can_register` on `/me/`), so deploy the server before the front; against an old server nothing shows (no `can_register`, so no registration link and no call to action). Do not open the PR or touch `dev` unasked.
+- [ ] **Step 4: Hand over.** Report the branch (`feat/registration-ui`), the test and build results, that Task 10 (the smoke test on the dev stack) runs after the merge into `dev`, and the deploy note: the front needs the slice 2 API (`/registration/`, `can_register` on `/me/`), so deploy the server before the front; against an old server nothing shows (no `can_register`, so no registration link and no call to action). Do not open the PR or touch `dev` unasked.
+
+---
+
+### Task 10: Smoke test on the dev stack (after the merge into `dev`)
+
+**Run by the controller, never by a subagent.** Hugo approved this on 2026-10-05, including applying the registration migrations to the dev database and creating, then removing, throwaway rows in it. Anything it finds is fixed on `dev` afterwards, as follow-up commits with a test each (« we merge on `dev`, run the tests and apply the fixes there »). Why it exists: every test of the three slices mocks the other half; this is the one time the real server and the real pages meet.
+
+**Rules.** Every throwaway row is named `smoke…`. Existing editions, players and users are not touched. The seed and the cleanup are the only writes. Passwords and claim links are printed to the terminal only, never written to a file or the repo.
+
+- [ ] **Step 1: Update `dev` and back up the dev database**
+
+```bash
+git switch dev && git pull
+docker compose exec -T db pg_dump -U "$(docker compose exec -T db printenv POSTGRES_USER | tr -d '\r')" "$(docker compose exec -T db printenv POSTGRES_DB | tr -d '\r')" | gzip > "$SCRATCH/dev-before-smoke.sql.gz"
+```
+
+(`$SCRATCH` is the session scratchpad. If the compose file names the database or user differently, read them from `docker-compose.yml`.)
+
+- [ ] **Step 2: Migrate** (`0041` to `0043` are not applied to the dev database yet)
+
+```bash
+docker compose exec -T server python manage.py migrate --plan
+docker compose exec -T server python manage.py migrate
+```
+
+Expected: the plan lists only `0041_registration_foundations`, `0042_seed_registration_skills`, `0043_registration_window` (and any later migration of `dev`); migrate finishes `OK`. Note the counts to restore: `Edition.objects.count()`, `User.objects.count()`.
+
+- [ ] **Step 3: Seed the throwaway data** with one `manage.py shell` script (printing the passwords and the claim link): a past edition 2028 with a `Player` for `smoke-returning` (frequency `hour`, one `PlayerSport`), the registration edition 2029 (`start_date` 2029-09-15, `registration_opens` yesterday, FR and EN intro and skills month, three `RegistrationSkill`s, a `Relay` discipline), the users `smoke-returning` (a real-looking `@example.test` email, a known password), `smoke-invited` (`UserProfile.invited=True`, an `@example.test` email, no usable password, a `claims.claim_link`) and `smoke-plain` (neither). Dev's `PUBLIC_URL` is `http://localhost:5173`.
+
+- [ ] **Step 4: Walk the flows in the built-in browser** (front on `http://localhost:5173`, API on `:3003`), at desktop width and again at 375px, in French and in English, noting each result:
+  1. As a visitor the hub shows « Se connecter pour s'inscrire »; it leads to `/login?next=/register`, which explains the invitation; after the real login it lands on `/register`.
+  2. The invited claim link: set a password; it lands on `/register` (not a 404 profile), the header shows the account and register links, `/account` has no photo or showcase section.
+  3. `/register`: native validation on an empty submit; a bad rating (11) and an unticked confirmation give the refusal list and keep what was typed; a valid save shows « Inscription enregistrée ».
+  4. `smoke-returning`: the « Repris de votre inscription 2028 » banner and the prefilled sports; add and remove rows, the 16th is refused; save; the hub says « Inscription 2029 ».
+  5. Email: give `smoke-returning` a `@olympicwarriors.com` address in the shell, reload: the form asks for one; an address already used by another account is refused (`email_taken`).
+  6. Withdraw (no team) shows the withdrawn banner and keeps the answers; registering again restores them. Put the player in a team in the shell: withdraw is refused (`has_team`).
+  7. Set `registration_closes` to yesterday: the closed notice and the read-only summary replace the form; grant a late pass in the admin (« Autoriser l'inscription tardive »): the form is back; deactivate the player in the admin (an organiser removal): the removal notice.
+  8. The admin pages of slice 2 render: the Edition page (window, status), the invite page (paste the three seed names plus one new line, check the conflict and the link messages), the profile list (`invited` column).
+  Also confirm: the dev servers log no errors (`docker compose logs --tail 200 server front`).
+
+- [ ] **Step 5: Record and fix.** List every defect with its flow. Fix each on `dev` with a failing test first, commit, and re-walk the flow.
+
+- [ ] **Step 6: Clean up** in one `manage.py shell` script: delete the three `smoke-*` users and editions 2028 and 2029 (the cascade removes their players, ratings, sports, skills, passes and invited profiles), then check `Edition.objects.count()` and `User.objects.count()` equal the Step 2 counts and that no `smoke` row remains. Keep the dump from Step 1 until Hugo confirms.
 
 ---
 
@@ -2556,6 +2599,7 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 | `register.*` strings in both dictionaries with the parity test; one French test per surface | 3 and each task |
 | `NO_TAB_BAR` | 4 |
 | `CLAUDE.md` | 9 |
+| Real server and real pages meet once before release | 10 (a manual smoke test on `dev`) |
 
 Deliberate choices not in the spec text (decided with Hugo on 2026-10-05): a visitor's link reads « Se connecter pour s'inscrire » and the login page explains that registration is by invitation (no signup exists); the hub and account links come from the layout data, so they cannot say whether the player is already registered (« Inscription {year} » for everyone logged in who can register; `/register` shows and edits the state) and no hub gains a server load; once registration is closed a registered player reads their saved answers in a read-only summary; the form is worded « vous » like the rest of the site; the claim asks `/me/` rather than the claim endpoint growing a field.
 
