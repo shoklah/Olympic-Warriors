@@ -135,6 +135,18 @@ describe('register save', () => {
 		expect(result.data.values).toBeDefined();
 	});
 
+	it('hands the typed sports back when the API refuses sixteen of them', async () => {
+		const fetch = vi.fn(async () => json(400, { errors: ['too_many_sports'] }));
+		const rows = Array.from({ length: 16 }, (_, i) => [`sport.${i}.sport`, `Sport ${i}`]);
+
+		const result = await actions.save({ request: post('save', [...goodEntries.filter(([n]) => !n.startsWith('sport.')), ...rows]), cookies: cookiesWith(), fetch });
+
+		expect(result.status).toBe(400);
+		expect(result.data.errors).toEqual(['register.error.too_many_sports']);
+		expect(result.data.values.sports).toHaveLength(16);
+		expect(JSON.parse(fetch.mock.calls[0][1].body).sports).toHaveLength(16);
+	});
+
 	it('refuses without a token', async () => {
 		const fetch = vi.fn();
 

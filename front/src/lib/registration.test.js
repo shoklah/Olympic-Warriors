@@ -139,6 +139,19 @@ describe('valuesFromForm and bodyFromValues', () => {
 		expect(values.email).toBe('');
 	});
 
+	it('keeps a row with only one field filled, for the API to refuse', () => {
+		const values = valuesFromForm(formOf([['sport.0.sport', ''], ['sport.0.years', '3'], ['skill', 'CARD']]));
+
+		expect(values.sports).toEqual([{ ...emptySport(), years: '3' }]);
+		expect(bodyFromValues(values, false).sports[0]).toMatchObject({ sport: '', duration_months: 36 });
+	});
+
+	it('reads a very large row index without trouble', () => {
+		const values = valuesFromForm(formOf([['sport.4000000.sport', 'Judo'], ['skill', 'CARD']]));
+
+		expect(values.sports.map((s) => s.sport)).toEqual(['Judo']);
+	});
+
 	it('orders sports rows by their index, whatever the order they were posted in', () => {
 		const values = valuesFromForm(
 			formOf([['sport.10.sport', 'B'], ['sport.2.sport', 'A'], ['skill', 'CARD']])
@@ -161,6 +174,15 @@ describe('valuesFromForm and bodyFromValues', () => {
 			dietary_restrictions: '',
 			attendance_confirmed: true
 		});
+	});
+
+	it('passes a non-whole rating on as typed, for the API to refuse', () => {
+		const values = valuesFromForm(formOf([['skill', 'CARD'], ['rating.CARD', '5.5'], ['global_level', '7.5']]));
+
+		const body = bodyFromValues(values, false);
+
+		expect(body.ratings).toEqual({ CARD: '5.5' });
+		expect(body.global_level).toBe('7.5');
 	});
 
 	it('sends the email only when the form asked for one', () => {

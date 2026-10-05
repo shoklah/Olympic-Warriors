@@ -15,8 +15,11 @@
 	$: open = registration.state.is_open;
 	$: saved = registration.registration;
 	$: registered = Boolean(saved?.registered);
-	$: removed = Boolean(saved?.removed_by_organiser);
+	// An organiser removed this person's row; a late pass is how they let them back (the API
+	// accepts the save then), so the form shows again while the pass is valid.
+	$: removedRow = Boolean(saved?.removed_by_organiser);
 	$: late = registration.state.reason === 'late_pass';
+	$: removed = removedRow && !late;
 
 	// The model the inputs read: what was typed before a refusal, else saved, else suggested.
 	let values;
@@ -140,7 +143,7 @@
 	{/if}
 	{#if registered}
 		<p class="notice">{t('register.registered')}</p>
-	{:else if saved}
+	{:else if saved && !removedRow}
 		<p class="notice">{t('register.withdrawn')}</p>
 	{:else if registration.suggested}
 		<p class="notice">{t('register.suggested', { year: registration.suggested.year })}</p>
@@ -173,13 +176,14 @@
 			{/each}
 			<div class="field">
 				<label for="global-level">{t('register.globalLevel')}</label>
-				<p class="hint">
+				<p class="hint" id="global-level-hint">
 					{programme
 						? t('register.globalQuestion', { year: edition.year, disciplines: programme })
 						: t('register.globalQuestionShort', { year: edition.year })}
 				</p>
 				<input
 					id="global-level"
+					aria-describedby="global-level-hint"
 					type="number"
 					name="global_level"
 					min="1"
@@ -252,8 +256,8 @@
 
 		<div class="field">
 			<label for="team-wishes">{t('register.teamWishes')}</label>
-			<p class="hint">{t('register.teamWishesHint')}</p>
-			<textarea id="team-wishes" name="team_wishes" rows="3" maxlength="1000" bind:value={values.team_wishes}></textarea>
+			<p class="hint" id="team-wishes-hint">{t('register.teamWishesHint')}</p>
+			<textarea id="team-wishes" aria-describedby="team-wishes-hint" name="team_wishes" rows="3" maxlength="1000" bind:value={values.team_wishes}></textarea>
 		</div>
 
 		<div class="field">
@@ -264,8 +268,8 @@
 		{#if registration.email.editable}
 			<div class="field">
 				<label for="register-email">{t('register.email')}</label>
-				<p class="hint">{t('register.emailNeeded')}</p>
-				<input id="register-email" type="email" name="email" autocomplete="email" required bind:value={values.email} />
+				<p class="hint" id="register-email-hint">{t('register.emailNeeded')}</p>
+				<input id="register-email" aria-describedby="register-email-hint" type="email" name="email" autocomplete="email" required bind:value={values.email} />
 			</div>
 		{:else}
 			<p class="email">

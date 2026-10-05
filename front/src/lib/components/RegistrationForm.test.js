@@ -221,6 +221,30 @@ describe('RegistrationForm', () => {
 		expect(screen.queryByRole('button', { name: 'Save my answers' })).toBeNull();
 	});
 
+	it('shows the form again to an organiser-removed player who holds a late pass', () => {
+		renderWith(RegistrationForm, {
+			registration: {
+				...registered,
+				state: { is_open: true, reason: 'late_pass' },
+				registration: { ...savedAnswers, registered: false, removed_by_organiser: true }
+			}
+		});
+
+		expect(screen.getByText('The organisers have allowed your late registration.')).toBeInTheDocument();
+		expect(screen.queryByText(/An organiser removed your registration/)).toBeNull();
+		expect(screen.queryByText('You are withdrawn. Your answers are kept.')).toBeNull();
+		expect(screen.getByRole('button', { name: 'Register' })).toBeInTheDocument();
+		expect(screen.getByLabelText('Cardio')).toHaveValue(6);
+	});
+
+	it('ties the question and the hints to their fields', () => {
+		renderWith(RegistrationForm, { registration: { ...open, email: { value: '', editable: true } } });
+
+		expect(screen.getByLabelText('Overall level')).toHaveAccessibleDescription(/overall level for Olympic Warriors 2027/);
+		expect(screen.getByRole('textbox', { name: /Who would you like to be/ })).toHaveAccessibleDescription(/stay confidential/);
+		expect(screen.getByRole('textbox', { name: 'Email address' })).toHaveAccessibleDescription(/recover your password/);
+	});
+
 	it('shows a withdrawn registration as withdrawn, with the form to register again', () => {
 		renderWith(RegistrationForm, {
 			registration: { ...registered, registration: { ...savedAnswers, registered: false } }
