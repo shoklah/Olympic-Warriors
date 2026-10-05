@@ -128,6 +128,11 @@ def draft_payload(draft):
     return {"document": draft.document, "updated_at": draft.updated_at.isoformat()}
 
 
+# What the builder shows of each sport a player gave: the organisers read the notes (a position, a
+# standing, or a whole imported history) and the practice beside the level.
+SPORT_KEYS = ("sport", "level", "practice", "notes")
+
+
 def payload(edition):
     """What `GET /builder/<year>/` serves: the roster with its private registration answers,
     the questionnaire's skills, whether registration is open and the saved draft."""
@@ -141,9 +146,9 @@ def payload(edition):
     ):
         ratings.setdefault(row["player_id"], {})[row["identifier"]] = row["rating"]
     for row in PlayerSport.objects.filter(player_id__in=ids).order_by("order", "id").values(
-        "player_id", "sport", "level"
+        "player_id", "sport", "level", "practice", "notes"
     ):
-        sports.setdefault(row["player_id"], []).append({"sport": row["sport"], "level": row["level"]})
+        sports.setdefault(row["player_id"], []).append({key: row[key] for key in SPORT_KEYS})
     skills = [
         {"identifier": s.identifier, "name_fr": s.name_fr, "name_en": s.name_en}
         for s in RegistrationSkill.objects.filter(edition=edition, is_active=True).order_by("order", "id")

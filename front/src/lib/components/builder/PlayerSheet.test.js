@@ -56,6 +56,21 @@ describe('PlayerSheet', () => {
 		expect(within(dialog()).getByText('No sport given')).toBeInTheDocument();
 	});
 
+	it('shows the practice and the notes, and leaves out a level nobody gave', () => {
+		const sports = [
+			{ sport: 'Tennis', level: 'league', practice: 'no_longer', notes: 'Classé 30/5' },
+			{ sport: 'Historique (import)', level: '', practice: '', notes: 'Foot - 6 ans\nJudo - 2 ans' }
+		];
+		renderWith(PlayerSheet, props(3, { player: { ...byId(3), sports } }));
+
+		const sheet = within(dialog());
+		expect(sheet.getByText('Tennis · In a club, with competitions · No longer playing')).toBeInTheDocument();
+		expect(sheet.getByText('Classé 30/5')).toBeInTheDocument();
+		expect(sheet.getByText('Historique (import)')).toBeInTheDocument();
+		expect(sheet.getByText(/Foot - 6 ans/)).toBeInTheDocument();
+		expect(sheet.queryByText(/register\./)).toBeNull();
+	});
+
 	it('closes on Escape and on its button', async () => {
 		const { component } = renderWith(PlayerSheet, props(1));
 		let closed = 0;

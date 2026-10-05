@@ -80,7 +80,10 @@
 		{:else}
 			<ul class="sports">
 				{#each profile.sports as s}
-					<li>{s.sport} · {t(`register.level.${s.level}`)}</li>
+					<li>
+						<span>{[s.sport, s.level && t(`register.level.${s.level}`), s.practice && t(`register.practice.${s.practice}`)].filter(Boolean).join(' · ')}</span>
+						{#if s.notes}<span class="notes">{s.notes}</span>{/if}
+					</li>
 				{/each}
 			</ul>
 		{/if}
@@ -193,6 +196,13 @@
 		margin: 0.5rem 0 0;
 		font-size: 0.8125rem;
 		color: var(--loss);
+	}
+	.notes {
+		display: block;
+		font-size: 0.8125rem;
+		color: var(--muted);
+		white-space: pre-line;
+		overflow-wrap: anywhere;
 	}
 	.none {
 		margin: 0;
