@@ -19,12 +19,15 @@ from .avatars import remove_photo
 from .badges import refresh
 from .claims import INACTIVE, NOT_A_PERSON, STAFF, Unclaimable, claim_link, public_url
 from .profiles import PARIS
+from .registration_state import CLOSED, NOT_CONFIGURED, NOT_YET_OPEN, registration_state
 from .questionnaire import QuestionnaireError, copy_skills, recompute_ratings, skills_locked
 from .throttling import LoginRateThrottle
 from .models import (
     MANUAL_CODES,
     Badge,
     BadgeRefresh,
+    LateRegistration,
+    latest_edition,
     UserProfile,
     Player,
     PlayerRating,
@@ -310,6 +313,38 @@ class DietaryFilter(SimpleListFilter):
         return queryset
 
 
+def _who(users):
+    return ", ".join(f"{user.get_full_name() or user.username} ({user.username})" for user in users)
+
+
+@action(description="Autoriser l'inscription tardive", permissions=["change"])
+def grant_late_pass(modeladmin, request, queryset):
+    """Let the selected people register for the latest edition whatever the window says,
+    until the edition's end. Works on players and on profiles (invited newcomers)."""
+    edition = latest_edition()
+    if edition is None:
+        modeladmin.message_user(request, "Aucune édition.", messages.ERROR)
+        return
+    granted, already, seen = [], [], set()
+    for row in queryset.select_related("user"):
+        user = row.user
+        if user.pk in seen:
+            continue
+        seen.add(user.pk)
+        _, created = LateRegistration.objects.get_or_create(
+            user=user, edition=edition, defaults={"granted_by": request.user}
+        )
+        (granted if created else already).append(user)
+    if granted:
+        modeladmin.message_user(
+            request, f"Inscription tardive accordée pour {edition.year} à : {_who(granted)}."
+        )
+    if already:
+        modeladmin.message_user(
+            request, f"Inscription tardive déjà accordée à : {_who(already)}.", messages.WARNING
+        )
+
+
 class PlayerAdmin(ClaimLinksPermission, ModelAdmin):
     """
     Admin dashboard configuration for the Player model.
@@ -334,7 +369,7 @@ class PlayerAdmin(ClaimLinksPermission, ModelAdmin):
         "edition__year",
     ]
     inlines = [PlayerRatingInline, PlayerSportInline]
-    actions = [generate_claim_links]
+    actions = [generate_claim_links, grant_late_pass]
 
     @display(boolean=True, description="Restrictions alimentaires")
     def has_dietary(self, obj):
@@ -475,7 +510,29 @@ class EditionAdmin(ModelAdmin):
         "photos_url",
         "registration_form",
         "is_active",
+        "registration_status",
+        "registration_opens",
+        "registration_closes",
+        "registration_intro_fr",
+        "registration_intro_en",
+        "skills_month_fr",
+        "skills_month_en",
     )
+    readonly_fields = ["registration_status"]
+
+    @display(description="Inscription en ligne")
+    def registration_status(self, obj):
+        """Open or why not, as an anonymous visitor sees it (a late pass is per person)."""
+        if obj.pk is None:
+            return "—"
+        state = registration_state(obj)
+        if state.is_open:
+            return "Ouverte"
+        return "Fermée : " + {
+            NOT_CONFIGURED: "questionnaire ou date d'ouverture manquant",
+            NOT_YET_OPEN: "pas encore ouverte",
+            CLOSED: "terminée",
+        }[state.reason]
 
     def changelist_view(self, request, extra_context=None):
         """
@@ -872,6 +929,20 @@ def remove_and_lock(modeladmin, request, queryset):
     )
 
 
+class LateRegistrationAdmin(ModelAdmin):
+    """The late passes: listed and revoked here, granted by the « Autoriser l'inscription
+    tardive » action."""
+
+    list_display = ["user", "edition", "granted_at", "granted_by"]
+    list_filter = ["edition"]
+    search_fields = ["user__username", "user__first_name", "user__last_name"]
+    list_select_related = ["user", "edition", "granted_by"]
+    readonly_fields = ["user", "edition", "granted_at", "granted_by"]
+
+    def has_add_permission(self, request):
+        return False
+
+
 class UserProfileAdmin(ClaimLinksPermission, ModelAdmin):
     """
     Photo moderation. Organisers never upload a photo (every face on the site was put there
@@ -887,20 +958,22 @@ class UserProfileAdmin(ClaimLinksPermission, ModelAdmin):
         "name",
         "thumbnail",
         "photo_locked",
+        "invited",
         "anonymized",
         "claimed_at",
         "updated_at",
     ]
-    list_editable = ["photo_locked"]
-    list_filter = ["photo_locked", "anonymized", HasPhotoFilter, ClaimedFilter]
+    list_editable = ["photo_locked", "invited"]
+    list_filter = ["photo_locked", "invited", "anonymized", HasPhotoFilter, ClaimedFilter]
     list_select_related = ("user",)
     search_fields = ["user__first_name", "user__last_name", "user__username"]
     ordering = ["user__last_name", "user__first_name", "user__username"]
-    actions = [remove_photos, remove_and_lock, generate_claim_links]
+    actions = [remove_photos, remove_and_lock, generate_claim_links, grant_late_pass]
     fields = [
         "user",
         "photo_preview",
         "photo_locked",
+        "invited",
         "anonymized",
         "pinned",
         "claimed_at",
@@ -967,6 +1040,7 @@ site.register(Team, TeamAdmin)
 site.register(Edition, EditionAdmin)
 site.register(Badge, BadgeAdmin)
 site.register(UserProfile, UserProfileAdmin)
+site.register(LateRegistration, LateRegistrationAdmin)
 site.register(PlayerRating, PlayerRatingAdmin)
 site.register(Discipline, DisciplineAdmin)
 site.register(TeamResult, TeamResultAdmin)
