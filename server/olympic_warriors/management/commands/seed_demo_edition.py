@@ -4,6 +4,7 @@ the team builder locally. Never touches the source edition or its users.
 """
 
 import re
+import secrets
 import unicodedata
 from datetime import date, timedelta
 
@@ -24,7 +25,6 @@ DEMO_YEAR = 2040
 SOURCE_YEAR = 2026
 PREFIX = "demo-"
 PASSWORD = "demo-password"
-FRONT_URL = f"http://localhost:5173/{DEMO_YEAR}/builder"
 
 INCOMPLETE = 2  # the last players get no per-skill ratings and no frequency
 FREQUENCIES = [f.value for f in SportFrequency]
@@ -134,7 +134,7 @@ def wishes(players):
 
 class Command(BaseCommand):
     """
-    Seeds (or with --remove, deletes) the demo edition. DEBUG only.
+    Seeds (or with --remove, deletes) the demo edition. DEBUG, or STAGE_DEMO on the staging server.
     """
 
     help = HELP
@@ -155,8 +155,8 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        if not settings.DEBUG:
-            raise CommandError("seed_demo_edition only runs with DEBUG on.")
+        if not (settings.DEBUG or settings.STAGE_DEMO):
+            raise CommandError("seed_demo_edition only runs with DEBUG or STAGE_DEMO on.")
         if options["remove"]:
             self.remove()
         else:
@@ -208,8 +208,11 @@ class Command(BaseCommand):
             # Set after creation so no round exists: the builder's Apply reports it « to schedule ».
             type(darts).objects.filter(pk=darts.pk).update(pairing_system="RR")
 
+            # The fixed password is for a local DEBUG database only: staging holds a copy of
+            # prod's data on a public host, so its demo admin gets a random one, shown once.
+            password = PASSWORD if settings.DEBUG else secrets.token_urlsafe(16)
             User.objects.create_superuser(
-                username=f"{PREFIX}admin", password=PASSWORD, email="demo-admin@example.com",
+                username=f"{PREFIX}admin", password=password, email="demo-admin@example.com",
                 first_name="Demo", last_name="Admin",
             )
             for index, old in enumerate(sources):
@@ -268,6 +271,7 @@ class Command(BaseCommand):
             )
         else:
             self.stdout.write("Copied: users, rating, global level, skills ratings. Generated: frequency, sports, team wishes.")
-        self.stdout.write(f"Admin: {PREFIX}admin / {PASSWORD}")
-        self.stdout.write(f"Team builder: {FRONT_URL}")
+        self.stdout.write(f"Admin: {PREFIX}admin / {password}")
+        front = (settings.PUBLIC_URL or "http://localhost:5173").rstrip("/")
+        self.stdout.write(f"Team builder: {front}/{DEMO_YEAR}/builder")
         self.stdout.write("Remove: docker compose exec server python manage.py seed_demo_edition --remove")
