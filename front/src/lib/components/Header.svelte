@@ -19,6 +19,8 @@
 	const t = useT();
 	const organiser = useOrganiser();
 
+	$: canRegister = Boolean(me?.can_register);
+	$: hasAccount = Boolean(me?.is_person || me?.can_register);
 	$: smallPhoto = me?.photo?.small ?? null;
 	// The accessible name starts with the visible first name (WCAG 2.5.3).
 	$: accountName = me?.first_name ? `${me.first_name} · ${t('account.title')}` : t('account.title');
@@ -113,10 +115,11 @@
 		     (`display: contents`), a panel under the bar behind the menu button below. -->
 		<div id="header-settings" class="settings" class:open>
 			{#if organiser}
-				{#if me?.is_person}
+				{#if hasAccount}
 					<!-- An organiser who plays has an account page like any player: the same link,
 					     beside the ORGA pill (its own row in the phone menu), never inside it. -->
 					<div class="account">
+						{#if canRegister}<a class="register" href="/register">{t('nav.register')}</a>{/if}
 						<a class="who" href="/account" aria-label={accountName}>
 							<Avatar photo={smallPhoto} name={me} size="1.5rem" />
 							<span class="name">{me.first_name || t('account.title')}</span>
@@ -137,7 +140,8 @@
 			{:else if me}
 				<!-- A logged-in player: the way to their account page, and the way out beside it. -->
 				<div class="account">
-					{#if me.is_person}
+					{#if canRegister}<a class="register" href="/register">{t('nav.register')}</a>{/if}
+					{#if hasAccount}
 						<a class="who" href="/account" aria-label={accountName}>
 							<Avatar photo={smallPhoto} name={me} size="1.5rem" />
 							<span class="name">{me.first_name || t('account.title')}</span>
@@ -408,6 +412,32 @@
 		outline-offset: 2px;
 	}
 
+	.account a.register {
+		display: inline-flex;
+		align-items: center;
+		min-height: 44px;
+		padding: 0 0.9em;
+		border: 1px solid var(--line-strong);
+		border-radius: var(--radius-pill);
+		color: var(--muted);
+		font-family: var(--font-display);
+		font-size: 1.1rem;
+		letter-spacing: 0.08em;
+		text-decoration: none;
+		white-space: nowrap;
+	}
+
+	.account a.register:hover {
+		color: var(--accent);
+		border-color: var(--accent);
+		text-decoration: none;
+	}
+
+	.account a.register:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
+	}
+
 	.name {
 		min-width: 0;
 		max-width: 10em;
@@ -656,7 +686,8 @@
 
 		/* The account row: the profile link on the left, like the login row, the logout
 		   button on the right. */
-		.account a.who {
+		.account a.who,
+		.account a.register {
 			padding: 0;
 			border: 0;
 			border-radius: 0;

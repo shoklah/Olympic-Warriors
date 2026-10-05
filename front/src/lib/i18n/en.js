@@ -4,6 +4,7 @@ export default {
 	'nav.disciplines': 'Disciplines',
 	'nav.photos': 'Photos',
 	'nav.players': 'Players',
+	'nav.register': 'Register',
 	'nav.sections': 'Sections',
 	'header.edition': 'Edition',
 	'header.language': 'Language',

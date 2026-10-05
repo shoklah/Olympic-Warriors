@@ -8,6 +8,7 @@ export default {
 	'nav.disciplines': 'Épreuves',
 	'nav.photos': 'Photos',
 	'nav.players': 'Joueurs',
+	'nav.register': "S'inscrire",
 	'nav.sections': 'Rubriques',
 	'header.edition': 'Édition',
 	'header.language': 'Langue',
