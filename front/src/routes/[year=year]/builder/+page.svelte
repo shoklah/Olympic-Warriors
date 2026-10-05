@@ -52,30 +52,43 @@
 	}
 
 	function load(saved) {
+		saver?.flush(); // a pending edit of the draft being replaced is not lost, nor sent twice
 		const out = reconcile(saved ? saved.document : emptyDraft(), players);
 		draft = out.draft;
 		unplaced = out.unplaced;
 		banner = { joined: out.joined, left: out.left };
 		stale = undefined;
 		saveState = 'idle';
-		saver = createSaver({
+		// A replaced saver may still answer for its last request; only the current one speaks.
+		const mine = createSaver({
 			url: `/${year}/builder/draft`,
 			based_on: saved ? saved.updated_at : null,
-			onSaved: () => (saveState = 'saved'),
+			onSaved: () => {
+				if (saver === mine && !mine.pending()) saveState = 'saved';
+			},
 			onStale: (theirs) => {
+				if (saver !== mine) return;
 				stale = theirs;
 				saveState = 'stale';
 			},
-			onError: () => (saveState = 'error')
+			onError: () => {
+				if (saver === mine) saveState = 'error';
+			}
 		});
+		saver = mine;
+		loadedRoster = players.map((p) => p.id).join();
 	}
 
 	// Loaded again only for a different payload (a new load), never because a bound child
 	// input marked `data` dirty.
+	// A payload carrying the draft this page already holds (our own save, seen again after an
+	// invalidation) with the same roster changes nothing.
 	let loadedFrom = null;
+	let loadedRoster = '';
 	$: if (builder !== loadedFrom) {
+		const known = loadedFrom !== null && builder.draft && builder.draft.updated_at === saver?.version() && builder.players.map((p) => p.id).join() === loadedRoster;
 		loadedFrom = builder;
-		load(builder.draft);
+		if (!known) load(builder.draft);
 	}
 
 	$: teamIds = draft.teams.map((tm) => tm.players);
@@ -161,6 +174,10 @@
 				await invalidateAll(); // the layout's summary now has the teams
 			} else {
 				applyError = `builder.error.${['no_draft', 'teams_exist', 'incomplete', 'bad_size', 'stale_draft'].includes(body.error) ? body.error : 'failed'}`;
+				if (body.error === 'stale_draft') {
+					stale = body.draft ?? null;
+					saveState = 'stale';
+				}
 			}
 		} catch {
 			applyError = 'builder.error.failed';
@@ -168,7 +185,12 @@
 			busy = false;
 		}
 	}
-	const loadTheirs = () => load(stale ?? null);
+	async function loadTheirs() {
+		if (stale) return load(stale);
+		// No draft came with the refusal: read the server's data again, then its draft.
+		await invalidateAll();
+		if (builder === loadedFrom) load(builder.draft);
+	}
 
 	onDestroy(() => saver?.flush());
 	const nameOf = (id) => (byId.has(id) ? fullName(byId.get(id)) : '');

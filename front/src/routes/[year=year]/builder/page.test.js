@@ -227,4 +227,41 @@ describe('team builder page', () => {
 
 		expect(screen.getByRole('heading', { name: 'Demandes' })).toBeInTheDocument();
 	});
+
+	it('goes stale when the apply is refused as stale, and loads the server data again', async () => {
+		const { invalidateAll } = await import('$app/navigation');
+		invalidateAll.mockClear();
+		vi.stubGlobal('fetch', vi.fn(async (url) =>
+			url.endsWith('/apply')
+				? new Response(JSON.stringify({ error: 'stale_draft' }), { status: 409, headers: { 'content-type': 'application/json' } })
+				: new Response(JSON.stringify({ updated_at: 'v1' }), { status: 200, headers: { 'content-type': 'application/json' } })
+		));
+		renderWith(Page, { data: data() });
+		await propose();
+		await goTo('Apply');
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Create the teams' }));
+		await vi.waitFor(() => expect(screen.getByText('Someone else changed the draft.')).toBeInTheDocument());
+		expect(screen.getByRole('button', { name: 'Create the teams' })).toBeDisabled();
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Load their version' }));
+
+		expect(invalidateAll).toHaveBeenCalled();
+		await vi.waitFor(() => expect(screen.queryByText('Someone else changed the draft.')).toBeNull());
+		vi.unstubAllGlobals();
+	});
+
+	it('keeps saying it is saving while a newer edit waits behind the answered save', async () => {
+		let release;
+		vi.stubGlobal('fetch', vi.fn(() => new Promise((r) => (release = () => r(new Response(JSON.stringify({ updated_at: 'v1' }), { status: 200, headers: { 'content-type': 'application/json' } }))))));
+		renderWith(Page, { data: data() });
+		await propose();
+		await vi.waitFor(() => expect(release).toBeDefined(), { timeout: 3000 });
+		await fireEvent.click(screen.getByRole('button', { name: 'Re-roll' }));
+		release();
+		await new Promise((r) => setTimeout(r, 20));
+
+		expect(screen.queryByText('Draft saved')).toBeNull();
+		vi.unstubAllGlobals();
+	});
 });
