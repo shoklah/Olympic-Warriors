@@ -255,6 +255,9 @@
 	}
 	.column {
 		display: grid;
+		/* A stretched card keeps its rows where they are: the spare height ends up at the bottom,
+		   so every card's title, stats and bars line up with its neighbours'. */
+		align-content: start;
 		gap: 0.5rem;
 		padding: 0.75rem;
 		background: var(--bg-sunken);
