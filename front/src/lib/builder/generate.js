@@ -3,6 +3,7 @@ import { teamSizes } from './plan.js';
 import { makeScorer } from './score.js';
 
 const RESTARTS = 5;
+const VARIETY_RESTARTS = 16;
 const MAX_PASSES = 60;
 
 /** A failure the page words: `too_few` (fewer than two teams of the asked size). */
@@ -18,10 +19,11 @@ export class BuilderError extends Error {
  * (`locked`, ids) stay in their team of `current` (arrays of ids); everyone else starts from a
  * greedy placement, strongest first into the team with the lowest rating total and room left,
  * then improves by swapping two unlocked players while the score drops, over a few seeded
- * restarts. Returns `{ teams, score }` (`score` the scorer's result). Same input and seed,
+ * restarts. With `variety`, more restarts run and one of the distinct arrangements scoring
+ * close to the best (and not the `current` one) is drawn, so a re-roll gives a real alternative. Returns `{ teams, score }` (`score` the scorer's result). Same input and seed,
  * same teams.
  */
-export function generate(players, links, skills, { perTeam, seed, current = null, locked = [] }) {
+export function generate(players, links, skills, { perTeam, seed, current = null, locked = [], variety = false }) {
 	const sizes = teamSizes(players.length, perTeam);
 	if (!sizes) throw new BuilderError('too_few');
 	const score = makeScorer(players, links, skills);
@@ -85,12 +87,32 @@ export function generate(players, links, skills, { perTeam, seed, current = null
 	};
 
 	const byStrength = [...free].sort((x, y) => y.rating - x.rating || x.id - y.id);
-	let best = improve(place(byStrength));
-	for (let restart = 1; restart < RESTARTS; restart++) {
-		const candidate = improve(place(shuffled(free, random)));
-		if (candidate.score.total < best.score.total) best = candidate;
+	const restarts = variety ? VARIETY_RESTARTS : RESTARTS;
+	const results = [improve(place(byStrength))];
+	for (let restart = 1; restart < restarts; restart++) {
+		results.push(improve(place(shuffled(free, random))));
 	}
-	return best;
+	let best = results[0];
+	for (const r of results) if (r.score.total < best.score.total) best = r;
+	if (!variety) return best;
+
+	// Teams are positional when locks refer to team indexes; otherwise a permutation is the same partition.
+	const signature = (teams) => {
+		const lists = teams.map((ids) => [...ids].sort((a, b) => a - b).join(','));
+		return (lockedSet.size ? lists : lists.sort()).join('|');
+	};
+	const limit = best.score.total + Math.max(0.5, 0.25 * best.score.total);
+	const distinct = new Map();
+	for (const r of results) {
+		if (r.score.total <= limit && !distinct.has(signature(r.teams))) distinct.set(signature(r.teams), r);
+	}
+	let candidates = [...distinct.values()];
+	if (current) {
+		const own = signature(current);
+		const others = candidates.filter((r) => signature(r.teams) !== own);
+		if (others.length > 0) candidates = others;
+	}
+	return candidates[Math.floor(random() * candidates.length)];
 }
 
 /**

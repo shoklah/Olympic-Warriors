@@ -114,3 +114,50 @@ describe('generate speed', () => {
 		expect(teams.flat()).toHaveLength(50);
 	});
 });
+
+describe('generate with variety', () => {
+	const players = roster(14);
+	const key = (teams) => teams.map((t) => [...t].sort((a, b) => a - b).join(',')).sort().join('|');
+
+	it('never returns the current partition when another one is acceptable', () => {
+		const current = generate(players, [], skills, { perTeam: 4, seed: 99 }).teams;
+		for (let seed = 1; seed <= 10; seed++) {
+			const { teams } = generate(players, [], skills, { perTeam: 4, seed, current, variety: true });
+			expect(key(teams)).not.toBe(key(current));
+		}
+	});
+
+	it('offers several distinct partitions over different seeds, all near the best score', () => {
+		const best = generate(players, [], skills, { perTeam: 4, seed: 1 }).score.total;
+		const seen = new Set();
+		for (let seed = 1; seed <= 12; seed++) {
+			const result = generate(players, [], skills, { perTeam: 4, seed, variety: true });
+			seen.add(key(result.teams));
+			expect(result.score.total).toBeLessThanOrEqual(best + Math.max(0.5, 0.25 * best) + 1e-6);
+		}
+		expect(seen.size).toBeGreaterThanOrEqual(4);
+	});
+
+	it('keeps locked players in their team', () => {
+		const current = generate(players, [], skills, { perTeam: 4, seed: 3 }).teams;
+		const locked = [current[1][0], current[2][0]];
+		for (let seed = 1; seed <= 5; seed++) {
+			const { teams } = generate(players, [], skills, { perTeam: 4, seed, current, locked, variety: true });
+			expect(teams[1]).toContain(locked[0]);
+			expect(teams[2]).toContain(locked[1]);
+		}
+	});
+
+	it('is deterministic for a seed', () => {
+		const a = generate(players, [], skills, { perTeam: 4, seed: 7, variety: true });
+		const b = generate(players, [], skills, { perTeam: 4, seed: 7, variety: true });
+		expect(a.teams).toEqual(b.teams);
+	});
+
+	it('stays fast on 50 players', () => {
+		const start = Date.now();
+		generate(roster(50), [], skills, { perTeam: 4, seed: 2, variety: true });
+		expect(Date.now() - start).toBeLessThan(3000);
+	});
+});
+
