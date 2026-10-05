@@ -430,3 +430,32 @@ class TestBuilderAPI(TestCase):
 
         stale = self.client.post(self.url + "apply/", {"based_on": "2000-01-01T00:00:00+00:00"}, format="json")
         self.assertEqual((stale.status_code, stale.json()), (409, {"error": "stale_draft"}))
+
+
+from django.test import override_settings  # noqa: E402
+
+
+@override_settings(STATICFILES_STORAGE="django.contrib.staticfiles.storage.StaticFilesStorage")
+class TestEditionAdminLink(TestCase):
+    def setUp(self):
+        self.client.force_login(User.objects.create_superuser("admin", "a@b.c", "pw"))
+
+    def test_the_latest_edition_page_links_to_the_builder_when_the_front_is_known(self):
+        edition = make_edition(2027)
+
+        with override_settings(PUBLIC_URL="https://ow.example"):
+            response = self.client.get(f"/admin/olympic_warriors/edition/{edition.pk}/change/")
+
+        self.assertContains(response, 'href="https://ow.example/2027/builder"')
+
+    def test_no_link_without_a_public_url_or_for_an_older_edition(self):
+        old = make_edition(2026)
+        make_edition(2027)
+
+        with override_settings(PUBLIC_URL="https://ow.example"):
+            older = self.client.get(f"/admin/olympic_warriors/edition/{old.pk}/change/")
+        with override_settings(PUBLIC_URL=""):
+            latest = self.client.get(f"/admin/olympic_warriors/edition/{Edition.objects.get(year=2027).pk}/change/")
+
+        self.assertNotContains(older, "/builder")
+        self.assertNotContains(latest, "/builder")

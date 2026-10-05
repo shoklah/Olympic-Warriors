@@ -535,6 +535,7 @@ class EditionAdmin(ModelAdmin):
         "registration_form",
         "is_active",
         "registration_status",
+        "team_builder",
         "registration_opens",
         "registration_closes",
         "registration_intro_fr",
@@ -542,7 +543,7 @@ class EditionAdmin(ModelAdmin):
         "skills_month_fr",
         "skills_month_en",
     )
-    readonly_fields = ["registration_status"]
+    readonly_fields = ["registration_status", "team_builder"]
 
     @display(description="Inscription en ligne")
     def registration_status(self, obj):
@@ -557,6 +558,17 @@ class EditionAdmin(ModelAdmin):
             NOT_YET_OPEN: "pas encore ouverte",
             CLOSED: "terminée",
         }[state.reason]
+
+    @display(description="Constituer les équipes")
+    def team_builder(self, obj):
+        """A link to the front's builder for the latest edition, when the front's address is known."""
+        if obj.pk is None or obj != latest_edition():
+            return "—"
+        try:
+            base = public_url()
+        except ImproperlyConfigured:
+            return "—"
+        return format_html('<a href="{}/{}/builder">Ouvrir le constructeur d\'équipes</a>', base, obj.year)
 
     def changelist_view(self, request, extra_context=None):
         """
