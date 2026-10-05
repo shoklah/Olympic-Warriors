@@ -170,6 +170,7 @@ export default {
 	'builder.requests.avoid': 'préfère éviter',
 	'builder.requests.other': 'Autre joueur…',
 	'builder.requests.noMatch': 'Aucun joueur correspondant',
+	'builder.requests.added': 'Ajoutés à la main',
 	'builder.requests.confirm': 'Confirmer {name}',
 	'builder.perTeam': 'Joueurs par équipe',
 	'builder.perTeamLocked': 'Réinitialisez pour changer ce nombre.',

@@ -1,4 +1,4 @@
-import { fireEvent, screen } from '@testing-library/svelte';
+import { fireEvent, screen, within } from '@testing-library/svelte';
 import { describe, expect, it } from 'vitest';
 import { renderWith } from '$lib/test-utils';
 import { builderPayload } from '$lib/fixtures/builder.js';
@@ -67,5 +67,19 @@ describe('BuilderRequests', () => {
 		expect(cards.map((h) => h.textContent)).toEqual(['Léa Martin']);
 		expect(screen.getByRole('region', { name: 'Léa Martin: wants to be with' })).toBeInTheDocument();
 		expect(screen.getByRole('region', { name: 'Léa Martin: would rather avoid' })).toBeInTheDocument();
+	});
+
+	it('lists the links added by hand under their own label, apart from the written names', () => {
+		const roster = [
+			{ id: 1, first_name: 'Léa', last_name: 'Martin', team_with: 'Zoé', team_avoid: '' },
+			{ id: 2, first_name: 'Paul', last_name: 'Durand', team_with: '', team_avoid: '' }
+		];
+		renderWith(BuilderRequests, { players: roster, links: [{ player: 1, kind: 'with', target: 2 }] });
+
+		const section = screen.getByRole('region', { name: 'Léa Martin: wants to be with' });
+		const added = within(section).getByText('Added by hand').closest('li');
+		expect(within(added).getByRole('button', { name: 'Confirm Paul Durand' })).toHaveAttribute('aria-pressed', 'true');
+		// the written name that matched nobody keeps its own block
+		expect(within(section).getByText('No matching player').closest('li')).not.toBe(added);
 	});
 });

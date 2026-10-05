@@ -164,6 +164,7 @@ export default {
 	'builder.requests.avoid': 'would rather avoid',
 	'builder.requests.other': 'Another player…',
 	'builder.requests.noMatch': 'No matching player',
+	'builder.requests.added': 'Added by hand',
 	'builder.requests.confirm': 'Confirm {name}',
 	'builder.perTeam': 'Players per team',
 	'builder.perTeamLocked': 'Reset everything to change this number.',
