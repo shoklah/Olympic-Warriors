@@ -120,13 +120,14 @@
 			commit({ ...draft, players_per_team: detail });
 		}
 	}
-	function run(seed) {
+	function run(seed, variety = false) {
 		try {
 			const { teams } = generate(players, draft.links, builder.skills, {
 				perTeam: draft.players_per_team,
 				seed,
 				current: teamIds,
-				locked: draft.locked
+				locked: draft.locked,
+				variety
 			});
 			tooFew = false;
 			commit({ ...draft, seed, teams: teams.map((ids) => ({ players: ids })) });
@@ -136,7 +137,7 @@
 		}
 	}
 	const propose = () => run(draft.seed);
-	const reroll = () => run(newSeed());
+	const reroll = () => run(newSeed(), true);
 	function placeNew() {
 		const teams = placeNewcomers(players, draft.links, builder.skills, teamIds, unplaced);
 		commit({ ...draft, teams: teams.map((ids) => ({ players: ids })) });

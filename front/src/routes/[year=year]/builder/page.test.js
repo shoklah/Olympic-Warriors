@@ -3,6 +3,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { renderWith } from '$lib/test-utils';
 import { builderPayload } from '$lib/fixtures/builder.js';
 import Page from './+page.svelte';
+import { generate } from '$lib/builder/generate.js';
+
+vi.mock('$lib/builder/generate.js', async (original) => {
+	const module = await original();
+	return { ...module, generate: vi.fn(module.generate) };
+});
 
 vi.mock('$app/navigation', () => ({ invalidateAll: vi.fn() }));
 
@@ -263,5 +269,15 @@ describe('team builder page', () => {
 
 		expect(screen.queryByText('Draft saved')).toBeNull();
 		vi.unstubAllGlobals();
+	});
+
+	it('re-rolls with variety while proposing stays best-of', async () => {
+		renderWith(Page, { data: data() });
+		await propose();
+		expect(generate.mock.calls.at(-1)[3].variety).toBeFalsy();
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Re-roll' }));
+
+		expect(generate.mock.calls.at(-1)[3].variety).toBe(true);
 	});
 });
