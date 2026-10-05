@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { renderWith } from '$lib/test-utils';
 import RegistrationForm from './RegistrationForm.svelte';
 import { registrationPayload, savedAnswers } from '$lib/fixtures/registration.js';
+import { initialValues } from '$lib/registration';
 
 const open = registrationPayload;
 const registered = { ...registrationPayload, registration: savedAnswers };
@@ -79,6 +80,33 @@ describe('RegistrationForm', () => {
 		await fireEvent.click(screen.getByRole('button', { name: 'Remove sport 1' }));
 		expect(screen.getAllByRole('textbox', { name: 'Sport' })).toHaveLength(1);
 		expect(screen.getByRole('textbox', { name: 'Sport' })).toHaveAttribute('name', 'sport.0.sport');
+	});
+
+	it('keeps the rows and what is typed in them while the player types', async () => {
+		renderWith(RegistrationForm, { registration: registered });
+		await fireEvent.click(screen.getByRole('button', { name: 'Add a sport' }));
+		await fireEvent.click(screen.getByRole('button', { name: 'Add a sport' }));
+
+		const rows = screen.getAllByRole('textbox', { name: 'Sport' });
+		await fireEvent.input(rows[2], { target: { value: 'Tennis' } });
+		await fireEvent.input(screen.getByLabelText('Cardio'), { target: { value: '9' } });
+
+		const after = screen.getAllByRole('textbox', { name: 'Sport' });
+		expect(after).toHaveLength(3);
+		expect(after.map((r) => r.value)).toEqual(['Judo', '', 'Tennis']);
+		expect(screen.getByLabelText('Cardio')).toHaveValue(9);
+	});
+
+	it('loads the posted values again when a new post result arrives', async () => {
+		const { component } = renderWith(RegistrationForm, { registration: open });
+		await fireEvent.input(screen.getByLabelText('Cardio'), { target: { value: '3' } });
+		expect(screen.getByLabelText('Cardio')).toHaveValue(3);
+
+		const posted = { ...initialValues(open), ratings: { CARD: '9', STR: '' }, team_wishes: 'posted wish' };
+		await component.$set({ form: { action: 'save', errors: ['register.error.missing_rating'], values: posted } });
+
+		expect(screen.getByLabelText('Cardio')).toHaveValue(9);
+		expect(screen.getByRole('textbox', { name: /Who would you like to be/ })).toHaveValue('posted wish');
 	});
 
 	it('stops adding at fifteen sports', async () => {

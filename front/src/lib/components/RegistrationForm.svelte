@@ -22,8 +22,16 @@
 	$: removed = removedRow && !late;
 
 	// The model the inputs read: what was typed before a refusal, else saved, else suggested.
-	let values;
-	$: values = initialValues(registration, form?.values ?? null);
+	// It is loaded again only when `registration` or `form` is a different object (a new load
+	// or a new post result). Svelte also marks them changed whenever an input bound inside an
+	// `{#each registration.skills}` block is edited, so a plain `$: values = initialValues(...)`
+	// ran on every keystroke and put the saved answers back under the player's hands.
+	let values = initialValues(registration, form?.values ?? null);
+	let loadedFrom = [registration, form];
+	$: if (registration !== loadedFrom[0] || form !== loadedFrom[1]) {
+		loadedFrom = [registration, form];
+		values = initialValues(registration, form?.values ?? null);
+	}
 
 	// A month in the wrong language would sit oddly in a sentence: none beats the French one.
 	$: month = registration.skills_month[locale] || '';
