@@ -14,6 +14,8 @@
 <form method="POST" action="?/login"
       in:fly={{ delay: 200, x: -200, duration: 300, easing: cubicOut }}>
 
+    {#if next === '/register'}<p class="note">{t('login.registerNote')}</p>{/if}
+
     <!-- The action's message is English by construction (API and server code); the visitor gets the dictionary line. -->
     {#if form?.error }<p class="error" transition:slide={{ duration: 800, easing: quintOut }}>
         {t(form.throttled ? 'login.throttled' : 'login.failed')}
@@ -47,6 +49,13 @@
         font-size: 1rem;
         font-weight: 600;
         margin: 0;
+    }
+
+    .note {
+        color: var(--muted);
+        font-size: .9rem;
+        margin: 0;
+        text-align: center;
     }
 
     form {
