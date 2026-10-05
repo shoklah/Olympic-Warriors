@@ -95,7 +95,6 @@
 	.grid {
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));
-		grid-auto-rows: 1fr;
 		gap: 1rem;
 		align-items: stretch;
 		margin: 0;
@@ -168,5 +167,12 @@
 		border: 1px solid var(--line-strong);
 		border-radius: var(--radius);
 		font: inherit;
+	}
+	/* Side by side, every card the same size (the tallest row sets the height); one column on a
+	   phone keeps each card as tall as its content. */
+	@media (min-width: 600px) {
+		.grid {
+			grid-auto-rows: 1fr;
+		}
 	}
 </style>

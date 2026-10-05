@@ -7,18 +7,32 @@ export const normalise = (text) =>
 		.replace(/\s+/g, ' ')
 		.trim();
 
-const SEPARATORS = /[,;\n/&]+|\s+et\s+|\s+and\s+/i;
-const LEADING = /^(avec|with)\s+/i;
+const SEPARATORS = /[,;\n/&]+|\s+et\s+|\s+ou\s+|\s+and\s+/i;
+// Filler that real answers put before a name (« Ne pas être avec Marie », « Je souhaite être avec
+// Adrien », « Idéalement, je voudrais être en équipe avec Victor »): dropped, then « avec ».
+const FILLER =
+	/^(?:(?:ne\s+)?(?:pas|plus)\s+|(?:être|etre)\s+|en\s+équipe\s+|en\s+equipe\s+|idéalement\s*,?\s*|idealement\s*,?\s*|plutôt\s+|plutot\s+|(?:je|j')\s*(?:souhaite|souhaiterai|souhaiterais|voudrais|veux|veux bien|aimerais)\s+|de\s+préférence\s+|svp\s+)*(?:avec|with)\s+/iu;
+const TRAILING = /[\s!?.…,;:)\p{Extended_Pictographic}‍️]+$/u;
 const NOISE = new Set([
 	'peu importe', 'personne', 'aucun', 'aucune', 'rien', 'n/a', 'na', 'none', 'nobody',
 	'no one', 'anyone', 'whatever', 'pas de preference', 'idem', '-', '?'
 ]);
 
+const OPENING_ADVERB = /^\s*(?:idéalement|idealement|plutôt|plutot)\s*,\s*/iu;
+const POLITE_TAIL = /(?:\s+(?:si possible|svp|s'il (?:te|vous) pla[iî]t|merci))+\s*$/iu;
+
 /** The names of a free-text answer, one per entry. */
 export const splitNames = (text) =>
 	String(text ?? '')
+		.replace(OPENING_ADVERB, '')
+		.replace(/\bet\s*\/\s*ou\b/giu, ',')
 		.split(SEPARATORS)
-		.map((part) => part.trim().replace(LEADING, '').trim())
+		.map((part) => {
+			let name = part.trim().replace(FILLER, '').replace(TRAILING, '');
+			// A polite tail can sit before the emoji it ends with, so strip it after the punctuation.
+			name = name.replace(POLITE_TAIL, '').replace(TRAILING, '');
+			return name.trim();
+		})
 		.filter(Boolean);
 
 /** Edit distance, small strings only. */
