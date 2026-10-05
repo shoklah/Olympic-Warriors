@@ -65,7 +65,10 @@ NOT_EXPORTED = frozenset(
 # them at the model default. (Player.global_level is not here: it is part of the rating.)
 PRIVATE_FIELDS = {
     "Player": frozenset(
-        {"dietary_restrictions", "sport_frequency", "team_wishes", "attendance_confirmed"}
+        {
+            "dietary_restrictions", "sport_frequency", "team_wishes", "team_with",
+            "team_avoid", "attendance_confirmed",
+        }
     )
 }
 

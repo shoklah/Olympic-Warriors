@@ -249,7 +249,8 @@ class TestTeamPageRoster(TestCase):
         team = Team.objects.create(name="MxM", edition=edition)
         Player.objects.create(
             user=User.objects.create(username="ana"), edition=edition, rating=5, team=team,
-            dietary_restrictions="Végane", team_wishes="Avec Bob",
+            dietary_restrictions="Végane", team_wishes="Avec Bob", team_with="Avec Bob",
+            team_avoid="Pas Carl",
         )
 
         response = self.client.get(f"/admin/olympic_warriors/team/{team.pk}/change/")
@@ -258,7 +259,8 @@ class TestTeamPageRoster(TestCase):
         self.assertContains(response, "player_set-0-rating")
         for private in (
             "global_level", "dietary_restrictions", "sport_frequency", "team_wishes",
-            "attendance_confirmed",
+            "team_with", "team_avoid", "attendance_confirmed",
         ):
             self.assertNotContains(response, f"player_set-0-{private}")
         self.assertNotContains(response, "Végane")
+        self.assertNotContains(response, "Pas Carl")

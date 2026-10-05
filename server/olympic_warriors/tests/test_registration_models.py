@@ -104,6 +104,8 @@ class TestPrivateAnswersStayPrivate(TestCase):
             dietary_restrictions="Sans gluten",
             sport_frequency="hour",
             team_wishes="Avec Bob",
+            team_with="Avec Bob",
+            team_avoid="Pas Carl",
             attendance_confirmed=True,
         )
         PlayerSport.objects.create(player=player, sport="Judo", notes="Ceinture orange")

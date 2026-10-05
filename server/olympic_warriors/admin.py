@@ -221,6 +221,8 @@ class PlayerInline(TabularInline):
         "dietary_restrictions",
         "sport_frequency",
         "team_wishes",
+        "team_with",
+        "team_avoid",
         "attendance_confirmed",
     )
 
