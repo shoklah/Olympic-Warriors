@@ -44,7 +44,7 @@ Admin: an inline on `EditionAdmin`. Once the edition has players with ratings, *
 
 ### `PlayerSport` (new, a row per sport)
 
-`player` (FK), `order`, `sport` (free text, at most 80 characters, with suggestions drawn from sport names already entered), `level` (`beginner`, `amateur`, `club`, `competition`), `practice` (`no_longer`, `occasionally`, `regularly`), `duration_months` (positive integer, entered as years and months), `notes` (at most 200 characters: position, specialty, rank). At most 15 rows; replaced as a set on every save. Optional: zero rows is allowed.
+`player` (FK), `order`, `sport` (free text, at most 80 characters, with suggestions drawn from sport names already entered), `level` (the highest level reached, an ordered ladder since 2026-10-05: `fun`, `informal`, `club`, `league`, `regional`; the first version had `beginner`, `amateur`, `club`, `competition`, mapped by migration `0045`), `practice` (`no_longer`, `occasionally`, `regularly`), `duration_months` (positive integer, entered as years and months), `notes` (at most 200 characters: position, specialty, rank). At most 15 rows; replaced as a set on every save. Optional: zero rows is allowed.
 
 ### `UserProfile.invited` (bool)
 

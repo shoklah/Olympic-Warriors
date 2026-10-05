@@ -8,6 +8,9 @@
 /** Sports the API accepts (enrolment.MAX_SPORTS). */
 export const MAX_SPORTS = 15;
 
+/** The slider's start, submitted as is when it is not touched. */
+export const RATING_DEFAULT = 5;
+
 /** An empty row of the sports table. */
 export const emptySport = () => ({ sport: '', level: '', practice: '', years: '', months: '', notes: '' });
 
@@ -45,18 +48,27 @@ const sportFrom = (row) => ({
  * The form model of a `GET /registration/` payload: what was posted last (`posted`, the
  * model a refused save returned), else the caller's saved answers, else the stable answers
  * suggested from their last registration (sports, frequency, dietary restrictions: never
- * the ratings, wishes or the tick), else blanks. Always at least one sports row.
+ * the ratings, team preferences or the tick), else blanks. Always at least one sports row.
  */
 export function initialValues(payload, posted = null) {
 	if (posted) {
-		return { ...posted, sports: posted.sports?.length > 0 ? posted.sports : [emptySport()] };
+		const fallback = String(RATING_DEFAULT);
+		return {
+			...posted,
+			ratings: Object.fromEntries(
+				Object.entries(posted.ratings ?? {}).map(([id, value]) => [id, text(value).trim() === '' ? fallback : value])
+			),
+			global_level: text(posted.global_level).trim() === '' ? fallback : posted.global_level,
+			sports: posted.sports?.length > 0 ? posted.sports : [emptySport()]
+		};
 	}
 	const values = {
-		ratings: Object.fromEntries(payload.skills.map((s) => [s.identifier, ''])),
-		global_level: '',
+		ratings: Object.fromEntries(payload.skills.map((s) => [s.identifier, String(RATING_DEFAULT)])),
+		global_level: String(RATING_DEFAULT),
 		sport_frequency: '',
 		sports: [],
-		team_wishes: '',
+		team_with: '',
+		team_avoid: '',
 		dietary_restrictions: '',
 		attendance_confirmed: false,
 		email: ''
@@ -72,7 +84,8 @@ export function initialValues(payload, posted = null) {
 		values.global_level = text(saved.global_level);
 		values.sport_frequency = text(saved.sport_frequency);
 		values.sports = (saved.sports ?? []).map(sportFrom);
-		values.team_wishes = text(saved.team_wishes);
+		values.team_with = text(saved.team_with);
+		values.team_avoid = text(saved.team_avoid);
 		values.dietary_restrictions = text(saved.dietary_restrictions);
 		values.attendance_confirmed = Boolean(saved.attendance_confirmed);
 	} else if (suggested) {
@@ -109,7 +122,8 @@ export function valuesFromForm(form) {
 		global_level: text(form.get('global_level')),
 		sport_frequency: text(form.get('sport_frequency')),
 		sports,
-		team_wishes: text(form.get('team_wishes')),
+		team_with: text(form.get('team_with')),
+		team_avoid: text(form.get('team_avoid')),
 		dietary_restrictions: text(form.get('dietary_restrictions')),
 		attendance_confirmed: form.get('attendance_confirmed') === 'on',
 		email: text(form.get('email'))
@@ -147,7 +161,8 @@ export function bodyFromValues(values, emailEditable) {
 			duration_months: monthsOf(row.years, row.months),
 			notes: row.notes.trim()
 		})),
-		team_wishes: values.team_wishes,
+		team_with: values.team_with,
+		team_avoid: values.team_avoid,
 		dietary_restrictions: values.dietary_restrictions,
 		attendance_confirmed: values.attendance_confirmed
 	};
@@ -170,6 +185,29 @@ export function errorKeys(codes) {
 		ERROR_CODES.has(code) ? `register.error.${code}` : 'register.error.invalid'
 	);
 	return keys.length > 0 ? [...new Set(keys)] : ['register.error.invalid'];
+}
+
+const STEP_ONE = new Set(['missing_frequency', 'invalid_frequency', 'invalid_sport', 'too_many_sports']);
+const STEP_TWO = new Set(['missing_rating', 'invalid_rating', 'invalid_global_level']);
+
+/**
+ * The wizard step (1 to 3) to open after a refusal: the step of the first API code, step 3
+ * for every other code (texts, email, the tick, a closed or throttled form) and for none.
+ */
+export function stepOfErrors(codes) {
+	const raw = Array.isArray(codes) ? codes[0] : undefined;
+	// the route hands over dictionary keys (`register.error.missing_rating`), the API raw codes
+	const first = typeof raw === 'string' ? raw.replace(/^register\.error\./, '') : raw;
+	if (STEP_ONE.has(first)) return 1;
+	if (STEP_TWO.has(first)) return 2;
+	return 3;
+}
+
+/** The step a page opens on given the last post result: 1 unless a save or withdrawal was refused. */
+export function stepOfForm(form) {
+	if (!form || form.ok) return 1;
+	if (form.action === 'withdraw') return 3;
+	return stepOfErrors(form.errors ?? (form.error ? [form.error] : []));
 }
 
 /** The label of a choice: the dictionary's (`register.<kind>.<value>`), else the API's for a value the front does not know. */

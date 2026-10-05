@@ -71,6 +71,8 @@ def deactivate(user):
             dietary_restrictions="",
             sport_frequency="",
             team_wishes="",
+            team_with="",
+            team_avoid="",
             attendance_confirmed=False,
         )
         PlayerSport.objects.filter(player__user=locked).delete()

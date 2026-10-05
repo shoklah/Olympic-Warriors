@@ -25,9 +25,9 @@ const post = (action, entries) => {
 const goodEntries = [
 	['skill', 'CARD'], ['skill', 'STR'], ['rating.CARD', '6'], ['rating.STR', '7'],
 	['global_level', '8'], ['sport_frequency', 'two_hours'],
-	['sport.0.sport', 'Judo'], ['sport.0.level', 'amateur'], ['sport.0.practice', 'no_longer'],
+	['sport.0.sport', 'Judo'], ['sport.0.level', 'informal'], ['sport.0.practice', 'no_longer'],
 	['sport.0.years', '2'], ['sport.0.months', '6'], ['sport.0.notes', ''],
-	['team_wishes', ''], ['dietary_restrictions', ''], ['attendance_confirmed', 'on']
+	['team_with', ''], ['team_avoid', ''], ['dietary_restrictions', ''], ['attendance_confirmed', 'on']
 ];
 
 describe('register load', () => {
@@ -88,12 +88,26 @@ describe('register save', () => {
 			ratings: { CARD: 6, STR: 7 },
 			global_level: 8,
 			sport_frequency: 'two_hours',
-			sports: [{ sport: 'Judo', level: 'amateur', practice: 'no_longer', duration_months: 30, notes: '' }],
-			team_wishes: '',
+			sports: [{ sport: 'Judo', level: 'informal', practice: 'no_longer', duration_months: 30, notes: '' }],
+			team_with: '',
+			team_avoid: '',
 			dietary_restrictions: '',
 			attendance_confirmed: true
 		});
 		expect(result).toEqual({ ok: true, action: 'save' });
+	});
+
+	it('sends the two team fields as typed', async () => {
+		const fetch = vi.fn(async () => json(200, registrationPayload));
+		const entries = goodEntries.map(([name, value]) =>
+			name === 'team_with' ? [name, 'Léa'] : name === 'team_avoid' ? [name, 'Carl'] : [name, value]
+		);
+
+		await actions.save({ request: post('save', entries), cookies: cookiesWith(), fetch });
+
+		const body = JSON.parse(fetch.mock.calls[0][1].body);
+		expect(body.team_with).toBe('Léa');
+		expect(body.team_avoid).toBe('Carl');
 	});
 
 	it('sends the email only when the form had an email field', async () => {
@@ -116,7 +130,7 @@ describe('register save', () => {
 			errors: ['register.error.missing_rating', 'register.error.attendance_required']
 		});
 		expect(result.data.values.ratings).toEqual({ CARD: '6', STR: '' });
-		expect(result.data.values.team_wishes).toBe('');
+		expect(result.data.values.team_with).toBe('');
 	});
 
 	it.each([

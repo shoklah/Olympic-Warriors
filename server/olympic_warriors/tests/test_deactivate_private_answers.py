@@ -23,7 +23,8 @@ class TestDeactivateClearsAnswers(TestCase):
         )
         self.answers = dict(
             global_level=8, dietary_restrictions="Végane", sport_frequency="two_hours",
-            team_wishes="Avec Bob", attendance_confirmed=True,
+            team_wishes="Avec Bob", team_with="Avec Bob", team_avoid="Pas Carl",
+            attendance_confirmed=True,
         )
 
     def test_every_player_row_of_the_person_is_cleared_but_keeps_its_rating(self):
@@ -40,6 +41,8 @@ class TestDeactivateClearsAnswers(TestCase):
             self.assertEqual(player.dietary_restrictions, "")
             self.assertEqual(player.sport_frequency, "")
             self.assertEqual(player.team_wishes, "")
+            self.assertEqual(player.team_with, "")
+            self.assertEqual(player.team_avoid, "")
             self.assertFalse(player.attendance_confirmed)
         self.assertEqual((first.rating, second.rating), (6, 7))  # places and history stay
         self.assertEqual(PlayerSport.objects.count(), 0)

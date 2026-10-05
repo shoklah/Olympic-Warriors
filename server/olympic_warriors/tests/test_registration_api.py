@@ -30,8 +30,9 @@ def answer(**changes):
         "ratings": {"AAA": 6, "BBB": 6},
         "global_level": 8,
         "sport_frequency": "two_hours",
-        "sports": [{"sport": "Judo", "level": "amateur"}],
-        "team_wishes": "Avec Bob",
+        "sports": [{"sport": "Judo", "level": "informal"}],
+        "team_with": "Avec Bob",
+        "team_avoid": "Pas Carl",
         "dietary_restrictions": "",
         "attendance_confirmed": True,
     }
@@ -161,10 +162,10 @@ class TestPut(RegistrationSetup):
         team = Team.objects.create(name="Red", edition=self.edition)
         Player.objects.filter(user=self.ana, edition=self.edition).update(team=team)
 
-        self.put(team_wishes="Plutôt seule")
+        self.put(team_with="Plutôt seule")
 
         player = Player.objects.get(user=self.ana, edition=self.edition)
-        self.assertEqual((player.team, player.team_wishes), (team, "Plutôt seule"))
+        self.assertEqual((player.team, player.team_with), (team, "Plutôt seule"))
 
     def test_an_invited_newcomer_becomes_a_person(self):
         self.assertFalse(self.client_of(self.newbie).get("/me/").json()["is_person"])
@@ -273,7 +274,8 @@ class TestDelete(RegistrationSetup):
         self.assertFalse(player.is_active)
         body = client.get("/registration/").json()
         self.assertFalse(body["registration"]["registered"])
-        self.assertEqual(body["registration"]["team_wishes"], "Avec Bob")
+        self.assertEqual(body["registration"]["team_with"], "Avec Bob")
+        self.assertEqual(body["registration"]["team_avoid"], "Pas Carl")
         client.put("/registration/", answer(), format="json")
         player.refresh_from_db()
         self.assertTrue(player.is_active)

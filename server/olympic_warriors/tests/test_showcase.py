@@ -29,7 +29,7 @@ C = Badge.Codes
 PRIVATE_KEYS = {
     "username", "email", "photo_locked", "claimed_at", "updated_at", "codes", "pins",
     "global_level", "dietary_restrictions", "sport_frequency", "team_wishes",
-    "attendance_confirmed",
+    "team_with", "team_avoid", "attendance_confirmed",
 }
 
 

@@ -1,3 +1,4 @@
+import { tick } from 'svelte';
 import { fireEvent, screen, within } from '@testing-library/svelte';
 import { describe, expect, it } from 'vitest';
 import { renderWith } from '$lib/test-utils';
@@ -7,6 +8,16 @@ import { initialValues } from '$lib/registration';
 
 const open = registrationPayload;
 const registered = { ...registrationPayload, registration: savedAnswers };
+/** Opens a step the way a player does: a new one picks a frequency and goes forward. */
+async function toStep(n) {
+	for (let step = 1; step < n; step += 1) {
+		const radios = screen.queryAllByRole('radio');
+		if (radios.length > 0 && !radios.some((radio) => radio.checked)) await fireEvent.click(radios[0]);
+		await fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+		await tick();
+	}
+}
+
 const closed = (reason) => ({ ...registrationPayload, state: { is_open: false, reason } });
 
 describe('RegistrationForm', () => {
@@ -43,16 +54,18 @@ describe('RegistrationForm', () => {
 		expect(within(group).getByLabelText('At least two hours a week')).toHaveAttribute('value', 'two_hours');
 	});
 
-	it('shows the email read-only, with a way to change it, when the account has a usable one', () => {
+	it('shows the email read-only, with a way to change it, when the account has a usable one', async () => {
 		renderWith(RegistrationForm, { registration: open });
+		await toStep(3);
 
 		expect(screen.getByText('lea@example.com')).toBeInTheDocument();
 		expect(screen.queryByRole('textbox', { name: 'Email address' })).toBeNull();
 		expect(screen.getByRole('link', { name: 'Change my address' })).toHaveAttribute('href', '/account');
 	});
 
-	it('asks for an email when the account has none', () => {
+	it('asks for an email when the account has none', async () => {
 		renderWith(RegistrationForm, { registration: { ...open, email: { value: '', editable: true } } });
+		await toStep(3);
 
 		const field = screen.getByRole('textbox', { name: 'Email address' });
 		expect(field).toHaveAttribute('name', 'email');
@@ -60,8 +73,9 @@ describe('RegistrationForm', () => {
 		expect(screen.getByText(/also lets you recover your password/)).toBeInTheDocument();
 	});
 
-	it('requires the confirmation tick and shows the visibility and retention notices', () => {
+	it('requires the confirmation tick and shows the visibility and retention notices', async () => {
 		renderWith(RegistrationForm, { registration: open });
+		await toStep(3);
 
 		expect(screen.getByRole('checkbox', { name: /I have paid my registration/ })).toBeRequired();
 		expect(screen.getByText('Your name will appear in the players list.')).toBeInTheDocument();
@@ -94,19 +108,19 @@ describe('RegistrationForm', () => {
 		const after = screen.getAllByRole('textbox', { name: 'Sport' });
 		expect(after).toHaveLength(3);
 		expect(after.map((r) => r.value)).toEqual(['Judo', '', 'Tennis']);
-		expect(screen.getByLabelText('Cardio')).toHaveValue(9);
+		expect(screen.getByLabelText('Cardio')).toHaveValue('9');
 	});
 
 	it('loads the posted values again when a new post result arrives', async () => {
 		const { component } = renderWith(RegistrationForm, { registration: open });
 		await fireEvent.input(screen.getByLabelText('Cardio'), { target: { value: '3' } });
-		expect(screen.getByLabelText('Cardio')).toHaveValue(3);
+		expect(screen.getByLabelText('Cardio')).toHaveValue('3');
 
-		const posted = { ...initialValues(open), ratings: { CARD: '9', STR: '' }, team_wishes: 'posted wish' };
+		const posted = { ...initialValues(open), ratings: { CARD: '9', STR: '' }, team_with: 'posted wish' };
 		await component.$set({ form: { action: 'save', errors: ['register.error.missing_rating'], values: posted } });
 
-		expect(screen.getByLabelText('Cardio')).toHaveValue(9);
-		expect(screen.getByRole('textbox', { name: /Who would you like to be/ })).toHaveValue('posted wish');
+		expect(screen.getByLabelText('Cardio')).toHaveValue('9');
+		expect(screen.getByLabelText('Who would you like to be with?')).toHaveValue('posted wish');
 	});
 
 	it('stops adding at fifteen sports', async () => {
@@ -117,16 +131,17 @@ describe('RegistrationForm', () => {
 		expect(screen.getByRole('button', { name: 'Add a sport' })).toBeDisabled();
 	});
 
-	it('fills the saved answers and offers to withdraw', () => {
+	it('fills the saved answers and offers to withdraw', async () => {
 		renderWith(RegistrationForm, { registration: registered });
 
-		expect(screen.getByLabelText('Cardio')).toHaveValue(6);
-		expect(screen.getByLabelText('Overall level')).toHaveValue(8);
+		expect(screen.getByLabelText('Cardio')).toHaveValue('6');
+		expect(screen.getByLabelText('Overall level')).toHaveValue('8');
 		expect(screen.getByRole('radio', { name: 'At least two hours a week' })).toBeChecked();
 		expect(screen.getByRole('textbox', { name: 'Sport' })).toHaveValue('Judo');
 		expect(screen.getByRole('spinbutton', { name: 'Years' })).toHaveValue(2);
 		expect(screen.getByRole('spinbutton', { name: 'Months' })).toHaveValue(6);
 		expect(screen.getByText(/You are registered/)).toBeInTheDocument();
+		await toStep(3);
 		expect(screen.getByRole('button', { name: 'Save my answers' })).toBeInTheDocument();
 		const withdraw = screen.getByRole('button', { name: 'Withdraw my registration' });
 		expect(withdraw.closest('form')).toHaveAttribute('action', '?/withdraw');
@@ -147,7 +162,7 @@ describe('RegistrationForm', () => {
 	it('keeps what was typed after a refusal and lists every error', () => {
 		const values = {
 			ratings: { CARD: '9', STR: '' }, global_level: '', sport_frequency: '', sports: [],
-			team_wishes: 'typed wish', dietary_restrictions: '', attendance_confirmed: false, email: ''
+			team_with: 'typed wish', team_avoid: '', dietary_restrictions: '', attendance_confirmed: false, email: ''
 		};
 		renderWith(RegistrationForm, {
 			registration: open,
@@ -157,8 +172,8 @@ describe('RegistrationForm', () => {
 		const alert = screen.getByRole('alert');
 		expect(within(alert).getByText('Rate every criterion')).toBeInTheDocument();
 		expect(within(alert).getByText('Tick the confirmation box')).toBeInTheDocument();
-		expect(screen.getByLabelText('Cardio')).toHaveValue(9);
-		expect(screen.getByRole('textbox', { name: /Who would you like to be/ })).toHaveValue('typed wish');
+		expect(screen.getByLabelText('Cardio')).toHaveValue('9');
+		expect(screen.getByLabelText('Who would you like to be with?')).toHaveValue('typed wish');
 	});
 
 	it('words a single refusal and confirms a save', () => {
@@ -199,7 +214,7 @@ describe('RegistrationForm', () => {
 		expect(within(summary).getByText('Cardio')).toBeInTheDocument();
 		expect(within(summary).getByText('6')).toBeInTheDocument();
 		expect(within(summary).getByText('At least two hours a week')).toBeInTheDocument();
-		expect(within(summary).getByText(/Judo/)).toHaveTextContent('Amateur');
+		expect(within(summary).getByText(/Judo/)).toHaveTextContent('Regularly, outside a club');
 		expect(within(summary).getByText(/Judo/)).toHaveTextContent('2 years 6 months');
 		expect(within(summary).getByText(/Judo/)).toHaveTextContent('Ceinture orange');
 		expect(within(summary).getByText('Avec Bob')).toBeInTheDocument();
@@ -262,7 +277,7 @@ describe('RegistrationForm', () => {
 		expect(screen.queryByRole('button', { name: 'Save my answers' })).toBeNull();
 	});
 
-	it('shows the form again to an organiser-removed player who holds a late pass', () => {
+	it('shows the form again to an organiser-removed player who holds a late pass', async () => {
 		renderWith(RegistrationForm, {
 			registration: {
 				...registered,
@@ -272,28 +287,30 @@ describe('RegistrationForm', () => {
 		});
 
 		expect(screen.getByText('The organisers have allowed your late registration.')).toBeInTheDocument();
+		expect(screen.getByLabelText('Cardio')).toHaveValue('6');
+		await toStep(3);
 		expect(screen.queryByText(/An organiser removed your registration/)).toBeNull();
 		expect(screen.queryByText('You are withdrawn. Your answers are kept.')).toBeNull();
 		expect(screen.getByRole('button', { name: 'Register' })).toBeInTheDocument();
-		expect(screen.getByLabelText('Cardio')).toHaveValue(6);
 	});
 
 	it('ties the question and the hints to their fields', () => {
 		renderWith(RegistrationForm, { registration: { ...open, email: { value: '', editable: true } } });
 
 		expect(screen.getByLabelText('Overall level')).toHaveAccessibleDescription(/overall level for Olympic Warriors 2027/);
-		expect(screen.getByRole('textbox', { name: /Who would you like to be/ })).toHaveAccessibleDescription(/stay confidential/);
-		expect(screen.getByRole('textbox', { name: 'Email address' })).toHaveAccessibleDescription(/recover your password/);
+		expect(screen.getByLabelText('Who would you like to be with?')).toHaveAccessibleDescription(/stay confidential/);
+		expect(screen.getByLabelText('Email address')).toHaveAccessibleDescription(/recover your password/);
 	});
 
-	it('shows a withdrawn registration as withdrawn, with the form to register again', () => {
+	it('shows a withdrawn registration as withdrawn, with the form to register again', async () => {
 		renderWith(RegistrationForm, {
 			registration: { ...registered, registration: { ...savedAnswers, registered: false } }
 		});
+		expect(screen.getByLabelText('Cardio')).toHaveValue('6');
+		await toStep(3);
 
 		expect(screen.getByText('You are withdrawn. Your answers are kept.')).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Register' })).toBeInTheDocument();
-		expect(screen.getByLabelText('Cardio')).toHaveValue(6);
 	});
 
 	it('speaks French', () => {
@@ -302,8 +319,190 @@ describe('RegistrationForm', () => {
 		expect(screen.getByText('Bienvenue aux inscriptions')).toBeInTheDocument();
 		expect(screen.getByLabelText('Cardio')).toBeInTheDocument();
 		expect(screen.getByLabelText('Force')).toBeInTheDocument();
-		expect(screen.getByRole('button', { name: "M'inscrire" })).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Suivant' })).toBeInTheDocument();
+		expect(document.querySelector('.final')).toHaveTextContent("M'inscrire");
 		expect(screen.getByText('Votre nom apparaîtra dans la liste des joueurs.')).toBeInTheDocument();
 		expect(screen.getByText(/pour les Olympic Warriors de 2027 : Relais et Fléchettes/)).toBeInTheDocument();
+	});
+});
+
+describe('RegistrationForm wizard', () => {
+	const step = (n) => document.querySelector(`[data-step="${n}"]`);
+	const stepsNav = () => screen.getByRole('navigation', { name: 'Registration steps' });
+
+	it('shows step 1 only, with the progress, and no previous button', () => {
+		renderWith(RegistrationForm, { registration: open });
+
+		expect(step(1)).not.toHaveAttribute('hidden');
+		expect(step(2)).toHaveAttribute('hidden');
+		expect(step(3)).toHaveAttribute('hidden');
+		expect(screen.getByText('Step 1 of 3')).toBeInTheDocument();
+		expect(within(stepsNav()).getByRole('button', { name: 'Your sports background' })).toHaveAttribute('aria-current', 'step');
+		expect(screen.queryByRole('button', { name: 'Previous' })).toBeNull();
+		expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '1');
+		expect(screen.queryByRole('button', { name: 'Register' })).toBeNull();
+	});
+
+	it('refuses to leave step 1 without a frequency, then goes forward once it is chosen', async () => {
+		renderWith(RegistrationForm, { registration: open });
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+
+		expect(step(1)).not.toHaveAttribute('hidden');
+		expect(screen.getByRole('alert')).toHaveTextContent('Fill in the required fields to continue.');
+
+		await fireEvent.click(screen.getByLabelText('About one hour a week'));
+		await fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+
+		expect(step(2)).not.toHaveAttribute('hidden');
+		expect(step(1)).toHaveAttribute('hidden');
+		expect(screen.getByText('Step 2 of 3')).toBeInTheDocument();
+		expect(screen.queryByRole('alert')).toBeNull();
+	});
+
+	it('moves focus to the new step heading', async () => {
+		renderWith(RegistrationForm, { registration: open });
+		await fireEvent.click(screen.getByLabelText('About one hour a week'));
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+		await tick();
+
+		expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Your level' }));
+	});
+
+	it('goes back freely and a new player cannot jump ahead', async () => {
+		renderWith(RegistrationForm, { registration: open });
+
+		expect(within(stepsNav()).getByRole('button', { name: 'Your level' })).toBeDisabled();
+		expect(within(stepsNav()).getByRole('button', { name: 'Additional requests' })).toBeDisabled();
+
+		await toStep(2);
+		await fireEvent.click(screen.getByRole('button', { name: 'Previous' }));
+		expect(step(1)).not.toHaveAttribute('hidden');
+
+		await fireEvent.click(within(stepsNav()).getByRole('button', { name: 'Your level' }));
+		expect(step(2)).not.toHaveAttribute('hidden');
+	});
+
+	it('lets a registered player jump to any step', async () => {
+		renderWith(RegistrationForm, { registration: registered });
+
+		await fireEvent.click(within(stepsNav()).getByRole('button', { name: 'Additional requests' }));
+
+		expect(step(3)).not.toHaveAttribute('hidden');
+		expect(screen.getByRole('button', { name: 'Save my answers' })).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Withdraw my registration' })).toBeInTheDocument();
+	});
+
+	it('gates step 3 on the tick, and on an email when one is asked', async () => {
+		renderWith(RegistrationForm, { registration: { ...open, email: { value: '', editable: true } } });
+		await toStep(3);
+
+		expect(screen.getByRole('button', { name: 'Register' })).toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Next' })).toBeNull();
+		expect(screen.getByRole('textbox', { name: 'Email address' })).toBeRequired();
+		expect(screen.getByRole('checkbox')).toBeRequired();
+	});
+
+	it.each([
+		[['register.error.missing_frequency'], 1],
+		[['register.error.invalid_rating'], 2],
+		[['register.error.too_long'], 3]
+	])('opens on the step of the first error %j, keeping the whole list above', (errors, n) => {
+		renderWith(RegistrationForm, {
+			registration: open,
+			form: { action: 'save', errors, values: initialValues(open) }
+		});
+
+		expect(step(n)).not.toHaveAttribute('hidden');
+		expect(screen.getByText(`Step ${n} of 3`)).toBeInTheDocument();
+		expect(screen.getByRole('alert')).toBeInTheDocument();
+		// after a refusal every step is reachable again
+		expect(within(stepsNav()).getByRole('button', { name: 'Additional requests' })).toBeEnabled();
+	});
+
+	it('shows the notices above the progress, on every step', async () => {
+		renderWith(RegistrationForm, { registration: registered, form: { action: 'save', ok: true } });
+		const status = screen.getByRole('status');
+
+		expect(status.compareDocumentPosition(stepsNav()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+		await fireEvent.click(within(stepsNav()).getByRole('button', { name: 'Additional requests' }));
+		expect(screen.getByRole('status')).toBeInTheDocument();
+	});
+
+	it('keeps the intro on step 1 only', () => {
+		renderWith(RegistrationForm, { registration: open });
+
+		expect(step(1)).toContainElement(screen.getByText('Welcome to registration'));
+	});
+});
+
+describe('RegistrationForm sliders', () => {
+	it('starts every slider at 5, shows its value and submits it', () => {
+		renderWith(RegistrationForm, { registration: { ...open, registration: null, suggested: null } });
+
+		const cardio = screen.getByLabelText('Cardio');
+		expect(cardio).toHaveAttribute('type', 'range');
+		expect(cardio).toHaveAttribute('min', '1');
+		expect(cardio).toHaveAttribute('max', '10');
+		expect(cardio).toHaveAttribute('step', '1');
+		expect(cardio).toHaveValue('5');
+		expect(document.getElementById('rating-CARD-value')).toHaveTextContent('5');
+		expect(cardio).toHaveAttribute('aria-describedby', 'rating-CARD-value');
+		const global = screen.getByLabelText('Overall level');
+		expect(global).toHaveAttribute('type', 'range');
+		expect(global).toHaveValue('5');
+	});
+
+	it('shows the value the player moves it to', async () => {
+		renderWith(RegistrationForm, { registration: open });
+
+		await fireEvent.input(screen.getByLabelText('Cardio'), { target: { value: '8' } });
+
+		expect(document.getElementById('rating-CARD-value')).toHaveTextContent('8');
+		expect(screen.getByLabelText('Cardio')).toHaveValue('8');
+	});
+
+	it('shows the saved ratings, not the default', () => {
+		renderWith(RegistrationForm, { registration: registered });
+
+		expect(screen.getByLabelText('Cardio')).toHaveValue(String(savedAnswers.ratings.CARD));
+	});
+});
+
+describe('RegistrationForm team preferences', () => {
+	it('has two fields, tied to their hints, and no legacy field', () => {
+		renderWith(RegistrationForm, { registration: open });
+
+		const withField = screen.getByLabelText('Who would you like to be with?');
+		const avoidField = screen.getByLabelText('Who would you rather not be with?');
+		expect(withField).toHaveAttribute('name', 'team_with');
+		expect(avoidField).toHaveAttribute('name', 'team_avoid');
+		expect(withField).toHaveAttribute('aria-describedby', 'team-with-hint');
+		expect(avoidField).toHaveAttribute('aria-describedby', 'team-avoid-hint');
+		expect(document.querySelector('[name="team_wishes"]')).toBeNull();
+	});
+
+	it('fills them from the saved answers', () => {
+		renderWith(RegistrationForm, { registration: registered });
+		expect(screen.getByLabelText('Who would you like to be with?')).toHaveValue('Avec Bob');
+		expect(screen.getByLabelText('Who would you rather not be with?')).toHaveValue('Pas Carl');
+	});
+
+	it('shows both in the read-only summary once registration is closed', () => {
+		renderWith(RegistrationForm, { registration: { ...registered, state: { is_open: false, reason: 'closed' } } });
+
+		expect(screen.getByText('With')).toBeInTheDocument();
+		expect(screen.getByText('Avec Bob')).toBeInTheDocument();
+		expect(screen.getByText('To avoid')).toBeInTheDocument();
+		expect(screen.getByText('Pas Carl')).toBeInTheDocument();
+	});
+
+	it('speaks French', () => {
+		renderWith(RegistrationForm, { registration: open }, 'fr');
+
+		expect(screen.getByText('Étape 1 sur 3')).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Votre pratique sportive' })).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Suivant' })).toBeInTheDocument();
 	});
 });

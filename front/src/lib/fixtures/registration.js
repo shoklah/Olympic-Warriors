@@ -24,10 +24,11 @@ export const registrationPayload = {
 			{ value: 'four_hours', label: 'Au moins quatre heures par semaine' }
 		],
 		level: [
-			{ value: 'beginner', label: 'Débutant' },
-			{ value: 'amateur', label: 'Amateur' },
-			{ value: 'club', label: 'Club' },
-			{ value: 'competition', label: 'Compétition' }
+			{ value: 'fun', label: 'Pour le plaisir, entre amis' },
+			{ value: 'informal', label: 'Régulièrement, hors club' },
+			{ value: 'club', label: 'En club, sans compétition' },
+			{ value: 'league', label: 'En club, avec compétitions' },
+			{ value: 'regional', label: 'Niveau régional ou supérieur' }
 		],
 		practice: [
 			{ value: 'no_longer', label: 'Ne pratique plus' },
@@ -48,9 +49,10 @@ export const savedAnswers = {
 	global_level: 8,
 	sport_frequency: 'two_hours',
 	sports: [
-		{ sport: 'Judo', level: 'amateur', practice: 'no_longer', duration_months: 30, notes: 'Ceinture orange' }
+		{ sport: 'Judo', level: 'informal', practice: 'no_longer', duration_months: 30, notes: 'Ceinture orange' }
 	],
-	team_wishes: 'Avec Bob',
+	team_with: 'Avec Bob',
+	team_avoid: 'Pas Carl',
 	dietary_restrictions: 'Végane',
 	attendance_confirmed: true
 };

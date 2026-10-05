@@ -66,6 +66,8 @@ def build_edition(year=2024):
         dietary_restrictions="Végétarienne",
         sport_frequency="two_hours",
         team_wishes="Avec Bob",
+        team_with="Avec Bob",
+        team_avoid="Pas Carl",
         attendance_confirmed=True,
     )
     PlayerSport.objects.create(player=p_alice, sport="Judo", notes="Ceinture orange")
@@ -125,7 +127,10 @@ class ExportEditionTests(TestCase):
         doc = export_edition(self.edition.year)
 
         alice = next(p for p in doc["tables"]["Player"] if p["user"] == "alice")
-        for private in ("dietary_restrictions", "sport_frequency", "team_wishes", "attendance_confirmed"):
+        for private in (
+            "dietary_restrictions", "sport_frequency", "team_wishes", "team_with", "team_avoid",
+            "attendance_confirmed",
+        ):
             self.assertNotIn(private, alice)
         self.assertEqual(alice["global_level"], 8)  # part of the rating, it travels
         self.assertNotIn("PlayerSport", doc["tables"])

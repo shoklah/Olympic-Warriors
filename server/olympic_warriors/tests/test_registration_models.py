@@ -1,5 +1,6 @@
 """The registration models: the questionnaire's skills, the private answers on a Player."""
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.test import TestCase
 
@@ -33,6 +34,18 @@ class TestPlayerRegistrationFields(TestCase):
         self.assertEqual(player.team_wishes, "")
         self.assertFalse(player.attendance_confirmed)
 
+    def test_the_two_team_preferences_default_to_blank_and_are_capped(self):
+        player = Player.objects.create(user=self.ana, edition=self.edition, rating=5)
+        self.assertEqual((player.team_with, player.team_avoid), ("", ""))
+
+        player.team_with = "x" * 501
+        with self.assertRaises(ValidationError):
+            player.full_clean(exclude=["user", "edition", "team"])
+        player.team_with = "x" * 500
+        player.team_avoid = "y" * 501
+        with self.assertRaises(ValidationError):
+            player.full_clean(exclude=["user", "edition", "team"])
+
     def test_the_frequency_choices_are_the_five_of_the_form(self):
         self.assertEqual(
             SportFrequency.values, ["rare", "monthly", "hour", "two_hours", "four_hours"]
@@ -41,7 +54,7 @@ class TestPlayerRegistrationFields(TestCase):
     def test_sports_come_back_in_order_and_die_with_the_player(self):
         player = Player.objects.create(user=self.ana, edition=self.edition, rating=5)
         PlayerSport.objects.create(player=player, order=2, sport="Judo")
-        PlayerSport.objects.create(player=player, order=1, sport="Tennis", level="amateur")
+        PlayerSport.objects.create(player=player, order=1, sport="Tennis", level="informal")
 
         self.assertEqual([s.sport for s in player.playersport_set.all()], ["Tennis", "Judo"])
 
@@ -91,6 +104,8 @@ class TestPrivateAnswersStayPrivate(TestCase):
             dietary_restrictions="Sans gluten",
             sport_frequency="hour",
             team_wishes="Avec Bob",
+            team_with="Avec Bob",
+            team_avoid="Pas Carl",
             attendance_confirmed=True,
         )
         PlayerSport.objects.create(player=player, sport="Judo", notes="Ceinture orange")

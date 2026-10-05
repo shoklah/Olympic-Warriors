@@ -9,7 +9,10 @@ import {
 	listNames,
 	monthsOf,
 	parisToday,
+	RATING_DEFAULT,
 	registrationLink,
+	stepOfErrors,
+	stepOfForm,
 	valuesFromForm,
 	visitorCta
 } from './registration.js';
@@ -46,8 +49,8 @@ describe('initialValues', () => {
 	it('starts blank, with one empty sports row', () => {
 		const values = initialValues(registrationPayload);
 
-		expect(values.ratings).toEqual({ CARD: '', STR: '' });
-		expect(values.global_level).toBe('');
+		expect(values.ratings).toEqual({ CARD: '5', STR: '5' });
+		expect(values.global_level).toBe('5');
 		expect(values.sports).toEqual([emptySport()]);
 		expect(values.attendance_confirmed).toBe(false);
 		expect(values.email).toBe('');
@@ -60,9 +63,10 @@ describe('initialValues', () => {
 		expect(values.global_level).toBe('8');
 		expect(values.sport_frequency).toBe('two_hours');
 		expect(values.sports).toEqual([
-			{ sport: 'Judo', level: 'amateur', practice: 'no_longer', years: '2', months: '6', notes: 'Ceinture orange' }
+			{ sport: 'Judo', level: 'informal', practice: 'no_longer', years: '2', months: '6', notes: 'Ceinture orange' }
 		]);
-		expect(values.team_wishes).toBe('Avec Bob');
+		expect(values.team_with).toBe('Avec Bob');
+		expect(values.team_avoid).toBe('Pas Carl');
 		expect(values.attendance_confirmed).toBe(true);
 	});
 
@@ -82,8 +86,9 @@ describe('initialValues', () => {
 		expect(values.sport_frequency).toBe('hour');
 		expect(values.dietary_restrictions).toBe('Sans gluten');
 		expect(values.sports[0]).toMatchObject({ sport: 'Tennis', notes: '30/1', years: '', months: '' });
-		expect(values.ratings).toEqual({ CARD: '', STR: '' });
-		expect(values.team_wishes).toBe('');
+		expect(values.ratings).toEqual({ CARD: '5', STR: '5' });
+		expect(values.team_with).toBe('');
+		expect(values.team_avoid).toBe('');
 		expect(values.attendance_confirmed).toBe(false);
 	});
 
@@ -94,12 +99,12 @@ describe('initialValues', () => {
 	});
 
 	it('prefers what was posted (a refused save) over everything', () => {
-		const posted = { ...initialValues(registrationPayload), global_level: '99', team_wishes: 'typed' };
+		const posted = { ...initialValues(registrationPayload), global_level: '99', team_with: 'typed' };
 
 		const values = initialValues({ ...registrationPayload, registration: savedAnswers }, posted);
 
 		expect(values.global_level).toBe('99');
-		expect(values.team_wishes).toBe('typed');
+		expect(values.team_with).toBe('typed');
 	});
 });
 
@@ -112,7 +117,7 @@ describe('valuesFromForm and bodyFromValues', () => {
 		['global_level', '8'],
 		['sport_frequency', 'two_hours'],
 		['sport.0.sport', ' Judo '],
-		['sport.0.level', 'amateur'],
+		['sport.0.level', 'informal'],
 		['sport.0.practice', 'no_longer'],
 		['sport.0.years', '2'],
 		['sport.0.months', '6'],
@@ -123,7 +128,8 @@ describe('valuesFromForm and bodyFromValues', () => {
 		['sport.1.years', ''],
 		['sport.1.months', ''],
 		['sport.1.notes', ''],
-		['team_wishes', 'Avec Bob'],
+		['team_with', 'Avec Bob'],
+		['team_avoid', 'Pas Carl'],
 		['dietary_restrictions', ''],
 		['attendance_confirmed', 'on']
 	];
@@ -133,7 +139,7 @@ describe('valuesFromForm and bodyFromValues', () => {
 
 		expect(values.ratings).toEqual({ CARD: '6', STR: '7' });
 		expect(values.sports).toEqual([
-			{ sport: ' Judo ', level: 'amateur', practice: 'no_longer', years: '2', months: '6', notes: 'Ceinture orange' }
+			{ sport: ' Judo ', level: 'informal', practice: 'no_longer', years: '2', months: '6', notes: 'Ceinture orange' }
 		]);
 		expect(values.attendance_confirmed).toBe(true);
 		expect(values.email).toBe('');
@@ -168,9 +174,10 @@ describe('valuesFromForm and bodyFromValues', () => {
 			global_level: 8,
 			sport_frequency: 'two_hours',
 			sports: [
-				{ sport: 'Judo', level: 'amateur', practice: 'no_longer', duration_months: 30, notes: 'Ceinture orange' }
+				{ sport: 'Judo', level: 'informal', practice: 'no_longer', duration_months: 30, notes: 'Ceinture orange' }
 			],
-			team_wishes: 'Avec Bob',
+			team_with: 'Avec Bob',
+			team_avoid: 'Pas Carl',
 			dietary_restrictions: '',
 			attendance_confirmed: true
 		});
@@ -287,5 +294,77 @@ describe('parisToday', () => {
 	it('reads today in Paris', () => {
 		expect(parisToday(new Date('2027-06-01T22:30:00Z'))).toBe('2027-06-02'); // already tomorrow there
 		expect(parisToday(new Date('2027-01-15T10:00:00Z'))).toBe('2027-01-15');
+	});
+});
+
+describe('sliders start at five', () => {
+	it('a new form starts every rating and the global level at the default', () => {
+		const values = initialValues({ ...registrationPayload, registration: null, suggested: null });
+
+		expect(RATING_DEFAULT).toBe(5);
+		expect(values.ratings).toEqual({ CARD: '5', STR: '5' });
+		expect(values.global_level).toBe('5');
+	});
+
+	it('a refused post keeps its values but never hands a slider a blank', () => {
+		const posted = { ...initialValues(registrationPayload), ratings: { CARD: '9', STR: '' }, global_level: '' };
+
+		const values = initialValues(registrationPayload, posted);
+
+		expect(values.ratings).toEqual({ CARD: '9', STR: '5' });
+		expect(values.global_level).toBe('5');
+	});
+});
+
+describe('stepOfErrors', () => {
+	it.each([
+		[['missing_frequency'], 1],
+		[['invalid_frequency'], 1],
+		[['invalid_sport'], 1],
+		[['too_many_sports'], 1],
+		[['missing_rating'], 2],
+		[['invalid_rating'], 2],
+		[['invalid_global_level'], 2],
+		[['too_long'], 3],
+		[['invalid_text'], 3],
+		[['attendance_required'], 3],
+		[['no_email'], 3],
+		[['invalid_email'], 3],
+		[['email_taken'], 3],
+		[['something_new'], 3],
+		[[], 3],
+		[undefined, 3]
+	])('%j goes to step %i', (codes, step) => {
+		expect(stepOfErrors(codes)).toBe(step);
+	});
+
+	it('reads the dictionary keys the route returns as well as raw codes', () => {
+		expect(stepOfErrors(['register.error.missing_frequency'])).toBe(1);
+		expect(stepOfErrors(['register.error.invalid_rating', 'register.error.too_long'])).toBe(2);
+		expect(stepOfErrors(['register.error.too_long'])).toBe(3);
+		expect(stepOfErrors(['register.error.invalid'])).toBe(3);
+	});
+
+	it('goes by the first error', () => {
+		expect(stepOfErrors(['invalid_rating', 'missing_frequency'])).toBe(2);
+		expect(stepOfErrors(['too_long', 'missing_frequency'])).toBe(3);
+	});
+});
+
+describe('stepOfForm', () => {
+	it('starts on step 1 without a post result or after a saved one', () => {
+		expect(stepOfForm(null)).toBe(1);
+		expect(stepOfForm({ action: 'save', ok: true })).toBe(1);
+		expect(stepOfForm({ action: 'withdraw', ok: true })).toBe(1);
+	});
+
+	it('goes to the step of the first refusal, a refused withdrawal to step 3', () => {
+		expect(stepOfForm({ action: 'save', errors: ['missing_rating'] })).toBe(2);
+		expect(stepOfForm({ action: 'save', errors: ['invalid_sport', 'too_long'] })).toBe(1);
+		expect(stepOfForm({ action: 'save', errors: ['register.error.missing_rating'] })).toBe(2);
+		expect(stepOfForm({ action: 'save', errors: ['register.error.invalid_sport'] })).toBe(1);
+		expect(stepOfForm({ action: 'save', error: 'register.error.closed' })).toBe(3);
+		expect(stepOfForm({ action: 'save', error: 'closed' })).toBe(3);
+		expect(stepOfForm({ action: 'withdraw', error: 'register.error.has_team' })).toBe(3);
 	});
 });

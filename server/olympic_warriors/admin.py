@@ -19,6 +19,7 @@ from django.shortcuts import redirect
 from django.template.response import TemplateResponse
 from django.urls import path, reverse
 from django.utils.html import format_html
+from django.utils.text import Truncator
 from django.utils.translation import gettext_lazy
 from .avatars import remove_photo
 from .badges import refresh
@@ -221,6 +222,8 @@ class PlayerInline(TabularInline):
         "dietary_restrictions",
         "sport_frequency",
         "team_wishes",
+        "team_with",
+        "team_avoid",
         "attendance_confirmed",
     )
 
@@ -356,7 +359,10 @@ class PlayerAdmin(ClaimLinksPermission, ModelAdmin):
     Admin dashboard configuration for the Player model.
     """
 
-    list_display = ["user", "rating", "team", "edition", "attendance_confirmed", "has_dietary"]
+    list_display = [
+        "user", "rating", "team", "edition", "attendance_confirmed", "has_dietary",
+        "wants_with", "wants_to_avoid",
+    ]
     list_editable = ["team"]
     list_filter = [
         "team",
@@ -373,6 +379,8 @@ class PlayerAdmin(ClaimLinksPermission, ModelAdmin):
         "user__username",
         "team__name",
         "edition__year",
+        "team_with",
+        "team_avoid",
     ]
     inlines = [PlayerRatingInline, PlayerSportInline]
     actions = [generate_claim_links, grant_late_pass]
@@ -381,6 +389,16 @@ class PlayerAdmin(ClaimLinksPermission, ModelAdmin):
     def has_dietary(self, obj):
         """Whether the player gave dietary restrictions."""
         return bool(obj.dietary_restrictions)
+
+    @display(description="Souhaite être avec")
+    def wants_with(self, obj):
+        """The first characters of what the player asked to be paired with."""
+        return Truncator(obj.team_with).chars(60)
+
+    @display(description="Préfère éviter")
+    def wants_to_avoid(self, obj):
+        """The first characters of whom the player would rather avoid."""
+        return Truncator(obj.team_avoid).chars(60)
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         """Teams labelled `name (year)`, newest edition first."""
