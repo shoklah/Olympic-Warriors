@@ -16,6 +16,9 @@
 	$: targets = Array.from({ length: teamCount }, (_, i) => i).filter((i) => i !== index);
 
 	let dragging = false;
+	// The move menu is hidden on a wide screen with a mouse and widens the row while it has focus; only
+	// the menu does that, since focusing a button (the mouse-down of a click) must not move it.
+	let menuFocused = false;
 	function dragStart(event) {
 		dragging = true;
 		event.dataTransfer?.setData('text/plain', String(player.id));
@@ -40,16 +43,16 @@
 	</span>
 	{#if incomplete}<span class="badge">{t('builder.incomplete')}</span>{/if}
 	{#each notes as note}<span class="note">{note}</span>{/each}
-	<span class="actions">
+	<span class="actions" class:menu-focused={menuFocused}>
 		{#if targets.length > 0 || index !== -1}
-		<select aria-label={t('builder.move', { name })} on:change={change}>
+		<select aria-label={t('builder.move', { name })} on:change={change} on:focus={() => (menuFocused = true)} on:blur={() => (menuFocused = false)}>
 			<option value="">{t('builder.moveTo')}</option>
 			{#each targets as i}<option value={i}>{t('builder.team', { n: i + 1 })}</option>{/each}
 			{#if index !== -1}<option value="tray">{t('builder.moveToTray')}</option>{/if}
 		</select>
 		{/if}
 		<button type="button" class="icon-button" aria-label={t('builder.preview', { name })} on:click={preview}>
-			<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></svg>
+			<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9" /><path d="M12 11v6" /><circle cx="12" cy="7.5" r="0.6" /></svg>
 		</button>
 		{#if index !== -1}
 			<button
@@ -164,7 +167,7 @@
 			top: 0.375rem;
 			right: 0.5rem;
 		}
-		.actions:focus-within {
+		.actions.menu-focused {
 			left: 0.75rem;
 			z-index: 1;
 			padding: 0.25rem 0 0.25rem 0.25rem;
