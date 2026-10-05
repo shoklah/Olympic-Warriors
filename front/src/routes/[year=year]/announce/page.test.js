@@ -63,6 +63,7 @@ describe('announce page', () => {
 
 	it('loads a photo that appears in the data afterwards, once', async () => {
 		localStorage.setItem('announce.photos', 'on');
+		vi.mocked(loadImages).mockImplementation(async (urls) => new Map(urls.map((u) => [u, {}])));
 		const { component } = renderWith(Page, { data: data() });
 		await waitFor(() => expect(loadImages).toHaveBeenCalledTimes(2));
 		const requested = () => vi.mocked(loadImages).mock.calls.flatMap(([urls]) => urls);
@@ -143,12 +144,61 @@ describe('announce page', () => {
 
 		await fireEvent.click(button);
 		await fireEvent.click(button);
-		expect(button).toBeDisabled();
-		expect(screen.getByRole('button', { name: 'Download everything (ZIP)' })).toBeDisabled();
+		expect(button).toHaveAttribute('aria-disabled', 'true');
+		expect(screen.getByRole('button', { name: 'Download everything (ZIP)' })).toHaveAttribute('aria-disabled', 'true');
 		release();
 
 		await waitFor(() => expect(download).toHaveBeenCalledTimes(1));
-		await waitFor(() => expect(button).not.toBeDisabled());
+		await waitFor(() => expect(button).not.toHaveAttribute('aria-disabled'));
+	});
+
+	it('keeps the downloads disabled while photos load, then enables them', async () => {
+		localStorage.setItem('announce.photos', 'on');
+		let resolve;
+		vi.mocked(loadImages).mockImplementation((urls) =>
+			urls.length === 1 && urls[0].includes('logo') ? Promise.resolve(new Map()) : new Promise((r) => (resolve = r))
+		);
+		renderWith(Page, { data: data() });
+
+		await waitFor(() => expect(resolve).toBeDefined());
+		expect(screen.getByRole('button', { name: 'Download the poster' })).toBeDisabled();
+		expect(screen.getByRole('status')).toHaveTextContent('Preparing the images…');
+		resolve(new Map());
+
+		await waitFor(() => expect(screen.getByRole('button', { name: 'Download the poster' })).not.toBeDisabled());
+		expect(screen.queryByRole('status')).toBeNull();
+	});
+
+	it('asks again for a photo that failed to load when the switch is toggled', async () => {
+		const PHOTO = '/media/avatars/11-7c3e9a1f5b2d-sm.webp';
+		localStorage.setItem('announce.photos', 'on');
+		renderWith(Page, { data: data() });
+		const requested = () => vi.mocked(loadImages).mock.calls.flatMap(([urls]) => urls).filter((u) => u === PHOTO);
+		await waitFor(() => expect(requested()).toHaveLength(1));
+		await waitFor(() => expect(screen.getByRole('button', { name: 'Download the poster' })).not.toBeDisabled());
+
+		await fireEvent.click(screen.getByLabelText('Show photos'));
+		await fireEvent.click(screen.getByLabelText('Show photos'));
+
+		await waitFor(() => expect(requested()).toHaveLength(2));
+	});
+
+	it('keeps focus on a button while a download is under way', async () => {
+		let release;
+		const { toPng } = await import('$lib/announce/export.js');
+		vi.mocked(toPng).mockImplementationOnce(() => new Promise((resolve) => (release = () => resolve(new Blob(['png'])))));
+		renderWith(Page, { data: data() });
+		await waitFor(() => expect(screen.queryByText('Preparing the images…')).toBeNull());
+		const button = screen.getByRole('button', { name: 'Download the poster' });
+		button.focus();
+
+		await fireEvent.click(button);
+
+		expect(button).toHaveAttribute('aria-disabled', 'true');
+		expect(button).not.toBeDisabled();
+		expect(document.activeElement).toBe(button);
+		release();
+		await waitFor(() => expect(button).not.toHaveAttribute('aria-disabled'));
 	});
 
 	it('words a failed download', async () => {

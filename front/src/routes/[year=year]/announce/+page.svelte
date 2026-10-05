@@ -25,6 +25,7 @@
 	let photos = false;
 	let lang = 'fr';
 	let ready = false;
+	let photosLoading = false;
 	let images = new Map();
 	let failed = false;
 	let posterCanvas;
@@ -54,10 +55,18 @@
 	async function loadPhotos(urls) {
 		const missing = [...new Set(urls)].filter((url) => !requested.has(url));
 		if (missing.length === 0) return;
-		missing.forEach((url) => requested.add(url));
-		addImages(await loadImages(missing));
+		// Only what loaded stays in `requested`, so a failed or timed-out url is retried later.
+		photosLoading = true;
+		try {
+			const loaded = await loadImages(missing);
+			[...loaded.keys()].forEach((url) => requested.add(url));
+			addImages(loaded);
+		} finally {
+			photosLoading = false;
+		}
 	}
 	$: if (ready && photos) loadPhotos(photoUrls);
+	$: waiting = !ready || photosLoading;
 
 	const measurer = () => {
 		const ctx = document.createElement('canvas').getContext('2d');
@@ -113,7 +122,7 @@
 
 	let busy = false;
 	async function attempt(action) {
-		if (busy) return;
+		if (busy || waiting) return;
 		busy = true;
 		failed = false;
 		try {
@@ -154,17 +163,17 @@
 					<option value="en">English</option>
 				</select>
 			</label>
-			<button type="button" class="submit" disabled={!ready || busy} on:click={downloadAll}>{t('announce.all')}</button>
+			<button type="button" class="submit" disabled={waiting} aria-disabled={busy ? 'true' : undefined} on:click={downloadAll}>{t('announce.all')}</button>
 		</div>
 		{#if photos}<p class="hint" role="note">{t('announce.photos.notice')}</p>{/if}
 		{#if failed}<p class="error" role="alert">{t('announce.failed')}</p>{/if}
-		{#if !ready}<p class="hint" role="status">{t('announce.loading')}</p>{/if}
+		{#if waiting}<p class="hint" role="status">{t('announce.loading')}</p>{/if}
 
 		<section aria-labelledby="poster-title">
 			<h2 id="poster-title">{t('announce.poster.heading')}</h2>
 			<!-- svelte-ignore a11y-no-interactive-element-to-noninteractive-role -->
-			<canvas class="preview" bind:this={posterCanvas} role="img" aria-label={t('announce.poster.alt')}></canvas>
-			<button type="button" class="pill" disabled={!ready || busy} on:click={downloadPoster}>{t('announce.poster.download')}</button>
+			<canvas class="preview poster" width="1600" height="1100" bind:this={posterCanvas} role="img" aria-label={t('announce.poster.alt')}></canvas>
+			<button type="button" class="pill" disabled={waiting} aria-disabled={busy ? 'true' : undefined} on:click={downloadPoster}>{t('announce.poster.download')}</button>
 		</section>
 
 		<section aria-labelledby="cards-title">
@@ -173,8 +182,8 @@
 				{#each teams as team, i (team.id)}
 					<li>
 						<!-- svelte-ignore a11y-no-interactive-element-to-noninteractive-role -->
-						<canvas class="preview" bind:this={cardCanvases[i]} role="img" aria-label={t('announce.card.alt', { name: team.name })}></canvas>
-						<button type="button" class="pill" disabled={!ready || busy} on:click={() => downloadCard(i)}>{t('announce.card.download', { name: team.name })}</button>
+						<canvas class="preview card" width="1080" height="1080" bind:this={cardCanvases[i]} role="img" aria-label={t('announce.card.alt', { name: team.name })}></canvas>
+						<button type="button" class="pill" disabled={waiting} aria-disabled={busy ? 'true' : undefined} on:click={() => downloadCard(i)}>{t('announce.card.download', { name: team.name })}</button>
 					</li>
 				{/each}
 			</ul>
@@ -227,6 +236,12 @@
 		border: 1px solid var(--line);
 		border-radius: var(--radius);
 	}
+	.poster {
+		aspect-ratio: 1600 / 1100;
+	}
+	.card {
+		aspect-ratio: 1 / 1;
+	}
 	.cards {
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(min(18rem, 100%), 1fr));
@@ -270,7 +285,8 @@
 		background: var(--accent);
 		color: var(--bg);
 	}
-	button:disabled {
+	button:disabled,
+	button[aria-disabled='true'] {
 		opacity: 0.4;
 		cursor: not-allowed;
 	}

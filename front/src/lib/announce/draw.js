@@ -49,6 +49,8 @@ function drawAvatar(ctx, item, images) {
 		ctx.beginPath();
 		ctx.arc(cx, cy, size / 2, 0, Math.PI * 2);
 		ctx.clip();
+		ctx.imageSmoothingEnabled = true;
+		ctx.imageSmoothingQuality = 'high';
 		ctx.drawImage(photo, x, y, size, size);
 		ctx.restore();
 	} else {
@@ -70,7 +72,7 @@ function drawAvatar(ctx, item, images) {
 }
 
 /**
- * Paint a layout (`layout.js`) onto a 2D context. `images` maps `'logo'`, `'title'` and the
+ * Paint a layout (`layout.js`) onto a 2D context. `images` maps `'logo'` and the
  * photo URLs to loaded images; a missing one is simply skipped (initials for a player).
  */
 export function drawLayout(ctx, layout, { images }) {

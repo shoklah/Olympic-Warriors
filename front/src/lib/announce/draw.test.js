@@ -49,25 +49,26 @@ describe('drawLayout', () => {
 		expect(calls).toContainEqual(['set', 'textAlign', 'center']);
 	});
 
-	it('draws the logo and title images when loaded and skips them when not', () => {
-		const items = [{ type: 'logo', x: 1, y: 2, w: 10, h: 12 }, { type: 'title', x: 3, y: 4, w: 20, h: 14 }];
+	it('draws the logo when loaded and skips it when not', () => {
+		const items = [{ type: 'logo', x: 1, y: 2, w: 10, h: 12 }];
 		const withImages = fakeContext();
 		const without = fakeContext();
 
-		drawLayout(withImages.ctx, layout(items), { images: new Map([['logo', image], ['title', image]]) });
+		drawLayout(withImages.ctx, layout(items), { images: new Map([['logo', image]]) });
 		drawLayout(without.ctx, layout(items), { images: new Map() });
 
-		expect(withImages.drawn('drawImage')).toHaveLength(2);
+		expect(withImages.drawn('drawImage')).toHaveLength(1);
 		expect(without.drawn('drawImage')).toHaveLength(0);
 	});
 
 	it('clips a player photo to a circle', () => {
-		const { ctx, drawn } = fakeContext();
+		const { ctx, calls, drawn } = fakeContext();
 
 		drawLayout(ctx, layout([avatarItem('/media/avatars/1-sm.webp')]), { images: new Map([['/media/avatars/1-sm.webp', image]]) });
 
 		expect(drawn('clip')).toHaveLength(1);
 		expect(drawn('drawImage')).toEqual([['drawImage', image, 10, 20, 60, 60]]);
+		expect(calls).toContainEqual(['set', 'imageSmoothingQuality', 'high']);
 	});
 
 	it('draws the initials on a round when there is no photo, or the photo did not load', () => {
