@@ -12,6 +12,7 @@
 	export let error = '';
 	export let done = null;
 	export let saveBlocked = false;
+	export let year = null;
 
 	const t = useT();
 	const dispatch = createEventDispatcher();
@@ -21,6 +22,7 @@
 
 {#if done}
 	<p class="saved" role="status">{t('builder.apply.done')}</p>
+	{#if year}<a class="pill-link quiet-link" href="/{year}/announce">{t('announce.link')}</a>{/if}
 	{#if done.unscheduled.length > 0}
 		<p>{t('builder.apply.unscheduled')}</p>
 		<ul>{#each done.unscheduled as discipline}<li>{discipline.name}</li>{/each}</ul>
@@ -45,6 +47,15 @@
 {/if}
 
 <style>
+	.pill-link {
+		display: inline-block;
+		margin: 0 0 1rem;
+		padding: 0.5rem 1.25rem;
+		border: 1px solid var(--accent);
+		border-radius: 999px;
+		color: var(--accent);
+		font-weight: 600;
+	}
 	.check {
 		display: flex;
 		gap: 0.5rem;

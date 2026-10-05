@@ -205,7 +205,7 @@
 
 	{#if done}
 		<h2>{t('builder.step.3')}</h2>
-		<BuilderApply {done} teamCount={done.teams.length} placedCount={0} unplacedCount={0} registrationOpen={false} nameOf={() => ''} />
+		<BuilderApply {done} {year} teamCount={done.teams.length} placedCount={0} unplacedCount={0} registrationOpen={false} nameOf={() => ''} />
 	{:else if builder.teams_exist}
 		<p class="notice">{t('builder.exists')}</p>
 	{:else if players.length === 0}
@@ -267,6 +267,7 @@
 		{:else}
 			<h2>{t('builder.step.3')}</h2>
 			<BuilderApply
+				{year}
 				teamCount={draft.teams.length}
 				{placedCount}
 				unplacedCount={unplaced.length}

@@ -52,4 +52,10 @@ describe('BuilderApply', () => {
 		expect(screen.getByText('Darts')).toBeInTheDocument();
 		expect(screen.queryByRole('button', { name: 'Create the teams' })).toBeNull();
 	});
+
+	it('links to the announcement visuals once the teams are created', () => {
+		renderWith(BuilderApply, { ...base, year: 2029, done: { teams: [{ id: 1 }], unscheduled: [] } });
+
+		expect(screen.getByRole('link', { name: 'Announce the teams' })).toHaveAttribute('href', '/2029/announce');
+	});
 });
