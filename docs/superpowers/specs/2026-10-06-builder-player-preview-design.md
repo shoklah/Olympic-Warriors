@@ -17,13 +17,13 @@ While building teams, an organiser can open a player's full rating profile from 
 
 ### Trigger (`PlayerCard.svelte`)
 
-- A new eye icon button beside the lock, same `icon-button` style, on every card (tray and teams). Accessible name `builder.preview` with the player's name.
+- A new info icon button (an "i" in a circle, first an eye) beside the lock, same `icon-button` style, on every card (tray and teams). Accessible name `builder.preview` with the player's name.
 - A click dispatches `preview` with `{ id: player.id }`. It starts no drag and does not touch the card's `draggable`.
 - `BuilderTeams` forwards `preview` from both its tray and team cards. `+page.svelte` owns one `previewId` (null when closed), set by the event, and passes the player and the opener to the sheet.
 
 ### Sheet (`$lib/components/builder/PlayerSheet.svelte`, new)
 
-A dialog using `use:modal={{ onClose }}` from `$lib/modal.js`, like `BadgeSheet` and `ScoreSheet`: a bottom sheet below 1000px, a centred dialog above; Escape closes, Tab wraps, page scroll is locked. Focus returns to the eye button that opened it through an `opener` prop (as `PhotoEditor` does), since the card may move or re-render while open.
+A dialog using `use:modal={{ onClose }}` from `$lib/modal.js`, like `BadgeSheet` and `ScoreSheet`: a bottom sheet below 1000px, a centred dialog above; Escape closes, Tab wraps, page scroll is locked. Focus returns to the info button that opened it through an `opener` prop (as `PhotoEditor` does), since the card may move or re-render while open.
 
 Content, top to bottom:
 
@@ -47,8 +47,8 @@ New keys in `fr.js` and `en.js` (parity-tested): `builder.preview` (« Voir le p
 
 - `profile.test.js`: all skills present; one missing (estimated, takes the overall rating); no frequency (incomplete); empty `ratings`; locale picks the skill name; `global_level` null.
 - `PlayerSheet.test.js`: header and summary, one bar per skill, the estimated bar and notice, sports list and empty state, tray versus team subtitle, a French rendering, Escape calls `onClose`.
-- `PlayerCard.test.js`: the eye button exists with its name, dispatches `preview` with the id, and is present for tray and team cards.
-- Page test: clicking the eye opens the sheet, closing it returns focus to the button, and a player removed by a reload closes it.
+- `PlayerCard.test.js`: the info button exists with its name, dispatches `preview` with the id, and is present for tray and team cards.
+- Page test: clicking the info button opens the sheet, closing it returns focus to the button, and a player removed by a reload closes it.
 - `modal.test.js` already covers the dialog mechanics.
 
 All on the fixture `$lib/fixtures/builder.js`: player 5 (empty ratings, no frequency) is the incomplete case, player 3 has a sport.
