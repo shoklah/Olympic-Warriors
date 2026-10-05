@@ -1,5 +1,5 @@
 import { fireEvent, screen, within } from '@testing-library/svelte';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { renderWith } from '$lib/test-utils';
 import { builderPayload } from '$lib/fixtures/builder.js';
 import BuilderRequests from './BuilderRequests.svelte';
@@ -81,5 +81,94 @@ describe('BuilderRequests', () => {
 		expect(within(added).getByRole('button', { name: 'Confirm Paul Durand' })).toHaveAttribute('aria-pressed', 'true');
 		// the written name that matched nobody keeps its own block
 		expect(within(section).getByText('No matching player').closest('li')).not.toBe(added);
+	});
+
+	it('says what each line is: clear matches, then confirmed ones', () => {
+		const { component } = renderWith(BuilderRequests, { players, links: [] });
+
+		expect(screen.getAllByText('Clear match')).toHaveLength(4);
+		expect(screen.queryByText('Confirmed')).toBeNull();
+
+		component.$set({ links: [{ player: 1, kind: 'with', target: 2 }] });
+		return vi.waitFor(() => {
+			expect(screen.getAllByText('Clear match')).toHaveLength(3);
+			expect(screen.getAllByText('Confirmed')).toHaveLength(1);
+		});
+	});
+
+	it('says why a name matched', () => {
+		renderWith(BuilderRequests, { players, links: [] });
+
+		expect(screen.getByText('Full name · only one player')).toBeInTheDocument(); // « Paul Durand »
+		expect(screen.getAllByText('First name · only one player')).toHaveLength(3); // « Zoé », « Léa », « Bob »
+	});
+
+	it('marks lines that need a decision and a name without a player', () => {
+		const roster = [
+			{ id: 1, first_name: 'Léa', last_name: 'Martin', team_with: 'Paul', team_avoid: 'Inez' },
+			{ id: 2, first_name: 'Paul', last_name: 'Durand', team_with: 'peu importe', team_avoid: '' },
+			{ id: 3, first_name: 'Paul', last_name: 'Petit', team_with: '', team_avoid: '' },
+			{ id: 4, first_name: 'Inès', last_name: 'Moreau', team_with: '', team_avoid: '' }
+		];
+		renderWith(BuilderRequests, { players: roster, links: [] });
+
+		expect(screen.getByText('Choose')).toBeInTheDocument();
+		expect(screen.getByText('2 players possible, pick one')).toBeInTheDocument();
+		expect(screen.getByText('Check')).toBeInTheDocument();
+		expect(screen.getByText('Close spelling, check it is the right person')).toBeInTheDocument();
+		expect(screen.getByText('No match')).toBeInTheDocument();
+		expect(screen.getByText('No matching player')).toBeInTheDocument();
+	});
+
+	it('counts the requests and tells the review apart from what is confirmed', () => {
+		renderWith(BuilderRequests, { players, links: [{ player: 1, kind: 'with', target: 2 }] });
+
+		expect(screen.getByText('4 requests · 1 confirmed · 3 to review')).toBeInTheDocument();
+	});
+
+	it('mentions the requests with no match in the count only when there are some', () => {
+		renderWith(BuilderRequests, { players: withText(2, { team_with: 'peu importe' }), links: [] });
+
+		expect(screen.getByText(/with no match/)).toBeInTheDocument();
+	});
+
+	it('offers to confirm the clear matches in one click, and reports them all at once', async () => {
+		const { component } = renderWith(BuilderRequests, { players, links: [] });
+		const events = [];
+		component.$on('confirmClear', (e) => events.push(e.detail));
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Confirm 4 clear matches' }));
+
+		expect(events).toEqual([[
+			{ player: 1, kind: 'with', target: 2 },
+			{ player: 1, kind: 'avoid', target: 6 },
+			{ player: 2, kind: 'with', target: 1 },
+			{ player: 4, kind: 'avoid', target: 5 }
+		]]);
+	});
+
+	// Two players are called Paul, so « Paul » is ambiguous; the Pauls themselves write nothing, since a Paul is not offered himself.
+	it('has no bulk button when no line is clear', () => {
+		renderWith(BuilderRequests, { players: players.map((p) => ({ ...p, team_with: p.first_name === 'Paul' ? '' : 'Paul', team_avoid: '' })), links: [] });
+
+		expect(screen.queryByRole('button', { name: /clear match/ })).toBeNull();
+	});
+
+	it('shows a confirmed chip as pressed with a status of its own', () => {
+		renderWith(BuilderRequests, { players, links: [{ player: 4, kind: 'avoid', target: 5 }] });
+
+		const section = screen.getByRole('region', { name: 'Inès Moreau: would rather avoid' });
+		expect(within(section).getByRole('button', { name: 'Confirm Bob Roux' })).toHaveAttribute('aria-pressed', 'true');
+		expect(within(section).getByText('Confirmed')).toBeInTheDocument();
+	});
+
+	it('speaks French', () => {
+		renderWith(BuilderRequests, { players, links: [{ player: 1, kind: 'with', target: 2 }] }, 'fr');
+
+		expect(screen.getByText('4 demandes · 1 confirmée · 3 à examiner')).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Confirmer 3 correspondances sûres' })).toBeInTheDocument();
+		expect(screen.getAllByText('Correspondance sûre')).toHaveLength(3);
+		expect(screen.getByText('Confirmé')).toBeInTheDocument();
+		expect(screen.getAllByText('Prénom · un seul joueur', { exact: false }).length).toBeGreaterThan(0);
 	});
 });
