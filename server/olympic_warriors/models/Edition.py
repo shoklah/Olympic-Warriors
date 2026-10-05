@@ -8,6 +8,7 @@ from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils.crypto import get_random_string
 
+from ..emails import INTERNAL_DOMAIN, is_internal
 from ..registration import (
     CONFIRMED,
     EMAIL,
@@ -27,7 +28,7 @@ from ..registration import (
 )
 from .Player import Player, PlayerRating, PlayerSport
 
-FALLBACK_EMAIL_DOMAIN = "olympicwarriors.com"
+FALLBACK_EMAIL_DOMAIN = INTERNAL_DOMAIN
 
 logger = logging.getLogger(__name__)
 
@@ -119,7 +120,7 @@ class Edition(models.Model):
                         password=get_random_string(length=8),
                         email=email or f"{username}@{FALLBACK_EMAIL_DOMAIN}",
                     )
-                elif email and user.email.endswith(f"@{FALLBACK_EMAIL_DOMAIN}"):
+                elif email and is_internal(user.email):
                     user.email = email
                     user.save(update_fields=["email"])
 

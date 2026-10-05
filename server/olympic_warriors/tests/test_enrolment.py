@@ -63,6 +63,10 @@ class TestUsableEmail(TestCase):
         self.assertFalse(usable_email(None))
         self.assertFalse(usable_email("anamartin@olympicwarriors.com"))
         self.assertFalse(usable_email(" AnaMartin@OlympicWarriors.com "))
+        # Subdomains too, as the claim mailing treats them (one shared definition).
+        self.assertFalse(usable_email("ana@mail.olympicwarriors.com"))
+        self.assertTrue(usable_email("ana@notolympicwarriors.com"))
+        self.assertTrue(usable_email("ana@example.com.olympicwarriors.org"))
         self.assertTrue(usable_email("ana@example.com"))
 
 
@@ -282,6 +286,38 @@ class TestWithdraw(Setup):
 
         player.refresh_from_db()
         self.assertTrue(player.is_active)
+
+    def test_a_team_that_is_no_longer_active_does_not_hold_the_player(self):
+        player = enrolment.save(self.ana, self.edition, self.skills, validate(good(), self.skills, False))
+        team = Team.objects.create(name="Red", edition=self.edition, is_active=False)
+        Player.objects.filter(pk=player.pk).update(team=team)
+
+        self.assertEqual(enrolment.withdraw(self.ana, self.edition), 1)
+
+        player.refresh_from_db()
+        self.assertFalse(player.is_active)
+
+    def test_every_active_row_of_the_person_is_withdrawn(self):
+        first = enrolment.save(self.ana, self.edition, self.skills, validate(good(), self.skills, False))
+        second = Player.objects.create(user=self.ana, edition=self.edition, rating=5)  # an import's twin
+
+        self.assertEqual(enrolment.withdraw(self.ana, self.edition), 2)
+
+        for player in (first, second):
+            player.refresh_from_db()
+            self.assertFalse(player.is_active)
+            self.assertIsNotNone(player.withdrawn_at)
+
+    def test_a_placed_twin_blocks_the_withdrawal_of_both(self):
+        first = enrolment.save(self.ana, self.edition, self.skills, validate(good(), self.skills, False))
+        team = Team.objects.create(name="Red", edition=self.edition)
+        Player.objects.create(user=self.ana, edition=self.edition, rating=5, team=team)
+
+        with self.assertRaises(WithdrawalRefused):
+            enrolment.withdraw(self.ana, self.edition)
+
+        first.refresh_from_db()
+        self.assertTrue(first.is_active)
 
     def test_saving_again_clears_the_withdrawal_mark(self):
         player = enrolment.save(self.ana, self.edition, self.skills, validate(good(), self.skills, False))

@@ -11,8 +11,9 @@ from django.utils import timezone
 
 from .accounts import change_email
 from .models import Player, PlayerRating, PlayerSport
-from .models.Edition import FALLBACK_EMAIL_DOMAIN
+from .emails import usable_email  # noqa: F401  (also imported from here by invitations)
 from .models.Player import SportFrequency
+from .profiles import _valid_team
 from .registration import rate
 from .registration_state import closing_date
 
@@ -30,12 +31,6 @@ class RegistrationError(ValueError):
     def __init__(self, codes):
         super().__init__(", ".join(codes))
         self.codes = codes
-
-
-def usable_email(email):
-    """A real address: not blank and not the placeholder the importer generates."""
-    email = (email or "").strip().lower()
-    return bool(email) and not email.endswith(f"@{FALLBACK_EMAIL_DOMAIN}")
 
 
 def _is_int_between(value, low, high):
@@ -233,15 +228,19 @@ def withdraw(user, edition):
     """Soft-delete the caller's Player of the edition and mark it withdrawn by the player
     (the answers stay, for a re-registration). Returns how many rows were switched off.
     Raises WithdrawalRefused once the player has a team."""
-    player = Player.objects.filter(user=user, edition=edition, is_active=True).first()
-    if player is None:
+    players = list(
+        Player.objects.filter(user=user, edition=edition, is_active=True).select_related("team")
+    )
+    if not players:
         return 0
-    if player.team_id is not None:
+    # A real team only: an inactive or foreign one (profiles._valid_team) holds nobody.
+    if any(_valid_team(player) is not None for player in players):
         raise WithdrawalRefused()
-    player.is_active = False
-    player.withdrawn_at = timezone.now()
-    player.save(update_fields=["is_active", "withdrawn_at"])
-    return 1
+    # Every active row: imports skip Player.clean, so a person may hold more than one.
+    Player.objects.filter(pk__in=[player.pk for player in players]).update(
+        is_active=False, withdrawn_at=timezone.now()
+    )
+    return len(players)
 
 
 def removed_by_organiser(user, edition):

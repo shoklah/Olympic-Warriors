@@ -1,7 +1,7 @@
 """Opening registration from the Edition page and granting late passes."""
 from datetime import date
 
-from django.contrib.auth.models import User
+from django.contrib.auth.models import Permission, User
 from django.test import TestCase, override_settings
 
 from olympic_warriors.admin import UserProfileAdmin
@@ -115,6 +115,51 @@ class TestInvitedColumn(AdminSetup):
         response = self.client.get(f"{PROFILES}{profile.pk}/change/")
 
         self.assertContains(response, 'name="invited"')
+
+
+class TestInvitedNeedsChangeUser(AdminSetup):
+    """`invited` gates claim links, resets and registration: it is edited with
+    auth.change_user, like the claim action and the invite page."""
+
+    def organiser(self, *codenames):
+        user = User.objects.create_user("limited", password="pw", is_staff=True)
+        for codename in codenames:
+            user.user_permissions.add(Permission.objects.get(codename=codename))
+        self.client.force_login(user)
+        self.profile = UserProfile.objects.create(user=self.bob, invited=True)
+
+    def test_a_profile_organiser_without_change_user_cannot_edit_it(self):
+        self.organiser("view_userprofile", "change_userprofile")
+
+        listing = self.client.get(PROFILES)
+        change = self.client.get(f"{PROFILES}{self.profile.pk}/change/")
+
+        self.assertEqual(set(listing.context["cl"].formset.forms[0].fields), {"photo_locked", "id"})
+        self.assertNotContains(change, 'name="invited"')
+        self.assertContains(change, 'name="photo_locked"')
+
+    def test_posting_the_list_does_not_change_it_either(self):
+        self.organiser("view_userprofile", "change_userprofile")
+        form = {
+            "form-TOTAL_FORMS": "1", "form-INITIAL_FORMS": "1", "form-MIN_NUM_FORMS": "0",
+            "form-MAX_NUM_FORMS": "1000", "form-0-id": str(self.profile.pk),
+            "form-0-photo_locked": "on", "_save": "Enregistrer",
+        }
+
+        self.client.post(PROFILES, form)
+
+        self.profile.refresh_from_db()
+        self.assertTrue(self.profile.invited)  # no `form-0-invited` is read: it stays set
+        self.assertTrue(self.profile.photo_locked)
+
+    def test_with_change_user_the_flag_is_editable_in_both(self):
+        self.organiser("view_userprofile", "change_userprofile", "change_user")
+
+        listing = self.client.get(PROFILES)
+        change = self.client.get(f"{PROFILES}{self.profile.pk}/change/")
+
+        self.assertIn("invited", listing.context["cl"].formset.forms[0].fields)
+        self.assertContains(change, 'name="invited"')
 
 
 class TestLateRegistrationAdmin(AdminSetup):

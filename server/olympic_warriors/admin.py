@@ -3,6 +3,7 @@ Admin dashboard configuration for the Olympic Warriors app.
 """
 
 import math
+from functools import partial
 
 from django import forms
 from django.contrib import messages
@@ -12,7 +13,7 @@ from django.contrib.admin.forms import AdminAuthenticationForm
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ImproperlyConfigured, PermissionDenied, ValidationError
 from django.db import transaction
-from django.forms import BaseInlineFormSet, ModelChoiceField, ModelForm
+from django.forms import BaseInlineFormSet, ModelChoiceField, ModelForm, modelformset_factory
 from django.http import HttpRequest
 from django.shortcuts import redirect
 from django.template.response import TemplateResponse
@@ -1121,6 +1122,28 @@ class UserProfileAdmin(ClaimLinksPermission, ModelAdmin):
 
     def has_add_permission(self, request):
         return False
+
+    def _may_invite(self, request):
+        """`invited` gates claim links, password resets and registration: like the claim
+        action and the invite page, changing it needs auth.change_user, whatever the
+        organiser's rights on profiles."""
+        return request.user.has_perm("auth.change_user")
+
+    def get_readonly_fields(self, request, obj=None):
+        readonly = super().get_readonly_fields(request, obj)
+        return readonly if self._may_invite(request) else [*readonly, "invited"]
+
+    def get_changelist_formset(self, request, **kwargs):
+        """The list's editable columns, `invited` only for who may change it (Django's own
+        implementation, with `fields` filtered: it takes no `fields` override)."""
+        editable = [
+            name for name in self.list_editable if name != "invited" or self._may_invite(request)
+        ]
+        defaults = {"formfield_callback": partial(self.formfield_for_dbfield, request=request)}
+        defaults.update(kwargs)
+        return modelformset_factory(
+            self.model, self.get_changelist_form(request), extra=0, fields=editable, **defaults
+        )
 
     def get_actions(self, request):
         """Only this admin's own actions: next to « Retirer la photo », the stock bulk delete
