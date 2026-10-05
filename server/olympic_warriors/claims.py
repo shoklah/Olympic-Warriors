@@ -59,14 +59,21 @@ class Unclaimable(ValueError):
 MAX_USER_ID = 2**31 - 1
 
 
+def can_register(user):
+    """Whether `user` may register for an edition and claim an account: a person (an active
+    Player in an active edition), or someone an organiser invited who has not played yet.
+    One or two queries."""
+    return is_person(user) or UserProfile.objects.filter(user=user, invited=True).exists()
+
+
 def unclaimable_reason(user):
     """STAFF, INACTIVE or NOT_A_PERSON, checked in that order, or None for a claimable
-    user. One query, for the person check, and only when the flags pass."""
+    user. One or two queries, for the person check, and only when the flags pass."""
     if user.is_staff or user.is_superuser:
         return STAFF
     if not user.is_active:
         return INACTIVE
-    if not is_person(user):
+    if not can_register(user):
         return NOT_A_PERSON
     return None
 
@@ -79,13 +86,13 @@ def is_claimable(user):
 def unresettable_reason(user):
     """INACTIVE or NOT_A_PERSON, or None for a user who may reset their password by mail:
     an active organiser (staff or superuser), who has no profile and never plays, or an
-    active person. Unlike a claim link, which an organiser hands to someone else and so must
+    active person or invited newcomer. Unlike a claim link, which an organiser hands to someone else and so must
     never carry admin rights, a reset link goes only to the address on the account itself."""
     if not user.is_active:
         return INACTIVE
     if user.is_staff or user.is_superuser:
         return None
-    return None if is_person(user) else NOT_A_PERSON
+    return None if can_register(user) else NOT_A_PERSON
 
 
 def public_url():
@@ -162,8 +169,9 @@ def complete_claim(user, token, password, rule=unclaimable_reason):
         locked.save(update_fields=["password"])
         Token.objects.filter(user=locked).delete()
         key = Token.objects.create(user=locked).key
-        # Only a person has a profile: an organiser resetting their password gets no row.
-        if is_person(locked):
+        # Only a person or an invited newcomer has a profile: an organiser resetting their
+        # password gets no row.
+        if can_register(locked):
             profile, _ = UserProfile.objects.get_or_create(user=locked)
             if profile.claimed_at is None:  # a reset later keeps the first activation date
                 profile.claimed_at = timezone.now()

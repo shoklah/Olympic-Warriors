@@ -65,7 +65,13 @@ from .badges import (
     showcase,
     valid_pins,
 )
-from .claims import check_claim, complete_claim, unclaimable_reason, unresettable_reason
+from .claims import (
+    can_register,
+    check_claim,
+    complete_claim,
+    unclaimable_reason,
+    unresettable_reason,
+)
 from .profiles import (
     discipline_table,
     held_disciplines,
@@ -282,6 +288,7 @@ def getMe(request):
                 "email": user.email,
                 "is_staff": user.is_staff,
                 "is_person": user.is_person,
+                "can_register": user.is_person or (profile is not None and profile.invited),
                 "photo": photo_urls(profile),
                 "photo_locked": profile is not None and profile.photo_locked,
                 "showcase": {"auto": not pins, "codes": pins},
@@ -418,9 +425,11 @@ def _account_body(request):
 
 
 def _not_an_account_owner(user):
-    """404 response for anyone who is not a person, else None. An organiser who plays owns an
-    account like any player (deletion aside, see deactivateMe)."""
-    if not is_person(user):
+    """404 response for anyone who cannot register (not a person, not invited), else None.
+    An organiser who plays owns an account like any player (deletion aside, see
+    deactivateMe), and so does an invited newcomer; the photo and the showcase stay for
+    people only."""
+    if not can_register(user):
         return Response(NOT_A_PERSON, status=404)
     return None
 
