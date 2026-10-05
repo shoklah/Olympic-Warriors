@@ -1,7 +1,7 @@
 """The team builder's server side (spec 2026-10-05-team-builder-design.md): the draft's
 shape rules, the roster payload, the stale-checked save and Apply. The generator and the
 scoring live in the browser; nothing here balances teams."""
-from django.db import transaction
+from django.db import IntegrityError, transaction
 
 from .models import Edition, Player, PlayerRating, PlayerSport, RegistrationSkill, Team, TeamDraft
 from .registration_state import registration_state
@@ -52,7 +52,8 @@ def validate_draft(document, player_ids):
         fail("too_many_links")
     else:
         for link in links:
-            if not isinstance(link, dict) or link.get("kind") not in KINDS:
+            kind = link.get("kind") if isinstance(link, dict) else None
+            if not isinstance(kind, str) or kind not in KINDS:
                 fail("invalid_draft")
                 continue
             player, target = link.get("player"), link.get("target")
@@ -178,11 +179,17 @@ def save_draft(edition, user, document, based_on):
     Returns the row. Raises DraftError (shape) or StaleDraft."""
     cleaned = validate_draft(document, roster(edition).values_list("pk", flat=True))
     with transaction.atomic():
+        # The same lock as `apply`, so a save never commits between Apply's version check and its teams.
+        Edition.objects.select_for_update().get(pk=edition.pk)
         current = TeamDraft.objects.select_for_update().filter(edition=edition).first()
         if current is None:
             if based_on is not None:
                 raise StaleDraft(None)
-            return TeamDraft.objects.create(edition=edition, document=cleaned, updated_by=user)
+            try:
+                with transaction.atomic():
+                    return TeamDraft.objects.create(edition=edition, document=cleaned, updated_by=user)
+            except IntegrityError:
+                raise StaleDraft(TeamDraft.objects.filter(edition=edition).first())
         if based_on != current.updated_at.isoformat():
             raise StaleDraft(current)
         current.document = cleaned
