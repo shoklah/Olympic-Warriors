@@ -12,6 +12,15 @@
 
 **Out of this slice (slice 3):** the SvelteKit pages (`/register`, header link, hub call to action, claim redirect, the account page for invited users). The API contract below is what slice 3 builds on.
 
+**Decisions of the plan review (Hugo, 2026-10-05), already folded into the tasks below:**
+1. A withdrawal (`DELETE`) is refused with 409 `has_team` once the player has a team: a forfeit then goes through an organiser.
+2. `invited` is visible and editable in the admin (column, filter, `list_editable`, change form); unticking revokes the right to register.
+3. An email typed on the form that another **active** user already has is refused (`email_taken`), in the placeholder-email case only.
+4. `Player.withdrawn_at` tells a self-withdrawal from an organiser's removal: a save on a row that is inactive without it is refused with 409 `removed_by_organiser`, unless the person holds a late pass.
+5. The invite paste takes an optional third column, `Prénom Nom, email, identifiant`, that sets the username.
+6. The invite page flags staff accounts invited with **no claim link**, ever (« se connecter puis ouvrir /register »).
+7. Branching: slice 1 merges to `dev` first; this branch is rebased on `dev` afterwards (see Task 0).
+
 **Two conventions for every test in this plan:**
 - Create editions with `datetime.date` values (`start_date=date(2027, 9, 18)`), never strings: the registration rule does date arithmetic on an instance that was not reloaded from the database.
 - A shorthand used throughout: `T=docker compose exec -T server python manage.py test`, run from the repo root with the compose stack up.
@@ -48,7 +57,9 @@ git switch feat/registration-foundations
 git switch -c feat/registration-api
 ```
 
-- [ ] **Step 2: Baseline**
+- [ ] **Step 2 (when slice 1's PR has merged into `dev`): rebase.** `git fetch origin && git rebase origin/dev` (slice 1's commits are already ancestors, so only this branch's own commits replay). Re-run the baseline below before continuing.
+
+- [ ] **Step 3: Baseline**
 
 ```bash
 docker compose exec -T server python manage.py test olympic_warriors.tests.test_me olympic_warriors.tests.test_claims olympic_warriors.tests.test_permissions olympic_warriors.tests.test_accounts
@@ -61,7 +72,7 @@ Expected: `OK`.
 ### Task 1: Window fields, `invited`, `LateRegistration`
 
 **Files:**
-- Modify: `server/olympic_warriors/models/Edition.py`, `models/UserProfile.py`, `models/__init__.py`, `transfer.py`
+- Modify: `server/olympic_warriors/models/Edition.py`, `models/UserProfile.py`, `models/Player.py`, `models/__init__.py`, `transfer.py`
 - Create: `server/olympic_warriors/models/LateRegistration.py`, `migrations/0043_registration_window.py` (generated)
 - Test: `server/olympic_warriors/tests/test_registration_window.py`
 
@@ -75,7 +86,7 @@ from django.contrib.auth.models import User
 from django.db import IntegrityError, transaction
 from django.test import TestCase
 
-from olympic_warriors.models import Edition, LateRegistration, UserProfile
+from olympic_warriors.models import Edition, LateRegistration, Player, UserProfile
 
 
 def make_edition(year=2027):
@@ -101,6 +112,15 @@ class TestInvited(TestCase):
         profile = UserProfile.objects.create(user=User.objects.create(username="ana"))
 
         self.assertFalse(profile.invited)
+
+
+class TestPlayerWithdrawnAt(TestCase):
+    def test_a_player_has_not_withdrawn_by_default(self):
+        player = Player.objects.create(
+            user=User.objects.create(username="ana"), edition=make_edition(), rating=5
+        )
+
+        self.assertIsNone(player.withdrawn_at)
 
 
 class TestLateRegistration(TestCase):
@@ -162,6 +182,15 @@ In `models/UserProfile.py`, after `anonymized`:
     invited = models.BooleanField(default=False)
 ```
 
+In `models/Player.py`, after `attendance_confirmed`:
+
+```python
+    # Set when the player withdrew through the app (DELETE /registration/), cleared when
+    # they register again. An inactive row WITHOUT it was removed by an organiser: only a
+    # late pass lets that person register again (enrolment.removed_by_organiser).
+    withdrawn_at = models.DateTimeField(null=True, blank=True)
+```
+
 - [ ] **Step 4: Create `models/LateRegistration.py`**
 
 ```python
@@ -205,7 +234,7 @@ docker compose exec -T server python manage.py test olympic_warriors.tests.test_
 docker compose exec -T server python manage.py makemigrations --check --dry-run
 ```
 
-Expected: `0043_registration_window.py` with six `Edition` fields, `UserProfile.invited` and the `LateRegistration` model with its constraint, nothing else (stop and report otherwise); tests `OK`; `No changes detected`.
+Expected: `0043_registration_window.py` with six `Edition` fields, `UserProfile.invited`, `Player.withdrawn_at` and the `LateRegistration` model with its constraint, nothing else (stop and report otherwise); tests `OK`; `No changes detected`.
 
 - [ ] **Step 7: Commit**
 
@@ -766,7 +795,7 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 - Create: `server/olympic_warriors/enrolment.py`
 - Test: `server/olympic_warriors/tests/test_enrolment.py`
 
-The API contract: the answer body is `{ratings: {identifier: 1-10}, global_level, sport_frequency, sports: [{sport, level, practice, duration_months, notes}], team_wishes, dietary_restrictions, attendance_confirmed, email?}`; a refusal is a list of stable codes, each once, in the order found: `missing_rating`, `invalid_rating`, `invalid_global_level`, `missing_frequency`, `invalid_frequency`, `invalid_sport`, `too_many_sports`, `too_long`, `invalid_text`, `attendance_required`, `no_email`, `invalid_email`.
+The API contract: the answer body is `{ratings: {identifier: 1-10}, global_level, sport_frequency, sports: [{sport, level, practice, duration_months, notes}], team_wishes, dietary_restrictions, attendance_confirmed, email?}`; a refusal is a list of stable codes, each once, in the order found: `missing_rating`, `invalid_rating`, `invalid_global_level`, `missing_frequency`, `invalid_frequency`, `invalid_sport`, `too_many_sports`, `too_long`, `invalid_text`, `attendance_required`, `no_email`, `invalid_email`, `email_taken`. A withdrawal raises `WithdrawalRefused` for a player already in a team.
 
 - [ ] **Step 1: Write the failing tests.** Create `tests/test_enrolment.py`:
 
@@ -778,7 +807,9 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 
 from olympic_warriors import enrolment
-from olympic_warriors.enrolment import RegistrationError, usable_email, validate
+from olympic_warriors.enrolment import (
+    RegistrationError, WithdrawalRefused, removed_by_organiser, usable_email, validate,
+)
 from olympic_warriors.models import (
     Edition, Player, PlayerRating, PlayerSport, Relay, RegistrationSkill, Team,
 )
@@ -822,9 +853,9 @@ class Setup(TestCase):
         self.skills = [self.aaa, self.bbb]
         self.ana = User.objects.create(username="ana", email="ana@example.com")
 
-    def codes(self, data, email_editable=False):
+    def codes(self, data, email_editable=False, user=None):
         with self.assertRaises(RegistrationError) as ctx:
-            validate(data, self.skills, email_editable)
+            validate(data, self.skills, email_editable, user)
         return ctx.exception.codes
 
 
@@ -922,6 +953,25 @@ class TestValidate(Setup):
         )
         self.assertEqual(self.codes(good(email="not an email"), email_editable=True), ["invalid_email"])
 
+    def test_an_address_of_another_active_account_is_refused(self):
+        other = User.objects.create(username="bob", email="Bob@Example.com")
+        newbie = User.objects.create(username="newbie", email="")
+
+        self.assertEqual(
+            self.codes(good(email="bob@example.com"), email_editable=True, user=newbie),
+            ["email_taken"],
+        )
+        # An inactive account's address is free; so is one's own.
+        User.objects.filter(pk=other.pk).update(is_active=False)
+        self.assertEqual(
+            validate(good(email="bob@example.com"), self.skills, True, newbie)["email"],
+            "bob@example.com",
+        )
+        self.assertEqual(
+            validate(good(email="ana@example.com"), self.skills, True, self.ana)["email"],
+            "ana@example.com",
+        )
+
 
 class TestSave(Setup):
     def save(self, **changes):
@@ -991,18 +1041,57 @@ class TestSave(Setup):
 
 
 class TestWithdraw(Setup):
-    def test_soft_deletes_and_keeps_the_answers(self):
+    def test_soft_deletes_marks_the_withdrawal_and_keeps_the_answers(self):
         player = enrolment.save(self.ana, self.edition, self.skills, validate(good(), self.skills, False))
 
         self.assertEqual(enrolment.withdraw(self.ana, self.edition), 1)
 
         player.refresh_from_db()
         self.assertFalse(player.is_active)
+        self.assertIsNotNone(player.withdrawn_at)
         self.assertEqual(player.team_wishes, "Avec Bob")
         self.assertEqual(player.playersport_set.count(), 1)
 
     def test_withdrawing_twice_or_never_registered_is_fine(self):
         self.assertEqual(enrolment.withdraw(self.ana, self.edition), 0)
+
+    def test_a_player_in_a_team_cannot_withdraw(self):
+        player = enrolment.save(self.ana, self.edition, self.skills, validate(good(), self.skills, False))
+        Player.objects.filter(pk=player.pk).update(team=Team.objects.create(name="Red", edition=self.edition))
+
+        with self.assertRaises(WithdrawalRefused):
+            enrolment.withdraw(self.ana, self.edition)
+
+        player.refresh_from_db()
+        self.assertTrue(player.is_active)
+
+    def test_saving_again_clears_the_withdrawal_mark(self):
+        player = enrolment.save(self.ana, self.edition, self.skills, validate(good(), self.skills, False))
+        enrolment.withdraw(self.ana, self.edition)
+
+        enrolment.save(self.ana, self.edition, self.skills, validate(good(), self.skills, False))
+
+        player.refresh_from_db()
+        self.assertTrue(player.is_active)
+        self.assertIsNone(player.withdrawn_at)
+
+
+class TestRemovedByOrganiser(Setup):
+    def test_an_inactive_row_nobody_withdrew_was_removed_by_an_organiser(self):
+        player = Player.objects.create(user=self.ana, edition=self.edition, rating=5)
+        self.assertFalse(removed_by_organiser(self.ana, self.edition))  # active
+
+        Player.objects.filter(pk=player.pk).update(is_active=False)
+        self.assertTrue(removed_by_organiser(self.ana, self.edition))
+
+    def test_a_self_withdrawal_is_not_a_removal(self):
+        enrolment.save(self.ana, self.edition, self.skills, validate(good(), self.skills, False))
+        enrolment.withdraw(self.ana, self.edition)
+
+        self.assertFalse(removed_by_organiser(self.ana, self.edition))
+
+    def test_nobody_registered_is_not_a_removal(self):
+        self.assertFalse(removed_by_organiser(self.ana, self.edition))
 
 
 class TestPayload(Setup):
@@ -1058,6 +1147,8 @@ class TestPayload(Setup):
 
         self.assertTrue(registered["registered"])
         self.assertFalse(withdrawn["registered"])
+        self.assertFalse(registered["removed_by_organiser"])
+        self.assertFalse(withdrawn["removed_by_organiser"])
         for answers in (registered, withdrawn):
             self.assertEqual(answers["ratings"], {"AAA": 6, "BBB": 6})
             self.assertEqual(answers["global_level"], 8)
@@ -1121,6 +1212,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.db import transaction
+from django.utils import timezone
 
 from .accounts import change_email
 from .models import Player, PlayerRating, PlayerSport
@@ -1169,11 +1261,17 @@ def _text(data, key, limit, fail):
     return raw
 
 
-def validate(data, skills, email_editable):
+class WithdrawalRefused(Exception):
+    """A player already in a team cannot withdraw through the app: a forfeit goes through
+    an organiser, who finds the replacement."""
+
+
+def validate(data, skills, email_editable, user=None):
     """
     The cleaned answer for `data` (the request body), or RegistrationError listing every
     problem. `skills` are the edition's active RegistrationSkill rows; `email_editable` is
-    True when the account has no usable email, which then must come with the answer.
+    True when the account has no usable email, which then must come with the answer, and
+    must not belong to another active account (`user` is the caller, who may keep their own).
     """
     errors = []
 
@@ -1233,7 +1331,11 @@ def validate(data, skills, email_editable):
             except ValidationError:
                 fail("invalid_email")
             else:
-                email = raw
+                taken = get_user_model().objects.filter(email__iexact=raw, is_active=True)
+                if taken.exclude(pk=getattr(user, "pk", None)).exists():
+                    fail("email_taken")
+                else:
+                    email = raw
 
     if errors:
         raise RegistrationError(errors)
@@ -1301,6 +1403,7 @@ def save(user, edition, skills, cleaned):
         "team_wishes": cleaned["team_wishes"],
         "attendance_confirmed": True,
         "is_active": True,
+        "withdrawn_at": None,
     }
     with transaction.atomic():
         locked = get_user_model().objects.select_for_update().get(pk=user.pk)
@@ -1332,9 +1435,25 @@ def save(user, edition, skills, cleaned):
 
 
 def withdraw(user, edition):
-    """Soft-delete the caller's Player of the edition (the answers stay, for a re-registration).
-    Returns how many rows were switched off."""
-    return Player.objects.filter(user=user, edition=edition, is_active=True).update(is_active=False)
+    """Soft-delete the caller's Player of the edition and mark it withdrawn by the player
+    (the answers stay, for a re-registration). Returns how many rows were switched off.
+    Raises WithdrawalRefused once the player has a team."""
+    player = Player.objects.filter(user=user, edition=edition, is_active=True).first()
+    if player is None:
+        return 0
+    if player.team_id is not None:
+        raise WithdrawalRefused()
+    player.is_active = False
+    player.withdrawn_at = timezone.now()
+    player.save(update_fields=["is_active", "withdrawn_at"])
+    return 1
+
+
+def removed_by_organiser(user, edition):
+    """True when the caller's Player of the edition is inactive although the player never
+    withdrew: an organiser removed it. Only a late pass lets that person register again."""
+    player = _player(user, edition)
+    return player is not None and not player.is_active and player.withdrawn_at is None
 
 
 def _player(user, edition):
@@ -1361,6 +1480,7 @@ def _answers(player):
     """What the caller saved, with `registered` False once withdrawn (answers are kept)."""
     return {
         "registered": player.is_active,
+        "removed_by_organiser": not player.is_active and player.withdrawn_at is None,
         "ratings": {
             rating.identifier: int(rating.rating)
             for rating in player.playerrating_set.filter(is_active=True)
@@ -1435,12 +1555,28 @@ def form_payload(user, edition, state):
     }
 ```
 
+- [ ] **Step 3b: A re-import reactivates a withdrawn player cleanly.** In `models/Edition.py`'s `create_players_from_registration_form`, add `"withdrawn_at": None,` to the `defaults` dict next to `"is_active": True` (an import is the organiser's source of truth: a re-listed player is neither withdrawn nor removed). Add to `tests/test_edition_import.py` (import `from django.utils import timezone` at the top), inside `EditionImportTests`:
+
+```python
+    def test_a_reimport_reactivates_a_withdrawn_player_and_clears_the_mark(self):
+        alice = Player.objects.get(user__username="alicemartin", edition=self.edition)
+        Player.objects.filter(pk=alice.pk).update(is_active=False, withdrawn_at=timezone.now())
+        self.edition.registration_form = upload()
+        self.edition.save()
+
+        alice.refresh_from_db()
+        self.assertTrue(alice.is_active)
+        self.assertIsNone(alice.withdrawn_at)
+```
+
+Commit it together with Task 5 (add `server/olympic_warriors/models/Edition.py` and `tests/test_edition_import.py` to the `git add`).
+
 - [ ] **Step 4: Run the tests and fix mismatches that are test-mechanics only.** Run `docker compose exec -T server python manage.py test olympic_warriors.tests.test_enrolment`. Expected: `OK`. If a test fails for a Django-mechanics reason rather than a real defect, adjust the test minimally and list each adjustment in your report.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add server/olympic_warriors/enrolment.py server/olympic_warriors/tests/test_enrolment.py
+git add server/olympic_warriors/enrolment.py server/olympic_warriors/models/Edition.py server/olympic_warriors/tests/test_enrolment.py server/olympic_warriors/tests/test_edition_import.py
 git commit -m "[FEAT] enrolment: validate, save, withdraw and present a registration
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
@@ -1686,6 +1822,30 @@ class TestPut(RegistrationSetup):
         self.assertEqual(self.put().status_code, 200)
         self.assertEqual(self.put(user=self.newbie, email="n@example.com").status_code, 409)
 
+    def test_an_address_of_another_active_account_is_refused(self):
+        self.user("other", email="taken@example.com")
+
+        response = self.put(user=self.newbie, email="Taken@Example.com")
+
+        self.assertEqual((response.status_code, response.json()), (400, {"errors": ["email_taken"]}))
+
+    def test_a_person_removed_by_an_organiser_cannot_register_again(self):
+        Player.objects.create(user=self.ana, edition=self.edition, rating=5, is_active=False)
+
+        response = self.put()
+
+        self.assertEqual(
+            (response.status_code, response.json()), (409, {"error": "removed_by_organiser"})
+        )
+        self.assertFalse(Player.objects.get(user=self.ana, edition=self.edition).is_active)
+
+    def test_a_late_pass_lets_a_removed_person_back(self):
+        Player.objects.create(user=self.ana, edition=self.edition, rating=5, is_active=False)
+        LateRegistration.objects.create(user=self.ana, edition=self.edition)
+
+        self.assertEqual(self.put().status_code, 200)
+        self.assertTrue(Player.objects.get(user=self.ana, edition=self.edition).is_active)
+
     def test_every_put_counts_against_the_throttle(self):
         for _ in range(LIMIT):
             self.put(ratings={})  # refused, still counted
@@ -1712,6 +1872,17 @@ class TestDelete(RegistrationSetup):
         client.put("/registration/", answer(), format="json")
         player.refresh_from_db()
         self.assertTrue(player.is_active)
+
+    def test_a_player_in_a_team_cannot_withdraw(self):
+        client = self.client_of(self.ana)
+        client.put("/registration/", answer(), format="json")
+        team = Team.objects.create(name="Red", edition=self.edition)
+        Player.objects.filter(user=self.ana, edition=self.edition).update(team=team)
+
+        response = client.delete("/registration/")
+
+        self.assertEqual((response.status_code, response.json()), (409, {"error": "has_team"}))
+        self.assertTrue(Player.objects.get(user=self.ana, edition=self.edition).is_active)
 
     def test_withdrawing_without_a_registration_is_a_no_op(self):
         self.assertEqual(self.client_of(self.ana).delete("/registration/").status_code, 204)
@@ -1753,7 +1924,7 @@ class RegistrationRateThrottle(UserRateThrottle):
 
 Update the module docstring's list of throttled requests. In `config.py`, next to `PASSWORD_THROTTLE_RATE`, add `REGISTRATION_THROTTLE_RATE: str = "30/hour"` with a one-line comment; in `settings.py`'s `DEFAULT_THROTTLE_RATES` add `'registration': settings.REGISTRATION_THROTTLE_RATE,`.
 
-- [ ] **Step 4: The view.** In `views.py`, add imports (next to the existing ones): `from . import enrolment`, `from .enrolment import RegistrationError, usable_email`, `from .models import latest_edition` (if not already imported), `from .registration_state import registration_state`, `from .throttling import RegistrationRateThrottle` (extend the existing throttling import). Add after `deactivateMe`:
+- [ ] **Step 4: The view.** In `views.py`, add imports (next to the existing ones): `from . import enrolment`, `from .enrolment import RegistrationError, WithdrawalRefused, usable_email`, `from .models import latest_edition` (if not already imported), `from .registration_state import LATE_PASS, registration_state`, `from .throttling import RegistrationRateThrottle` (extend the existing throttling import). Add after `deactivateMe`:
 
 ```python
 @extend_schema(
@@ -1771,7 +1942,7 @@ Update the module docstring's list of throttled requests. In `config.py`, next t
         "200": OpenApiResponse(description="The form as GET returns it, with the saved answers"),
         "400": OpenApiResponse(description='{"errors": [codes]}, see enrolment.validate'),
         "409": OpenApiResponse(
-            description='{"error": "closed" | "not_yet_open" | "not_configured"}'
+            description='{"error": "closed" | "not_yet_open" | "not_configured" | "removed_by_organiser"}'
         ),
         "429": OpenApiResponse(description="Too many saves (REGISTRATION_THROTTLE_RATE)"),
     },
@@ -1779,7 +1950,12 @@ Update the module docstring's list of throttled requests. In `config.py`, next t
 @extend_schema(
     methods=["DELETE"],
     summary="Withdraw the registration (the answers are kept)",
-    responses={"204": OpenApiResponse(description="Withdrawn, or there was none")},
+    responses={
+        "204": OpenApiResponse(description="Withdrawn, or there was none"),
+        "409": OpenApiResponse(
+            description='{"error": "closed" | ... | "has_team"}: an organiser must remove a placed player'
+        ),
+    },
 )
 @api_view(["GET", "PUT", "DELETE"])
 @permission_classes([IsAuthenticated])  # 404 unless a person or an invited newcomer
@@ -1800,12 +1976,17 @@ def myRegistration(request):
     if not state.is_open:
         return Response({"error": state.reason}, status=409)
     if request.method == "DELETE":
-        enrolment.withdraw(request.user, edition)
+        try:
+            enrolment.withdraw(request.user, edition)
+        except WithdrawalRefused:
+            return Response({"error": "has_team"}, status=409)
         return Response(status=204)
+    if state.reason != LATE_PASS and enrolment.removed_by_organiser(request.user, edition):
+        return Response({"error": "removed_by_organiser"}, status=409)
     skills = list(edition.registrationskill_set.filter(is_active=True))
     try:
         cleaned = enrolment.validate(
-            _account_body(request), skills, not usable_email(request.user.email)
+            _account_body(request), skills, not usable_email(request.user.email), request.user
         )
     except RegistrationError as error:
         return Response({"errors": error.codes}, status=400)
@@ -1851,6 +2032,7 @@ from datetime import date
 from django.contrib.auth.models import User
 from django.test import TestCase, override_settings
 
+from olympic_warriors.admin import UserProfileAdmin
 from olympic_warriors.models import (
     Edition, LateRegistration, Player, RegistrationSkill, UserProfile,
 )
@@ -1944,6 +2126,25 @@ class TestGrantLatePass(AdminSetup):
         self.assertEqual(LateRegistration.objects.get().edition.year, 2028)
 
 
+class TestInvitedColumn(AdminSetup):
+    def test_the_profile_list_filters_on_invited_and_edits_it_in_place(self):
+        UserProfile.objects.create(user=self.bob, invited=True)
+        UserProfile.objects.create(user=self.ana)
+
+        response = self.client.get(PROFILES, {"invited__exact": "1"})
+
+        self.assertEqual({str(p) for p in response.context["cl"].result_list}, {"Bob Martin"})
+        self.assertIn("invited", UserProfileAdmin.list_editable)
+        self.assertIn("invited", UserProfileAdmin.list_display)
+
+    def test_the_change_form_carries_the_flag(self):
+        profile = UserProfile.objects.create(user=self.bob, invited=True)
+
+        response = self.client.get(f"{PROFILES}{profile.pk}/change/")
+
+        self.assertContains(response, 'name="invited"')
+
+
 class TestLateRegistrationAdmin(AdminSetup):
     def test_lists_and_revokes_but_never_adds(self):
         late = LateRegistration.objects.create(user=self.ana, edition=self.edition, granted_by=self.orga)
@@ -2001,7 +2202,7 @@ def grant_late_pass(modeladmin, request, queryset):
         )
 ```
 
-Add `grant_late_pass` to the `actions` of `PlayerAdmin` and `UserProfileAdmin` (keep their existing actions). In `EditionAdmin`: extend `fields` with the registration group and a read-only status:
+Add `grant_late_pass` to the `actions` of `PlayerAdmin` and `UserProfileAdmin` (keep their existing actions). In `UserProfileAdmin` also show and edit the invitation: add `invited` to `list_display`, `list_filter` and `list_editable` (next to `photo_locked`), and make it an editable field of the change form (read how the form restricts its fields today, `readonly_fields` or `fields`, and leave only `photo_locked` and `invited` editable). Unticking `invited` revokes the right to register of someone who has not played; a person keeps it through their `Player` row. Update any existing `test_user_profile_admin.py` assertion on the columns, filters or form fields (add, never loosen). In `EditionAdmin`: extend `fields` with the registration group and a read-only status:
 
 ```python
     fields = (
@@ -2086,7 +2287,7 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from olympic_warriors.invitations import (
-    CONFLICT, CREATED, DUPLICATE, MALFORMED, REUSED, invite, parse_lines,
+    CONFLICT, CREATED, DUPLICATE, MALFORMED, REUSED, STAFF, invite, parse_lines,
 )
 from olympic_warriors.models import Edition, LateRegistration, Player, UserProfile
 
@@ -2114,6 +2315,22 @@ class TestParseLines(TestCase):
                 (4, "Adrien", "", "a@example.com"),
             ],
         )
+
+    def test_an_optional_third_column_sets_the_username(self):
+        entries, problems = parse_lines("Marie Martin, marie@example.com, Mariemartin2")
+
+        self.assertEqual(problems, [])
+        self.assertEqual(entries[0].username, "mariemartin2")
+        self.assertEqual((entries[0].first_name, entries[0].last_name), ("Marie", "Martin"))
+
+    def test_a_bad_identifier_or_too_many_columns_is_a_problem(self):
+        entries, problems = parse_lines(
+            "A B, a@example.com, has space\nC D, c@example.com, x, y\nE F, e@example.com, "
+            + "z" * 151
+        )
+
+        self.assertEqual(entries, [])
+        self.assertEqual([p.line for p in problems], [1, 2, 3])
 
     def test_malformed_lines_are_reported_with_their_number(self):
         entries, problems = parse_lines(
@@ -2178,14 +2395,41 @@ class TestInvite(TestCase):
 
         self.assertEqual(result.status, CONFLICT)
 
-    def test_staff_and_deactivated_accounts_are_conflicts(self):
-        User.objects.create(username="boss", email="boss@example.com", is_staff=True)
+    def test_a_deactivated_account_is_a_conflict(self):
         User.objects.create(username="gone", email="gone@example.com", is_active=False)
 
-        results = self.run_invite("Big Boss, boss@example.com\nGone Away, gone@example.com")
+        [result] = self.run_invite("Gone Away, gone@example.com")
 
-        self.assertEqual([r.status for r in results], [CONFLICT, CONFLICT])
-        self.assertEqual([r.link for r in results], ["", ""])
+        self.assertEqual((result.status, result.link), (CONFLICT, ""))
+
+    def test_a_staff_account_is_flagged_invited_with_no_link_ever(self):
+        boss = User.objects.create(username="boss", email="boss@example.com", is_staff=True)
+
+        [result] = self.run_invite("Big Boss, boss@example.com")
+
+        self.assertEqual((result.status, result.link), (STAFF, ""))
+        self.assertIn("/register", result.detail)
+        self.assertTrue(UserProfile.objects.get(user=boss).invited)
+
+    def test_the_late_pass_checkbox_reaches_a_staff_account_too(self):
+        make_edition()
+        boss = User.objects.create(username="boss", email="boss@example.com", is_staff=True)
+
+        [result] = self.run_invite("Big Boss, boss@example.com", grant_late_pass=True)
+
+        self.assertTrue(result.late_pass)
+        self.assertTrue(LateRegistration.objects.filter(user=boss).exists())
+
+    def test_the_identifier_column_lets_a_namesake_be_invited(self):
+        User.objects.create(username="mariemartin", email="first@example.com")
+
+        [conflict] = self.run_invite("Marie Martin, second@example.com")
+        [created] = self.run_invite("Marie Martin, second@example.com, mariemartin2")
+
+        self.assertEqual(conflict.status, CONFLICT)
+        self.assertIn("identifiant", conflict.detail)
+        self.assertEqual(created.status, CREATED)
+        self.assertTrue(User.objects.filter(username="mariemartin2", last_name="Martin").exists())
 
     def test_an_already_activated_account_gets_a_link_with_a_warning(self):
         user = User.objects.create(username="lea", email="lea@example.com")
@@ -2251,6 +2495,7 @@ becomes an account the person can claim (a newcomer is created and marked invite
 returning account that is reused, and gets a claim link, optionally with a late pass.
 Nothing here is logged: the links travel only in the admin's messages.
 """
+import re
 from dataclasses import dataclass
 
 from django.contrib.auth.models import User
@@ -2266,6 +2511,7 @@ from .registration import parse_name
 
 CREATED = "created"
 REUSED = "reused"
+STAFF = "staff"  # an organiser: flagged invited, never given a link
 CONFLICT = "conflict"
 MALFORMED = "malformed"
 DUPLICATE = "duplicate"
@@ -2306,21 +2552,36 @@ class InviteResult:
     late_pass: bool = False
 
 
+# Django's own username rule (UnicodeUsernameValidator), and its length limit.
+USERNAME_PATTERN = re.compile(r"^[\w.@+-]+\Z")
+MAX_USERNAME = 150
+
+
 def parse_lines(text):
-    """Split the paste into (entries, problems). A line is `Prénom Nom, email`, split at its
-    last comma; blank lines are ignored; the email is lower-cased and must be a real one."""
+    """Split the paste into (entries, problems). A line is `Prénom Nom, email` with an
+    optional third column, `identifiant`, that sets the username instead of deriving it
+    (two people sharing a name); blank lines are ignored; the email is lower-cased and must
+    be a real one."""
     entries, problems = [], []
     for number, raw in enumerate(text.splitlines(), start=1):
         raw = raw.strip()
         if not raw:
             continue
-        name, _, email = raw.rpartition(",")
-        email = email.strip().lower()
+        parts = [part.strip() for part in raw.split(",")]
+        if not 2 <= len(parts) <= 3:
+            problems.append(Problem(number, raw, "format : Prénom Nom, email[, identifiant]"))
+            continue
+        name, email = parts[0], parts[1].lower()
         try:
             first_name, last_name, username = parse_name(name)
         except ValueError:
             problems.append(Problem(number, raw, "nom manquant"))
             continue
+        if len(parts) == 3:
+            username = parts[2].lower()
+            if not USERNAME_PATTERN.match(username) or len(username) > MAX_USERNAME:
+                problems.append(Problem(number, raw, "identifiant invalide"))
+                continue
         try:
             validate_email(email)
         except ValidationError:
@@ -2348,7 +2609,8 @@ def _match(entry):
     if not usable_email(current) or current == entry.email:
         return existing, "identifiant"
     return None, (
-        f"l'identifiant « {entry.username} » appartient à un compte avec une autre adresse"
+        f"l'identifiant « {entry.username} » appartient à un compte avec une autre adresse : "
+        f"ajoutez un identifiant en 3e colonne, par exemple {entry.username}2"
     )
 
 
@@ -2386,8 +2648,6 @@ def _one(entry, name, edition, granted_by):
         if user is None and how is not None:
             return InviteResult(entry.line, name, CONFLICT, how)
         if user is not None:
-            if user.is_staff or user.is_superuser:
-                return InviteResult(entry.line, name, CONFLICT, "compte d'organisateur")
             if not user.is_active:
                 return InviteResult(entry.line, name, CONFLICT, "compte désactivé")
             status = REUSED
@@ -2411,6 +2671,13 @@ def _one(entry, name, edition, granted_by):
         if edition is not None:
             LateRegistration.objects.get_or_create(
                 user=user, edition=edition, defaults={"granted_by": granted_by}
+            )
+        if user.is_staff or user.is_superuser:
+            # An organiser keeps their own password: flagged so they may register, never a
+            # claim link (a link must not hand over an account with admin rights).
+            return InviteResult(
+                entry.line, name, STAFF, "organisateur : se connecter puis ouvrir /register",
+                user_id=user.pk, late_pass=edition is not None,
             )
         try:
             link = claim_link(user)
@@ -2506,6 +2773,15 @@ class TestInviteAdmin(TestCase):
         self.assertEqual(User.objects.filter(is_superuser=False).count(), 0)
         self.assertTrue(any("PUBLIC_URL" in m for m in self.messages(response)))
 
+    def test_a_staff_line_gets_no_claim_link(self):
+        User.objects.create(username="boss", email="boss@example.com", is_staff=True)
+
+        response = self.post(lines="Big Boss, boss@example.com")
+
+        text = "\n".join(self.messages(response))
+        self.assertIn("organisateur", text)
+        self.assertNotIn("/claim/", text)
+
     def test_a_view_only_organiser_cannot_use_it(self):
         viewer = User.objects.create_user("viewer", password="pw", is_staff=True)
         viewer.user_permissions.add(
@@ -2522,7 +2798,9 @@ class TestInviteAdmin(TestCase):
 Run: `docker compose exec -T server python manage.py test olympic_warriors.tests.test_invite_admin`
 Expected: FAIL (404 on the invite URL).
 
-- [ ] **Step 7: Implement the page.** In `admin.py`, add `from django import forms`, `from django.core.exceptions import PermissionDenied`, `from django.shortcuts import redirect`, `from django.template.response import TemplateResponse`, `from django.urls import path, reverse`, and `from .invitations import CONFLICT, CREATED, DUPLICATE, MALFORMED, REUSED, invite, parse_lines`, `Entry`-less (use `parse_lines`' output). Add:
+- [ ] **Step 7: Implement the page.** In `admin.py`, add `from django import forms`, `from django.core.exceptions import PermissionDenied`, `from django.shortcuts import redirect`, `from django.template.response import TemplateResponse`, `from django.urls import path, reverse`, and `from .invitations import (
+    CONFLICT, CREATED, DUPLICATE, MALFORMED, REUSED, STAFF, invite, parse_lines,
+)`, `Entry`-less (use `parse_lines`' output). Add:
 
 ```python
 class InviteForm(forms.Form):
@@ -2612,6 +2890,8 @@ In `UserProfileAdmin` add:
                     self.message_user(request, f"{text} — ATTENTION : {result.warning}", messages.WARNING)
                 else:
                     self.message_user(request, text)
+            elif result.status == STAFF:
+                self.message_user(request, f"{head} (organisateur, déjà un compte) : {result.detail}")
             else:
                 label = {CONFLICT: "conflit", MALFORMED: "ligne illisible", DUPLICATE: "doublon"}[result.status]
                 self.message_user(request, f"{head} : {label}, {result.detail}", messages.WARNING)
@@ -2677,7 +2957,7 @@ Replace with: `Not built yet (slice 3): the SvelteKit pages (`/register`, the he
 New paragraph, after the questionnaire paragraph:
 
 ```markdown
-**In-app registration** (spec `2026-10-04-in-app-registration-design.md`, slice 2): `Edition.registration_opens`/`registration_closes`, FR/EN `registration_intro_*` and `skills_month_*`, `UserProfile.invited` and `LateRegistration` (`user`, `edition`, `granted_at`, `granted_by`, unique on user and edition, not exported). `registration_state.registration_state(edition, user)` is the one open/closed rule: closed `not_configured` without an active `RegistrationSkill` (a late pass does not bypass that) or without `registration_opens`, `not_yet_open`, `closed` once past `registration_closes` (inclusive; the day before `start_date` when blank, Paris dates); a holder of a `LateRegistration` is open (`late_pass`) through the edition's `end_date`. `claims.can_register(user)` is a person or an invited newcomer: `unclaimable_reason`, `unresettable_reason`, `complete_claim` and `views._not_an_account_owner` (`/me/email/`, `/me/password/`, `/me/deactivate/`) use it, `/me/photo/` and `/me/showcase/` stay for people, and `/me/` carries `can_register` from the profile row it already joins (`ME_QUERIES` unchanged). `GET`/`PUT`/`DELETE /registration/` (`myRegistration`, `IsAuthenticated`, in `test_permissions.py`'s `PLAYER` list, 404 `not_a_person` unless `can_register`, 404 `no_edition`, always the latest edition, `private, no-store`): GET returns the form (`enrolment.form_payload`: state with its reason, intro and month texts, skills, the active disciplines, the choice lists, the email as `{value, editable}`, the saved `registration` (kept, with `registered: false`, after a withdrawal) and `suggested` stable answers of the latest earlier registration while there is none); PUT validates (`enrolment.validate`, `{"errors": [codes]}` with `missing_rating`, `invalid_rating`, `invalid_global_level`, `missing_frequency`, `invalid_frequency`, `invalid_sport`, `too_many_sports`, `too_long`, `invalid_text`, `attendance_required`, `no_email`, `invalid_email`), 409 `{"error": reason}` when closed, then `enrolment.save` in one transaction under the user's row lock (the Player created or reactivated with its team kept, ratings through `registration.rate` with the questionnaire weights, sports replaced as a set, the email saved only when the account had no usable one, an `@olympicwarriors.com` address counting as none); DELETE soft-deletes the Player and keeps the answers, 409 when closed. `RegistrationRateThrottle` (scope `registration`, `REGISTRATION_THROTTLE_RATE`, `30/hour` per user, PUT only, every PUT counting). `accounts.deactivate` now clears the private answers and deletes the `PlayerSport` rows. Admin: the Edition page edits the window and texts and shows « Inscription en ligne » (open, or why not, for an anonymous visitor); « Autoriser l'inscription tardive » on the Player and UserProfile lists grants a pass on the latest edition (`LateRegistration` admin lists and revokes); « Inviter des joueurs » (button on the profile list, `invitations.py`, needs `auth.add_user` and `auth.change_user`) takes one person or a paste of `Prénom Nom, email` lines: a real-email match is reused, else a username match is reused only when its email is a placeholder or equal, a username held by another real email, a staff or a deactivated account is a conflict (skipped, reported), a newcomer is created `invited`, and every created or reused account gets a claim link in the admin's messages (a warning on one already activated: the link resets its password), optionally with a late pass; no `PUBLIC_URL` means nothing is created.
+**In-app registration** (spec `2026-10-04-in-app-registration-design.md`, slice 2): `Edition.registration_opens`/`registration_closes`, FR/EN `registration_intro_*` and `skills_month_*`, `UserProfile.invited` (column, filter and editable in the profile list: unticking revokes), `Player.withdrawn_at` and `LateRegistration` (`user`, `edition`, `granted_at`, `granted_by`, unique on user and edition, not exported). `registration_state.registration_state(edition, user)` is the one open/closed rule: closed `not_configured` without an active `RegistrationSkill` (a late pass does not bypass that) or without `registration_opens`, `not_yet_open`, `closed` once past `registration_closes` (inclusive; the day before `start_date` when blank, Paris dates); a holder of a `LateRegistration` is open (`late_pass`) through the edition's `end_date`. `claims.can_register(user)` is a person or an invited newcomer: `unclaimable_reason`, `unresettable_reason`, `complete_claim` and `views._not_an_account_owner` (`/me/email/`, `/me/password/`, `/me/deactivate/`) use it, `/me/photo/` and `/me/showcase/` stay for people, and `/me/` carries `can_register` from the profile row it already joins (`ME_QUERIES` unchanged). `GET`/`PUT`/`DELETE /registration/` (`myRegistration`, `IsAuthenticated`, in `test_permissions.py`'s `PLAYER` list, 404 `not_a_person` unless `can_register`, 404 `no_edition`, always the latest edition, `private, no-store`): GET returns the form (`enrolment.form_payload`: state with its reason, intro and month texts, skills, the active disciplines, the choice lists, the email as `{value, editable}`, the saved `registration` (kept, with `registered: false`, after a withdrawal) and `suggested` stable answers of the latest earlier registration while there is none); PUT validates (`enrolment.validate`, `{"errors": [codes]}` with `missing_rating`, `invalid_rating`, `invalid_global_level`, `missing_frequency`, `invalid_frequency`, `invalid_sport`, `too_many_sports`, `too_long`, `invalid_text`, `attendance_required`, `no_email`, `invalid_email`, `email_taken`), 409 `{"error": reason}` when closed or `removed_by_organiser` (an inactive Player with no `withdrawn_at`, unless a late pass), then `enrolment.save` in one transaction under the user's row lock (the Player created or reactivated with its team kept, ratings through `registration.rate` with the questionnaire weights, sports replaced as a set, the email saved only when the account had no usable one, an `@olympicwarriors.com` address counting as none); DELETE soft-deletes the Player, sets `Player.withdrawn_at` and keeps the answers, 409 when closed and 409 `has_team` once the player is in a team (an organiser removes them). `RegistrationRateThrottle` (scope `registration`, `REGISTRATION_THROTTLE_RATE`, `30/hour` per user, PUT only, every PUT counting). `accounts.deactivate` now clears the private answers and deletes the `PlayerSport` rows. Admin: the Edition page edits the window and texts and shows « Inscription en ligne » (open, or why not, for an anonymous visitor); « Autoriser l'inscription tardive » on the Player and UserProfile lists grants a pass on the latest edition (`LateRegistration` admin lists and revokes); « Inviter des joueurs » (button on the profile list, `invitations.py`, needs `auth.add_user` and `auth.change_user`) takes one person or a paste of `Prénom Nom, email` lines: a real-email match is reused, else a username match is reused only when its email is a placeholder or equal, a username held by another real email, a staff or a deactivated account is a conflict (skipped, reported), an optional third column `identifiant` sets the username (two people sharing a name), a newcomer is created `invited`, a staff account is flagged invited with no link ever, and every other created or reused account gets a claim link in the admin's messages (a warning on one already activated: the link resets its password), optionally with a late pass; no `PUBLIC_URL` means nothing is created.
 ```
 
 - [ ] **Step 2: Run every check CI runs**
