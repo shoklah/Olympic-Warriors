@@ -217,6 +217,30 @@ class TestPlayerAdminRegistration(TestCase):
     def names(self, response):
         return {str(p) for p in response.context["cl"].result_list}
 
+    def test_the_team_preferences_are_columns_and_searchable(self):
+        Player.objects.filter(pk=self.vegan.pk).update(
+            team_with="Avec Léa et " + "x" * 80, team_avoid="Pas Carl"
+        )
+
+        listing = self.client.get(PLAYERS, {"is_active__exact": "1"})
+        by_with = self.client.get(PLAYERS, {"q": "Léa", "is_active__exact": "1"})
+        by_avoid = self.client.get(PLAYERS, {"q": "Carl", "is_active__exact": "1"})
+        nobody = self.client.get(PLAYERS, {"q": "Zoé", "is_active__exact": "1"})
+
+        self.assertContains(listing, "Pas Carl")
+        self.assertContains(listing, "Avec Léa et")
+        self.assertNotContains(listing, "x" * 80)  # truncated in the list
+        self.assertEqual(self.names(by_with), {"Ana "})
+        self.assertEqual(self.names(by_avoid), {"Ana "})
+        self.assertEqual(self.names(nobody), set())
+
+    def test_the_change_page_shows_both_fields_and_the_legacy_one_relabelled(self):
+        response = self.client.get(f"{PLAYERS}{self.vegan.pk}/change/")
+
+        self.assertContains(response, "Souhaite être avec")
+        self.assertContains(response, "Préfère éviter")
+        self.assertContains(response, "Souhaits d&#x27;équipe (ancien format)")
+
     def test_dietary_filter(self):
         yes = self.client.get(PLAYERS, {"dietary": "yes", "is_active__exact": "1"})
         no = self.client.get(PLAYERS, {"dietary": "no", "is_active__exact": "1"})
