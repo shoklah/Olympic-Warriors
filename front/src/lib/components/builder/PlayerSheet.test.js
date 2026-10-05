@@ -22,8 +22,8 @@ describe('PlayerSheet', () => {
 
 		const sheet = within(screen.getByRole('dialog', { name: 'Léa Martin' }));
 		expect(sheet.getByText('To place')).toBeInTheDocument();
-		expect(sheet.getByText('Rating').parentElement).toHaveTextContent(/Rating\s*8/);
-		expect(sheet.getByText('Overall level').parentElement).toHaveTextContent(/Overall level\s*6/);
+		expect(sheet.getByText('Computed rating').parentElement).toHaveTextContent(/Computed rating\s*8/);
+		expect(sheet.getByText('Overall level (self-rated)').parentElement).toHaveTextContent(/self-rated\)\s*6/);
 		expect(sheet.getByText('At least four hours a week')).toBeInTheDocument();
 		expect(sheet.getByText('Cardio').parentElement).toHaveTextContent('9');
 		expect(sheet.getByText('Strength').parentElement).toHaveTextContent('7');
@@ -37,13 +37,13 @@ describe('PlayerSheet', () => {
 		expect(within(dialog()).getByText('Team 3')).toBeInTheDocument();
 	});
 
-	it('marks estimated skills and the incomplete profile, and shows a dash for what is unknown', () => {
+	it('marks estimated skills and the incomplete profile, and hides the global level and dashes the frequency when unknown', () => {
 		renderWith(PlayerSheet, props(5, { player: { ...byId(5), global_level: null } }));
 
 		const sheet = within(dialog());
 		expect(sheet.getAllByText('estimated')).toHaveLength(2);
 		expect(sheet.getByText('Incomplete profile')).toBeInTheDocument();
-		expect(sheet.getByText('Overall level').parentElement).toHaveTextContent(/Overall level\s*—/);
+		expect(sheet.queryByText('Overall level (self-rated)')).toBeNull();
 		expect(sheet.getByText('Sport frequency').parentElement).toHaveTextContent(/Sport frequency\s*—/);
 	});
 

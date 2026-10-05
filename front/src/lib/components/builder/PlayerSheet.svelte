@@ -49,10 +49,12 @@
 				<dt>{t('builder.preview.rating')}</dt>
 				<dd class="num">{profile.rating}</dd>
 			</div>
-			<div>
-				<dt>{t('register.globalLevel')}</dt>
-				<dd class="num">{profile.globalLevel ?? '—'}</dd>
-			</div>
+			{#if profile.globalLevel !== null}
+				<div>
+					<dt>{t('builder.preview.globalLevel')}</dt>
+					<dd class="num">{profile.globalLevel}</dd>
+				</div>
+			{/if}
 			<div>
 				<dt>{t('builder.preview.frequency')}</dt>
 				<dd>{profile.frequency ? t(`register.frequency.${profile.frequency}`) : '—'}</dd>
@@ -153,16 +155,15 @@
 		padding: 0;
 		list-style: none;
 	}
+	/* The name on its own line, whole (skill names run long), then the bar and its value. */
 	.bars li {
 		display: grid;
-		grid-template-columns: 6rem 1fr 2rem;
-		gap: 0.5rem;
+		grid-template-columns: 1fr 2rem;
+		gap: 0.125rem 0.5rem;
 		align-items: center;
 	}
 	.skill {
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
+		grid-column: 1 / -1;
 	}
 	.track {
 		display: block;
@@ -184,7 +185,7 @@
 		text-align: right;
 	}
 	.note {
-		grid-column: 2 / 4;
+		grid-column: 1 / -1;
 		font-size: 0.8125rem;
 		color: var(--muted);
 	}
