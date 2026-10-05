@@ -21,7 +21,7 @@ MAX_SPORTS = 15
 MAX_SPORT_NAME = 80
 MAX_NOTES = 200
 MAX_DURATION_MONTHS = 1200
-MAX_WISHES = 1000
+MAX_TEAM = 500
 MAX_DIETARY = 500
 
 
@@ -103,7 +103,8 @@ def validate(data, skills, email_editable, user=None):
         for row in raw_sports:
             sports.append(_sport(row, fail))
 
-    wishes = _text(data, "team_wishes", MAX_WISHES, fail)
+    team_with = _text(data, "team_with", MAX_TEAM, fail)
+    team_avoid = _text(data, "team_avoid", MAX_TEAM, fail)
     dietary = _text(data, "dietary_restrictions", MAX_DIETARY, fail)
 
     if data.get("attendance_confirmed") is not True:
@@ -134,7 +135,8 @@ def validate(data, skills, email_editable, user=None):
         "global_level": global_level,
         "sport_frequency": frequency,
         "sports": sports,
-        "team_wishes": wishes,
+        "team_with": team_with,
+        "team_avoid": team_avoid,
         "dietary_restrictions": dietary,
         "email": email,
     }
@@ -190,7 +192,8 @@ def save(user, edition, skills, cleaned):
         "global_level": cleaned["global_level"],
         "dietary_restrictions": cleaned["dietary_restrictions"],
         "sport_frequency": cleaned["sport_frequency"],
-        "team_wishes": cleaned["team_wishes"],
+        "team_with": cleaned["team_with"],
+        "team_avoid": cleaned["team_avoid"],
         "attendance_confirmed": True,
         "is_active": True,
         "withdrawn_at": None,
@@ -282,7 +285,8 @@ def _answers(player):
         "global_level": player.global_level,
         "sport_frequency": player.sport_frequency,
         "sports": _sport_rows(player),
-        "team_wishes": player.team_wishes,
+        "team_with": player.team_with,
+        "team_avoid": player.team_avoid,
         "dietary_restrictions": player.dietary_restrictions,
         "attendance_confirmed": player.attendance_confirmed,
     }

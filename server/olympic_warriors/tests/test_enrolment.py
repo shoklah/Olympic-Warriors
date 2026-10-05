@@ -35,7 +35,8 @@ def good(**changes):
         "sport_frequency": "two_hours",
         "sports": [{"sport": "Judo", "level": "amateur", "practice": "no_longer",
                     "duration_months": 30, "notes": "Ceinture orange"}],
-        "team_wishes": "Avec Bob",
+        "team_with": "Avec Bob",
+        "team_avoid": "Pas Carl",
         "dietary_restrictions": "Végane",
         "attendance_confirmed": True,
     }
@@ -72,23 +73,26 @@ class TestUsableEmail(TestCase):
 
 class TestValidate(Setup):
     def test_a_good_answer_is_cleaned(self):
-        cleaned = validate(good(team_wishes="  Avec Bob \n"), self.skills, False)
+        cleaned = validate(good(team_with="  Avec Bob \n", team_avoid=" Pas Carl "), self.skills, False)
 
         self.assertEqual(cleaned["ratings"], {"AAA": 6, "BBB": 6})
         self.assertEqual(cleaned["global_level"], 8)
-        self.assertEqual(cleaned["team_wishes"], "Avec Bob")
+        self.assertEqual(cleaned["team_with"], "Avec Bob")
+        self.assertEqual(cleaned["team_avoid"], "Pas Carl")
         self.assertEqual(cleaned["sports"][0]["sport"], "Judo")
         self.assertIsNone(cleaned["email"])
 
     def test_optional_parts_may_be_absent(self):
         data = good()
-        for key in ("sports", "team_wishes", "dietary_restrictions"):
+        for key in ("sports", "team_with", "team_avoid", "dietary_restrictions"):
             del data[key]
 
         cleaned = validate(data, self.skills, False)
 
         self.assertEqual(cleaned["sports"], [])
-        self.assertEqual((cleaned["team_wishes"], cleaned["dietary_restrictions"]), ("", ""))
+        self.assertEqual(
+            (cleaned["team_with"], cleaned["team_avoid"], cleaned["dietary_restrictions"]), ("", "", "")
+        )
 
     def test_a_missing_or_invalid_rating(self):
         self.assertEqual(self.codes(good(ratings={"AAA": 6})), ["missing_rating"])
@@ -123,14 +127,23 @@ class TestValidate(Setup):
         )
 
     def test_texts(self):
-        self.assertEqual(self.codes(good(team_wishes="x" * 1001)), ["too_long"])
+        for key in ("team_with", "team_avoid"):
+            with self.subTest(key=key):
+                self.assertEqual(self.codes(good(**{key: "x" * 501})), ["too_long"])
+                self.assertEqual(self.codes(good(**{key: 5})), ["invalid_text"])
+                validate(good(**{key: "x" * 500}), self.skills, False)
         self.assertEqual(self.codes(good(dietary_restrictions="x" * 501)), ["too_long"])
-        self.assertEqual(self.codes(good(team_wishes=5)), ["invalid_text"])
-        validate(good(team_wishes="x" * 1000, dietary_restrictions="x" * 500), self.skills, False)
+        validate(good(dietary_restrictions="x" * 500), self.skills, False)
+
+    def test_a_body_that_still_sends_the_legacy_wishes_has_them_ignored(self):
+        cleaned = validate(good(team_wishes="Avec Bob"), self.skills, False)
+
+        self.assertNotIn("team_wishes", cleaned)
 
     def test_a_nul_byte_is_refused_not_a_server_error(self):
         # Postgres refuses a NUL in a text column: it must be a 400, never a 500.
-        self.assertEqual(self.codes(good(team_wishes="a\x00b")), ["invalid_text"])
+        for key in ("team_with", "team_avoid", "dietary_restrictions"):
+            self.assertEqual(self.codes(good(**{key: "a\x00b"})), ["invalid_text"])
         self.assertEqual(self.codes(good(dietary_restrictions="\x00")), ["invalid_text"])
         self.assertEqual(self.codes(good(sports=[{"sport": "Ju\x00do"}])), ["invalid_sport"])
         self.assertEqual(
@@ -199,6 +212,14 @@ class TestSave(Setup):
     def save(self, **changes):
         return enrolment.save(self.ana, self.edition, self.skills, validate(good(**changes), self.skills, False))
 
+    def test_a_save_never_touches_the_legacy_wishes(self):
+        Player.objects.create(user=self.ana, edition=self.edition, rating=5, team_wishes="Ancien texte")
+
+        player = self.save()
+
+        player.refresh_from_db()
+        self.assertEqual(player.team_wishes, "Ancien texte")
+
     def test_creates_the_player_ratings_and_sports(self):
         player = self.save()
 
@@ -206,7 +227,8 @@ class TestSave(Setup):
         self.assertEqual(player.rating, 8)  # skills 6 and 6, global 8: (6 + 32) / 5 = 7.6
         self.assertEqual(player.global_level, 8)
         self.assertEqual(player.sport_frequency, "two_hours")
-        self.assertEqual(player.team_wishes, "Avec Bob")
+        self.assertEqual(player.team_with, "Avec Bob")
+        self.assertEqual(player.team_avoid, "Pas Carl")
         self.assertEqual(player.dietary_restrictions, "Végane")
         self.assertTrue(player.attendance_confirmed)
         self.assertIsNone(player.team)
@@ -271,7 +293,8 @@ class TestWithdraw(Setup):
         player.refresh_from_db()
         self.assertFalse(player.is_active)
         self.assertIsNotNone(player.withdrawn_at)
-        self.assertEqual(player.team_wishes, "Avec Bob")
+        self.assertEqual(player.team_with, "Avec Bob")
+        self.assertEqual(player.team_avoid, "Pas Carl")
         self.assertEqual(player.playersport_set.count(), 1)
 
     def test_withdrawing_twice_or_never_registered_is_fine(self):
@@ -407,7 +430,9 @@ class TestPayload(Setup):
             self.assertEqual(answers["ratings"], {"AAA": 6, "BBB": 6})
             self.assertEqual(answers["global_level"], 8)
             self.assertEqual(answers["sport_frequency"], "two_hours")
-            self.assertEqual(answers["team_wishes"], "Avec Bob")
+            self.assertEqual(answers["team_with"], "Avec Bob")
+            self.assertEqual(answers["team_avoid"], "Pas Carl")
+            self.assertNotIn("team_wishes", answers)
             self.assertEqual(answers["dietary_restrictions"], "Végane")
             self.assertTrue(answers["attendance_confirmed"])
             self.assertEqual(
@@ -421,16 +446,18 @@ class TestPayload(Setup):
         older = make_edition(2025)
         Player.objects.create(
             user=self.ana, edition=older, rating=5, dietary_restrictions="Vieux",
-            sport_frequency="rare", team_wishes="x", global_level=3,
+            sport_frequency="rare", team_with="x", global_level=3,
         )
         previous = Player.objects.create(
             user=self.ana, edition=old, rating=5, dietary_restrictions="Sans gluten",
-            sport_frequency="hour", team_wishes="Avec Bob", global_level=7, attendance_confirmed=True,
+            sport_frequency="hour", team_with="Avec Bob", team_avoid="Pas Carl", global_level=7, attendance_confirmed=True,
         )
         PlayerSport.objects.create(player=previous, sport="Tennis", notes="30/1")
 
         suggested = self.payload()["suggested"]
 
+        self.assertNotIn("team_with", suggested)
+        self.assertNotIn("team_avoid", suggested)
         self.assertEqual(
             suggested,
             {
