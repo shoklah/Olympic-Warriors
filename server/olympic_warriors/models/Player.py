@@ -37,7 +37,17 @@ class Player(models.Model):
     sport_frequency = models.CharField(
         max_length=10, choices=SportFrequency.choices, blank=True, default=""
     )
-    team_wishes = models.TextField(blank=True, default="", validators=[MaxLengthValidator(1000)])
+    team_wishes = models.TextField(
+        "Souhaits d'équipe (ancien format)",
+        blank=True, default="", validators=[MaxLengthValidator(1000)],
+        help_text="Combined free text of the CSV registration (up to 2026). The form no longer writes it.",
+    )
+    team_with = models.TextField(
+        "Souhaite être avec", blank=True, default="", validators=[MaxLengthValidator(500)]
+    )
+    team_avoid = models.TextField(
+        "Préfère éviter", blank=True, default="", validators=[MaxLengthValidator(500)]
+    )
     attendance_confirmed = models.BooleanField(
         default=False,
         help_text="The player's own tick: paid and will be there. Nothing checks it.",
