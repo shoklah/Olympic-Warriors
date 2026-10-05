@@ -11,7 +11,8 @@ from django.core.management.base import CommandError
 from django.test import TestCase, override_settings
 
 from olympic_warriors import builder, registration
-from olympic_warriors.management.commands.seed_demo_edition import AVOIDANCE, _plain, split_wishes
+from olympic_warriors.demo_seed import AVOIDANCE, _plain, load_seed, save_seed, split_wishes
+from olympic_warriors.demo_seed import read_form
 from olympic_warriors.models import (
     Edition, Player, PlayerRating, PlayerSport, RegistrationSkill, Team,
 )
@@ -50,7 +51,7 @@ def make_source(year=2026, inactive_user=False):
     return edition, users
 
 
-@override_settings(DEBUG=True)
+@override_settings(DEBUG=True, DEMO_SEED_PATH="/nonexistent/demo-seed.json")
 class TestSeedDemoEdition(TestCase):
     def test_refuses_without_debug(self):
         make_source()
@@ -259,15 +260,20 @@ FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "registration_2026
 
 
 def write_form(test, rows):
-    """A synthetic form CSV with the real headers: rows are (name, frequency, history, wishes)."""
+    """
+    A synthetic form CSV with the real headers: rows are (name, frequency, history, wishes) or
+    (name, frequency, history, wishes, global level).
+    """
     df = pd.read_csv(FIXTURE).iloc[:1]
     out = pd.concat([df] * len(rows), ignore_index=True)
     cols = list(out.columns)
-    for i, (name, frequency, history, wishes) in enumerate(rows):
+    level_column = next(c for c in cols if str(c).startswith(registration.GLOBAL_LEVEL_PREFIX))
+    for i, (name, frequency, history, wishes, *level) in enumerate(rows):
         out.loc[i, cols[2]] = name
         out.loc[i, cols[3]] = frequency
         out.loc[i, cols[4]] = history
         out.loc[i, cols[-2]] = wishes
+        out.loc[i, level_column] = level[0] if level else float("nan")
     handle, path = tempfile.mkstemp(suffix=".csv")
     os.close(handle)
     test.addCleanup(os.remove, path)
@@ -275,7 +281,7 @@ def write_form(test, rows):
     return path
 
 
-@override_settings(DEBUG=True)
+@override_settings(DEBUG=True, DEMO_SEED_PATH="/nonexistent/demo-seed.json")
 class TestSeedDemoEditionForm(TestCase):
     def setUp(self):
         make_source()
@@ -369,3 +375,122 @@ class TestSplitWishes(TestCase):
         self.assertEqual(split_wishes(""), ("", ""))
         self.assertEqual(len(split_wishes("x" * 800)[0]), 500)
         self.assertEqual(len(split_wishes("Pas avec " + "x" * 800)[1]), 500)
+
+
+@override_settings(DEBUG=True)
+class TestDemoSeed(TestCase):
+    """The real form's answers, kept as a local seed that seed_demo_edition uses by default."""
+
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.dir.cleanup)
+        self.seed = os.path.join(self.dir.name, "demo-seed.json")
+        self.settings = override_settings(DEMO_SEED_PATH=self.seed)
+        self.settings.enable()
+        self.addCleanup(self.settings.disable)
+        self.source, _ = make_source()
+
+    def build(self, rows):
+        out = StringIO()
+        call_command("build_demo_seed", write_form(self, rows), stdout=out)
+        return out.getvalue()
+
+    def players(self):
+        return {
+            p.user.username: p
+            for p in Player.objects.filter(edition__year=2040).select_related("user")
+        }
+
+    def test_builds_the_seed_from_a_form_and_round_trips_it(self):
+        output = self.build([
+            ("Paul Durand", "Environ une heure par semaine", "Foot - 6 ans", "Ne pas être avec Lea", 7),
+            ("Lea Martin", "Au moins deux heures par semaine", "", "Avec Paul"),
+        ])
+
+        self.assertIn("2 players, 2 with wishes", output)
+        self.assertIn("private answers", output)
+        rows = load_seed(self.seed)
+        self.assertEqual(set(rows), {"pauldurand", "leamartin"})
+        self.assertEqual(rows["pauldurand"].team_avoid, "Ne pas être avec Lea")
+        self.assertEqual(rows["pauldurand"].global_level, 7)
+        self.assertIsNone(rows["leamartin"].global_level)
+        save_seed(rows, self.seed)
+        self.assertEqual(load_seed(self.seed), rows)
+
+    def test_seeds_the_demo_from_it_without_the_form(self):
+        self.build([
+            ("Paul Durand", "Environ une heure par semaine", "Foot - 6 ans", "Avec Lea Martin"),
+            ("Lea Martin", "Au moins deux heures par semaine", "", "Ne pas être avec Paul"),
+        ])
+
+        output = run()
+
+        players = self.players()
+        paul, lea = players["real0"], players["real2"]
+        self.assertEqual((paul.sport_frequency, paul.team_with), ("hour", "Avec Lea Martin"))
+        self.assertEqual((lea.team_with, lea.team_avoid), ("", "Ne pas être avec Paul"))
+        self.assertEqual(
+            list(PlayerSport.objects.filter(player=paul).values_list("sport", "notes")),
+            [("Historique (import)", "Foot - 6 ans")],
+        )
+        self.assertIn("Nothing generated", output)
+        others = [p for u, p in players.items() if u not in ("real0", "real2")]
+        self.assertEqual([p for p in others if (p.sport_frequency, p.team_with, p.team_avoid) != ("", "", "")], [])
+
+    def test_the_seeds_global_level_fills_a_missing_one_and_keeps_the_rating(self):
+        old = Player.objects.get(edition=self.source, user__username="real0")
+        Player.objects.filter(edition=self.source).update(global_level=None)
+        self.build([("Paul Durand", "", "", "", 9)])
+
+        run()
+
+        paul = self.players()["real0"]
+        self.assertEqual((paul.global_level, paul.rating), (9, old.rating))
+        self.assertIsNotNone(self.players()["real2"].global_level)  # no row: derived
+
+    def test_a_given_global_level_wins_over_the_seeds(self):
+        self.build([("Paul Durand", "", "", "", 9)])
+
+        run()
+
+        old = Player.objects.get(edition=self.source, user__username="real0")
+        self.assertEqual(self.players()["real0"].global_level, old.global_level)
+
+    def test_generate_ignores_the_seed(self):
+        self.build([("Paul Durand", "Environ une heure par semaine", "Foot - 6 ans", "Avec Lea Martin")])
+
+        output = run("--generate")
+
+        self.assertIn("Generated", output)
+        self.assertNotEqual(self.players()["real0"].team_with, "Avec Lea Martin")
+        self.assertTrue(Player.objects.filter(edition__year=2040).exclude(team_with="").count() > 1)
+
+    def test_an_explicit_form_wins_over_the_seed(self):
+        self.build([("Paul Durand", "", "", "From the seed")])
+
+        run("--form", write_form(self, [("Paul Durand", "", "", "From the form")]))
+
+        self.assertEqual(self.players()["real0"].team_with, "From the form")
+
+    def test_without_a_seed_the_answers_are_generated(self):
+        run()
+
+        self.assertTrue(Player.objects.filter(edition__year=2040).exclude(sport_frequency="").exists())
+
+    def test_an_unreadable_seed_stops_before_anything_is_created(self):
+        with open(self.seed, "w") as f:
+            f.write("not json")
+
+        with self.assertRaises(CommandError):
+            run()
+        self.assertFalse(Edition.objects.filter(year=2040).exists())
+
+    def test_the_seed_command_refuses_a_bad_form(self):
+        handle, path = tempfile.mkstemp(suffix=".csv")
+        os.close(handle)
+        self.addCleanup(os.remove, path)
+        with open(path, "w") as f:
+            f.write("a,b\n1,2\n")
+        with self.assertRaises(CommandError):
+            call_command("build_demo_seed", path, stdout=StringIO())
+        self.assertFalse(os.path.exists(self.seed))

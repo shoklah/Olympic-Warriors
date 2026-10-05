@@ -3,12 +3,8 @@ Seeds a demo edition (year 2040) filled with the real players of an existing edi
 the team builder locally. Never touches the source edition or its users.
 """
 
-import re
 import secrets
-import unicodedata
 from datetime import date, timedelta
-
-import pandas as pd
 
 from django.conf import settings
 from django.contrib.auth.models import User
@@ -19,6 +15,7 @@ from olympic_warriors.models import (
     Darts, Edition, Petanque, Player, PlayerRating, PlayerSport, RegistrationSkill, Relay,
 )
 from olympic_warriors import registration
+from olympic_warriors.demo_seed import WISH_LIMIT, load_seed, read_form, seed_path
 from olympic_warriors.models.Player import SportFrequency
 
 DEMO_YEAR = 2040
@@ -38,7 +35,10 @@ NOTES = {
 DIETARY = ["Végétarien", "Sans gluten", "Sans porc", "Allergie aux arachides"]
 HELP = (
     "Seeds a demo edition (2040) with the real players of an existing edition (--from-year, "
-    "default 2026) to try the team builder. Copied from the source: the people (same users), "
+    "default 2026) to try the team builder. With a demo seed (server/demo-seed.json, built from "
+    "a registration form by build_demo_seed) the players' frequency, sports history, wishes and "
+    "missing global level are the real ones, matched by name; without one, or with --generate, "
+    "they are generated as below. Copied from the source: the people (same users), "
     "rating, global level, per-skill ratings and the questionnaire skills; a player with no "
     "global level (an edition imported from a CSV) gets the one the form's formula would give "
     "for their skills and rating. Generated, deterministically and coherent with each other "
@@ -48,63 +48,6 @@ HELP = (
     "answers (two players are left "
     "incomplete: no per-skill ratings, frequency or sports, like a legacy import)."
 )
-
-
-# A clause that says who not to be with (on accent-free lower case): "ne pas être avec X",
-# "pas avec X", "éviter X", "je ne veux pas être avec X". "Je ne veux pas être le boulet" is not one.
-AVOIDANCE = re.compile(
-    r"(?:\bpas|\bjamais)\s+(?:etre\s+|me\s+mettre\s+|en\s+equipe\s+)*avec\b"
-    r"|\beviter\b|\bsurtout\s+pas\b"
-)
-CLAUSES = re.compile(r"(?<=[.!?;])\s+|\n+")
-WISH_LIMIT = 500
-
-
-def _plain(text):
-    return unicodedata.normalize("NFKD", text.lower()).encode("ascii", "ignore").decode()
-
-
-def split_wishes(text):
-    """
-    (team_with, team_avoid) of the form's single wishes question, which the in-app form asks as
-    two. A text with no clause about who to avoid is all « with » and one that is all about
-    avoiding is all « avoid », both left as written; a mix is split clause by clause.
-    """
-    clauses = [c for c in CLAUSES.split(text) if c.strip()]
-    avoid = [c for c in clauses if AVOIDANCE.search(_plain(c))]
-    if not avoid:
-        return text[:WISH_LIMIT], ""
-    if len(avoid) == len(clauses):
-        return "", text[:WISH_LIMIT]
-    kept = [c for c in clauses if c not in avoid]
-    return " ".join(c.strip() for c in kept)[:WISH_LIMIT], " ".join(c.strip() for c in avoid)[:WISH_LIMIT]
-
-
-def read_form(path):
-    """{username: (frequency, history, team_with, team_avoid)} of a registration form CSV."""
-    try:
-        df = pd.read_csv(path)
-        extras = registration.resolve_extras(df)
-    except (OSError, ValueError, pd.errors.ParserError) as exc:
-        raise CommandError(f"Cannot read the registration form {path}: {exc}") from exc
-    if registration.NAME_HEADER not in df.columns or not extras:
-        raise CommandError(f"{path} has no usable registration form columns.")
-    rows = {}
-    for _, row in df.iterrows():
-        try:
-            username = registration.parse_name(row[registration.NAME_HEADER])[2]
-        except ValueError:
-            continue
-        get = lambda key: registration.clean_text(row[extras[key]]) if key in extras else ""
-        team_with, team_avoid = split_wishes(get(registration.WISHES))
-        rows[username] = (
-            registration.parse_frequency(row[extras[registration.FREQUENCY]])
-            if registration.FREQUENCY in extras else "",
-            get(registration.SPORTS),
-            team_with,
-            team_avoid,
-        )
-    return rows
 
 
 def full_name(player):
@@ -237,8 +180,12 @@ class Command(BaseCommand):
         )
         parser.add_argument(
             "--form", metavar="PATH",
-            help="Registration form CSV (read only): fills frequency, sports history and wishes "
-            "from it instead of generating them; players without a row stay blank.",
+            help="Registration form CSV (read only), read directly instead of the demo seed; "
+            "players without a row stay blank.",
+        )
+        parser.add_argument(
+            "--generate", action="store_true",
+            help="Generate every answer even when a demo seed exists.",
         )
         parser.add_argument(
             "--from-year", type=int, default=SOURCE_YEAR,
@@ -251,7 +198,7 @@ class Command(BaseCommand):
         if options["remove"]:
             self.remove()
         else:
-            self.create(options["from_year"], options["form"])
+            self.create(options["from_year"], options["form"], options["generate"])
 
     def remove(self):
         with transaction.atomic():
@@ -259,7 +206,7 @@ class Command(BaseCommand):
             users = User.objects.filter(username__startswith=PREFIX).delete()[0]
         self.stdout.write(f"Removed {editions} rows for edition {DEMO_YEAR}, {users} rows for the demo users.")
 
-    def create(self, from_year, form=None):
+    def create(self, from_year, form=None, generate=False):
         if (
             Edition.objects.filter(year=DEMO_YEAR).exists()
             or User.objects.filter(username__startswith=PREFIX).exists()
@@ -275,10 +222,17 @@ class Command(BaseCommand):
         )
         if not sources:
             raise CommandError(f"Edition {from_year} has no active players.")
-        form_rows = read_form(form) if form else None
+        label = form
+        if form:
+            form_rows = read_form(form)
+        elif generate or not seed_path().exists():
+            form_rows = None
+        else:
+            label = seed_path()
+            form_rows = load_seed(label)
         matched = 0
         weights = {s.identifier: s.weight for s in source.registrationskill_set.filter(is_active=True)}
-        wished = {} if form else wishes(sources)
+        wished = {} if form_rows is not None else wishes(sources)
         with transaction.atomic():
             edition = Edition.objects.create(
                 year=DEMO_YEAR,
@@ -308,18 +262,21 @@ class Command(BaseCommand):
                 first_name="Demo", last_name="Admin",
             )
             for index, old in enumerate(sources):
-                incomplete = not form and index >= len(sources) - INCOMPLETE
+                incomplete = form_rows is None and index >= len(sources) - INCOMPLETE
                 team_with, team_avoid = wished.get(index, ("", ""))
                 level = activity(old.rating, index)
                 frequency = "" if incomplete else FREQUENCIES[level]
                 history = ""
-                if form:
+                entry = None
+                if form_rows is not None:
                     frequency = ""
                     entry = form_rows.get(registration.parse_name(full_name(old))[2])
                     if entry:
                         matched += 1
-                        frequency, history, team_with, team_avoid = entry
+                        frequency, history, team_with, team_avoid = entry[:4]
                 rating, global_level = old.rating, old.global_level
+                if global_level is None and entry and entry.global_level:
+                    global_level = entry.global_level
                 if global_level is None:
                     skills = {
                         r.identifier: r.rating
@@ -333,7 +290,7 @@ class Command(BaseCommand):
                     global_level=global_level, attendance_confirmed=True,
                     sport_frequency=frequency,
                     team_with=team_with, team_avoid=team_avoid,
-                    dietary_restrictions="" if form or index % 6 else DIETARY[index // 6 % len(DIETARY)],
+                    dietary_restrictions="" if form_rows is not None or index % 6 else DIETARY[index // 6 % len(DIETARY)],
                 )
                 if not incomplete:
                     PlayerRating.objects.bulk_create(
@@ -349,7 +306,7 @@ class Command(BaseCommand):
                         )
                         for s in real
                     )
-                elif form:
+                elif form_rows is not None:
                     if history:
                         PlayerSport.objects.create(
                             player=player, sport=registration.IMPORTED_SPORT, notes=history
@@ -367,10 +324,10 @@ class Command(BaseCommand):
         self.stdout.write(
             f"Demo edition {DEMO_YEAR} created with the {len(sources)} players of {from_year} (no teams)."
         )
-        if form:
+        if form_rows is not None:
             self.stdout.write(
-                f"Form {form}: {matched} players matched to a form row, {len(sources) - matched} not "
-                "(blank frequency and wishes). Nothing generated."
+                f"Answers of {label}: {matched} players matched to a form row, {len(sources) - matched} not "
+                "(left blank). Nothing generated."
             )
         else:
             self.stdout.write(
