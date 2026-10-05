@@ -12,7 +12,11 @@ export function createSaver({ url, fetch = globalThis.fetch, based_on = null, on
 	let pending = null;
 	let stopped = false;
 
-	async function send() {
+	let inflight = Promise.resolve();
+
+	// The document and the version are read when the previous request is done, so each PUT
+	// is based on the version the one before returned.
+	async function request() {
 		if (pending === null || stopped) return;
 		const document = pending;
 		pending = null;
@@ -30,11 +34,18 @@ export function createSaver({ url, fetch = globalThis.fetch, based_on = null, on
 				version = body.updated_at;
 				onSaved?.(version);
 			} else {
+				if (pending === null) pending = document;
 				onError?.(response.status);
 			}
 		} catch {
+			if (pending === null) pending = document;
 			onError?.(0);
 		}
+	}
+
+	function send() {
+		inflight = inflight.then(request);
+		return inflight;
 	}
 
 	return {
@@ -47,6 +58,8 @@ export function createSaver({ url, fetch = globalThis.fetch, based_on = null, on
 		async flush() {
 			clearTimeout(timer);
 			await send();
-		}
+		},
+		/** Whether a change newer than the request being answered waits to be sent. */
+		pending: () => pending !== null
 	};
 }
