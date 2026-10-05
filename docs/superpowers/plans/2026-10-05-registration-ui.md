@@ -4,7 +4,7 @@
 
 **Goal:** The player-facing half of the in-app registration (spec: `docs/superpowers/specs/2026-10-04-in-app-registration-design.md`, "Front"): a login-gated `/register` form, a header link and hub call to action, the claim redirect and the account page for invited newcomers.
 
-**Architecture:** One pure module (`$lib/registration.js`: the form model, its conversion to the API body, the call-to-action rules), one server helper module (`$lib/server/registration.js`: the status fetch for the hub and account, never throwing), the `/register` route (server load and two plain-POST actions, a page and one form component), small edits to the layout, `Header`, `EditionHub`, the account page and the claim action. Everything user-visible goes through `t` with a French and an English dictionary.
+**Architecture:** One pure module (`$lib/registration.js`: the form model, its conversion to the API body, the registration-link rule), the `/register` route (server load and two plain-POST actions, a page and one form component), small edits to the layout, `Header`, `EditionHub`, the account page and the claim action. The hub and account links need no API call: they come from the layout data (`me.can_register`, the editions' public window), so no page gains a server load. Everything user-visible goes through `t` with a French and an English dictionary.
 
 **Tech Stack:** SvelteKit 2 / Svelte 4 (plain JS, tabs), Vitest + `@testing-library/svelte` (`renderWith`), adapter-node.
 
@@ -27,17 +27,16 @@
 
 | File | Responsibility |
 |---|---|
-| `front/src/lib/registration.js` (create) + `.test.js` | Pure: the form model (`initialValues`, `valuesFromForm`, `bodyFromValues`), API error codes to dictionary keys, the call-to-action rules, small formatters. |
+| `front/src/lib/registration.js` (create) + `.test.js` | Pure: the form model (`initialValues`, `valuesFromForm`, `bodyFromValues`), API error codes to dictionary keys, the registration-link rule (`registrationLink`), small formatters. |
 | `front/src/lib/fixtures/registration.js` (create) | The `GET /registration/` payload for tests. |
-| `front/src/lib/server/registration.js` (create) + `.test.js` | `loadRegistrationStatus` (never throws), `hubRegistration` (the hub's and account's call to action). |
-| `front/src/lib/i18n/fr.js`, `en.js` (modify) | `register.*`, `nav.register`, `hub.register*`, `account.register*`. |
+| `front/src/lib/i18n/fr.js`, `en.js` (modify) | `register.*`, `nav.register`, `hub.register`, `hub.registration`, `account.registrationLink`. |
 | `front/src/routes/+layout.server.js` (+ test) (modify) | `me.can_register`; the registration fields of `editions`. |
 | `front/src/lib/components/Header.svelte` (+ test) (modify) | The register link; the account link for an invited newcomer. |
 | `front/src/routes/register/+page.server.js`, `+page.svelte` (create) + tests | The `/register` route. |
-| `front/src/lib/components/RegistrationForm.svelte` (create) + `.test.js` | The form, its notices and the sports rows. |
+| `front/src/lib/components/RegistrationForm.svelte` (create) + `.test.js` | The form, its notices and the sports rows; a read-only summary of the saved answers once registration is closed. |
 | `front/src/routes/+layout.svelte` (modify) | `/register` has no tab bar. |
-| `front/src/lib/components/EditionHub.svelte` (+ test), `routes/+page.server.js`, `routes/[year=year]/+page.server.js` (create) + tests | The hub call to action. |
-| `front/src/routes/account/+page.server.js`, `+page.svelte` (+ tests) (modify) | An invited newcomer's account page; the registration section. |
+| `front/src/lib/components/EditionHub.svelte` (+ test), `routes/+page.svelte`, `routes/[year=year]/+page.svelte` (modify) | The hub link, from the layout data. |
+| `front/src/routes/account/+page.server.js`, `+page.svelte` (+ tests) (modify) | An invited newcomer's account page; the registration link. |
 | `front/src/lib/server/password-link.js` (+ test), `routes/claim/[uid]/[token]/+page.server.js` (+ test) (modify) | The claim lands on `/register` for an invited newcomer. |
 | `CLAUDE.md` (modify) | Document it. |
 
@@ -261,7 +260,6 @@ import { describe, expect, it } from 'vitest';
 import {
 	bodyFromValues,
 	choiceLabel,
-	ctaKind,
 	durationParts,
 	emptySport,
 	errorKeys,
@@ -269,6 +267,7 @@ import {
 	listNames,
 	monthsOf,
 	parisToday,
+	registrationLink,
 	valuesFromForm,
 	visitorCta
 } from './registration.js';
@@ -470,19 +469,43 @@ describe('listNames', () => {
 	});
 });
 
-describe('the call to action', () => {
-	it('is for a registration that is open and not removed', () => {
-		const open = { is_open: true, reason: '', registered: false, removed: false };
+describe('the registration link', () => {
+	const editions = [
+		{ year: 2027, start_date: '2027-09-18', registration_opens: '2027-05-01', registration_closes: null },
+		{ year: 2026, start_date: '2026-09-19', registration_opens: '2026-01-01', registration_closes: null }
+	];
 
-		expect(ctaKind(open)).toBe('register');
-		expect(ctaKind({ ...open, registered: true })).toBe('edit');
-		expect(ctaKind({ ...open, reason: 'late_pass' })).toBe('register');
-		expect(ctaKind({ ...open, is_open: false, reason: 'closed' })).toBeNull();
-		expect(ctaKind({ ...open, removed: true })).toBeNull();
-		expect(ctaKind(null)).toBeNull();
+	it('sends a visitor through the login while the public window is open', () => {
+		expect(registrationLink({ me: null, editions, today: '2027-06-01' })).toEqual({
+			href: '/login?next=/register', year: 2027, visitor: true
+		});
 	});
 
-	it('shows a visitor the way in while the public window is open', () => {
+	it('links someone who can register straight to the form', () => {
+		const me = { id: 1, can_register: true };
+
+		expect(registrationLink({ me, editions, today: '2027-06-01' })).toEqual({
+			href: '/register', year: 2027, visitor: false
+		});
+	});
+
+	it('is nothing for someone who cannot register, outside the window, or with no edition', () => {
+		expect(registrationLink({ me: { id: 1, can_register: false }, editions, today: '2027-06-01' })).toBeNull();
+		expect(registrationLink({ me: null, editions, today: '2027-04-01' })).toBeNull();
+		expect(registrationLink({ me: null, editions: [], today: '2027-06-01' })).toBeNull();
+		expect(registrationLink({ me: null, editions: undefined, today: '2027-06-01' })).toBeNull();
+	});
+
+	it('only ever concerns the latest edition', () => {
+		const old = [{ year: 2026, start_date: '2026-09-19', registration_opens: '2026-01-01', registration_closes: null }];
+
+		expect(registrationLink({ me: null, editions: old, today: '2026-06-01' }).year).toBe(2026);
+		expect(registrationLink({ me: null, editions: [...editions].reverse(), today: '2027-06-01' })).toBeNull();
+	});
+});
+
+describe('visitorCta', () => {
+	it('is the public window: opening day reached, closing day (or the day before the start) not passed', () => {
 		const edition = { start_date: '2027-09-18', registration_opens: '2027-05-01', registration_closes: null };
 
 		expect(visitorCta(edition, '2027-04-30')).toBe(false);
@@ -494,7 +517,9 @@ describe('the call to action', () => {
 		expect(visitorCta({ ...edition, registration_opens: null }, '2027-06-01')).toBe(false);
 		expect(visitorCta(undefined, '2027-06-01')).toBe(false);
 	});
+});
 
+describe('parisToday', () => {
 	it('reads today in Paris', () => {
 		expect(parisToday(new Date('2027-06-01T22:30:00Z'))).toBe('2027-06-02'); // already tomorrow there
 		expect(parisToday(new Date('2027-01-15T10:00:00Z'))).toBe('2027-01-15');
@@ -696,16 +721,6 @@ export function listNames(locale, names) {
 	return new Intl.ListFormat(locale, { style: 'long', type: 'conjunction' }).format(names);
 }
 
-/**
- * The call to action of someone logged in who can register: `register` while registration
- * is open and they have not registered, `edit` when they have, nothing when it is closed or
- * an organiser removed them (the form explains that).
- */
-export function ctaKind(status) {
-	if (!status || !status.is_open || status.removed) return null;
-	return status.registered ? 'edit' : 'register';
-}
-
 /** Today's date in Paris as `YYYY-MM-DD`: the event's calendar, whatever the renderer's timezone. */
 export function parisToday(now = new Date()) {
 	return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris' }).format(now);
@@ -726,6 +741,19 @@ export function visitorCta(edition, today) {
 	if (!edition?.registration_opens || !edition.start_date) return false;
 	const closes = edition.registration_closes ?? dayBefore(edition.start_date);
 	return today >= edition.registration_opens && today <= closes;
+}
+
+/**
+ * The registration link of the hub and of the account page, from the layout data alone
+ * (no API call): `{ href, year, visitor }` while the latest edition's public window is open,
+ * else null. A visitor goes through the login; someone logged in who can register goes
+ * straight to the form, which shows whether they are registered and offers the edit.
+ */
+export function registrationLink({ me, editions, today }) {
+	const latest = editions?.[0];
+	if (!latest || !visitorCta(latest, today)) return null;
+	if (!me) return { href: '/login?next=/register', year: latest.year, visitor: true };
+	return me.can_register ? { href: '/register', year: latest.year, visitor: false } : null;
 }
 ```
 
@@ -756,10 +784,9 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 
 ```js
 	'account.section.registration': 'Inscription',
-	'account.registerCta': "S'inscrire à l'édition {year}",
-	'account.registerEdit': 'Modifier mon inscription {year}',
+	'account.registrationLink': 'Inscription {year}',
 	'hub.register': "S'inscrire à l'édition {year}",
-	'hub.registerEdit': 'Modifier mon inscription {year}',
+	'hub.registration': 'Inscription {year}',
 	'register.title': 'Inscription {year}',
 	'register.visibility': 'Votre nom apparaîtra dans la liste des joueurs.',
 	'register.retention':
@@ -818,6 +845,11 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 	'register.withdraw': 'Me désinscrire',
 	'register.withdrawNote': 'Vos réponses sont conservées si vous vous inscrivez de nouveau.',
 	'register.withdrawn': 'Vous êtes désinscrit·e. Vos réponses sont conservées.',
+	'register.summary.title': 'Vos réponses',
+	'register.summary.none': '—',
+	'register.summary.years': { one: '{n} an', other: '{n} ans' },
+	'register.summary.months': { one: '{n} mois', other: '{n} mois' },
+	'register.summary.attendance': 'Présence confirmée',
 	'register.error.missing_rating': 'Donnez une note à chaque critère',
 	'register.error.invalid_rating': 'Les notes vont de 1 à 10',
 	'register.error.invalid_global_level': 'Indiquez un niveau global de 1 à 10',
@@ -845,10 +877,9 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 
 ```js
 	'account.section.registration': 'Registration',
-	'account.registerCta': 'Register for the {year} edition',
-	'account.registerEdit': 'Edit my {year} registration',
+	'account.registrationLink': 'Registration {year}',
 	'hub.register': 'Register for the {year} edition',
-	'hub.registerEdit': 'Edit my {year} registration',
+	'hub.registration': 'Registration {year}',
 	'register.title': 'Registration {year}',
 	'register.visibility': 'Your name will appear in the players list.',
 	'register.retention': 'Your answers are kept as long as your account exists, and only organisers can see them.',
@@ -905,6 +936,11 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 	'register.withdraw': 'Withdraw my registration',
 	'register.withdrawNote': 'Your answers are kept if you register again.',
 	'register.withdrawn': 'You are withdrawn. Your answers are kept.',
+	'register.summary.title': 'Your answers',
+	'register.summary.none': '—',
+	'register.summary.years': { one: '{n} year', other: '{n} years' },
+	'register.summary.months': { one: '{n} month', other: '{n} months' },
+	'register.summary.attendance': 'Attendance confirmed',
 	'register.error.missing_rating': 'Rate every criterion',
 	'register.error.invalid_rating': 'Ratings go from 1 to 10',
 	'register.error.invalid_global_level': 'Enter an overall level from 1 to 10',
@@ -1416,6 +1452,47 @@ describe('RegistrationForm', () => {
 		expect(screen.queryByLabelText('Cardio')).toBeNull();
 	});
 
+	it('shows a registered player their answers, read-only, once registration is closed', () => {
+		renderWith(RegistrationForm, { registration: { ...closed('closed'), registration: savedAnswers } });
+
+		const summary = screen.getByRole('region', { name: 'Your answers' });
+		expect(within(summary).getByText('Cardio')).toBeInTheDocument();
+		expect(within(summary).getByText('6')).toBeInTheDocument();
+		expect(within(summary).getByText('At least two hours a week')).toBeInTheDocument();
+		expect(within(summary).getByText(/Judo/)).toHaveTextContent('Amateur');
+		expect(within(summary).getByText(/Judo/)).toHaveTextContent('2 years 6 months');
+		expect(within(summary).getByText(/Judo/)).toHaveTextContent('Ceinture orange');
+		expect(within(summary).getByText('Avec Bob')).toBeInTheDocument();
+		expect(within(summary).getByText('Végane')).toBeInTheDocument();
+		expect(within(summary).getByText('Attendance confirmed')).toBeInTheDocument();
+		expect(screen.queryByRole('spinbutton')).toBeNull();
+		expect(screen.queryByRole('button')).toBeNull();
+	});
+
+	it('shows no summary to someone who is not registered, withdrew, or was removed', () => {
+		const none = renderWith(RegistrationForm, { registration: closed('closed') });
+		expect(screen.queryByRole('region', { name: 'Your answers' })).toBeNull();
+		none.unmount();
+
+		const withdrew = renderWith(RegistrationForm, {
+			registration: { ...closed('closed'), registration: { ...savedAnswers, registered: false } }
+		});
+		expect(screen.queryByRole('region', { name: 'Your answers' })).toBeNull();
+		withdrew.unmount();
+
+		renderWith(RegistrationForm, {
+			registration: { ...closed('closed'), registration: { ...savedAnswers, registered: false, removed_by_organiser: true } }
+		});
+		expect(screen.queryByRole('region', { name: 'Your answers' })).toBeNull();
+	});
+
+	it('speaks French in the summary', () => {
+		renderWith(RegistrationForm, { registration: { ...closed('closed'), registration: savedAnswers } }, 'fr');
+
+		expect(screen.getByRole('region', { name: 'Vos réponses' })).toBeInTheDocument();
+		expect(screen.getByText(/Judo/)).toHaveTextContent('2 ans 6 mois');
+	});
+
 	it('mentions a late pass and shows the form', () => {
 		renderWith(RegistrationForm, { registration: { ...open, state: { is_open: true, reason: 'late_pass' } } });
 
@@ -1493,7 +1570,7 @@ Expected: FAIL (components missing).
 <script>
 	import { onMount } from 'svelte';
 	import { disciplineName, useLocale, useT } from '$lib/i18n';
-	import { MAX_SPORTS, choiceLabel, emptySport, initialValues, listNames } from '$lib/registration';
+	import { MAX_SPORTS, choiceLabel, durationParts, emptySport, initialValues, listNames } from '$lib/registration';
 
 	/** The `GET /registration/` payload. */
 	export let registration;
@@ -1535,6 +1612,32 @@ Expected: FAIL (components missing).
 	$: withdrawResult = resultOf('withdraw');
 	$: errorKeys = saveResult?.errors ?? (saveResult?.error ? [saveResult.error] : []);
 
+	/** The label of a stored choice for the summary, the dash for none. */
+	function summaryChoice(kind, value) {
+		const choice = registration.choices[kind]?.find((c) => c.value === value);
+		return choice ? choiceLabel(t, kind, choice) : t('register.summary.none');
+	}
+
+	/** One sports row as a line: sport, level, practice, how long, details; blanks left out. */
+	function sportLine(row) {
+		const { years, months } = durationParts(row.duration_months);
+		const duration = [
+			Number(years) > 0 && t('register.summary.years', { n: Number(years) }),
+			Number(months) > 0 && t('register.summary.months', { n: Number(months) })
+		]
+			.filter(Boolean)
+			.join(' ');
+		return [
+			row.sport,
+			row.level && summaryChoice('level', row.level),
+			row.practice && summaryChoice('practice', row.practice),
+			duration,
+			row.notes
+		]
+			.filter(Boolean)
+			.join(' · ');
+	}
+
 	function addSport() {
 		if (values.sports.length < MAX_SPORTS) values.sports = [...values.sports, emptySport()];
 	}
@@ -1564,7 +1667,40 @@ Expected: FAIL (components missing).
 	{:else}
 		<p class="notice">{t(`register.closed.${registration.state.reason === 'closed' ? 'closed' : 'not_configured'}`)}</p>
 	{/if}
-	{#if registered}<p class="notice">{t('register.registered')}</p>{/if}
+	{#if registered && saved}
+		<p class="notice">{t('register.registered')}</p>
+		<!-- Closed: what they submitted stays readable (the form is gone). -->
+		<section class="summary" aria-labelledby="register-summary">
+			<h2 id="register-summary">{t('register.summary.title')}</h2>
+			<dl>
+				{#each registration.skills as skill}
+					<dt>{skillName(skill)}</dt>
+					<dd>{saved.ratings?.[skill.identifier] ?? t('register.summary.none')}</dd>
+				{/each}
+				<dt>{t('register.globalLevel')}</dt>
+				<dd>{saved.global_level ?? t('register.summary.none')}</dd>
+				<dt>{t('register.frequency.legend')}</dt>
+				<dd>{summaryChoice('frequency', saved.sport_frequency)}</dd>
+				<dt>{t('register.sports.legend')}</dt>
+				<dd>
+					{#if saved.sports.length === 0}
+						{t('register.summary.none')}
+					{:else}
+						<ul>
+							{#each saved.sports as row}
+								<li>{sportLine(row)}</li>
+							{/each}
+						</ul>
+					{/if}
+				</dd>
+				<dt>{t('register.teamWishes')}</dt>
+				<dd>{saved.team_wishes || t('register.summary.none')}</dd>
+				<dt>{t('register.dietary')}</dt>
+				<dd>{saved.dietary_restrictions || t('register.summary.none')}</dd>
+			</dl>
+			{#if saved.attendance_confirmed}<p class="notes">{t('register.summary.attendance')}</p>{/if}
+		</section>
+	{/if}
 {:else}
 	{#if form?.ok && form.action === 'save'}
 		<p class="saved" id="register-status" tabindex="-1" role="status">{t('register.saved')}</p>
@@ -1853,6 +1989,22 @@ Expected: FAIL (components missing).
 		opacity: 0.4;
 		cursor: not-allowed;
 	}
+	.summary dl {
+		display: grid;
+		grid-template-columns: max-content 1fr;
+		gap: 0.25rem 1rem;
+		margin: 0;
+	}
+	.summary dt {
+		color: var(--muted);
+	}
+	.summary dd {
+		margin: 0;
+	}
+	.summary ul {
+		margin: 0;
+		padding-left: 1rem;
+	}
 	.withdraw {
 		display: grid;
 		gap: 0.5rem;
@@ -1920,238 +2072,121 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 
 ---
 
-### Task 6: The hub's call to action
+### Task 6: The hub's registration link
 
 **Files:**
-- Create: `front/src/lib/server/registration.js`, `front/src/lib/server/registration.test.js`, `front/src/routes/[year=year]/+page.server.js`, `front/src/routes/[year=year]/page.server.test.js`
-- Modify: `front/src/lib/components/EditionHub.svelte`, `front/src/routes/+page.server.js`, `front/src/routes/+page.svelte`, `front/src/routes/[year=year]/+page.svelte`
-- Test: `front/src/lib/components/EditionHub.test.js`, `front/src/routes/page.server.test.js` (create if absent)
+- Modify: `front/src/lib/components/EditionHub.svelte`, `front/src/routes/+page.svelte`, `front/src/routes/[year=year]/+page.svelte`
+- Test: `front/src/lib/components/EditionHub.test.js`
 
-- [ ] **Step 1: Write the failing server-helper tests.** Create `lib/server/registration.test.js`:
+The link needs no API call: `registrationLink` (Task 2) reads the layout data the hub already receives (`me.can_register`, the latest edition's public window), so neither hub gains a server load (a server load awaiting `parent()` would re-run the layout loads on every client-side visit, which this project avoids). The label is « S'inscrire à l'édition {year} » for a visitor (through the login) and « Inscription {year} » for someone logged in who can register; `/register` shows whether they are registered and offers the edit. Only the latest edition's hub carries it.
 
-```js
-// @vitest-environment node
-import { describe, expect, it, vi } from 'vitest';
-import { hubRegistration, loadRegistrationStatus } from './registration.js';
-import { registrationPayload, savedAnswers } from '$lib/fixtures/registration.js';
-
-vi.mock('$lib/server/urls', () => ({ api: (path) => `http://api${path}` }));
-
-const json = (status, body) =>
-	new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
-
-const cookiesWith = (token) => ({ get: (name) => (name === 'token' ? token : undefined) });
-
-describe('loadRegistrationStatus', () => {
-	it('reduces the form to what a call to action needs', async () => {
-		const fetch = vi.fn(async () => json(200, { ...registrationPayload, registration: savedAnswers }));
-
-		const status = await loadRegistrationStatus(fetch, 't');
-
-		expect(fetch.mock.calls[0][1].headers).toEqual({ authorization: 'Token t' });
-		expect(status).toEqual({ year: 2027, is_open: true, reason: '', registered: true, removed: false });
-	});
-
-	it('never throws: a call to action is not worth a broken page', async () => {
-		expect(await loadRegistrationStatus(vi.fn(async () => json(404, { error: 'no_edition' })), 't')).toBeNull();
-		expect(await loadRegistrationStatus(vi.fn(async () => { throw new Error('down'); }), 't')).toBeNull();
-		expect(await loadRegistrationStatus(vi.fn(async () => json(200, 'not an object')), 't')).toBeNull();
-	});
-});
-
-describe('hubRegistration', () => {
-	const editions = [
-		{ year: 2027, start_date: '2027-09-18', registration_opens: '2027-05-01', registration_closes: null }
-	];
-	const parent = (me) => async () => ({ me, latestYear: 2027, editions });
-	const ask = (over) =>
-		hubRegistration({
-			fetch: vi.fn(async () => json(200, registrationPayload)),
-			cookies: cookiesWith('t'),
-			parent: parent({ id: 1, can_register: true }),
-			year: 2027,
-			today: '2027-06-01',
-			...over
-		});
-
-	it('is only for the latest edition', async () => {
-		expect(await ask({ year: 2026 })).toBeNull();
-	});
-
-	it('offers a visitor the way in while the public window is open, through the login', async () => {
-		const fetch = vi.fn();
-
-		expect(await ask({ fetch, parent: parent(null), cookies: cookiesWith(undefined) })).toEqual({
-			kind: 'register', href: '/login?next=/register', year: 2027
-		});
-		expect(fetch).not.toHaveBeenCalled();
-		expect(await ask({ parent: parent(null), today: '2027-04-01' })).toBeNull();
-	});
-
-	it('offers someone who can register the registration, or its edit', async () => {
-		expect(await ask()).toEqual({ kind: 'register', href: '/register', year: 2027 });
-
-		const registered = vi.fn(async () => json(200, { ...registrationPayload, registration: savedAnswers }));
-		expect((await ask({ fetch: registered })).kind).toBe('edit');
-	});
-
-	it('offers nothing to someone who cannot register, or when it is closed', async () => {
-		const fetch = vi.fn();
-		expect(await ask({ fetch, parent: parent({ id: 1, can_register: false }) })).toBeNull();
-		expect(fetch).not.toHaveBeenCalled();
-
-		const closed = vi.fn(async () => json(200, { ...registrationPayload, state: { is_open: false, reason: 'closed' } }));
-		expect(await ask({ fetch: closed })).toBeNull();
-	});
-
-	it('offers nothing when the status cannot be read', async () => {
-		expect(await ask({ fetch: vi.fn(async () => { throw new Error('down'); }) })).toBeNull();
-	});
-});
-```
-
-- [ ] **Step 2: Implement `lib/server/registration.js`**
+- [ ] **Step 1: Write the failing tests.** In `EditionHub.test.js` add inside `describe('EditionHub', ...)`:
 
 ```js
-import { apiGet } from '$lib/api';
-import { ctaKind, parisToday, visitorCta } from '$lib/registration';
-import { api } from '$lib/server/urls';
-import { TOKEN_COOKIE } from '$lib/session';
+	describe('registration link', () => {
+		// The latest edition (2026, starting 2026-09-19) with its public window set.
+		const withWindow = [
+			{ ...editions[0], start_date: '2026-09-19', registration_opens: '2026-01-01', registration_closes: null },
+			...editions.slice(1)
+		];
+		const player = { id: 1, first_name: 'Léa', last_name: 'Martin', can_register: true };
 
-/**
- * The few facts of the caller's registration a call to action needs, or null when they
- * cannot be read: it never throws, since a hub or an account page must not break over a
- * link (a 404 means the caller cannot register or there is no edition: no link either).
- */
-export async function loadRegistrationStatus(fetch, token) {
-	try {
-		const body = await apiGet(fetch, api('/registration/'), token);
-		if (typeof body !== 'object' || body === null || !body.edition || !body.state) return null;
-		return {
-			year: body.edition.year,
-			is_open: Boolean(body.state.is_open),
-			reason: body.state.reason ?? '',
-			registered: Boolean(body.registration?.registered),
-			removed: Boolean(body.registration?.removed_by_organiser)
-		};
-	} catch {
-		return null;
-	}
-}
-
-/**
- * The hub's (and the account page's) call to action: `{ kind, href, year }` or null.
- * Registration targets the latest edition only. A visitor, who cannot ask the API, is shown
- * the way in through the login while the public window is open (lib/registration.js);
- * someone who can register is asked.
- */
-export async function hubRegistration({ fetch, cookies, parent, year, today = parisToday() }) {
-	const { me, latestYear, editions } = await parent();
-	if (year !== latestYear) return null;
-	if (!me) {
-		const edition = editions.find((e) => e.year === year);
-		return visitorCta(edition, today) ? { kind: 'register', href: '/login?next=/register', year } : null;
-	}
-	if (!me.can_register) return null;
-	const kind = ctaKind(await loadRegistrationStatus(fetch, cookies.get(TOKEN_COOKIE)));
-	return kind ? { kind, href: '/register', year } : null;
-}
-```
-
-- [ ] **Step 3: Write the failing hub tests.** In `EditionHub.test.js` add to the `describe('EditionHub', ...)` block:
-
-```js
-	describe('registration call to action', () => {
-		it('offers to register, and to edit a registration', () => {
+		it('sends a visitor through the login while registration is open', () => {
 			vi.setSystemTime(new Date('2026-09-17T07:00:00Z'));
-			const { unmount } = renderWith(EditionHub, {
-				summary, editions, registration: { kind: 'register', href: '/register', year: 2026 }
-			});
-			expect(screen.getByRole('link', { name: 'Register for the 2026 edition' })).toHaveAttribute('href', '/register');
-			unmount();
-
-			renderWith(EditionHub, {
-				summary, editions, registration: { kind: 'edit', href: '/register', year: 2026 }
-			});
-			expect(screen.getByRole('link', { name: 'Edit my 2026 registration' })).toHaveAttribute('href', '/register');
-		});
-
-		it('sends a visitor through the login', () => {
-			vi.setSystemTime(new Date('2026-09-17T07:00:00Z'));
-			renderWith(EditionHub, {
-				summary, editions, registration: { kind: 'register', href: '/login?next=/register', year: 2026 }
-			});
+			renderWith(EditionHub, { summary, editions: withWindow, me: null });
 
 			expect(screen.getByRole('link', { name: 'Register for the 2026 edition' })).toHaveAttribute(
 				'href', '/login?next=/register'
 			);
 		});
 
-		it('shows nothing without one, and says it in French', () => {
+		it('links someone who can register straight to the form', () => {
 			vi.setSystemTime(new Date('2026-09-17T07:00:00Z'));
-			const { unmount } = renderWith(EditionHub, { summary, editions, registration: null });
-			expect(screen.queryByRole('link', { name: /Register/ })).toBeNull();
-			unmount();
+			renderWith(EditionHub, { summary, editions: withWindow, me: player });
 
-			renderWith(EditionHub, {
-				summary, editions, registration: { kind: 'register', href: '/register', year: 2026 }
-			}, 'fr');
+			expect(screen.getByRole('link', { name: 'Registration 2026' })).toHaveAttribute('href', '/register');
+		});
+
+		it('shows nothing to someone who cannot register', () => {
+			vi.setSystemTime(new Date('2026-09-17T07:00:00Z'));
+			renderWith(EditionHub, { summary, editions: withWindow, me: { ...player, can_register: false } });
+
+			expect(screen.queryByRole('link', { name: /Regist/ })).toBeNull();
+		});
+
+		it('shows nothing once the window has closed, before it opens, or when it is not set', () => {
+			vi.setSystemTime(new Date('2026-09-19T08:00:00Z')); // the day of the start: closed
+			const closed = renderWith(EditionHub, { summary, editions: withWindow, me: null });
+			expect(screen.queryByRole('link', { name: /Regist/ })).toBeNull();
+			closed.unmount();
+
+			vi.setSystemTime(new Date('2025-12-31T12:00:00Z'));
+			const early = renderWith(EditionHub, { summary, editions: withWindow, me: null });
+			expect(screen.queryByRole('link', { name: /Regist/ })).toBeNull();
+			early.unmount();
+
+			vi.setSystemTime(new Date('2026-09-17T07:00:00Z'));
+			renderWith(EditionHub, { summary, editions, me: null }); // no registration_opens at all
+			expect(screen.queryByRole('link', { name: /Regist/ })).toBeNull();
+		});
+
+		it('is only on the latest edition hub', () => {
+			vi.setSystemTime(new Date('2026-09-17T07:00:00Z'));
+			const older = { ...summary, edition: { ...summary.edition, year: 2025 } };
+			renderWith(EditionHub, { summary: older, editions: withWindow, me: null });
+
+			expect(screen.queryByRole('link', { name: /Regist/ })).toBeNull();
+		});
+
+		it('says it in French', () => {
+			vi.setSystemTime(new Date('2026-09-17T07:00:00Z'));
+			const visitor = renderWith(EditionHub, { summary, editions: withWindow, me: null }, 'fr');
 			expect(screen.getByRole('link', { name: "S'inscrire à l'édition 2026" })).toBeInTheDocument();
+			visitor.unmount();
+
+			renderWith(EditionHub, { summary, editions: withWindow, me: player }, 'fr');
+			expect(screen.getByRole('link', { name: 'Inscription 2026' })).toBeInTheDocument();
 		});
 	});
 ```
 
-- [ ] **Step 4: Implement the hub.** In `EditionHub.svelte`: `export let registration = null;` and in the `.actions` block, first in the list:
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `cd front && npx vitest run src/lib/components/EditionHub.test.js`
+Expected: the new tests fail (no `me` prop, no link).
+
+- [ ] **Step 3: Implement.** In `EditionHub.svelte` add to the imports `import { parisToday, registrationLink } from '$lib/registration';`, a prop `export let me = null;` and, below the `phase` statements:
+
+```js
+	// The latest edition only: registration targets it (the API's latest_edition()).
+	$: registration =
+		editions[0]?.year === edition.year
+			? registrationLink({ me, editions, today: parisToday(now) })
+			: null;
+```
+
+In the `.actions` block put first:
 
 ```svelte
 	{#if registration}
 		<a class="register" href={registration.href}>
-			{t(registration.kind === 'edit' ? 'hub.registerEdit' : 'hub.register', { year: registration.year })}
+			{t(registration.visitor ? 'hub.register' : 'hub.registration', { year: registration.year })}
 		</a>
 	{/if}
 ```
 
-Style `.actions a.register` as the filled main call (the ranking and players links become `secondary` when it is shown): change the `class:secondary={phase !== 'upcoming'}` of the Players link to `class:secondary={phase !== 'upcoming' || registration}` and make the Ranking link `secondary` too when `registration` is set. Keep the existing rules for the other links; reuse their button look (read the `.actions a` rules) rather than writing new colours.
+Style `.actions a.register` as the filled main call, and make the other links `secondary` while it shows: change the Players link's `class:secondary={phase !== 'upcoming'}` to `class:secondary={phase !== 'upcoming' || registration}` and give the Ranking link the same `class:secondary={registration}`. Reuse the existing `.actions a` button rules rather than writing new colours (tokens only). Both hub pages pass `me`: `routes/+page.svelte` and `routes/[year=year]/+page.svelte` become `<EditionHub summary={data.summary} editions={data.editions} me={data.me} />`.
 
-Both hub pages pass it on: `routes/+page.svelte` and `routes/[year=year]/+page.svelte` become `<EditionHub summary={data.summary} editions={data.editions} registration={data.registration ?? null} />`. In `routes/+page.server.js` (the `/` route) add:
+- [ ] **Step 4: Run**
 
-```js
-import { hubRegistration } from '$lib/server/registration';
-// ...
-export const load = async ({ fetch, cookies, parent }) => {
-	const { latestYear } = await parent();
-	if (latestYear === null) error(404, 'No edition yet');
-	const [summary, registration] = await Promise.all([
-		apiGet(fetch, api(`/edition/year/${latestYear}/summary/`)),
-		hubRegistration({ fetch, cookies, parent, year: latestYear })
-	]);
-	return { summary, registration };
-};
-```
+Run: `cd front && npx vitest run src/lib/components/EditionHub.test.js src/routes`
+Expected: `OK`. (A page test of the hubs that renders `EditionHub` through `+page.svelte` with data lacking `me` still works: `me` is `undefined`, a visitor.)
 
-and create `routes/[year=year]/+page.server.js`:
-
-```js
-import { hubRegistration } from '$lib/server/registration';
-
-/** The hub's registration call to action: only the latest edition's hub carries one. */
-export const load = async ({ fetch, cookies, parent, params }) => ({
-	registration: await hubRegistration({ fetch, cookies, parent, year: Number(params.year) })
-});
-```
-
-Add `routes/[year=year]/page.server.test.js` (and `routes/page.server.test.js` if it does not exist) with two tests each: the load returns `registration: null` for an older year and the helper's result for the latest (mock `$lib/server/registration` with `vi.mock` and assert it is called with the year). Update any existing `+page.server.js` test of `/` for the new `cookies` argument and the extra return key (add, never loosen).
-
-- [ ] **Step 5: Run**
-
-Run: `cd front && npx vitest run src/lib/server src/lib/components/EditionHub.test.js src/routes`
-Expected: `OK`.
-
-- [ ] **Step 6: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add front/src/lib/server/registration.js front/src/lib/server/registration.test.js front/src/lib/components/EditionHub.svelte front/src/lib/components/EditionHub.test.js front/src/routes
-git commit -m "[FEAT] hub: registration call to action
+git add front/src/lib/components/EditionHub.svelte front/src/lib/components/EditionHub.test.js front/src/routes/+page.svelte "front/src/routes/[year=year]/+page.svelte"
+git commit -m "[FEAT] hub: registration link from the layout data
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 ```
@@ -2164,9 +2199,9 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 - Modify: `front/src/routes/account/+page.server.js`, `front/src/routes/account/+page.svelte`
 - Test: `front/src/routes/account/page.server.test.js`, `front/src/routes/account/page.test.js`
 
-An invited newcomer (`can_register`, not a person) has no profile (`/profile/<id>/` answers 404), so the page loses its photo and showcase sections and its profile breadcrumb, keeps the email, password and session sections, and (for everyone who can register) gains a registration section.
+An invited newcomer (`can_register`, not a person) has no profile (`/profile/<id>/` answers 404), so the page loses its photo and showcase sections and its profile breadcrumb, keeps the email, password and session sections, and (for everyone who can register, while the window is open) gains a registration link taken from the layout data, as the hub's is.
 
-- [ ] **Step 1: Write the failing server tests.** In `account/page.server.test.js` add a `describe('account load for an invited newcomer', ...)` (the file's `me` is a person; derive the invitee from it):
+- [ ] **Step 1: Write the failing server tests.** In `account/page.server.test.js` add these inside the existing `describe('account load', ...)` (the file's `me` is a person; derive the invitee from it):
 
 ```js
 	const invitee = { ...me, is_person: false, can_register: true };
@@ -2193,37 +2228,11 @@ An invited newcomer (`can_register`, not a person) has no profile (`/profile/<id
 			status: 303, location: '/'
 		});
 	});
-
-	it('returns the registration call to action to anyone who can register', async () => {
-		const fetch = vi.fn(async (url) => {
-			if (url === 'http://api/me/') return json(200, { ...me, can_register: true });
-			if (url === 'http://api/registration/') return json(200, registrationBody);
-			return json(200, profile);
-		});
-
-		const data = await load({ fetch, cookies: cookiesWith(), setHeaders: vi.fn() });
-
-		expect(data.registration).toEqual({ kind: 'register', href: '/register', year: 2027 });
-	});
-
-	it('shows no call to action when it is closed or unreadable', async () => {
-		const closed = vi.fn(async (url) => {
-			if (url === 'http://api/me/') return json(200, { ...me, can_register: true });
-			if (url === 'http://api/registration/') return json(200, { ...registrationBody, state: { is_open: false, reason: 'closed' } });
-			return json(200, profile);
-		});
-		expect((await load({ fetch: closed, cookies: cookiesWith(), setHeaders: vi.fn() })).registration).toBeNull();
-	});
 ```
 
-Update the existing tests: the person's `account` now also carries `is_person: true` (extend the expected objects), and the `fetch` mocks of the existing tests must answer `/registration/` (return `json(404, {error: 'x'})` to model a server without it) so the helper reads null.
+Update the existing tests: the person's `account` now also carries `is_person: true` (extend the expected objects). The load makes no registration call.
 
-- [ ] **Step 2: Implement the load.** In `account/+page.server.js` import `loadRegistrationStatus` and `ctaKind`:
-
-```js
-import { ctaKind } from '$lib/registration';
-import { loadRegistrationStatus } from '$lib/server/registration';
-```
+- [ ] **Step 2: Implement the load.** In `account/+page.server.js`:
 
 Replace the person check and the return of `load`:
 
@@ -2232,11 +2241,7 @@ Replace the person check and the return of `load`:
 	const canRegister = account.can_register ?? account.is_person;
 	if (!canRegister) redirect(303, '/');
 	const isPerson = account.is_person === true;
-	const [profile, status] = await Promise.all([
-		isPerson ? apiGet(fetch, api(`/profile/${account.id}/`)) : null,
-		loadRegistrationStatus(fetch, token)
-	]);
-	const kind = ctaKind(status);
+	const profile = isPerson ? await apiGet(fetch, api(`/profile/${account.id}/`)) : null;
 	return {
 		account: {
 			id: account.id,
@@ -2245,8 +2250,7 @@ Replace the person check and the return of `load`:
 			is_staff: account.is_staff === true,
 			is_person: isPerson
 		},
-		profile,
-		registration: kind ? { kind, href: '/register', year: status.year } : null
+		profile
 	};
 ```
 
@@ -2283,47 +2287,61 @@ and update the doc comment (« …an invited newcomer is served too, without a p
 		});
 	});
 
-	describe('the registration section', () => {
-		const withCta = (kind) => ({ ...data, registration: { kind, href: '/register', year: 2027 } });
+	describe('the registration link', () => {
+		const open = {
+			...data,
+			me: { ...data.me, can_register: true },
+			latestYear: 2027,
+			editions: [{ year: 2027, start_date: '2027-09-18', registration_opens: '2027-01-01', registration_closes: null }]
+		};
+
+		beforeEach(() => vi.useFakeTimers());
+		afterEach(() => vi.useRealTimers());
 
 		it('links the registration while it is open', () => {
-			renderWith(Page, { data: withCta('register'), form: null });
+			vi.setSystemTime(new Date('2027-06-01T10:00:00Z'));
+			renderWith(Page, { data: open, form: null });
 
-			expect(section('Registration')).toBeInTheDocument();
-			expect(within(section('Registration')).getByRole('link', { name: 'Register for the 2027 edition' })).toHaveAttribute('href', '/register');
+			expect(within(section('Registration')).getByRole('link', { name: 'Registration 2027' })).toHaveAttribute('href', '/register');
 		});
 
-		it('offers to edit a registration that exists', () => {
-			renderWith(Page, { data: withCta('edit'), form: null });
-
-			expect(screen.getByRole('link', { name: 'Edit my 2027 registration' })).toHaveAttribute('href', '/register');
-		});
-
-		it('shows no section without one, and words it in French', () => {
-			const { unmount } = renderWith(Page, { data: { ...data, registration: null }, form: null });
+		it('shows no section once it is closed, for someone who cannot register, or without a window', () => {
+			vi.setSystemTime(new Date('2027-09-18T10:00:00Z'));
+			const closed = renderWith(Page, { data: open, form: null });
 			expect(screen.queryByRole('heading', { level: 2, name: 'Registration' })).toBeNull();
-			unmount();
+			closed.unmount();
 
-			renderWith(Page, { data: withCta('register'), form: null }, 'fr');
+			vi.setSystemTime(new Date('2027-06-01T10:00:00Z'));
+			const cannot = renderWith(Page, { data: { ...open, me: { ...open.me, can_register: false } }, form: null });
+			expect(screen.queryByRole('heading', { level: 2, name: 'Registration' })).toBeNull();
+			cannot.unmount();
+
+			renderWith(Page, { data: { ...open, editions: [] }, form: null });
+			expect(screen.queryByRole('heading', { level: 2, name: 'Registration' })).toBeNull();
+		});
+
+		it('words it in French', () => {
+			vi.setSystemTime(new Date('2027-06-01T10:00:00Z'));
+			renderWith(Page, { data: open, form: null }, 'fr');
+
 			expect(screen.getByRole('heading', { level: 2, name: 'Inscription' })).toBeInTheDocument();
-			expect(screen.getByRole('link', { name: "S'inscrire à l'édition 2027" })).toBeInTheDocument();
+			expect(screen.getByRole('link', { name: 'Inscription 2027' })).toBeInTheDocument();
 		});
 	});
 ```
 
-- [ ] **Step 4: Implement the page.** In `account/+page.svelte`:
+- [ ] **Step 4: Implement the page.** In `account/+page.svelte` (import `registrationLink` and `parisToday` from `$lib/registration`; the test file needs `beforeEach`, `afterEach` and `vi` from `vitest`):
   - `$: profile = data.profile;`, `$: name = profile ? fullName(profile) : '';`, `$: collection = profile ? badgeCollection(profile.badges ?? []) : null;`.
   - Breadcrumb: `items={profile ? [{ label: t('players.title'), href: '/players' }, { label: name, href: `/players/${profile.id}` }, { label: t('account.title') }] : [{ label: t('players.title'), href: '/players' }, { label: t('account.title') }]}`.
   - Wrap the photo and showcase `<section>`s in `{#if profile}` … `{/if}`.
+  - In the script add `$: registration = registrationLink({ me: data.me, editions: data.editions ?? [], today: parisToday() });` (the page's `data` carries the layout's `me` and `editions`).
   - After the username line add:
 
 ```svelte
-	{#if data.registration}
+	{#if registration}
 		<section aria-labelledby="account-registration">
 			<h2 id="account-registration">{t('account.section.registration')}</h2>
-			<a class="pill" href={data.registration.href}>
-				{t(data.registration.kind === 'edit' ? 'account.registerEdit' : 'account.registerCta', { year: data.registration.year })}
-			</a>
+			<a class="pill" href={registration.href}>{t('account.registrationLink', { year: registration.year })}</a>
 		</section>
 	{/if}
 ```
@@ -2469,7 +2487,7 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 - [ ] **Step 1: Document slice 3.** In `CLAUDE.md`, in the paragraph beginning `**In-app registration**` replace `Not built yet (slice 3): ...` (end of the « Registration questionnaire » paragraph) with `Slice 3 built the pages (see the front paragraph on registration).` and add, after the « Player accounts on the front » paragraph, a paragraph:
 
 ```markdown
-**Registration on the front** (spec `2026-10-04-in-app-registration-design.md`, slice 3, plan `2026-10-05-registration-ui.md`): the root layout's `me` carries `can_register` (a person or an invited newcomer; a server without it reads as false) and `editions` keep `start_date`, `registration_opens` and `registration_closes` for a visitor's call to action. `Header` links `/register` (`nav.register`) for anyone who can register and links `/account` for an invited newcomer too. `/register` (`routes/register`, no tab bar) is the caller's own form: its load sends a visitor or dead token to `/login?next=/register`, someone who cannot register home (the API's 404 `not_a_person`) and lets any other failure reach the error page, `private, no-store`; the `save` and `withdraw` actions are plain POSTs (the page reloads with the saved answers) that map the API's codes to `register.error.*` (`errors` list of keys, or one `error` key from a status or an `{error}` code such as `closed`, `removed_by_organiser`, `has_team`) and return the form model as typed (`values`) so a refusal keeps what was written. `$lib/registration.js` is the pure core (`initialValues`: posted over saved over suggested over blank; `valuesFromForm`: the hidden `skill` fields, `rating.<id>`, `sport.<i>.<field>` rows with blank ones dropped; `bodyFromValues`: a blank rating is left out and a bad value passed on for the API to refuse; `errorKeys`; `ctaKind`; `visitorCta` and `parisToday`), `RegistrationForm.svelte` renders it (ratings 1 to 10, the global question built from the edition's disciplines, five frequency radios, a sports table with add and remove rows up to 15 and years plus months, wishes, dietary restrictions, the email read-only with a link to `/account` or an editable required field, the required presence tick, the visibility and retention notices, and the notices for a closed, not yet open, late-pass, withdrawn and organiser-removed registration). The hub and `/account` get the call to action from `hubRegistration` (`$lib/server/registration.js`: only the latest edition; a visitor is sent through the login while the public window `visitorCta` is open, someone who can register is asked `/registration/` through `loadRegistrationStatus`, which never throws): `EditionHub` takes `registration` (`{kind: register | edit, href, year}`), and the account page of an invited newcomer has no photo, showcase or profile crumb (`/profile/<id>/` would 404) but gains the registration section. A claim lands a person on their profile and an invited newcomer on `/register`: `linkAction` awaits its `landing(body, {fetch, token})`, and the claim page asks `/me/` with the fresh token. The strings are `register.*`, `nav.register`, `hub.register*` and `account.register*` in both dictionaries, worded « vous ».
+**Registration on the front** (spec `2026-10-04-in-app-registration-design.md`, slice 3, plan `2026-10-05-registration-ui.md`): the root layout's `me` carries `can_register` (a person or an invited newcomer; a server without it reads as false) and `editions` keep `start_date`, `registration_opens` and `registration_closes` for a visitor's call to action. `Header` links `/register` (`nav.register`) for anyone who can register and links `/account` for an invited newcomer too. `/register` (`routes/register`, no tab bar) is the caller's own form: its load sends a visitor or dead token to `/login?next=/register`, someone who cannot register home (the API's 404 `not_a_person`) and lets any other failure reach the error page, `private, no-store`; the `save` and `withdraw` actions are plain POSTs (the page reloads with the saved answers) that map the API's codes to `register.error.*` (`errors` list of keys, or one `error` key from a status or an `{error}` code such as `closed`, `removed_by_organiser`, `has_team`) and return the form model as typed (`values`) so a refusal keeps what was written. `$lib/registration.js` is the pure core (`initialValues`: posted over saved over suggested over blank; `valuesFromForm`: the hidden `skill` fields, `rating.<id>`, `sport.<i>.<field>` rows with blank ones dropped; `bodyFromValues`: a blank rating is left out and a bad value passed on for the API to refuse; `errorKeys`; `registrationLink`, `visitorCta` and `parisToday`), `RegistrationForm.svelte` renders it (ratings 1 to 10, the global question built from the edition's disciplines, five frequency radios, a sports table with add and remove rows up to 15 and years plus months, wishes, dietary restrictions, the email read-only with a link to `/account` or an editable required field, the required presence tick, the visibility and retention notices, and the notices for a closed, not yet open, late-pass, withdrawn and organiser-removed registration; a registered player sees their saved answers read-only once it is closed). The hub and `/account` link the registration with no API call and no server load, from the layout data: `registrationLink` (`$lib/registration.js`) reads `me.can_register` and the latest edition's public window (`visitorCta`: `registration_opens` reached, `registration_closes` or the day before `start_date` not passed, Paris dates), giving a visitor « S'inscrire à l'édition {year} » through `/login?next=/register` and someone who can register « Inscription {year} » to `/register`, which shows whether they are registered and offers the edit; `EditionHub` takes `me` and shows it on the latest edition's hub only. The account page of an invited newcomer has no photo, showcase or profile crumb (`/profile/<id>/` would 404) but keeps the registration link. A claim lands a person on their profile and an invited newcomer on `/register`: `linkAction` awaits its `landing(body, {fetch, token})`, and the claim page asks `/me/` with the fresh token. The strings are `register.*`, `nav.register`, `hub.register`, `hub.registration` and `account.registrationLink` in both dictionaries, worded « vous ».
 ```
 
 - [ ] **Step 2: Run every check CI runs**
@@ -2503,12 +2521,12 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 | Closed, not-yet-open, not-configured, late-pass, withdrawn, organiser-removed states | 5 |
 | Saved registration shows « Enregistré » with edit and withdraw (`has_team` refusal worded) | 4, 5 |
 | Header link for anyone who can register, even outside the window | 1 |
-| Hub call to action (and `/account`), a visitor via the login; hub load calls `/registration/` only when `me.can_register` | 6, 7 |
+| Hub call to action (and `/account`), a visitor via the login; no hub load calls `/registration/` (the link comes from the layout data) | 6, 7 |
 | Invited newcomer: claim lands on `/register`, `/account` open without photo and showcase, header links the name to `/account` | 1, 7, 8 |
 | `register.*` strings in both dictionaries with the parity test; one French test per surface | 3 and each task |
 | `NO_TAB_BAR` | 4 |
 | `CLAUDE.md` | 9 |
 
-Deliberate choices not in the spec text: an **edit** state of the call to action (« Modifier mon inscription ») besides « S'inscrire »; the form is worded « vous » like the rest of the site; the visitor's call to action is decided from the public window (`registration_opens`/`closes`, the day before the start by default) because only a logged-in caller can ask the API; the claim asks `/me/` rather than the claim endpoint growing a field.
+Deliberate choices not in the spec text (decided with Hugo on 2026-10-05): the hub and account links come from the layout data, so they cannot say whether the player is already registered (« Inscription {year} » for everyone logged in who can register; `/register` shows and edits the state) and no hub gains a server load; once registration is closed a registered player reads their saved answers in a read-only summary; the form is worded « vous » like the rest of the site; the claim asks `/me/` rather than the claim endpoint growing a field.
 
-Names used across tasks: `ctaKind`, `visitorCta`, `parisToday`, `initialValues`, `valuesFromForm`, `bodyFromValues`, `errorKeys`, `choiceLabel`, `listNames`, `emptySport`, `MAX_SPORTS` (Task 2, used by 5 and 6); `loadRegistrationStatus`, `hubRegistration` (Task 6, used by 7); `registrationPayload`, `savedAnswers` fixtures (Task 2, used by 4, 5, 6); the `registration` prop `{kind, href, year}` (Task 6, used by 7); the keys `register.*`, `nav.register`, `hub.register*`, `account.register*` (Task 3, used by 1, 5, 6, 7).
+Names used across tasks: `registrationLink`, `visitorCta`, `parisToday`, `initialValues`, `valuesFromForm`, `bodyFromValues`, `errorKeys`, `choiceLabel`, `listNames`, `emptySport`, `MAX_SPORTS` (Task 2, used by 5 and 6); `registrationPayload`, `savedAnswers` fixtures (Task 2, used by 4, 5); `registrationLink`'s `{href, year, visitor}` (Task 2, used by 6 and 7); the keys `register.*`, `nav.register`, `hub.register`, `hub.registration`, `account.registrationLink` (Task 3, used by 1, 5, 6, 7).
