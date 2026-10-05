@@ -93,6 +93,40 @@ describe('matchNames', () => {
 		expect(ids(first('Boucton'))).toEqual([10, 11]);
 	});
 
+	it('does not take a word that is already part of a name for a nickname', () => {
+		const roster = [
+			{ id: 1, first_name: 'Paul', last_name: 'Martin' },
+			{ id: 2, first_name: 'Martine', last_name: 'Martin' }
+		];
+		const result = matchNames('Martin', roster, 99)[0];
+
+		expect(result).toMatchObject({ best: null, confidence: 'ambiguous' });
+		expect(result.candidates.map((c) => c.id).sort()).toEqual([1, 2]);
+	});
+
+	it('does not propose a last-name match when the text names another player by first name', () => {
+		const roster = [
+			{ id: 1, first_name: 'Paul', last_name: 'Martin' },
+			{ id: 2, first_name: 'Léa', last_name: 'Dupont' }
+		];
+		const result = matchNames('Léa Martin', roster, 99)[0];
+
+		expect(result).toMatchObject({ best: null, confidence: 'ambiguous' });
+		expect(result.candidates.map((c) => c.id).sort()).toEqual([1, 2]);
+		// a whole name stays certain whatever else is mentioned
+		expect(matchNames('Léa Dupont', roster, 99)[0]).toMatchObject({ best: 2, confidence: 'exact' });
+	});
+
+	it('does not suggest a typo for everyday short words', () => {
+		const roster = [
+			{ id: 1, first_name: 'Noa', last_name: 'Lopez' },
+			{ id: 2, first_name: 'Tom', last_name: 'Petit' }
+		];
+		for (const text of ['non', 'ton', 'oui', 'moi']) {
+			expect(matchNames(text, roster, 99)[0], text).toMatchObject({ candidates: [] });
+		}
+	});
+
 	it('suggests the first names a nickname starts, without proposing one', () => {
 		const result = first('Alex');
 		expect(result).toMatchObject({ best: null, confidence: 'near' });

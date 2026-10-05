@@ -16,7 +16,8 @@ const NOISE = new Set([
 const STOPWORDS = new Set([
 	'avec', 'pour', 'dans', 'sans', 'pas', 'des', 'les', 'une', 'mais', 'plus', 'tout', 'tous',
 	'etre', 'bien', 'peut', 'veux', 'avoir', 'sinon', 'elle', 'nous', 'vous', 'ils', 'est',
-	'with', 'and', 'the', 'for', 'not', 'any', 'one'
+	'non', 'oui', 'moi', 'toi', 'ton', 'mon', 'son', 'ses', 'mes', 'tes', 'sur', 'par', 'que', 'qui',
+	'with', 'and', 'the', 'for', 'not', 'any', 'one', 'yes', 'you', 'him', 'her'
 ]);
 
 /** The parts of a free-text answer that name someone, one per entry, as written. */
@@ -60,8 +61,12 @@ function distance(a, b) {
  */
 function narrow(found, list) {
 	if (found.length < 2) return found;
+	// Only a word that is no part of any candidate's own name can be a nickname: « Martin » is
+	// the last name of Paul and of Martine Martin, not a nickname of Martine.
+	const inAName = (word) => found.some((entry) => entry.first.includes(word) || entry.last.includes(word));
+	const extras = list.filter((word) => word.length >= 3 && !inAName(word));
 	const nicknames = found.filter((entry) =>
-		list.some((word) => word.length >= 3 && entry.first.length === 1 && entry.first[0].startsWith(word) && !contains(list, entry.first))
+		extras.some((word) => entry.first.length === 1 && entry.first[0].startsWith(word))
 	);
 	return nicknames.length > 0 ? nicknames : found;
 }
@@ -106,9 +111,16 @@ export function matchNames(text, players, selfId) {
 			else if (hasLast) tiers.last.push(entry);
 			else if (hasFirst) tiers.first.push(entry);
 		}
-		for (const tier of ['exact', 'last', 'first']) {
-			if (tiers[tier].length > 0) return result(raw, tier, narrow(tiers[tier], list));
+		if (tiers.exact.length > 0) return result(raw, 'exact', tiers.exact);
+		if (tiers.last.length > 0) {
+			const found = narrow(tiers.last, list);
+			// The text also names someone else by first name (« Léa Martin » with a Paul Martin and
+			// a Léa Dupont): do not pick the last-name match, let the organiser choose.
+			const others = tiers.first.filter((entry) => !found.includes(entry));
+			if (others.length > 0) return result(raw, 'ambiguous', [...found, ...others]);
+			return result(raw, 'last', found);
 		}
+		if (tiers.first.length > 0) return result(raw, 'first', tiers.first);
 
 		// A typo is only worth suggesting in a short answer, where the word is the name.
 		if (list.length <= 3) {
