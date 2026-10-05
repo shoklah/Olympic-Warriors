@@ -147,6 +147,7 @@ describe('BuilderRequests', () => {
 		]]);
 	});
 
+	// Two players are called Paul, so « Paul » is ambiguous; the Pauls themselves write nothing, since a Paul is not offered himself.
 	it('has no bulk button when no line is clear', () => {
 		renderWith(BuilderRequests, { players: players.map((p) => ({ ...p, team_with: p.first_name === 'Paul' ? '' : 'Paul', team_avoid: '' })), links: [] });
 

@@ -128,7 +128,9 @@
 		}
 		if (added.length > 0) commit({ ...draft, links: [...draft.links, ...added] });
 	}
-	$: requestSummary = summarise(requestRows(players), draft.links);
+	// The matches depend on the roster only: a drag or a lock changes the draft, never them.
+	$: rows = requestRows(players);
+	$: requestSummary = summarise(rows, draft.links);
 	function setPerTeam({ detail }) {
 		if (draft.teams.length === 0 && Number.isInteger(detail) && detail >= 2 && detail <= 20) {
 			tooFew = false;

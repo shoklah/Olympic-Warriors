@@ -41,11 +41,11 @@ Under each line, a muted caption from the match's `confidence`: `exact` « Nom c
 
 ### Counter and bulk action (top of step 1)
 
-A `role="status"` line (polite, so a bulk confirmation is announced): « 6 demandes · 1 confirmée · 4 à examiner · 1 sans correspondance » (counts of lines: `confirmed`; `clear` + `choose` + `check`; `none`). Beside it, while at least one line is `clear`, a button « Confirmer {n} correspondances sûres » (`n` the number of `clear` lines): one click confirms every `clear` line, as one change of the draft (one save, one undo through the chips). It does not show at 0. It never touches `choose`, `check` or `none`.
+A line with `aria-live="polite"` (not `role="status"`: the page's save indicator is the only one and a test queries it; a bulk confirmation is still announced): « 6 demandes · 1 confirmée · 4 à examiner · 1 sans correspondance » (counts of lines: `confirmed`; `clear` + `choose` + `check`; `none`). Beside it, while at least one line is `clear`, a button « Confirmer {n} correspondances sûres » (`n` the number of `clear` lines): one click confirms every `clear` line, as one change of the draft (one save, one undo through the chips). It does not show at 0. It never touches `choose`, `check` or `none`.
 
 ### Warning before moving on
 
-While step 1 is shown and at least one line is to examine, a note above the Next button: « {n} demandes ne sont pas confirmées et seront ignorées. » (`role="status"`). It does not block the step change.
+While step 1 is shown and at least one line is to examine, a note above the Next button: « {n} demandes ne sont pas confirmées et seront ignorées. » (in a polite live region that stays in the page). It does not block the step change.
 
 ### Where the logic lives
 
