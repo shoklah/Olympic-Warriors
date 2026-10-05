@@ -13,7 +13,9 @@ Rework the player's registration form after trying it on the dev stack: the rati
 - **Sliders start at 5** and an untouched slider submits 5 (Hugo's choice). The data cannot tell an untouched 5 from a deliberate one.
 - **Steps: gated forward, free backward, free jumping when a registration is saved.**
 - **Step names:** « Votre pratique sportive », « Votre niveau », « Demandes supplémentaires ».
-- Out of scope: saving a draft between steps (the form is submitted once, at the end), a player picker for the team fields, any change to the ratings formula or the questionnaire.
+- **The organisers read the two fields in the Player admin list** (columns and a search), so a name can be searched across everyone's answers.
+- **Notices stay above the progress bar, on every step**; only the edition's intro is step 1's.
+- Out of scope: saving a draft between steps (the form is submitted once, at the end), a player picker for the team fields, a CSV export of the wishes, any change to the ratings formula or the questionnaire. **The team builder interface is the next task after this one**; it will read these two fields, which is why they stay separate and plain.
 
 ## Server (its own PR, first)
 
@@ -21,11 +23,14 @@ Rework the player's registration form after trying it on the dev stack: the rati
 - `PUT /registration/` takes `team_with` and `team_avoid` in place of `team_wishes`, validated like the other free texts (`enrolment._text`: optional, stripped, at most 500 characters → `too_long`, a non-string or a NUL byte → `invalid_text`). `GET`'s saved answers return the two fields; `suggested` still never carries them. The validation codes are unchanged. A body that still sends `team_wishes` has it ignored.
 - Privacy as for the other private answers: both fields join `PRIVATE_KEYS` (`test_showcase.py`), `transfer.PRIVATE_FIELDS` (excluded from `export_edition`), `accounts.deactivate`'s clearing and the `Player` admin (shown beside the legacy field, which is relabelled).
 - The legacy `team_wishes` column is not cleared by a re-registration and not exposed by the API.
+- **Player admin list:** `team_with` and `team_avoid` become columns (truncated to about 60 characters; the full text in the player form) and `search_fields` covers both, so typing a name finds everyone who wants to be with that person or avoid them. They sit beside the existing presence and dietary columns.
 - Deploy: migrate, server, then front. An older front sending `team_wishes` would have it dropped silently.
 
 ## Front (second PR)
 
-**One form, three panels.** A single `<form>` (still a plain POST) holds the three step panels; JavaScript shows one at a time. Without JavaScript all three show stacked in order with one submit button (no « Suivant », no progress bar): it works as a long form, as today.
+**One form, three panels.** A single `<form>` (still a plain POST) holds the three step panels; JavaScript shows one at a time. Without JavaScript all three show stacked in order with one submit button (no « Suivant », no progress bar): it works as a long form, as today. The panels are hidden by CSS from the first paint (only step 1 shows) and a `<noscript>` style block un-hides them all, so a JavaScript visitor never sees the long form flash before hydration. Hidden panels' inputs are still submitted; « Suivant » validates the current step so no required field in a hidden panel can block the final submit.
+
+**Notices.** The saved status, the error list, the late-pass, registered, withdrawn, removed and « Repris de votre inscription » notices sit above the progress bar and stay visible on every step; only the edition's intro text belongs to step 1.
 
 **Progress.** A labelled `nav` above the form reads « Étape 2 sur 3 » with a bar and the three step names (`aria-current="step"`). The bar has a text equivalent. Each step name is a button, enabled according to the navigation rules below.
 
@@ -46,13 +51,13 @@ Rework the player's registration form after trying it on the dev stack: the rati
 
 **Closed registration.** Unchanged: the notice and the read-only summary, which lists both team fields (« Avec » and « À éviter »).
 
-**Accessibility.** Focus moves to the step's heading when the step changes. A panel not shown is `hidden` (out of the accessibility tree), not just invisible. Every slider has a visible label and a value output tied to it with `aria-describedby`; « Suivant » errors sit in a `role="alert"` by the failing field. No slide animation under `prefers-reduced-motion`. Tokens only for colours.
+**Accessibility.** The progress `nav` is labelled « Étapes de l'inscription ». Focus moves to the step's heading when the step changes. A panel not shown is `hidden` (out of the accessibility tree), not just invisible. Every slider has a visible label and a value output tied to it with `aria-describedby`; « Suivant » errors sit in a `role="alert"` by the failing field. No slide animation under `prefers-reduced-motion`. Tokens only for colours.
 
 **Pure module.** `$lib/registration.js`: `valuesFromForm`, `bodyFromValues`, `initialValues` carry `team_with` and `team_avoid` instead of `team_wishes`; a new `stepOfErrors(codes)` maps API codes to a step (1 to 3); `RATING_DEFAULT = 5` is the one place the default lives. Dictionaries gain the step names, the slider and navigation strings, the two team labels and hints (`register.*`, both languages).
 
 ## Tests
 
-Server: `enrolment` validation of the two fields (blank, stripped, 500, 501, NUL, non-string), the save and the answers payload, the privacy walk, the export exclusion, deactivation clearing, the admin, the migration. Front: the pure module (the form model, the body, `stepOfErrors`), the component (the three steps, gated forward and free backward, free jumping when saved, the first-error step, the sliders: default 5, value shown and submitted, keyboard; both team fields; the no-JS stacked rendering through the server-rendered markup; the summary with both fields; French), and the route's actions. The dev stack is walked again in the browser on the smoke edition, since the previous form bug only showed there.
+Server: `enrolment` validation of the two fields (blank, stripped, 500, 501, NUL, non-string), the save and the answers payload, the privacy walk, the export exclusion, deactivation clearing, the admin (the legacy label, the two columns, a search for a name found in either field), the migration. Front: the pure module (the form model, the body, `stepOfErrors`), the component (the three steps, gated forward and free backward, free jumping when saved, the first-error step, the sliders: default 5, value shown and submitted, keyboard; both team fields; the no-JS stacked rendering through the server-rendered markup; the summary with both fields; French), and the route's actions. The dev stack is walked again in the browser on the smoke edition, since the previous form bug only showed there.
 
 ## Rollout, two PRs
 
