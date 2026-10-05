@@ -13,6 +13,7 @@
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import BuilderRequests from '$lib/components/builder/BuilderRequests.svelte';
 	import BuilderTeams from '$lib/components/builder/BuilderTeams.svelte';
+	import PlayerSheet from '$lib/components/builder/PlayerSheet.svelte';
 	import BuilderApply from '$lib/components/builder/BuilderApply.svelte';
 
 	export let data;
@@ -173,6 +174,14 @@
 		const locked = draft.locked.includes(id) ? draft.locked.filter((p) => p !== id) : [...draft.locked, id];
 		commit({ ...draft, locked });
 	}
+	let preview = null; // { id, opener } while a player's sheet is open
+	function openPreview({ detail }) {
+		preview = detail;
+	}
+	$: previewed = preview ? byId.get(preview.id) ?? null : null;
+	// A player who left the roster (a reloaded draft) closes the sheet.
+	$: if (preview && !byId.has(preview.id)) preview = null;
+	$: previewTeam = previewed ? draft.teams.findIndex((tm) => tm.players.includes(previewed.id)) : -1;
 	$: saveBlocked = saveState === 'stale' || saveState === 'error';
 	async function apply() {
 		if (saveBlocked) return;
@@ -276,9 +285,18 @@
 				on:placeNew={placeNew}
 				on:reset={reset}
 				on:move={move}
+				on:preview={openPreview}
 				{showRequests}
 				on:showRequests={setShowRequests}
 				on:lock={toggleLock}
+			/>
+			<PlayerSheet
+				open={previewed !== null}
+				player={previewed}
+				skills={builder.skills}
+				teamIndex={previewTeam}
+				opener={preview?.opener ?? null}
+				on:close={() => (preview = null)}
 			/>
 		{:else}
 			<h2>{t('builder.step.3')}</h2>

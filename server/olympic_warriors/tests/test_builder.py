@@ -124,7 +124,9 @@ class TestPayload(TestCase):
             team_with="Bob", team_avoid="Carl",
         )
         PlayerRating.objects.create(player=self.ana, name="Cardio", identifier="CARD", rating=6)
-        PlayerSport.objects.create(player=self.ana, sport="Judo", level="league")
+        PlayerSport.objects.create(
+            player=self.ana, sport="Judo", level="league", practice="regularly", notes="Ceinture marron"
+        )
 
     def test_the_roster_carries_the_private_answers_and_nothing_of_the_user(self):
         body = builder.payload(self.edition)
@@ -140,7 +142,8 @@ class TestPayload(TestCase):
             {
                 "id": self.ana.pk, "first_name": "Ana", "last_name": "Test", "rating": 7,
                 "global_level": 8, "ratings": {"CARD": 6}, "sport_frequency": "two_hours",
-                "sports": [{"sport": "Judo", "level": "league"}], "team_with": "Bob",
+                "sports": [{"sport": "Judo", "level": "league", "practice": "regularly", "notes": "Ceinture marron"}],
+                "team_with": "Bob",
                 "team_avoid": "Carl", "team": None,
             },
         )

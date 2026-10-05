@@ -16,6 +16,9 @@
 	$: targets = Array.from({ length: teamCount }, (_, i) => i).filter((i) => i !== index);
 
 	let dragging = false;
+	// The move menu is hidden on a wide screen with a mouse and widens the row while it has focus; only
+	// the menu does that, since focusing a button (the mouse-down of a click) must not move it.
+	let menuFocused = false;
 	function dragStart(event) {
 		dragging = true;
 		event.dataTransfer?.setData('text/plain', String(player.id));
@@ -27,23 +30,30 @@
 		if (value === '') return;
 		dispatch('move', { id: player.id, to: value === 'tray' ? null : Number(value) });
 	}
+
+	function preview(event) {
+		dispatch('preview', { id: player.id, opener: event.currentTarget });
+	}
 </script>
 
-<li class="card" class:locked class:dragging draggable="true" on:dragstart={dragStart} on:dragend={() => (dragging = false)}>
+<li class="card" class:locked class:placed={index !== -1} class:dragging draggable="true" on:dragstart={dragStart} on:dragend={() => (dragging = false)}>
 	<span class="top">
 		<span class="name">{name}</span>
 		<span class="rating num">{player.rating}</span>
 	</span>
 	{#if incomplete}<span class="badge">{t('builder.incomplete')}</span>{/if}
 	{#each notes as note}<span class="note">{note}</span>{/each}
-	<span class="actions">
+	<span class="actions" class:menu-focused={menuFocused}>
 		{#if targets.length > 0 || index !== -1}
-		<select aria-label={t('builder.move', { name })} on:change={change}>
+		<select aria-label={t('builder.move', { name })} on:change={change} on:focus={() => (menuFocused = true)} on:blur={() => (menuFocused = false)}>
 			<option value="">{t('builder.moveTo')}</option>
 			{#each targets as i}<option value={i}>{t('builder.team', { n: i + 1 })}</option>{/each}
 			{#if index !== -1}<option value="tray">{t('builder.moveToTray')}</option>{/if}
 		</select>
 		{/if}
+		<button type="button" class="icon-button" aria-label={t('builder.preview', { name })} on:click={preview}>
+			<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9" /><path d="M12 11v6" /><circle cx="12" cy="7.5" r="0.6" /></svg>
+		</button>
 		{#if index !== -1}
 			<button
 				type="button"
@@ -145,16 +155,19 @@
 		.card {
 			position: relative;
 		}
-		/* The lock moves up beside the rating, so the row it shared with the menu goes away. */
+		/* The eye (and the lock, on a placed card) move up beside the rating, so the row they shared with the menu goes away. */
 		.top {
 			padding-right: 2.5rem;
+		}
+		.card.placed .top {
+			padding-right: 5rem;
 		}
 		.actions {
 			position: absolute;
 			top: 0.375rem;
 			right: 0.5rem;
 		}
-		.actions:focus-within {
+		.actions.menu-focused {
 			left: 0.75rem;
 			z-index: 1;
 			padding: 0.25rem 0 0.25rem 0.25rem;
