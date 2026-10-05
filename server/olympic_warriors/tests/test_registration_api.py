@@ -30,7 +30,7 @@ def answer(**changes):
         "ratings": {"AAA": 6, "BBB": 6},
         "global_level": 8,
         "sport_frequency": "two_hours",
-        "sports": [{"sport": "Judo", "level": "amateur"}],
+        "sports": [{"sport": "Judo", "level": "informal"}],
         "team_with": "Avec Bob",
         "team_avoid": "Pas Carl",
         "dietary_restrictions": "",

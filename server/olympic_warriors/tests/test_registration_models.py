@@ -54,7 +54,7 @@ class TestPlayerRegistrationFields(TestCase):
     def test_sports_come_back_in_order_and_die_with_the_player(self):
         player = Player.objects.create(user=self.ana, edition=self.edition, rating=5)
         PlayerSport.objects.create(player=player, order=2, sport="Judo")
-        PlayerSport.objects.create(player=player, order=1, sport="Tennis", level="amateur")
+        PlayerSport.objects.create(player=player, order=1, sport="Tennis", level="informal")
 
         self.assertEqual([s.sport for s in player.playersport_set.all()], ["Tennis", "Judo"])
 

@@ -33,7 +33,7 @@ def good(**changes):
         "ratings": {"AAA": 6, "BBB": 6},
         "global_level": 8,
         "sport_frequency": "two_hours",
-        "sports": [{"sport": "Judo", "level": "amateur", "practice": "no_longer",
+        "sports": [{"sport": "Judo", "level": "informal", "practice": "no_longer",
                     "duration_months": 30, "notes": "Ceinture orange"}],
         "team_with": "Avec Bob",
         "team_avoid": "Pas Carl",
@@ -237,7 +237,7 @@ class TestSave(Setup):
             [("AAA", "AAA en", 6.0), ("BBB", "BBB en", 6.0)],
         )
         sport = player.playersport_set.get()
-        self.assertEqual((sport.sport, sport.level, sport.practice, sport.duration_months), ("Judo", "amateur", "no_longer", 30))
+        self.assertEqual((sport.sport, sport.level, sport.practice, sport.duration_months), ("Judo", "informal", "no_longer", 30))
 
     def test_a_second_save_updates_in_place_keeps_the_team_and_replaces_the_sports(self):
         first = self.save()
@@ -402,7 +402,7 @@ class TestPayload(Setup):
         self.assertEqual([c["value"] for c in body["choices"]["frequency"]],
                          ["rare", "monthly", "hour", "two_hours", "four_hours"])
         self.assertEqual([c["value"] for c in body["choices"]["level"]],
-                         ["beginner", "amateur", "club", "competition"])
+                         ["fun", "informal", "club", "league", "regional"])
         self.assertEqual([c["value"] for c in body["choices"]["practice"]],
                          ["no_longer", "occasionally", "regularly"])
         self.assertEqual(body["disciplines"], ["Relay"])
@@ -437,7 +437,7 @@ class TestPayload(Setup):
             self.assertTrue(answers["attendance_confirmed"])
             self.assertEqual(
                 answers["sports"],
-                [{"sport": "Judo", "level": "amateur", "practice": "no_longer",
+                [{"sport": "Judo", "level": "informal", "practice": "no_longer",
                   "duration_months": 30, "notes": "Ceinture orange"}],
             )
 

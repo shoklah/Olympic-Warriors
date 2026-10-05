@@ -25,7 +25,7 @@ const post = (action, entries) => {
 const goodEntries = [
 	['skill', 'CARD'], ['skill', 'STR'], ['rating.CARD', '6'], ['rating.STR', '7'],
 	['global_level', '8'], ['sport_frequency', 'two_hours'],
-	['sport.0.sport', 'Judo'], ['sport.0.level', 'amateur'], ['sport.0.practice', 'no_longer'],
+	['sport.0.sport', 'Judo'], ['sport.0.level', 'informal'], ['sport.0.practice', 'no_longer'],
 	['sport.0.years', '2'], ['sport.0.months', '6'], ['sport.0.notes', ''],
 	['team_with', ''], ['team_avoid', ''], ['dietary_restrictions', ''], ['attendance_confirmed', 'on']
 ];
@@ -88,7 +88,7 @@ describe('register save', () => {
 			ratings: { CARD: 6, STR: 7 },
 			global_level: 8,
 			sport_frequency: 'two_hours',
-			sports: [{ sport: 'Judo', level: 'amateur', practice: 'no_longer', duration_months: 30, notes: '' }],
+			sports: [{ sport: 'Judo', level: 'informal', practice: 'no_longer', duration_months: 30, notes: '' }],
 			team_with: '',
 			team_avoid: '',
 			dietary_restrictions: '',

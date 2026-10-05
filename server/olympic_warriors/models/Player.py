@@ -111,10 +111,13 @@ class PlayerSport(models.Model):
     """
 
     class Level(models.TextChoices):
-        BEGINNER = "beginner", "Débutant"
-        AMATEUR = "amateur", "Amateur"
-        CLUB = "club", "Club"
-        COMPETITION = "competition", "Compétition"
+        # An ordered ladder of the highest level reached, so exactly one answer is true
+        # (the first version mixed skill and setting: a person could be several at once).
+        FUN = "fun", "Pour le plaisir, entre amis"
+        INFORMAL = "informal", "Régulièrement, hors club"
+        CLUB = "club", "En club, sans compétition"
+        LEAGUE = "league", "En club, avec compétitions"
+        REGIONAL = "regional", "Niveau régional ou supérieur"
 
     class Practice(models.TextChoices):
         NO_LONGER = "no_longer", "Ne pratique plus"

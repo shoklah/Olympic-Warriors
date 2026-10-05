@@ -214,7 +214,7 @@ describe('RegistrationForm', () => {
 		expect(within(summary).getByText('Cardio')).toBeInTheDocument();
 		expect(within(summary).getByText('6')).toBeInTheDocument();
 		expect(within(summary).getByText('At least two hours a week')).toBeInTheDocument();
-		expect(within(summary).getByText(/Judo/)).toHaveTextContent('Amateur');
+		expect(within(summary).getByText(/Judo/)).toHaveTextContent('Regularly, outside a club');
 		expect(within(summary).getByText(/Judo/)).toHaveTextContent('2 years 6 months');
 		expect(within(summary).getByText(/Judo/)).toHaveTextContent('Ceinture orange');
 		expect(within(summary).getByText('Avec Bob')).toBeInTheDocument();

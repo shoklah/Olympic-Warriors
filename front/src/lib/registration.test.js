@@ -63,7 +63,7 @@ describe('initialValues', () => {
 		expect(values.global_level).toBe('8');
 		expect(values.sport_frequency).toBe('two_hours');
 		expect(values.sports).toEqual([
-			{ sport: 'Judo', level: 'amateur', practice: 'no_longer', years: '2', months: '6', notes: 'Ceinture orange' }
+			{ sport: 'Judo', level: 'informal', practice: 'no_longer', years: '2', months: '6', notes: 'Ceinture orange' }
 		]);
 		expect(values.team_with).toBe('Avec Bob');
 		expect(values.team_avoid).toBe('Pas Carl');
@@ -117,7 +117,7 @@ describe('valuesFromForm and bodyFromValues', () => {
 		['global_level', '8'],
 		['sport_frequency', 'two_hours'],
 		['sport.0.sport', ' Judo '],
-		['sport.0.level', 'amateur'],
+		['sport.0.level', 'informal'],
 		['sport.0.practice', 'no_longer'],
 		['sport.0.years', '2'],
 		['sport.0.months', '6'],
@@ -139,7 +139,7 @@ describe('valuesFromForm and bodyFromValues', () => {
 
 		expect(values.ratings).toEqual({ CARD: '6', STR: '7' });
 		expect(values.sports).toEqual([
-			{ sport: ' Judo ', level: 'amateur', practice: 'no_longer', years: '2', months: '6', notes: 'Ceinture orange' }
+			{ sport: ' Judo ', level: 'informal', practice: 'no_longer', years: '2', months: '6', notes: 'Ceinture orange' }
 		]);
 		expect(values.attendance_confirmed).toBe(true);
 		expect(values.email).toBe('');
@@ -174,7 +174,7 @@ describe('valuesFromForm and bodyFromValues', () => {
 			global_level: 8,
 			sport_frequency: 'two_hours',
 			sports: [
-				{ sport: 'Judo', level: 'amateur', practice: 'no_longer', duration_months: 30, notes: 'Ceinture orange' }
+				{ sport: 'Judo', level: 'informal', practice: 'no_longer', duration_months: 30, notes: 'Ceinture orange' }
 			],
 			team_with: 'Avec Bob',
 			team_avoid: 'Pas Carl',
