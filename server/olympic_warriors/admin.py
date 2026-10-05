@@ -3,28 +3,37 @@ Admin dashboard configuration for the Olympic Warriors app.
 """
 
 import math
+from functools import partial
 
+from django import forms
 from django.contrib import messages
 from django.contrib.admin import action, display, site, ModelAdmin, SimpleListFilter, TabularInline
 from django.contrib.admin.actions import delete_selected as stock_delete_selected
 from django.contrib.admin.forms import AdminAuthenticationForm
 from django.contrib.auth import get_user_model
-from django.core.exceptions import ImproperlyConfigured, ValidationError
+from django.core.exceptions import ImproperlyConfigured, PermissionDenied, ValidationError
 from django.db import transaction
-from django.forms import BaseInlineFormSet, ModelChoiceField, ModelForm
+from django.forms import BaseInlineFormSet, ModelChoiceField, ModelForm, modelformset_factory
 from django.http import HttpRequest
+from django.shortcuts import redirect
+from django.template.response import TemplateResponse
+from django.urls import path, reverse
 from django.utils.html import format_html
 from django.utils.translation import gettext_lazy
 from .avatars import remove_photo
 from .badges import refresh
+from . import invitations
 from .claims import INACTIVE, NOT_A_PERSON, STAFF, Unclaimable, claim_link, public_url
 from .profiles import PARIS
+from .registration_state import CLOSED, NOT_CONFIGURED, NOT_YET_OPEN, registration_state
 from .questionnaire import QuestionnaireError, copy_skills, recompute_ratings, skills_locked
 from .throttling import LoginRateThrottle
 from .models import (
     MANUAL_CODES,
     Badge,
     BadgeRefresh,
+    LateRegistration,
+    latest_edition,
     UserProfile,
     Player,
     PlayerRating,
@@ -310,6 +319,38 @@ class DietaryFilter(SimpleListFilter):
         return queryset
 
 
+def _who(users):
+    return ", ".join(f"{user.get_full_name() or user.username} ({user.username})" for user in users)
+
+
+@action(description="Autoriser l'inscription tardive", permissions=["change"])
+def grant_late_pass(modeladmin, request, queryset):
+    """Let the selected people register for the latest edition whatever the window says,
+    until the edition's end. Works on players and on profiles (invited newcomers)."""
+    edition = latest_edition()
+    if edition is None:
+        modeladmin.message_user(request, "Aucune édition.", messages.ERROR)
+        return
+    granted, already, seen = [], [], set()
+    for row in queryset.select_related("user"):
+        user = row.user
+        if user.pk in seen:
+            continue
+        seen.add(user.pk)
+        _, created = LateRegistration.objects.get_or_create(
+            user=user, edition=edition, defaults={"granted_by": request.user}
+        )
+        (granted if created else already).append(user)
+    if granted:
+        modeladmin.message_user(
+            request, f"Inscription tardive accordée pour {edition.year} à : {_who(granted)}."
+        )
+    if already:
+        modeladmin.message_user(
+            request, f"Inscription tardive déjà accordée à : {_who(already)}.", messages.WARNING
+        )
+
+
 class PlayerAdmin(ClaimLinksPermission, ModelAdmin):
     """
     Admin dashboard configuration for the Player model.
@@ -334,7 +375,7 @@ class PlayerAdmin(ClaimLinksPermission, ModelAdmin):
         "edition__year",
     ]
     inlines = [PlayerRatingInline, PlayerSportInline]
-    actions = [generate_claim_links]
+    actions = [generate_claim_links, grant_late_pass]
 
     @display(boolean=True, description="Restrictions alimentaires")
     def has_dietary(self, obj):
@@ -475,7 +516,29 @@ class EditionAdmin(ModelAdmin):
         "photos_url",
         "registration_form",
         "is_active",
+        "registration_status",
+        "registration_opens",
+        "registration_closes",
+        "registration_intro_fr",
+        "registration_intro_en",
+        "skills_month_fr",
+        "skills_month_en",
     )
+    readonly_fields = ["registration_status"]
+
+    @display(description="Inscription en ligne")
+    def registration_status(self, obj):
+        """Open or why not, as an anonymous visitor sees it (a late pass is per person)."""
+        if obj.pk is None:
+            return "—"
+        state = registration_state(obj)
+        if state.is_open:
+            return "Ouverte"
+        return "Fermée : " + {
+            NOT_CONFIGURED: "questionnaire ou date d'ouverture manquant",
+            NOT_YET_OPEN: "pas encore ouverte",
+            CLOSED: "terminée",
+        }[state.reason]
 
     def changelist_view(self, request, extra_context=None):
         """
@@ -872,6 +935,53 @@ def remove_and_lock(modeladmin, request, queryset):
     )
 
 
+class LateRegistrationAdmin(ModelAdmin):
+    """The late passes: listed and revoked here, granted by the « Autoriser l'inscription
+    tardive » action."""
+
+    list_display = ["user", "edition", "granted_at", "granted_by"]
+    list_filter = ["edition"]
+    search_fields = ["user__username", "user__first_name", "user__last_name"]
+    list_select_related = ["user", "edition", "granted_by"]
+    readonly_fields = ["user", "edition", "granted_at", "granted_by"]
+
+    def has_add_permission(self, request):
+        return False
+
+
+class InviteForm(forms.Form):
+    """One person (three fields) or a paste of `Prénom Nom, email` lines, or both."""
+
+    first_name = forms.CharField(label="Prénom", required=False)
+    last_name = forms.CharField(label="Nom", required=False)
+    email = forms.EmailField(label="Email", required=False)
+    lines = forms.CharField(
+        label="Une personne par ligne : Prénom Nom, email",
+        widget=forms.Textarea(attrs={"rows": 10, "cols": 70}),
+        required=False,
+    )
+    late_pass = forms.BooleanField(
+        label="Inscription tardive (même hors période d'inscription)", required=False
+    )
+
+    def clean(self):
+        data = super().clean()
+        single = [data.get(k) for k in ("first_name", "last_name", "email")]
+        if any(single) and not (data.get("first_name") and data.get("email")):
+            raise forms.ValidationError("Pour une personne seule : prénom et email sont requis.")
+        if not any(single) and not (data.get("lines") or "").strip():
+            raise forms.ValidationError("Saisissez une personne ou collez une liste.")
+        return data
+
+    def text(self):
+        """The paste, with the single person appended as one more line."""
+        lines = (self.cleaned_data.get("lines") or "").strip()
+        if self.cleaned_data.get("first_name"):
+            name = f"{self.cleaned_data['first_name']} {self.cleaned_data.get('last_name', '')}"
+            lines = (lines + "\n" if lines else "") + f"{name.strip()}, {self.cleaned_data['email']}"
+        return lines
+
+
 class UserProfileAdmin(ClaimLinksPermission, ModelAdmin):
     """
     Photo moderation. Organisers never upload a photo (every face on the site was put there
@@ -887,26 +997,89 @@ class UserProfileAdmin(ClaimLinksPermission, ModelAdmin):
         "name",
         "thumbnail",
         "photo_locked",
+        "invited",
         "anonymized",
         "claimed_at",
         "updated_at",
     ]
-    list_editable = ["photo_locked"]
-    list_filter = ["photo_locked", "anonymized", HasPhotoFilter, ClaimedFilter]
+    list_editable = ["photo_locked", "invited"]
+    list_filter = ["photo_locked", "invited", "anonymized", HasPhotoFilter, ClaimedFilter]
     list_select_related = ("user",)
     search_fields = ["user__first_name", "user__last_name", "user__username"]
     ordering = ["user__last_name", "user__first_name", "user__username"]
-    actions = [remove_photos, remove_and_lock, generate_claim_links]
+    actions = [remove_photos, remove_and_lock, generate_claim_links, grant_late_pass]
     fields = [
         "user",
         "photo_preview",
         "photo_locked",
+        "invited",
         "anonymized",
         "pinned",
         "claimed_at",
         "updated_at",
     ]
     readonly_fields = ["user", "photo_preview", "pinned", "claimed_at", "updated_at"]
+
+    change_list_template = "admin/olympic_warriors/userprofile/change_list.html"
+
+    def get_urls(self):
+        custom = [
+            path(
+                "invite/",
+                self.admin_site.admin_view(self.invite_view),
+                name="olympic_warriors_userprofile_invite",
+            )
+        ]
+        return custom + super().get_urls()
+
+    def invite_view(self, request):
+        """Create or reuse accounts from a paste and show each person's claim link (in
+        messages only, never logged). Needs the right to add and to change users: a link
+        sets a password and the page creates users."""
+        if not request.user.has_perms(["auth.add_user", "auth.change_user"]):
+            raise PermissionDenied
+        form = InviteForm(request.POST if request.method == "POST" else None)
+        if request.method == "POST" and form.is_valid():
+            entries, problems = invitations.parse_lines(form.text())
+            try:
+                results = invitations.invite(
+                    entries, problems, form.cleaned_data["late_pass"], granted_by=request.user
+                )
+            except ImproperlyConfigured:
+                self.message_user(
+                    request,
+                    "PUBLIC_URL n'est pas configurée : aucun compte créé, aucun lien généré.",
+                    messages.ERROR,
+                )
+            except LookupError:
+                self.message_user(request, "Aucune édition : aucun compte créé.", messages.ERROR)
+            else:
+                self._report(request, results)
+                return redirect(reverse("admin:olympic_warriors_userprofile_invite"))
+        context = {**self.admin_site.each_context(request), "form": form, "title": "Inviter des joueurs", "opts": self.model._meta}
+        return TemplateResponse(request, "admin/olympic_warriors/userprofile/invite.html", context)
+
+    def _report(self, request, results):
+        for result in results:
+            head = f"Ligne {result.line} : {result.name}"
+            if result.status == invitations.CREATED or result.status == invitations.REUSED:
+                verb = "créé" if result.status == invitations.CREATED else "compte existant réutilisé"
+                text = f"{head} ({verb}) : {result.link}"
+                if result.late_pass:
+                    text += " (inscription tardive : envoyer aussi l'adresse /register)"
+                if result.warning:
+                    self.message_user(request, f"{text} — ATTENTION : {result.warning}", messages.WARNING)
+                else:
+                    self.message_user(request, text)
+            elif result.status == invitations.STAFF:
+                self.message_user(request, f"{head} (organisateur, déjà un compte) : {result.detail}")
+            else:
+                label = {
+                    invitations.CONFLICT: "conflit",
+                    invitations.MALFORMED: "ligne illisible",
+                    invitations.DUPLICATE: "doublon",
+                }[result.status]
+                self.message_user(request, f"{head} : {label}, {result.detail}", messages.WARNING)
 
     @display(description="name", ordering="user__last_name")
     def name(self, obj):
@@ -950,6 +1123,28 @@ class UserProfileAdmin(ClaimLinksPermission, ModelAdmin):
     def has_add_permission(self, request):
         return False
 
+    def _may_invite(self, request):
+        """`invited` gates claim links, password resets and registration: like the claim
+        action and the invite page, changing it needs auth.change_user, whatever the
+        organiser's rights on profiles."""
+        return request.user.has_perm("auth.change_user")
+
+    def get_readonly_fields(self, request, obj=None):
+        readonly = super().get_readonly_fields(request, obj)
+        return readonly if self._may_invite(request) else [*readonly, "invited"]
+
+    def get_changelist_formset(self, request, **kwargs):
+        """The list's editable columns, `invited` only for who may change it (Django's own
+        implementation, with `fields` filtered: it takes no `fields` override)."""
+        editable = [
+            name for name in self.list_editable if name != "invited" or self._may_invite(request)
+        ]
+        defaults = {"formfield_callback": partial(self.formfield_for_dbfield, request=request)}
+        defaults.update(kwargs)
+        return modelformset_factory(
+            self.model, self.get_changelist_form(request), extra=0, fields=editable, **defaults
+        )
+
     def get_actions(self, request):
         """Only this admin's own actions: next to « Retirer la photo », the stock bulk delete
         would drop the whole rows, pins and claim date with them, which taking a photo down
@@ -967,6 +1162,7 @@ site.register(Team, TeamAdmin)
 site.register(Edition, EditionAdmin)
 site.register(Badge, BadgeAdmin)
 site.register(UserProfile, UserProfileAdmin)
+site.register(LateRegistration, LateRegistrationAdmin)
 site.register(PlayerRating, PlayerRatingAdmin)
 site.register(Discipline, DisciplineAdmin)
 site.register(TeamResult, TeamResultAdmin)

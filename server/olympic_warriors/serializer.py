@@ -752,6 +752,9 @@ class MeSerializer(serializers.Serializer):
     is_person = serializers.BooleanField(
         help_text="An active player of an active edition: has a profile, a photo and a showcase"
     )
+    can_register = serializers.BooleanField(
+        help_text="A person, or invited by an organiser: may register for the open edition"
+    )
     photo = PhotoSerializer(allow_null=True)
     photo_locked = serializers.BooleanField(help_text="Uploads refused by an organiser")
     showcase = MeShowcaseSerializer()

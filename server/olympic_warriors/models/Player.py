@@ -42,6 +42,10 @@ class Player(models.Model):
         default=False,
         help_text="The player's own tick: paid and will be there. Nothing checks it.",
     )
+    # Set when the player withdrew through the app (DELETE /registration/), cleared when
+    # they register again. An inactive row WITHOUT it was removed by an organiser: only a
+    # late pass lets that person register again (enrolment.removed_by_organiser).
+    withdrawn_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self) -> str:
         return self.user.first_name + " " + self.user.last_name

@@ -21,12 +21,11 @@ from django.core.validators import validate_email
 from django.conf import settings
 
 from .claims import claim_link, unclaimable_reason
+from .emails import INTERNAL_DOMAIN, is_internal  # noqa: F401  (re-exported for callers)
 from .password_reset import validity
 from .profiles import person_players
 
 logger = logging.getLogger(__name__)
-
-INTERNAL_DOMAIN = "olympicwarriors.com"
 
 SUBJECT = "Olympic Warriors : activez votre compte"
 BODY = (
@@ -45,11 +44,6 @@ class Plan:
     recipients: list = field(default_factory=list)
     skipped: dict = field(default_factory=lambda: defaultdict(list))  # reason -> users
     shared: dict = field(default_factory=dict)  # lower-cased address -> users sharing it
-
-
-def is_internal(email):
-    domain = email.rpartition("@")[2].lower()
-    return domain == INTERNAL_DOMAIN or domain.endswith("." + INTERNAL_DOMAIN)
 
 
 def _email_problem(email):

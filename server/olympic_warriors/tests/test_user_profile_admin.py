@@ -81,7 +81,7 @@ class TestUserProfileAdmin(MediaRootTestCase):
     def test_the_lock_is_edited_from_the_list(self):
         response = self.client.get(PROFILES)
         editable = response.context["cl"].formset.forms[0].fields
-        self.assertEqual(set(editable), {"photo_locked", "id"})
+        self.assertEqual(set(editable), {"photo_locked", "invited", "id"})
 
         form = {
             "form-TOTAL_FORMS": "3",
@@ -121,7 +121,9 @@ class TestUserProfileAdmin(MediaRootTestCase):
 
         choices = [name for name, _ in response.context["action_form"].fields["action"].choices]
         # The claim links action is tested with PlayerAdmin's in test_claims.py.
-        self.assertEqual(choices, ["", "remove_photos", "remove_and_lock", "generate_claim_links"])
+        self.assertEqual(choices, [
+            "", "remove_photos", "remove_and_lock", "generate_claim_links", "grant_late_pass",
+        ])
 
     def test_removing_the_photos_of_a_selection(self):
         files = [self.ana.photo.name, self.ana.photo_small.name, self.cleo.photo.name]
@@ -164,7 +166,7 @@ class TestUserProfileAdmin(MediaRootTestCase):
         self.assertContains(response, f'<img src="{self.ana.photo_small.url}"')
         self.assertContains(response, "G.O.A.T, Champion")
         form = response.context["adminform"].form
-        self.assertEqual(list(form.fields), ["photo_locked", "anonymized"])
+        self.assertEqual(list(form.fields), ["photo_locked", "invited", "anonymized"])
 
     def test_the_change_form_shows_the_empty_value_without_a_photo_or_pins(self):
         response = self.client.get(f"{PROFILES}{self.bob.pk}/change/")

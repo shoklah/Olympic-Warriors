@@ -73,6 +73,7 @@ PLAYER = {
     "me/email/",
     "me/password/",
     "me/deactivate/",
+    "registration/",  # the caller's registration
     "game/<int:game_id>/",
     "games/",
     "games/discipline/<int:discipline_id>/",

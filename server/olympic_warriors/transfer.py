@@ -56,7 +56,10 @@ TABLES = (
 # --replace cascade-deletes the replaced edition's ones. A UserProfile (photo, showcase,
 # claim) is about a person, not an edition, and lives on prod only. PlayerSport is a
 # person's private sports history, like the Player fields in PRIVATE_FIELDS.
-NOT_EXPORTED = frozenset({"Badge", "BadgeProgress", "BadgeRefresh", "UserProfile", "PlayerSport"})
+# LateRegistration is an organiser's decision about a person on one database.
+NOT_EXPORTED = frozenset(
+    {"Badge", "BadgeProgress", "BadgeRefresh", "UserProfile", "PlayerSport", "LateRegistration"}
+)
 
 # Personal answers given at registration never leave their database; an import leaves
 # them at the model default. (Player.global_level is not here: it is part of the rating.)
