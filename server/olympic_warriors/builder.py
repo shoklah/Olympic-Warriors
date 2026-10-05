@@ -3,6 +3,9 @@ shape rules, the roster payload, the stale-checked save and Apply. The generator
 scoring live in the browser; nothing here balances teams."""
 from django.db import transaction
 
+from .models import Edition, Player, PlayerRating, PlayerSport, RegistrationSkill, Team, TeamDraft
+from .registration_state import registration_state
+
 MIN_PER_TEAM = 2
 MAX_PER_TEAM = 20
 MAX_LINKS = 200
@@ -93,3 +96,100 @@ def validate_draft(document, player_ids):
         "teams": cleaned_teams,
         "locked": list(locked),
     }
+
+
+# The payload's queries: players (with user and team), ratings, sports, skills, the draft,
+# the teams-exist check and the registration state's skills check.
+BUILDER_QUERIES = 7
+
+
+class StaleDraft(Exception):
+    """The draft changed (or was cleared) since the page loaded it; `current` is the stored one or None."""
+
+    def __init__(self, current):
+        super().__init__("stale_draft")
+        self.current = current
+
+
+def roster(edition):
+    """The active players of active users: the ones the builder places."""
+    return Player.objects.filter(edition=edition, is_active=True, user__is_active=True)
+
+
+def _valid_team_id(player, edition):
+    team = player.team
+    if team is None or not team.is_active or team.edition_id != edition.pk:
+        return None
+    return team.pk
+
+
+def draft_payload(draft):
+    return {"document": draft.document, "updated_at": draft.updated_at.isoformat()}
+
+
+def payload(edition):
+    """What `GET /builder/<year>/` serves: the roster with its private registration answers,
+    the questionnaire's skills, whether registration is open and the saved draft."""
+    players = list(
+        roster(edition).select_related("user", "team").order_by("user__last_name", "user__first_name", "id")
+    )
+    ids = [p.pk for p in players]
+    ratings, sports = {}, {}
+    for row in PlayerRating.objects.filter(player_id__in=ids, is_active=True).values(
+        "player_id", "identifier", "rating"
+    ):
+        ratings.setdefault(row["player_id"], {})[row["identifier"]] = row["rating"]
+    for row in PlayerSport.objects.filter(player_id__in=ids).order_by("order", "id").values(
+        "player_id", "sport", "level"
+    ):
+        sports.setdefault(row["player_id"], []).append({"sport": row["sport"], "level": row["level"]})
+    skills = [
+        {"identifier": s.identifier, "name_fr": s.name_fr, "name_en": s.name_en}
+        for s in RegistrationSkill.objects.filter(edition=edition, is_active=True).order_by("order", "id")
+    ]
+    draft = TeamDraft.objects.filter(edition=edition).first()
+    return {
+        "edition": {"year": edition.year},
+        "skills": skills,
+        "registration_open": registration_state(edition).is_open,
+        "teams_exist": Team.objects.filter(edition=edition, is_active=True).exists(),
+        "players": [
+            {
+                "id": p.pk,
+                "first_name": p.user.first_name,
+                "last_name": p.user.last_name,
+                "rating": p.rating,
+                "global_level": p.global_level,
+                "ratings": ratings.get(p.pk, {}),
+                "sport_frequency": p.sport_frequency,
+                "sports": sports.get(p.pk, []),
+                "team_with": p.team_with,
+                "team_avoid": p.team_avoid,
+                "team": _valid_team_id(p, edition),
+            }
+            for p in players
+        ],
+        "draft": draft_payload(draft) if draft else None,
+    }
+
+
+def save_draft(edition, user, document, based_on):
+    """Store the draft, refusing a save based on a version that is no longer the stored one.
+    Returns the row. Raises DraftError (shape) or StaleDraft."""
+    cleaned = validate_draft(document, roster(edition).values_list("pk", flat=True))
+    with transaction.atomic():
+        current = TeamDraft.objects.select_for_update().filter(edition=edition).first()
+        if current is None:
+            if based_on is not None:
+                raise StaleDraft(None)
+            return TeamDraft.objects.create(edition=edition, document=cleaned, updated_by=user)
+        if based_on != current.updated_at.isoformat():
+            raise StaleDraft(current)
+        current.document = cleaned
+        current.updated_by = user
+        current.save()
+        return current
+
+
+def clear_draft(edition):
+    TeamDraft.objects.filter(edition=edition).delete()
