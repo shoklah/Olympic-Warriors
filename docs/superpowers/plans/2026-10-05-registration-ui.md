@@ -35,7 +35,7 @@
 | `front/src/routes/register/+page.server.js`, `+page.svelte` (create) + tests | The `/register` route. |
 | `front/src/lib/components/RegistrationForm.svelte` (create) + `.test.js` | The form, its notices and the sports rows; a read-only summary of the saved answers once registration is closed. |
 | `front/src/routes/+layout.svelte` (modify) | `/register` has no tab bar. |
-| `front/src/lib/components/EditionHub.svelte` (+ test), `routes/+page.svelte`, `routes/[year=year]/+page.svelte` (modify) | The hub link, from the layout data. |
+| `front/src/lib/components/EditionHub.svelte` (+ test), `routes/+page.svelte`, `routes/[year=year]/+page.svelte`, `routes/login/login.svelte` (+ test) (modify) | The hub link, from the layout data; the login page's invitation note. |
 | `front/src/routes/account/+page.server.js`, `+page.svelte` (+ tests) (modify) | An invited newcomer's account page; the registration link. |
 | `front/src/lib/server/password-link.js` (+ test), `routes/claim/[uid]/[token]/+page.server.js` (+ test) (modify) | The claim lands on `/register` for an invited newcomer. |
 | `CLAUDE.md` (modify) | Document it. |
@@ -785,8 +785,10 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 ```js
 	'account.section.registration': 'Inscription',
 	'account.registrationLink': 'Inscription {year}',
-	'hub.register': "S'inscrire à l'édition {year}",
+	'hub.register': "Se connecter pour s'inscrire",
 	'hub.registration': 'Inscription {year}',
+	'login.registerNote':
+		"Les inscriptions se font sur invitation : si vous n'avez pas encore de compte, contactez les organisateurs.",
 	'register.title': 'Inscription {year}',
 	'register.visibility': 'Votre nom apparaîtra dans la liste des joueurs.',
 	'register.retention':
@@ -878,8 +880,10 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 ```js
 	'account.section.registration': 'Registration',
 	'account.registrationLink': 'Registration {year}',
-	'hub.register': 'Register for the {year} edition',
+	'hub.register': 'Log in to register',
 	'hub.registration': 'Registration {year}',
+	'login.registerNote':
+		'Registration is by invitation: if you do not have an account yet, contact the organisers.',
 	'register.title': 'Registration {year}',
 	'register.visibility': 'Your name will appear in the players list.',
 	'register.retention': 'Your answers are kept as long as your account exists, and only organisers can see them.',
@@ -2075,10 +2079,10 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 ### Task 6: The hub's registration link
 
 **Files:**
-- Modify: `front/src/lib/components/EditionHub.svelte`, `front/src/routes/+page.svelte`, `front/src/routes/[year=year]/+page.svelte`
-- Test: `front/src/lib/components/EditionHub.test.js`
+- Modify: `front/src/lib/components/EditionHub.svelte`, `front/src/routes/+page.svelte`, `front/src/routes/[year=year]/+page.svelte`, `front/src/routes/login/login.svelte`
+- Test: `front/src/lib/components/EditionHub.test.js`, `front/src/routes/login/login.test.js`
 
-The link needs no API call: `registrationLink` (Task 2) reads the layout data the hub already receives (`me.can_register`, the latest edition's public window), so neither hub gains a server load (a server load awaiting `parent()` would re-run the layout loads on every client-side visit, which this project avoids). The label is « S'inscrire à l'édition {year} » for a visitor (through the login) and « Inscription {year} » for someone logged in who can register; `/register` shows whether they are registered and offers the edit. Only the latest edition's hub carries it.
+The link needs no API call: `registrationLink` (Task 2) reads the layout data the hub already receives (`me.can_register`, the latest edition's public window), so neither hub gains a server load (a server load awaiting `parent()` would re-run the layout loads on every client-side visit, which this project avoids). The label is « Se connecter pour s'inscrire » for a visitor (through the login: registration is by invitation, so the label does not promise a signup, and the login page says so, Step 6) and « Inscription {year} » for someone logged in who can register; `/register` shows whether they are registered and offers the edit. Only the latest edition's hub carries it.
 
 - [ ] **Step 1: Write the failing tests.** In `EditionHub.test.js` add inside `describe('EditionHub', ...)`:
 
@@ -2095,7 +2099,7 @@ The link needs no API call: `registrationLink` (Task 2) reads the layout data th
 			vi.setSystemTime(new Date('2026-09-17T07:00:00Z'));
 			renderWith(EditionHub, { summary, editions: withWindow, me: null });
 
-			expect(screen.getByRole('link', { name: 'Register for the 2026 edition' })).toHaveAttribute(
+			expect(screen.getByRole('link', { name: 'Log in to register' })).toHaveAttribute(
 				'href', '/login?next=/register'
 			);
 		});
@@ -2141,7 +2145,7 @@ The link needs no API call: `registrationLink` (Task 2) reads the layout data th
 		it('says it in French', () => {
 			vi.setSystemTime(new Date('2026-09-17T07:00:00Z'));
 			const visitor = renderWith(EditionHub, { summary, editions: withWindow, me: null }, 'fr');
-			expect(screen.getByRole('link', { name: "S'inscrire à l'édition 2026" })).toBeInTheDocument();
+			expect(screen.getByRole('link', { name: "Se connecter pour s'inscrire" })).toBeInTheDocument();
 			visitor.unmount();
 
 			renderWith(EditionHub, { summary, editions: withWindow, me: player }, 'fr');
@@ -2170,7 +2174,7 @@ In the `.actions` block put first:
 ```svelte
 	{#if registration}
 		<a class="register" href={registration.href}>
-			{t(registration.visitor ? 'hub.register' : 'hub.registration', { year: registration.year })}
+			{registration.visitor ? t('hub.register') : t('hub.registration', { year: registration.year })}
 		</a>
 	{/if}
 ```
@@ -2182,11 +2186,37 @@ Style `.actions a.register` as the filled main call, and make the other links `s
 Run: `cd front && npx vitest run src/lib/components/EditionHub.test.js src/routes`
 Expected: `OK`. (A page test of the hubs that renders `EditionHub` through `+page.svelte` with data lacking `me` still works: `me` is `undefined`, a visitor.)
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: The login page explains the invitation.** A newcomer who follows the visitor link lands on `/login?next=/register` with no account to log into. In `routes/login/login.test.js` (it renders `login.svelte` with `form` and `next` props: read how its other tests do) add:
+
+```js
+	it('explains that registration is by invitation when the login leads to /register', () => {
+		renderWith(Login, { form: null, next: '/register' });
+
+		expect(screen.getByText(/Registration is by invitation/)).toBeInTheDocument();
+	});
+
+	it('says nothing of it for any other destination, and words it in French', () => {
+		const other = renderWith(Login, { form: null, next: '/account' });
+		expect(screen.queryByText(/Registration is by invitation/)).toBeNull();
+		other.unmount();
+
+		renderWith(Login, { form: null, next: '/register' }, 'fr');
+		expect(screen.getByText(/Les inscriptions se font sur invitation/)).toBeInTheDocument();
+	});
+```
+
+(`Login` and `screen` are whatever that file already imports.) In `routes/login/login.svelte`, inside the `<form>` before the username input add `{#if next === '/register'}<p class="note">{t('login.registerNote')}</p>{/if}` and style `.note` like the form's other quiet text (tokens only: `color: var(--muted)`, a small font size and a margin below). The paths compared are the ones the hub link and `/register`'s own redirect write, `/register` exactly.
+
+- [ ] **Step 6: Run the login tests**
+
+Run: `cd front && npx vitest run src/routes/login`
+Expected: `OK`.
+
+- [ ] **Step 7: Commit**
 
 ```bash
-git add front/src/lib/components/EditionHub.svelte front/src/lib/components/EditionHub.test.js front/src/routes/+page.svelte "front/src/routes/[year=year]/+page.svelte"
-git commit -m "[FEAT] hub: registration link from the layout data
+git add front/src/lib/components/EditionHub.svelte front/src/lib/components/EditionHub.test.js front/src/routes/+page.svelte "front/src/routes/[year=year]/+page.svelte" front/src/routes/login/login.svelte front/src/routes/login/login.test.js
+git commit -m "[FEAT] hub: registration link from the layout data; the login explains the invitation
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 ```
@@ -2487,7 +2517,7 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 - [ ] **Step 1: Document slice 3.** In `CLAUDE.md`, in the paragraph beginning `**In-app registration**` replace `Not built yet (slice 3): ...` (end of the « Registration questionnaire » paragraph) with `Slice 3 built the pages (see the front paragraph on registration).` and add, after the « Player accounts on the front » paragraph, a paragraph:
 
 ```markdown
-**Registration on the front** (spec `2026-10-04-in-app-registration-design.md`, slice 3, plan `2026-10-05-registration-ui.md`): the root layout's `me` carries `can_register` (a person or an invited newcomer; a server without it reads as false) and `editions` keep `start_date`, `registration_opens` and `registration_closes` for a visitor's call to action. `Header` links `/register` (`nav.register`) for anyone who can register and links `/account` for an invited newcomer too. `/register` (`routes/register`, no tab bar) is the caller's own form: its load sends a visitor or dead token to `/login?next=/register`, someone who cannot register home (the API's 404 `not_a_person`) and lets any other failure reach the error page, `private, no-store`; the `save` and `withdraw` actions are plain POSTs (the page reloads with the saved answers) that map the API's codes to `register.error.*` (`errors` list of keys, or one `error` key from a status or an `{error}` code such as `closed`, `removed_by_organiser`, `has_team`) and return the form model as typed (`values`) so a refusal keeps what was written. `$lib/registration.js` is the pure core (`initialValues`: posted over saved over suggested over blank; `valuesFromForm`: the hidden `skill` fields, `rating.<id>`, `sport.<i>.<field>` rows with blank ones dropped; `bodyFromValues`: a blank rating is left out and a bad value passed on for the API to refuse; `errorKeys`; `registrationLink`, `visitorCta` and `parisToday`), `RegistrationForm.svelte` renders it (ratings 1 to 10, the global question built from the edition's disciplines, five frequency radios, a sports table with add and remove rows up to 15 and years plus months, wishes, dietary restrictions, the email read-only with a link to `/account` or an editable required field, the required presence tick, the visibility and retention notices, and the notices for a closed, not yet open, late-pass, withdrawn and organiser-removed registration; a registered player sees their saved answers read-only once it is closed). The hub and `/account` link the registration with no API call and no server load, from the layout data: `registrationLink` (`$lib/registration.js`) reads `me.can_register` and the latest edition's public window (`visitorCta`: `registration_opens` reached, `registration_closes` or the day before `start_date` not passed, Paris dates), giving a visitor « S'inscrire à l'édition {year} » through `/login?next=/register` and someone who can register « Inscription {year} » to `/register`, which shows whether they are registered and offers the edit; `EditionHub` takes `me` and shows it on the latest edition's hub only. The account page of an invited newcomer has no photo, showcase or profile crumb (`/profile/<id>/` would 404) but keeps the registration link. A claim lands a person on their profile and an invited newcomer on `/register`: `linkAction` awaits its `landing(body, {fetch, token})`, and the claim page asks `/me/` with the fresh token. The strings are `register.*`, `nav.register`, `hub.register`, `hub.registration` and `account.registrationLink` in both dictionaries, worded « vous ».
+**Registration on the front** (spec `2026-10-04-in-app-registration-design.md`, slice 3, plan `2026-10-05-registration-ui.md`): the root layout's `me` carries `can_register` (a person or an invited newcomer; a server without it reads as false) and `editions` keep `start_date`, `registration_opens` and `registration_closes` for a visitor's call to action. `Header` links `/register` (`nav.register`) for anyone who can register and links `/account` for an invited newcomer too. `/register` (`routes/register`, no tab bar) is the caller's own form: its load sends a visitor or dead token to `/login?next=/register`, someone who cannot register home (the API's 404 `not_a_person`) and lets any other failure reach the error page, `private, no-store`; the `save` and `withdraw` actions are plain POSTs (the page reloads with the saved answers) that map the API's codes to `register.error.*` (`errors` list of keys, or one `error` key from a status or an `{error}` code such as `closed`, `removed_by_organiser`, `has_team`) and return the form model as typed (`values`) so a refusal keeps what was written. `$lib/registration.js` is the pure core (`initialValues`: posted over saved over suggested over blank; `valuesFromForm`: the hidden `skill` fields, `rating.<id>`, `sport.<i>.<field>` rows with blank ones dropped; `bodyFromValues`: a blank rating is left out and a bad value passed on for the API to refuse; `errorKeys`; `registrationLink`, `visitorCta` and `parisToday`), `RegistrationForm.svelte` renders it (ratings 1 to 10, the global question built from the edition's disciplines, five frequency radios, a sports table with add and remove rows up to 15 and years plus months, wishes, dietary restrictions, the email read-only with a link to `/account` or an editable required field, the required presence tick, the visibility and retention notices, and the notices for a closed, not yet open, late-pass, withdrawn and organiser-removed registration; a registered player sees their saved answers read-only once it is closed). The hub and `/account` link the registration with no API call and no server load, from the layout data: `registrationLink` (`$lib/registration.js`) reads `me.can_register` and the latest edition's public window (`visitorCta`: `registration_opens` reached, `registration_closes` or the day before `start_date` not passed, Paris dates), giving a visitor « Se connecter pour s'inscrire » through `/login?next=/register` (the login page then says registration is by invitation) and someone who can register « Inscription {year} » to `/register`, which shows whether they are registered and offers the edit; `EditionHub` takes `me` and shows it on the latest edition's hub only. The account page of an invited newcomer has no photo, showcase or profile crumb (`/profile/<id>/` would 404) but keeps the registration link. A claim lands a person on their profile and an invited newcomer on `/register`: `linkAction` awaits its `landing(body, {fetch, token})`, and the claim page asks `/me/` with the fresh token. The strings are `register.*`, `nav.register`, `hub.register`, `hub.registration`, `login.registerNote` and `account.registrationLink` in both dictionaries, worded « vous ».
 ```
 
 - [ ] **Step 2: Run every check CI runs**
@@ -2527,6 +2557,6 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 | `NO_TAB_BAR` | 4 |
 | `CLAUDE.md` | 9 |
 
-Deliberate choices not in the spec text (decided with Hugo on 2026-10-05): the hub and account links come from the layout data, so they cannot say whether the player is already registered (« Inscription {year} » for everyone logged in who can register; `/register` shows and edits the state) and no hub gains a server load; once registration is closed a registered player reads their saved answers in a read-only summary; the form is worded « vous » like the rest of the site; the claim asks `/me/` rather than the claim endpoint growing a field.
+Deliberate choices not in the spec text (decided with Hugo on 2026-10-05): a visitor's link reads « Se connecter pour s'inscrire » and the login page explains that registration is by invitation (no signup exists); the hub and account links come from the layout data, so they cannot say whether the player is already registered (« Inscription {year} » for everyone logged in who can register; `/register` shows and edits the state) and no hub gains a server load; once registration is closed a registered player reads their saved answers in a read-only summary; the form is worded « vous » like the rest of the site; the claim asks `/me/` rather than the claim endpoint growing a field.
 
 Names used across tasks: `registrationLink`, `visitorCta`, `parisToday`, `initialValues`, `valuesFromForm`, `bodyFromValues`, `errorKeys`, `choiceLabel`, `listNames`, `emptySport`, `MAX_SPORTS` (Task 2, used by 5 and 6); `registrationPayload`, `savedAnswers` fixtures (Task 2, used by 4, 5); `registrationLink`'s `{href, year, visitor}` (Task 2, used by 6 and 7); the keys `register.*`, `nav.register`, `hub.register`, `hub.registration`, `account.registrationLink` (Task 3, used by 1, 5, 6, 7).
