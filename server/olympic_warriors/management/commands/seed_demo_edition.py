@@ -3,7 +3,11 @@ Seeds a demo edition (year 2040) filled with the real players of an existing edi
 the team builder locally. Never touches the source edition or its users.
 """
 
+import re
+import unicodedata
 from datetime import date, timedelta
+
+import pandas as pd
 
 from django.conf import settings
 from django.contrib.auth.models import User
@@ -13,6 +17,7 @@ from django.db import transaction
 from olympic_warriors.models import (
     Darts, Edition, Petanque, Player, PlayerRating, PlayerSport, RegistrationSkill, Relay,
 )
+from olympic_warriors import registration
 from olympic_warriors.models.Player import SportFrequency
 
 DEMO_YEAR = 2040
@@ -33,6 +38,42 @@ HELP = (
     "deterministically: sport frequency, sports, and the team_with / team_avoid texts built "
     "from the roster's names (two players are left incomplete)."
 )
+
+
+AVOIDANCE = re.compile(r"ne pas|pas etre|pas avec|eviter|ne veux pas")
+WISH_LIMIT = 500
+
+
+def _plain(text):
+    return unicodedata.normalize("NFKD", text.lower()).encode("ascii", "ignore").decode()
+
+
+def read_form(path):
+    """{username: (frequency, history, team_with, team_avoid)} of a registration form CSV."""
+    try:
+        df = pd.read_csv(path)
+        extras = registration.resolve_extras(df)
+    except (OSError, ValueError, pd.errors.ParserError) as exc:
+        raise CommandError(f"Cannot read the registration form {path}: {exc}") from exc
+    if registration.NAME_HEADER not in df.columns or not extras:
+        raise CommandError(f"{path} has no usable registration form columns.")
+    rows = {}
+    for _, row in df.iterrows():
+        try:
+            username = registration.parse_name(row[registration.NAME_HEADER])[2]
+        except ValueError:
+            continue
+        get = lambda key: registration.clean_text(row[extras[key]]) if key in extras else ""
+        wishes_text = get(registration.WISHES)[:WISH_LIMIT]
+        avoid = bool(AVOIDANCE.search(_plain(wishes_text)))
+        rows[username] = (
+            registration.parse_frequency(row[extras[registration.FREQUENCY]])
+            if registration.FREQUENCY in extras else "",
+            get(registration.SPORTS),
+            "" if avoid else wishes_text,
+            wishes_text if avoid else "",
+        )
+    return rows
 
 
 def full_name(player):
@@ -104,6 +145,11 @@ class Command(BaseCommand):
             help="Delete edition 2040 (and its players' rows) and the demo- users; real users stay.",
         )
         parser.add_argument(
+            "--form", metavar="PATH",
+            help="Registration form CSV (read only): fills frequency, sports history and wishes "
+            "from it instead of generating them; players without a row stay blank.",
+        )
+        parser.add_argument(
             "--from-year", type=int, default=SOURCE_YEAR,
             help=f"Edition whose players fill the demo (default {SOURCE_YEAR}).",
         )
@@ -114,7 +160,7 @@ class Command(BaseCommand):
         if options["remove"]:
             self.remove()
         else:
-            self.create(options["from_year"])
+            self.create(options["from_year"], options["form"])
 
     def remove(self):
         with transaction.atomic():
@@ -122,7 +168,7 @@ class Command(BaseCommand):
             users = User.objects.filter(username__startswith=PREFIX).delete()[0]
         self.stdout.write(f"Removed {editions} rows for edition {DEMO_YEAR}, {users} rows for the demo users.")
 
-    def create(self, from_year):
+    def create(self, from_year, form=None):
         if (
             Edition.objects.filter(year=DEMO_YEAR).exists()
             or User.objects.filter(username__startswith=PREFIX).exists()
@@ -138,7 +184,9 @@ class Command(BaseCommand):
         )
         if not sources:
             raise CommandError(f"Edition {from_year} has no active players.")
-        wished = wishes(sources)
+        form_rows = read_form(form) if form else None
+        matched = 0
+        wished = {} if form else wishes(sources)
         with transaction.atomic():
             edition = Edition.objects.create(
                 year=DEMO_YEAR,
@@ -165,12 +213,20 @@ class Command(BaseCommand):
                 first_name="Demo", last_name="Admin",
             )
             for index, old in enumerate(sources):
-                incomplete = index >= len(sources) - INCOMPLETE
+                incomplete = not form and index >= len(sources) - INCOMPLETE
                 team_with, team_avoid = wished.get(index, ("", ""))
+                frequency = "" if incomplete else FREQUENCIES[index % len(FREQUENCIES)]
+                history = ""
+                if form:
+                    frequency = ""
+                    entry = form_rows.get(registration.parse_name(full_name(old))[2])
+                    if entry:
+                        matched += 1
+                        frequency, history, team_with, team_avoid = entry
                 player = Player.objects.create(
                     user=old.user, edition=edition, rating=old.rating,
                     global_level=old.global_level, attendance_confirmed=True,
-                    sport_frequency="" if incomplete else FREQUENCIES[index % len(FREQUENCIES)],
+                    sport_frequency=frequency,
                     team_with=team_with, team_avoid=team_avoid,
                 )
                 if not incomplete:
@@ -187,6 +243,11 @@ class Command(BaseCommand):
                         )
                         for s in real
                     )
+                elif form:
+                    if history:
+                        PlayerSport.objects.create(
+                            player=player, sport=registration.IMPORTED_SPORT, notes=history
+                        )
                 elif index % 3 == 0 and not incomplete:
                     PlayerSport.objects.bulk_create(
                         PlayerSport(
@@ -200,7 +261,13 @@ class Command(BaseCommand):
         self.stdout.write(
             f"Demo edition {DEMO_YEAR} created with the {len(sources)} players of {from_year} (no teams)."
         )
-        self.stdout.write("Copied: users, rating, global level, skills ratings. Generated: frequency, sports, team wishes.")
+        if form:
+            self.stdout.write(
+                f"Form {form}: {matched} players matched to a form row, {len(sources) - matched} not "
+                "(blank frequency and wishes). Nothing generated."
+            )
+        else:
+            self.stdout.write("Copied: users, rating, global level, skills ratings. Generated: frequency, sports, team wishes.")
         self.stdout.write(f"Admin: {PREFIX}admin / {PASSWORD}")
         self.stdout.write(f"Team builder: {FRONT_URL}")
         self.stdout.write("Remove: docker compose exec server python manage.py seed_demo_edition --remove")

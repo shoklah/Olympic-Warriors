@@ -1,7 +1,10 @@
 """The seed_demo_edition command: demo data for trying the team builder locally."""
+import os
+import tempfile
 from datetime import date
 from io import StringIO
 
+import pandas as pd
 from django.contrib.auth.models import User
 from django.core.management import call_command
 from django.core.management.base import CommandError
@@ -135,3 +138,82 @@ class TestSeedDemoEdition(TestCase):
         self.assertEqual(Player.objects.filter(edition=source).count(), len(NAMES))
         self.assertEqual(PlayerRating.objects.count(), len(NAMES) - 1)
         run("--remove")
+
+
+FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "registration_2026_sample.csv")
+
+
+def write_form(test, rows):
+    """A synthetic form CSV with the real headers: rows are (name, frequency, history, wishes)."""
+    df = pd.read_csv(FIXTURE).iloc[:1]
+    out = pd.concat([df] * len(rows), ignore_index=True)
+    cols = list(out.columns)
+    for i, (name, frequency, history, wishes) in enumerate(rows):
+        out.loc[i, cols[2]] = name
+        out.loc[i, cols[3]] = frequency
+        out.loc[i, cols[4]] = history
+        out.loc[i, cols[-2]] = wishes
+    handle, path = tempfile.mkstemp(suffix=".csv")
+    os.close(handle)
+    test.addCleanup(os.remove, path)
+    out.to_csv(path, index=False)
+    return path
+
+
+@override_settings(DEBUG=True)
+class TestSeedDemoEditionForm(TestCase):
+    def setUp(self):
+        make_source()
+
+    def players(self):
+        return {
+            p.user.username: p
+            for p in Player.objects.filter(edition__year=2040).select_related("user")
+        }
+
+    def test_fills_matched_players_and_generates_nothing(self):
+        path = write_form(self, [
+            ("Paul Durand", "Environ une heure par semaine", "Foot - 6 ans", "Avec Lea Martin"),
+            ("Lea Martin", "Au moins deux heures par semaine", "", "Je ne veux pas être avec Paul"),
+        ])
+
+        output = run("--form", path)
+
+        players = self.players()
+        paul = players["real0"]
+        self.assertEqual(paul.sport_frequency, "hour")
+        self.assertEqual(paul.team_with, "Avec Lea Martin")
+        self.assertEqual(paul.team_avoid, "")
+        self.assertEqual(
+            list(PlayerSport.objects.filter(player=paul).values_list("sport", "notes")),
+            [("Historique (import)", "Foot - 6 ans")],
+        )
+        lea = players["real2"]
+        self.assertEqual(lea.sport_frequency, "two_hours")
+        self.assertEqual((lea.team_with, lea.team_avoid), ("", "Je ne veux pas être avec Paul"))
+        self.assertFalse(PlayerSport.objects.filter(player=lea).exists())
+        self.assertIn("2 players matched", output)
+        self.assertIn(f"{len(NAMES) - 2} not", output)
+        others = [p for u, p in players.items() if u not in ("real0", "real2")]
+        for p in others:
+            self.assertEqual((p.sport_frequency, p.team_with, p.team_avoid), ("", "", ""))
+        self.assertFalse(PlayerSport.objects.exclude(player__user__username__in=["real0"]).exists())
+        # the player without any source rating stays as copied, nobody is made incomplete
+        self.assertEqual(PlayerRating.objects.filter(player__edition__year=2040).count(), len(NAMES) - 1)
+
+    def test_wishes_are_truncated(self):
+        path = write_form(self, [("Paul Durand", "", "", "x" * 800)])
+        run("--form", path)
+        self.assertEqual(len(self.players()["real0"].team_with), 500)
+
+    def test_bad_form_files(self):
+        with self.assertRaises(CommandError):
+            run("--form", "/nonexistent/form.csv")
+        handle, path = tempfile.mkstemp(suffix=".csv")
+        os.close(handle)
+        self.addCleanup(os.remove, path)
+        with open(path, "w") as f:
+            f.write("a,b\n1,2\n")
+        with self.assertRaises(CommandError):
+            run("--form", path)
+        self.assertFalse(Edition.objects.filter(year=2040).exists())
