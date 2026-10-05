@@ -1,6 +1,7 @@
 <script>
 	import { onMount, tick } from 'svelte';
 	import { disciplineName, useLocale, useT } from '$lib/i18n';
+	import StepProgress from '$lib/components/StepProgress.svelte';
 	import { MAX_SPORTS, choiceLabel, durationParts, emptySport, initialValues, listNames, stepOfForm } from '$lib/registration';
 
 	/** The `GET /registration/` payload. */
@@ -218,36 +219,15 @@
 		</div>
 	{/if}
 
-	<nav class="progress" hidden={!js} aria-label={t('register.steps.label')}>
-		<p class="progress-text num">{t('register.step.of', { n: step, total: STEPS.length })}</p>
-		<div
-			class="bar"
-			role="progressbar"
-			aria-label={t('register.steps.label')}
-			aria-valuemin="1"
-			aria-valuemax={STEPS.length}
-			aria-valuenow={step}
-			aria-valuetext={t('register.step.of', { n: step, total: STEPS.length })}
-		>
-			<div class="fill" style="width: {(step / STEPS.length) * 100}%"></div>
-		</div>
-		<ol>
-			{#each STEPS as n}
-				<li>
-					<button
-						type="button"
-						class="step-name"
-						aria-current={n === step ? 'step' : undefined}
-						disabled={!(registered || n <= reached)}
-						on:click={() => goTo(n)}
-					>
-						<span class="num" aria-hidden="true">{n}</span>
-						{t(`register.step.${n}`)}
-					</button>
-				</li>
-			{/each}
-		</ol>
-	</nav>
+	<StepProgress
+		steps={STEPS.map((n) => ({ n, label: t(`register.step.${n}`) }))}
+		{step}
+		label={t('register.steps.label')}
+		ofText={t('register.step.of', { n: step, total: STEPS.length })}
+		canGo={(n) => registered || n <= reached}
+		hidden={!js}
+		on:go={({ detail }) => goTo(detail)}
+	/>
 
 	<form method="POST" action="?/save" class="registration" bind:this={formElement} on:submit={onSubmit}>
 		{#each registration.skills as skill}
@@ -487,68 +467,8 @@
 	}
 	.step[hidden],
 	.final[hidden],
-	.withdraw[hidden],
-	.progress[hidden] {
+	.withdraw[hidden] {
 		display: none;
-	}
-	.progress {
-		margin: 0 0 1.25rem;
-	}
-	.progress-text {
-		margin: 0 0 0.5rem;
-		color: var(--muted);
-	}
-	.bar {
-		height: 0.375rem;
-		border-radius: 999px;
-		background: var(--bg-sunken);
-		border: 1px solid var(--line);
-		overflow: hidden;
-	}
-	.fill {
-		height: 100%;
-		background: var(--accent);
-	}
-	.progress ol {
-		display: flex;
-		gap: 0.5rem;
-		list-style: none;
-		margin: 0.75rem 0 0;
-		padding: 0;
-	}
-	.progress li {
-		flex: 1;
-		display: flex;
-	}
-	.step-name {
-		width: 100%;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		gap: 0.125rem;
-		text-align: center;
-		padding: 0.5rem;
-		background: transparent;
-		border: 1px solid var(--line);
-		border-radius: var(--radius);
-		color: var(--muted);
-		font: inherit;
-		cursor: pointer;
-	}
-	@media (min-width: 600px) {
-		.step-name {
-			flex-direction: row;
-			gap: 0.5rem;
-		}
-	}
-	.step-name[aria-current='step'] {
-		color: var(--ink);
-		border-color: var(--accent);
-	}
-	.step-name:disabled {
-		opacity: 0.4;
-		cursor: not-allowed;
 	}
 	.range {
 		display: flex;

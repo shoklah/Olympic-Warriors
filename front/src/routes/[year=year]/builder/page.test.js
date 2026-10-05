@@ -21,6 +21,31 @@ const propose = async () => {
 const teamRegions = () => screen.getAllByRole('region', { name: /^Team \d/ });
 
 describe('team builder page', () => {
+	it('shows the step progress like the registration', async () => {
+		renderWith(Page, { data: data() });
+
+		expect(screen.getByText('Step 1 of 3')).toBeInTheDocument();
+		const bar = screen.getByRole('progressbar', { name: 'Builder steps' });
+		expect(bar).toHaveAttribute('aria-valuenow', '1');
+		expect(bar).toHaveAttribute('aria-valuemax', '3');
+		await goTo('Teams');
+		expect(screen.getByText('Step 2 of 3')).toBeInTheDocument();
+		expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '2');
+	});
+
+	it('moves with Next and Previous and hides them at the ends', async () => {
+		renderWith(Page, { data: data() });
+
+		expect(screen.queryByRole('button', { name: 'Previous' })).toBeNull();
+		await fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+		expect(screen.getByRole('heading', { name: 'Teams' })).toBeInTheDocument();
+		await fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+		expect(screen.getByRole('heading', { name: 'Apply' })).toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Next' })).toBeNull();
+		await fireEvent.click(screen.getByRole('button', { name: 'Previous' }));
+		expect(screen.getByRole('heading', { name: 'Teams' })).toBeInTheDocument();
+	});
+
 	it('opens on the requests with the matches proposed from the free text', () => {
 		renderWith(Page, { data: data() });
 

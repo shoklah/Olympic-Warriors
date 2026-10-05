@@ -8,6 +8,7 @@
 	import { newSeed } from '$lib/builder/random.js';
 	import { features, makeScorer } from '$lib/builder/score.js';
 	import { createSaver } from '$lib/builder/saver.js';
+	import StepProgress from '$lib/components/StepProgress.svelte';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import BuilderRequests from '$lib/components/builder/BuilderRequests.svelte';
 	import BuilderTeams from '$lib/components/builder/BuilderTeams.svelte';
@@ -223,18 +224,13 @@
 			<p class="hint" role="status">{t('builder.save.saved')}</p>
 		{/if}
 
-		<nav class="progress" aria-label={t('builder.steps.label')}>
-			<ol>
-				{#each STEPS as n}
-					<li>
-						<button type="button" class="step-name" aria-current={n === step ? 'step' : undefined} on:click={() => (step = n)}>
-							<span class="num" aria-hidden="true">{n}</span>
-							{t(`builder.step.${n}`)}
-						</button>
-					</li>
-				{/each}
-			</ol>
-		</nav>
+		<StepProgress
+			steps={STEPS.map((n) => ({ n, label: t(`builder.step.${n}`) }))}
+			{step}
+			label={t('builder.steps.label')}
+			ofText={t('builder.step.of', { n: step, total: STEPS.length })}
+			on:go={({ detail }) => (step = detail)}
+		/>
 
 		{#if step === 1}
 			<h2>{t('builder.step.1')}</h2>
@@ -278,6 +274,15 @@
 				on:apply={apply}
 			/>
 		{/if}
+
+		<div class="nav-buttons">
+			{#if step > 1}
+				<button type="button" class="pill" on:click={() => (step -= 1)}>{t('builder.step.previous')}</button>
+			{/if}
+			{#if step < STEPS.length}
+				<button type="button" class="submit" on:click={() => (step += 1)}>{t('builder.step.next')}</button>
+			{/if}
+		</div>
 	{/if}
 </div>
 
@@ -331,44 +336,20 @@
 		font-weight: 600;
 		cursor: pointer;
 	}
-	.progress {
-		margin: 0 0 1.25rem;
-	}
-	.progress ol {
-		display: flex;
-		gap: 0.5rem;
-		list-style: none;
-		margin: 0;
-		padding: 0;
-	}
-	.progress li {
-		flex: 1;
-		display: flex;
-	}
-	.step-name {
-		width: 100%;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		gap: 0.125rem;
-		text-align: center;
-		padding: 0.5rem;
-		background: transparent;
-		border: 1px solid var(--line);
-		border-radius: var(--radius);
-		color: var(--muted);
+	.submit {
+		padding: 0.375rem 1rem;
+		border-radius: 999px;
+		border: 1px solid var(--accent);
+		background: var(--accent);
+		color: var(--bg);
 		font: inherit;
+		font-weight: 600;
 		cursor: pointer;
 	}
-	@media (min-width: 600px) {
-		.step-name {
-			flex-direction: row;
-			gap: 0.5rem;
-		}
-	}
-	.step-name[aria-current='step'] {
-		color: var(--ink);
-		border-color: var(--accent);
+	.nav-buttons {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.75rem;
+		margin-top: 1.25rem;
 	}
 </style>
