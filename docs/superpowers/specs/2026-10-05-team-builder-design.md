@@ -22,7 +22,9 @@ Give the organisers a page to turn the registered players of the latest edition 
 - **Existing teams: refuse.** An edition that already has teams is not rebuilt by the builder; corrections after Apply happen in the Player admin (`team` is editable in the changelist). The page says so and links there.
 - **Missing answers fall back to the overall rating** and the card says so (details under The generator).
 - **Applying while registration is open is a warning, not a block.**
-- Out of scope: placing late registrants after Apply (move them in the admin), team names or colours, changes to scoring or standings, a player-facing view of the draft.
+- **Apply publishes at once.** `Team` has no hidden flag, so the new teams and their rosters are public as soon as they exist; the Apply panel says so, and the server-side draft is where organisers wait until they are ready. A reveal flag on the edition is a separate feature.
+- **Late registrants are placed without a reshuffle.** Beside « Relancer » (which regenerates every unlocked player), « Placer les nouveaux » puts each player of the « À placer » tray into the best-scoring team among the smallest ones, leaving everyone else where they are.
+- Out of scope: announcing the teams (a copy button, a CSV, a shareable image: a visual to share is a likely later feature), placing late registrants after Apply (move them in the admin), team names or colours, changes to scoring or standings, a player-facing view of the draft.
 
 ## Server
 

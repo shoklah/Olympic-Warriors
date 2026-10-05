@@ -1543,7 +1543,7 @@ Check the tests' expectations against the code: in the « unmet » test the expe
 
 ```js
 import { describe, expect, it } from 'vitest';
-import { generate } from './generate.js';
+import { generate, placeNewcomers } from './generate.js';
 import { makeScorer } from './score.js';
 
 const skills = [{ identifier: 'CARD' }, { identifier: 'STR' }];
@@ -1616,6 +1616,35 @@ describe('generate', () => {
 
 	it('reports a roster too small for two teams', () => {
 		expect(() => generate(roster(3), [], skills, { perTeam: 3, seed: 1 })).toThrow(/too_few/);
+	});
+});
+
+describe('placeNewcomers', () => {
+	it('puts each newcomer in a smallest team and moves nobody else', () => {
+		const players = roster(11);
+		const base = generate(players.slice(0, 8), [], skills, { perTeam: 3, seed: 1 }).teams; // 3, 3, 2
+		const before = base.map((t) => [...t]);
+
+		const out = placeNewcomers(players, [], skills, base, [9, 10, 11]);
+
+		expect(out.map((t) => t.length).sort()).toEqual([3, 4, 4].sort());
+		out.forEach((team, i) => before[i].forEach((id) => expect(team).toContain(id)));
+		expect(out.flat().sort((a, b) => a - b)).toEqual(players.map((p) => p.id));
+		expect(Math.max(...out.map((t) => t.length)) - Math.min(...out.map((t) => t.length))).toBeLessThanOrEqual(1);
+	});
+
+	it('keeps a newcomer away from someone they avoid when it can', () => {
+		const players = roster(7);
+		const teams = [[1, 2, 3], [4, 5, 6]];
+		const links = [{ player: 7, kind: 'avoid', target: 1 }];
+
+		const out = placeNewcomers(players, links, skills, teams, [7]);
+
+		expect(out[0]).not.toContain(7);
+	});
+
+	it('returns the teams unchanged without newcomers', () => {
+		expect(placeNewcomers(roster(4), [], skills, [[1, 2], [3, 4]], [])).toEqual([[1, 2], [3, 4]]);
 	});
 });
 ```
@@ -1718,7 +1747,33 @@ export function generate(players, links, skills, { perTeam, seed, current = null
 	}
 	return best;
 }
+
+/**
+ * Place `ids` (the players of the tray) into `teams` without moving anyone: strongest first,
+ * each into the team that scores best among the smallest ones, so sizes keep differing by at
+ * most one. Returns new arrays; `teams` is untouched.
+ */
+export function placeNewcomers(players, links, skills, teams, ids) {
+	const score = makeScorer(players, links, skills);
+	const byId = new Map(players.map((p) => [p.id, p]));
+	const out = teams.map((t) => [...t]);
+	const order = [...ids].sort((a, b) => byId.get(b).rating - byId.get(a).rating || a - b);
+	for (const id of order) {
+		const smallest = Math.min(...out.map((t) => t.length));
+		let best = null;
+		out.forEach((team, index) => {
+			if (team.length !== smallest) return;
+			team.push(id);
+			const total = score(out).total;
+			team.pop();
+			if (best === null || total < best.total) best = { index, total };
+		});
+		out[best.index].push(id);
+	}
+	return out;
+}
 ```
+
 
 If a test's expectation (separating the avoid pair, keeping the mutual pair) is not met with these constants, adjust `RESTARTS`/search, not the test. Keep the whole module under a second for 50 players: add a test that runs `roster(50)` with `perTeam: 4` and asserts it returns within 1500 ms.
 
@@ -2086,6 +2141,9 @@ export const load = async ({ params, cookies, fetch, parent, setHeaders }) => {
 	'builder.counts': { one: '{n} équipe', other: '{n} équipes' },
 	'builder.propose': 'Proposer des équipes',
 	'builder.reroll': 'Relancer',
+	'builder.placeNew': 'Placer les nouveaux',
+	'builder.moveToTray': "Retirer de l'équipe",
+	'builder.apply.public': 'Les équipes seront visibles publiquement dès leur création.',
 	'builder.reset': 'Tout réinitialiser',
 	'builder.resetConfirm': { one: 'Effacer {n} placement ou verrou ? Les liens confirmés sont gardés.', other: 'Effacer {n} placements et verrous ? Les liens confirmés sont gardés.' },
 	'builder.tooFew': "Il faut au moins deux équipes : baissez le nombre de joueurs par équipe.",
@@ -2122,7 +2180,7 @@ export const load = async ({ params, cookies, fetch, parent, setHeaders }) => {
 	'builder.error.failed': "L'action a échoué : réessayez.",
 ```
 
-English equivalents under the same keys (« Build the teams », « Requests », « Teams », « Apply », « Link each name … », « wants to be with », « would rather avoid », « Players per team », « Propose teams », « Re-roll », « Reset everything », « To place », « Team {n} », « Incomplete profile », « Create the teams », and so on, same plural shapes).
+English equivalents under the same keys (« Place the newcomers », « Take out of the team », « The teams will be public as soon as they are created », « Build the teams », « Requests », « Teams », « Apply », « Link each name … », « wants to be with », « would rather avoid », « Players per team », « Propose teams », « Re-roll », « Reset everything », « To place », « Team {n} », « Incomplete profile », « Create the teams », and so on, same plural shapes).
 
 - [ ] **Step 2:** `npx vitest run src/lib/i18n` → parity PASS. **Step 3: Commit** `[FEAT] builder dictionaries (fr, en)`.
 
@@ -2132,11 +2190,10 @@ English equivalents under the same keys (« Build the teams », « Requests », 
 
 State lives in `+page.svelte`; the three panels are controlled components. Names come from `fullName` in `$lib/players`.
 
-- [ ] **Step 1: Failing page tests** (`page.test.js`; stub `$app/forms` is not needed, there is no `use:enhance`):
+- [ ] **Step 1: Failing page tests** (`page.test.js`; there is no `use:enhance`, so no `$app/forms` stub):
 
 ```js
 import { fireEvent, screen, within } from '@testing-library/svelte';
-import { tick } from 'svelte';
 import { describe, expect, it, vi } from 'vitest';
 import { renderWith } from '$lib/test-utils';
 import { builderPayload } from '$lib/fixtures/builder.js';
@@ -2144,14 +2201,17 @@ import Page from './+page.svelte';
 
 const data = (over = {}) => ({ builder: { ...builderPayload, ...over } });
 const goTo = (name) => fireEvent.click(screen.getByRole('button', { name }));
+const propose = async () => {
+	await goTo('Teams');
+	await fireEvent.click(screen.getByRole('button', { name: 'Propose teams' }));
+};
+const teamRegions = () => screen.getAllByRole('region', { name: /^Team \d/ });
 
 describe('team builder page', () => {
 	it('opens on the requests with the matches proposed from the free text', () => {
 		renderWith(Page, { data: data() });
 
 		expect(screen.getByRole('heading', { name: 'Requests' })).toBeInTheDocument();
-		expect(screen.getByText('Léa Martin')).toBeInTheDocument();
-		// "Paul Durand" is an exact whole-name match, preselected as a toggle
 		expect(screen.getByRole('button', { name: 'Confirm Paul Durand' })).toHaveAttribute('aria-pressed', 'false');
 	});
 
@@ -2164,22 +2224,20 @@ describe('team builder page', () => {
 		expect(button).toHaveAttribute('aria-pressed', 'true');
 	});
 
-	it('proposes teams, then shows every player in a team and the unmet requests', async () => {
+	it('proposes teams, placing every player and flagging an incomplete profile', async () => {
 		renderWith(Page, { data: data() });
-		await goTo('Teams');
 
-		await fireEvent.click(screen.getByRole('button', { name: 'Propose teams' }));
+		await propose();
 
-		expect(screen.getAllByRole('region', { name: /^Team \d/ })).toHaveLength(2);
+		expect(teamRegions()).toHaveLength(2);
 		expect(screen.queryByText('To place')).toBeNull();
-		for (const name of ['Léa Martin', 'Bob Roux']) expect(screen.getByText(name)).toBeInTheDocument();
+		expect(teamRegions().flatMap((r) => within(r).getAllByRole('listitem'))).toHaveLength(6);
 		expect(screen.getByText('Incomplete profile')).toBeInTheDocument(); // Bob has no ratings
 	});
 
 	it('fixes the players-per-team number once teams are proposed, until everything is reset', async () => {
 		renderWith(Page, { data: data() });
-		await goTo('Teams');
-		await fireEvent.click(screen.getByRole('button', { name: 'Propose teams' }));
+		await propose();
 
 		expect(screen.getByLabelText('Players per team')).toBeDisabled();
 
@@ -2190,17 +2248,27 @@ describe('team builder page', () => {
 		expect(screen.getByText('To place')).toBeInTheDocument();
 	});
 
-	it('moves a player between teams from the menu', async () => {
+	it('moves a player to another team from the menu', async () => {
 		renderWith(Page, { data: data() });
-		await goTo('Teams');
-		await fireEvent.click(screen.getByRole('button', { name: 'Propose teams' }));
-		const [first, second] = screen.getAllByRole('region', { name: /^Team \d/ });
-		const card = within(first).getAllByText(/^[A-ZÉ]/)[0].closest('li');
-		const player = card.textContent;
+		await propose();
+		const [first, second] = teamRegions();
+		const card = within(first).getAllByRole('listitem')[0];
+		const name = card.querySelector('.name').textContent;
 
 		await fireEvent.change(within(card).getByRole('combobox'), { target: { value: '1' } });
 
-		expect(within(second).getAllByRole('listitem').map((li) => li.textContent).some((t) => t === player)).toBe(true);
+		expect(within(teamRegions()[1]).getByText(name)).toBeInTheDocument();
+		expect(within(teamRegions()[0]).queryByText(name)).toBeNull();
+	});
+
+	it('locks a player', async () => {
+		renderWith(Page, { data: data() });
+		await propose();
+
+		const lock = screen.getAllByRole('button', { name: /^Lock / })[0];
+		await fireEvent.click(lock);
+
+		expect(screen.getAllByRole('button', { name: /^Unlock / })).toHaveLength(1);
 	});
 
 	it('shows only a message and no builder when teams already exist', () => {
@@ -2210,26 +2278,84 @@ describe('team builder page', () => {
 		expect(screen.queryByRole('button', { name: 'Propose teams' })).toBeNull();
 	});
 
-	it('keeps Apply disabled while a player is unplaced, and asks for confirmation while registration is open', async () => {
-		renderWith(Page, { data: data({ registration_open: true }) });
+	it('keeps Apply disabled while a player is unplaced, and says the teams become public', async () => {
+		renderWith(Page, { data: data() });
 		await goTo('Apply');
 
 		expect(screen.getByRole('button', { name: 'Create the teams' })).toBeDisabled();
-		expect(screen.getByText(/registration is still open|still open/i)).toBeInTheDocument();
+		expect(screen.getByText(/public as soon as they are created/)).toBeInTheDocument();
 	});
 
-	it('reconciles a saved draft: a departed player leaves, a late registrant waits in the tray', () => {
+	it('asks for a confirmation while registration is open', async () => {
+		renderWith(Page, { data: data({ registration_open: true }) });
+		await propose();
+		await goTo('Apply');
+
+		expect(screen.getByText(/still open/)).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Create the teams' })).toBeDisabled();
+
+		await fireEvent.click(screen.getByLabelText('I create the teams anyway'));
+
+		expect(screen.getByRole('button', { name: 'Create the teams' })).toBeEnabled();
+	});
+
+	it('applies through the page endpoint and lists the disciplines still to schedule', async () => {
+		const fetch = vi.fn(async () =>
+			new Response(JSON.stringify({ teams: [], unscheduled: [{ id: 3, name: 'Darts' }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+		);
+		vi.stubGlobal('fetch', fetch);
+		renderWith(Page, { data: data() });
+		await propose();
+		await goTo('Apply');
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Create the teams' }));
+		await vi.waitFor(() => expect(screen.getByText('Teams created.')).toBeInTheDocument());
+
+		expect(fetch.mock.calls.at(-1)[0]).toBe('/2029/builder/apply');
+		expect(screen.getByText('Darts')).toBeInTheDocument();
+		vi.unstubAllGlobals();
+	});
+
+	it('words an apply refusal', async () => {
+		vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ error: 'teams_exist' }), { status: 409, headers: { 'content-type': 'application/json' } })));
+		renderWith(Page, { data: data() });
+		await propose();
+		await goTo('Apply');
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Create the teams' }));
+
+		await vi.waitFor(() => expect(screen.getByText('This edition already has teams.')).toBeInTheDocument());
+		vi.unstubAllGlobals();
+	});
+
+	it('reconciles a saved draft: a departed player leaves and late registrants wait in the tray', async () => {
 		const draft = {
-			document: { players_per_team: 3, seed: 1, links: [], locked: [], teams: [{ players: [1, 2, 99] }, { players: [3, 4] }] },
+			document: { players_per_team: 3, seed: 1, links: [], locked: [], teams: [{ players: [1, 2, 3] }, { players: [4, 99] }] },
 			updated_at: 'v1'
 		};
 		renderWith(Page, { data: data({ draft }) });
+		await goTo('Teams');
 
-		return goTo('Teams').then(() => {
-			expect(screen.getByText('1 new registrant to place')).toBeInTheDocument();
-			expect(screen.getByText('1 withdrawal removed from the teams')).toBeInTheDocument();
-			expect(screen.getAllByText('To place').length).toBeGreaterThan(0);
-		});
+		expect(screen.getByText('2 new registrants to place')).toBeInTheDocument();
+		expect(screen.getByText('1 withdrawal removed from the teams')).toBeInTheDocument();
+		expect(screen.getByText('To place')).toBeInTheDocument();
+	});
+
+	it('places the newcomers without moving anyone', async () => {
+		const draft = {
+			document: { players_per_team: 3, seed: 1, links: [], locked: [], teams: [{ players: [1, 2, 3] }, { players: [4] }] },
+			updated_at: 'v1'
+		};
+		renderWith(Page, { data: data({ draft }) });
+		await goTo('Teams');
+		const before = teamRegions().map((r) => within(r).getAllByRole('listitem').map((li) => li.querySelector('.name').textContent));
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Place the newcomers' }));
+
+		expect(screen.queryByText('To place')).toBeNull();
+		const after = teamRegions().map((r) => within(r).getAllByRole('listitem').map((li) => li.querySelector('.name').textContent));
+		before.forEach((names, i) => names.forEach((n) => expect(after[i]).toContain(n)));
+		expect(after.flat()).toHaveLength(6);
 	});
 
 	it('speaks French', () => {
@@ -2240,12 +2366,12 @@ describe('team builder page', () => {
 });
 ```
 
-(The reconcile case has players 5 and 6 unplaced and one id, 99, that left: with 6 registered players of the fixture, `joined` is 2 — set the draft so the counts read 1 and 1: use `teams: [{ players: [1, 2, 3, 4, 5, 99] }]`-style data and adjust the expected text to the real numbers; the point is the banner, the removal and the tray.)
+(The English strings these tests read — « Requests », « Teams », « Apply », « Propose teams », « Reset everything », « Place the newcomers », « Players per team », « Confirm {name} », « Lock {name} », « Unlock {name} », « Incomplete profile », « To place », « Teams created. », « This edition already has teams. », « {joined} new registrants to place », « {left} withdrawal removed from the teams », « I create the teams anyway », « The teams will be public as soon as they are created », « Registration is still open… » — are the `builder.*` values of Task 14's English dictionary: write them exactly so.)
 
 - [ ] **Step 2: Run red.**
 - [ ] **Step 3: Implement.**
 
-`PlayerCard.svelte` — props `player`, `teams` (the team count), `index` (current team, or -1 for the tray), `locked`, `incomplete`, `noteWith`, `noteAvoid`; dispatches `move` (`{id, to}`; `to` null for the tray) and `lock`. Draggable (`draggable="true"`, `on:dragstart` sets `text/plain` to the id).
+`$lib/components/builder/PlayerCard.svelte`:
 
 ```svelte
 <script>
@@ -2263,15 +2389,17 @@ describe('team builder page', () => {
 	const t = useT();
 	const dispatch = createEventDispatcher();
 	$: name = fullName(player);
+	$: targets = Array.from({ length: teamCount }, (_, i) => i).filter((i) => i !== index);
 
 	function dragStart(event) {
 		event.dataTransfer?.setData('text/plain', String(player.id));
-		event.dataTransfer.effectAllowed = 'move';
+		if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
 	}
 	function change(event) {
 		const value = event.currentTarget.value;
-		dispatch('move', { id: player.id, to: value === '' ? null : Number(value) });
 		event.currentTarget.value = '';
+		if (value === '') return;
+		dispatch('move', { id: player.id, to: value === 'tray' ? null : Number(value) });
 	}
 </script>
 
@@ -2285,43 +2413,381 @@ describe('team builder page', () => {
 	<span class="actions">
 		<select aria-label={t('builder.move', { name })} on:change={change}>
 			<option value="">{t('builder.moveTo')}</option>
-			{#each Array.from({ length: teamCount }, (_, i) => i) as i}
-				{#if i !== index}<option value={i}>{t('builder.team', { n: i + 1 })}</option>{/if}
-			{/each}
-			{#if index !== -1}<option value="">{t('builder.tray')}</option>{/if}
+			{#each targets as i}<option value={i}>{t('builder.team', { n: i + 1 })}</option>{/each}
+			{#if index !== -1}<option value="tray">{t('builder.moveToTray')}</option>{/if}
 		</select>
 		{#if index !== -1}
-			<button type="button" class="lock" aria-pressed={locked} aria-label={t(locked ? 'builder.unlock' : 'builder.lock', { name })} on:click={() => dispatch('lock', { id: player.id })}>
+			<button
+				type="button"
+				class="icon-button"
+				aria-pressed={locked}
+				aria-label={t(locked ? 'builder.unlock' : 'builder.lock', { name })}
+				on:click={() => dispatch('lock', { id: player.id })}
+			>
 				<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 11V8a5 5 0 0 1 10 0v3M6 11h12v9H6z" /></svg>
 			</button>
 		{/if}
 	</span>
 </li>
+
+<style>
+	.card {
+		display: grid;
+		gap: 0.375rem;
+		padding: 0.625rem 0.75rem;
+		list-style: none;
+		background: var(--bg-raised);
+		border: 1px solid var(--line);
+		border-radius: var(--radius);
+		cursor: grab;
+	}
+	.card.locked {
+		border-color: var(--accent);
+	}
+	.top {
+		display: flex;
+		justify-content: space-between;
+		gap: 0.5rem;
+	}
+	.name {
+		font-weight: 600;
+		color: var(--ink);
+	}
+	.rating {
+		color: var(--muted);
+	}
+	.badge,
+	.note {
+		font-size: 0.8125rem;
+		color: var(--muted);
+	}
+	.badge {
+		color: var(--loss);
+	}
+	.actions {
+		display: flex;
+		gap: 0.5rem;
+		align-items: center;
+	}
+	select {
+		flex: 1;
+		min-width: 0;
+		padding: 0.375rem 0.5rem;
+		background: var(--bg-sunken);
+		color: var(--ink);
+		border: 1px solid var(--line-strong);
+		border-radius: var(--radius);
+		font: inherit;
+	}
+	.icon-button {
+		display: inline-grid;
+		place-items: center;
+		width: 2.25rem;
+		height: 2.25rem;
+		padding: 0;
+		border-radius: 999px;
+		border: 1px solid var(--line-strong);
+		background: transparent;
+		color: var(--muted);
+		cursor: pointer;
+	}
+	.icon-button[aria-pressed='true'] {
+		color: var(--accent);
+		border-color: var(--accent);
+	}
+	.icon-button svg {
+		width: 1.125rem;
+		height: 1.125rem;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+</style>
 ```
-Styles: tokens (`--bg-raised`, `--line`, `--line-strong`, `--accent`, `--muted`, `--radius`), `.locked` border `--accent`, lock svg stroke `currentColor` as in the registration icon buttons. The tray option in the select: a `value=""` option twice is ambiguous; give the tray option `value="tray"` and map `'tray'` and `''` accordingly (`to: value === 'tray' ? null : ...` and ignore `''`).
 
-`BuilderTeams.svelte` — props `players`, `draft` (the working document), `unplaced` (ids), `result` (scorer output for the teams or null), `skills`, `lockedPerTeam` flag via `draft.teams.length > 0`, `notesFor(player)` map, `tooFew`. Contains: the per-team number input (`id="per-team"`, label `builder.perTeam`, `disabled` when teams proposed, with `builder.perTeamLocked` as its description), the count (`builder.counts`), the buttons Propose / Re-roll / Reset (Reset and Re-roll only with teams), the tray `<section aria-label>` « À placer » when `unplaced.length`, one `<section aria-label=builder.team>` per team (a `role=region` via `aria-label`) with its `<ul>` of `PlayerCard`s, its size, its average rating and a small bar per skill (`<div class="bar"><div style="width: {pct}%">` with pct = skill average × 10, `aria-hidden`), a drop target (`on:dragover|preventDefault`, `on:drop` reading `text/plain` and dispatching `move` to that team), and above the teams the unmet list (`builder.unmet`, `builder.unmet.with/avoid` with names, or `builder.unmetNone`). It dispatches `propose`, `reroll`, `reset`, `move`, `lock`, `perTeam` (new number).
+`BuilderTeams.svelte`:
 
-`BuilderRequests.svelte` — props `players`, `links`; for each player with a non-empty `team_with` or `team_avoid`, for each kind, `matchNames(text, players, player.id)` once (`$:` map computed from `players`, never from links), render rows: `{fullName(player)} {kind label} « {fragment} »`, then for each candidate a toggle `<button type="button" aria-pressed aria-label={t('builder.requests.confirm', {name})}>` (pressed when a link `{player, kind, target}` exists; the `best` one first), a `—` note `builder.requests.noMatch` when there is no candidate, and an `<select>` « Autre joueur… » listing every other player that adds a link on change. Dispatches `toggle` `{player, kind, target}`. A fragment's group is a `<li>` in a `<ul>` labelled by the player.
+```svelte
+<script>
+	import { createEventDispatcher } from 'svelte';
+	import { useT } from '$lib/i18n';
+	import { fullName } from '$lib/players';
+	import PlayerCard from './PlayerCard.svelte';
 
-`BuilderApply.svelte` — props `teams` (arrays of ids), `unplaced`, `registrationOpen`, `busy`, `error`, `done` (`{teams, unscheduled}` or null), `unmet`; shows the summary (`builder.apply.summary`), the unplaced count, the unmet requests, the open-registration notice with a checkbox (`builder.apply.confirmOpen`), the button (`disabled` when `unplaced.length > 0`, no teams, `busy`, or open and unconfirmed), the error key, and after `done` the success line and `unscheduled` names. Dispatches `apply`.
+	export let players;
+	export let teams;
+	export let unplaced;
+	export let result;
+	export let skills;
+	export let perTeam;
+	export let locked;
+	export let incomplete;
+	export let notesFor;
+	export let tooFew = false;
 
-`+page.svelte`: 
+	const t = useT();
+	const dispatch = createEventDispatcher();
+	$: byId = new Map(players.map((p) => [p.id, p]));
+	$: proposed = teams.length > 0;
+	$: count = proposed ? teams.length : Math.ceil(players.length / perTeam);
+	$: unmet = result?.unmet ?? [];
+	$: skillName = (s) => s.name_fr;
+
+	function drop(event, to) {
+		event.preventDefault();
+		const id = Number(event.dataTransfer?.getData('text/plain'));
+		if (byId.has(id)) dispatch('move', { id, to });
+	}
+	const nameOf = (id) => (byId.has(id) ? fullName(byId.get(id)) : '');
+</script>
+
+<div class="controls">
+	<div class="field">
+		<label for="per-team">{t('builder.perTeam')}</label>
+		<input
+			id="per-team"
+			type="number"
+			min="2"
+			max="20"
+			step="1"
+			value={perTeam}
+			disabled={proposed}
+			aria-describedby={proposed ? 'per-team-hint' : undefined}
+			on:change={(event) => dispatch('perTeam', Number(event.currentTarget.value))}
+		/>
+		{#if proposed}<p class="hint" id="per-team-hint">{t('builder.perTeamLocked')}</p>{/if}
+	</div>
+	<p class="count num">{t('builder.counts', { n: count })}</p>
+	<div class="buttons">
+		{#if !proposed}
+			<button type="button" class="submit" disabled={players.length === 0} on:click={() => dispatch('propose')}>{t('builder.propose')}</button>
+		{:else}
+			<button type="button" class="submit" on:click={() => dispatch('reroll')}>{t('builder.reroll')}</button>
+			{#if unplaced.length > 0}
+				<button type="button" class="pill" on:click={() => dispatch('placeNew')}>{t('builder.placeNew')}</button>
+			{/if}
+			<button type="button" class="pill" on:click={() => dispatch('reset')}>{t('builder.reset')}</button>
+		{/if}
+	</div>
+</div>
+{#if tooFew}<p class="error" role="alert">{t('builder.tooFew')}</p>{/if}
+
+{#if proposed}
+	<section class="unmet" aria-labelledby="unmet-title">
+		<h3 id="unmet-title">{t('builder.unmet')}</h3>
+		{#if unmet.length === 0}
+			<p class="hint">{t('builder.unmetNone')}</p>
+		{:else}
+			<ul>
+				{#each unmet as u}
+					<li>
+						{t(`builder.unmet.${u.kind}`, { player: nameOf(u.player), target: nameOf(u.target) })}{u.mutual ? t('builder.unmet.mutual') : ''}
+					</li>
+				{/each}
+			</ul>
+		{/if}
+	</section>
+{/if}
+
+<div class="board">
+	{#if unplaced.length > 0}
+		<section class="column tray" aria-label={t('builder.tray')} on:dragover|preventDefault on:drop={(e) => drop(e, null)}>
+			<h3>{t('builder.tray')}</h3>
+			<ul>
+				{#each unplaced as id (id)}
+					<PlayerCard player={byId.get(id)} teamCount={teams.length || count} incomplete={incomplete.has(id)} notes={notesFor(byId.get(id))} on:move />
+				{/each}
+			</ul>
+		</section>
+	{/if}
+	{#each teams as team, i}
+		<section class="column" aria-label={t('builder.team', { n: i + 1 })} on:dragover|preventDefault on:drop={(e) => drop(e, i)}>
+			<h3>{t('builder.team', { n: i + 1 })}</h3>
+			<p class="stats">
+				<span>{t('builder.size', { n: team.players.length })}</span>
+				{#if result?.teams[i]}<span class="num">{t('builder.average', { rating: result.teams[i].rating.toFixed(1) })}</span>{/if}
+			</p>
+			{#if result?.teams[i]}
+				<ul class="bars" aria-hidden="true">
+					{#each skills as s}
+						<li title="{skillName(s)} {result.teams[i].skills[s.identifier].toFixed(1)}">
+							<span class="fill" style="width: {result.teams[i].skills[s.identifier] * 10}%"></span>
+						</li>
+					{/each}
+				</ul>
+			{/if}
+			<ul>
+				{#each team.players as id (id)}
+					<PlayerCard
+						player={byId.get(id)}
+						teamCount={teams.length}
+						index={i}
+						locked={locked.includes(id)}
+						incomplete={incomplete.has(id)}
+						notes={notesFor(byId.get(id))}
+						on:move
+						on:lock
+					/>
+				{/each}
+			</ul>
+		</section>
+	{/each}
+</div>
+```
+with scoped styles (tokens only): `.board` a responsive grid (`repeat(auto-fill, minmax(15rem, 1fr))`), `.column` a card with `--bg-sunken` background and `--line` border, `.bars li` a thin track (`--bg`, `--line`) with a `.fill` of `--accent`, `.hint` muted, `.error` like the registration form's, `.submit`/`.pill` buttons copied from `RegistrationForm.svelte`.
+
+`BuilderRequests.svelte`:
+
+```svelte
+<script>
+	import { createEventDispatcher } from 'svelte';
+	import { useT } from '$lib/i18n';
+	import { fullName } from '$lib/players';
+	import { matchNames } from '$lib/builder/names.js';
+
+	export let players;
+	export let links;
+
+	const t = useT();
+	const dispatch = createEventDispatcher();
+	const KINDS = [['team_with', 'with'], ['team_avoid', 'avoid']];
+
+	$: byId = new Map(players.map((p) => [p.id, p]));
+	// The matches depend on the roster only, so confirming a link never recomputes them.
+	$: rows = players.flatMap((player) =>
+		KINDS.flatMap(([field, kind]) =>
+			player[field]?.trim() ? [{ player, kind, matches: matchNames(player[field], players, player.id) }] : []
+		)
+	);
+	$: confirmed = new Set(links.map((l) => `${l.player}:${l.kind}:${l.target}`));
+	const isOn = (player, kind, target) => confirmed.has(`${player.id}:${kind}:${target}`);
+	const toggle = (player, kind, target) => dispatch('toggle', { player: player.id, kind, target });
+
+	/** Confirmed links of this player and kind that no name of their text suggested (added through « Autre joueur »). */
+	const extras = (row) => {
+		const suggested = new Set(row.matches.flatMap((m) => m.candidates.map((c) => c.id)));
+		return links.filter((l) => l.player === row.player.id && l.kind === row.kind && !suggested.has(l.target));
+	};
+	function other(event, player, kind) {
+		const target = Number(event.currentTarget.value);
+		event.currentTarget.value = '';
+		if (target && !isOn(player, kind, target)) toggle(player, kind, target);
+	}
+</script>
+
+<p class="hint">{t('builder.requests.intro')}</p>
+{#if rows.length === 0}
+	<p>{t('builder.requests.none')}</p>
+{:else}
+	<ul class="rows">
+		{#each rows as row (`${row.player.id}-${row.kind}`)}
+			<li class="row">
+				<p class="who"><strong>{fullName(row.player)}</strong> {t(`builder.requests.${row.kind}`)}</p>
+				<ul>
+					{#each row.matches as match}
+						<li class="match">
+							<span class="text">« {match.text} »</span>
+							{#each match.candidates as candidate}
+								<button
+									type="button"
+									class="chip"
+									aria-pressed={isOn(row.player, row.kind, candidate.id)}
+									aria-label={t('builder.requests.confirm', { name: fullName(byId.get(candidate.id)) })}
+									on:click={() => toggle(row.player, row.kind, candidate.id)}
+								>
+									{fullName(byId.get(candidate.id))}
+								</button>
+							{/each}
+							{#if match.candidates.length === 0}<span class="hint">{t('builder.requests.noMatch')}</span>{/if}
+						</li>
+					{/each}
+					{#each extras(row) as link}
+						<li class="match">
+							<button type="button" class="chip" aria-pressed="true" aria-label={t('builder.requests.confirm', { name: fullName(byId.get(link.target)) })} on:click={() => toggle(row.player, row.kind, link.target)}>
+								{fullName(byId.get(link.target))}
+							</button>
+						</li>
+					{/each}
+				</ul>
+				<select aria-label="{t('builder.requests.other')} ({fullName(row.player)})" on:change={(e) => other(e, row.player, row.kind)}>
+					<option value="">{t('builder.requests.other')}</option>
+					{#each players.filter((p) => p.id !== row.player.id) as p}<option value={p.id}>{fullName(p)}</option>{/each}
+				</select>
+			</li>
+		{/each}
+	</ul>
+{/if}
+```
+Styles in tokens: `.chip` pill with `aria-pressed='true'` filled with `--accent` and `--bg` text, as the registration's `.submit`.
+
+`BuilderApply.svelte`:
+
+```svelte
+<script>
+	import { createEventDispatcher } from 'svelte';
+	import { useT } from '$lib/i18n';
+
+	export let teamCount;
+	export let placedCount;
+	export let unplacedCount;
+	export let registrationOpen;
+	export let unmet = [];
+	export let nameOf;
+	export let busy = false;
+	export let error = '';
+	export let done = null;
+
+	const t = useT();
+	const dispatch = createEventDispatcher();
+	let confirmedOpen = false;
+	$: blocked = busy || done !== null || teamCount === 0 || unplacedCount > 0 || (registrationOpen && !confirmedOpen);
+</script>
+
+{#if done}
+	<p class="saved" role="status">{t('builder.apply.done')}</p>
+	{#if done.unscheduled.length > 0}
+		<p>{t('builder.apply.unscheduled')}</p>
+		<ul>{#each done.unscheduled as discipline}<li>{discipline.name}</li>{/each}</ul>
+	{/if}
+{:else}
+	<p class="num">{t('builder.apply.summary', { teams: teamCount, n: placedCount })}</p>
+	{#if unplacedCount > 0}<p class="error">{t('builder.apply.unplaced', { n: unplacedCount })}</p>{/if}
+	{#if unmet.length > 0}
+		<ul>
+			{#each unmet as u}
+				<li>{t(`builder.unmet.${u.kind}`, { player: nameOf(u.player), target: nameOf(u.target) })}{u.mutual ? t('builder.unmet.mutual') : ''}</li>
+			{/each}
+		</ul>
+	{/if}
+	<p class="notice">{t('builder.apply.public')}</p>
+	{#if registrationOpen}
+		<p class="notice">{t('builder.apply.open')}</p>
+		<label class="check"><input type="checkbox" bind:checked={confirmedOpen} /> {t('builder.apply.confirmOpen')}</label>
+	{/if}
+	{#if error}<p class="error" role="alert">{t(error)}</p>{/if}
+	<button type="button" class="submit" disabled={blocked} on:click={() => dispatch('apply')}>{t('builder.apply.button')}</button>
+{/if}
+```
+
+`+page.svelte` (complete):
 
 ```svelte
 <script>
 	import { onDestroy } from 'svelte';
 	import { useT } from '$lib/i18n';
 	import { fullName } from '$lib/players';
-	import { emptyDraft, reconcile, teamSizes } from '$lib/builder/plan.js';
-	import { BuilderError, generate } from '$lib/builder/generate.js';
+	import { emptyDraft, reconcile } from '$lib/builder/plan.js';
+	import { BuilderError, generate, placeNewcomers } from '$lib/builder/generate.js';
 	import { newSeed } from '$lib/builder/random.js';
-	import { makeScorer, features } from '$lib/builder/score.js';
+	import { features, makeScorer } from '$lib/builder/score.js';
 	import { createSaver } from '$lib/builder/saver.js';
+	import { splitNames } from '$lib/builder/names.js';
+	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import BuilderRequests from '$lib/components/builder/BuilderRequests.svelte';
 	import BuilderTeams from '$lib/components/builder/BuilderTeams.svelte';
 	import BuilderApply from '$lib/components/builder/BuilderApply.svelte';
-	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 
 	export let data;
 	const t = useT();
@@ -2329,48 +2795,56 @@ Styles: tokens (`--bg-raised`, `--line`, `--line-strong`, `--accent`, `--muted`,
 	$: builder = data.builder;
 	$: players = builder.players;
 	$: year = builder.edition.year;
+	$: byId = new Map(players.map((p) => [p.id, p]));
 
-	// Load the saved draft once per loaded payload (identity check, not a bare `$:`: bound
-	// inputs inside child components must not put the draft back under the organiser's hands).
-	let loadedFrom = null;
+	let step = 1;
 	let draft = emptyDraft();
 	let unplaced = [];
 	let banner = { joined: 0, left: 0 };
-	let version = null;
+	let saveState = 'idle';
+	let stale = undefined; // undefined: not stale; null: stale and the draft was cleared; object: theirs
+	let tooFew = false;
+	let busy = false;
+	let applyError = '';
+	let done = null;
 	let saver;
+
+	function load(saved) {
+		const out = reconcile(saved ? saved.document : emptyDraft(), players);
+		draft = out.draft;
+		unplaced = out.unplaced;
+		banner = { joined: out.joined, left: out.left };
+		stale = undefined;
+		saveState = 'idle';
+		saver = createSaver({
+			url: `/${year}/builder/draft`,
+			based_on: saved ? saved.updated_at : null,
+			onSaved: () => (saveState = 'saved'),
+			onStale: (theirs) => {
+				stale = theirs;
+				saveState = 'stale';
+			},
+			onError: () => (saveState = 'error')
+		});
+	}
+
+	// Loaded again only for a different payload (a new load), never because a bound child
+	// input marked `data` dirty.
+	let loadedFrom = null;
 	$: if (builder !== loadedFrom) {
 		loadedFrom = builder;
 		load(builder.draft);
 	}
 
-	function load(saved) {
-		const start = saved ? saved.document : emptyDraft();
-		const out = reconcile(start, players);
-		draft = out.draft;
-		unplaced = out.unplaced;
-		banner = { joined: out.joined, left: out.left };
-		version = saved ? saved.updated_at : null;
-		saver = createSaver({
-			url: `/${year}/builder/draft`,
-			based_on: version,
-			onSaved: (v) => (saveState = 'saved'),
-			onStale: (stored) => ((stale = stored ?? false), (saveState = 'stale')),
-			onError: () => (saveState = 'error')
-		});
-	}
-
-	let step = 1;
-	let saveState = 'idle';
-	let stale = null;
-	let tooFew = false;
-	let busy = false;
-	let applyError = '';
-	let done = null;
-	let confirmedOpen = false;
-
+	$: teamIds = draft.teams.map((tm) => tm.players);
 	$: scorer = makeScorer(players, draft.links, builder.skills);
-	$: result = draft.teams.length ? scorer(draft.teams.map((tm) => tm.players)) : null;
+	$: result = teamIds.length > 0 ? scorer(teamIds) : null;
 	$: incomplete = new Set(players.filter((p) => features(p, builder.skills).incomplete).map((p) => p.id));
+	$: placedCount = players.length - unplaced.length;
+
+	/** What the cards show of a player's requests: the texts no confirmed link explains stay as notes. */
+	$: notesFor = (player) =>
+		[player.team_with && `+ ${player.team_with}`, player.team_avoid && `− ${player.team_avoid}`].filter(Boolean);
 
 	function commit(next) {
 		draft = next;
@@ -2379,15 +2853,159 @@ Styles: tokens (`--bg-raised`, `--line`, `--line-strong`, `--accent`, `--muted`,
 		saveState = 'saving';
 		saver.save(draft);
 	}
-	// ...toggleLink, setPerTeam, propose, reroll, reset, move, toggleLock, apply
-</script>
-```
 
-Implement the handlers: `toggleLink({player, kind, target})` adds or removes the link; `setPerTeam(n)` only while no teams; `propose()` and `reroll()` call `generate(players, draft.links, builder.skills, {perTeam: draft.players_per_team, seed, current, locked})` (`propose` uses the current seed, `reroll` a `newSeed()` stored in the draft) and catch `BuilderError` to set `tooFew`; the proposal's teams become `draft.teams = teams.map(ids => ({players: ids}))`; players in the tray (`unplaced`, only after a roster change) go through `generate` too since it places everyone (`current` keeps locks); `reset()` confirms (`window.confirm(t('builder.resetConfirm', {n: placements+locks}))`) then `commit({...draft, teams: [], locked: []})`; `move({id, to})` removes the id from every team, adds it to team `to` (or leaves it in the tray for `null`), drops its lock, `commit`; `toggleLock({id})` toggles it in `draft.locked`; `apply()` does `await saver.flush()` then `fetch('/{year}/builder/apply', {method: 'POST'})`: on 200 sets `done`, on an error body maps `builder.error.<code>` (unknown → `builder.error.failed`) to `applyError`. The stale notice: a `role="alert"` with « Quelqu'un d'autre a modifié le brouillon » and a button `builder.stale.load` that calls `load(stale)` (when `stale` is a draft) and resets `saveState`. `onDestroy` flushes the saver. The markup: `Breadcrumb` (year, « Constituer les équipes »), `<h1>`, the banner (`builder.banner`/`builder.bannerLeft`, shown when `banner.joined || banner.left`), a progress `nav` of three buttons (reuse the registration wizard's look: `aria-current="step"`), the three panels (only the current one rendered), a save status line (`role="status"`, `builder.save.saved`/`builder.save.error`) and, when `builder.teams_exist`, only the `builder.exists` message in place of the panels. Players with no names do not exist (the payload always has names); `fullName` from `$lib/players` is `first last`.
+	function toggleLink({ detail: { player, kind, target } }) {
+		const same = (l) => l.player === player && l.kind === kind && l.target === target;
+		const links = draft.links.some(same) ? draft.links.filter((l) => !same(l)) : [...draft.links, { player, kind, target }];
+		commit({ ...draft, links });
+	}
+	function setPerTeam({ detail }) {
+		if (draft.teams.length === 0 && Number.isInteger(detail) && detail >= 2 && detail <= 20) {
+			tooFew = false;
+			commit({ ...draft, players_per_team: detail });
+		}
+	}
+	function run(seed) {
+		try {
+			const { teams } = generate(players, draft.links, builder.skills, {
+				perTeam: draft.players_per_team,
+				seed,
+				current: teamIds,
+				locked: draft.locked
+			});
+			tooFew = false;
+			commit({ ...draft, seed, teams: teams.map((ids) => ({ players: ids })) });
+		} catch (err) {
+			if (err instanceof BuilderError) tooFew = true;
+			else throw err;
+		}
+	}
+	const propose = () => run(draft.seed);
+	const reroll = () => run(newSeed());
+	function placeNew() {
+		const teams = placeNewcomers(players, draft.links, builder.skills, teamIds, unplaced);
+		commit({ ...draft, teams: teams.map((ids) => ({ players: ids })) });
+	}
+	function reset() {
+		const n = draft.teams.length + draft.locked.length;
+		if (!window.confirm(t('builder.resetConfirm', { n }))) return;
+		commit({ ...draft, teams: [], locked: [] });
+	}
+	function move({ detail: { id, to } }) {
+		const teams = draft.teams.map((tm) => ({ players: tm.players.filter((p) => p !== id) }));
+		if (to !== null && teams[to]) teams[to].players.push(id);
+		commit({ ...draft, teams, locked: draft.locked.filter((p) => p !== id) });
+	}
+	function toggleLock({ detail: { id } }) {
+		const locked = draft.locked.includes(id) ? draft.locked.filter((p) => p !== id) : [...draft.locked, id];
+		commit({ ...draft, locked });
+	}
+	async function apply() {
+		busy = true;
+		applyError = '';
+		try {
+			await saver.flush();
+			const response = await fetch(`/${year}/builder/apply`, { method: 'POST' });
+			const body = await response.json().catch(() => ({}));
+			if (response.ok) done = body;
+			else applyError = `builder.error.${['no_draft', 'teams_exist', 'incomplete', 'bad_size'].includes(body.error) ? body.error : 'failed'}`;
+		} catch {
+			applyError = 'builder.error.failed';
+		} finally {
+			busy = false;
+		}
+	}
+	const loadTheirs = () => load(stale ?? null);
+
+	onDestroy(() => saver?.flush());
+	const nameOf = (id) => (byId.has(id) ? fullName(byId.get(id)) : '');
+	const STEPS = [1, 2, 3];
+</script>
+
+<div class="page">
+	<Breadcrumb items={[{ label: String(year), href: `/${year}` }, { label: t('builder.title') }]} />
+	<h1>{t('builder.title')}</h1>
+
+	{#if builder.teams_exist}
+		<p class="notice">{t('builder.exists')}</p>
+	{:else if players.length === 0}
+		<p class="notice">{t('builder.noPlayers')}</p>
+	{:else}
+		{#if banner.joined > 0}<p class="notice">{t('builder.banner', { joined: banner.joined })}</p>{/if}
+		{#if banner.left > 0}<p class="notice">{t('builder.bannerLeft', { left: banner.left })}</p>{/if}
+		{#if saveState === 'stale'}
+			<p class="error" role="alert">
+				{t('builder.stale')}
+				<button type="button" class="pill" on:click={loadTheirs}>{t('builder.stale.load')}</button>
+			</p>
+		{:else if saveState === 'error'}
+			<p class="error" role="alert">{t('builder.save.error')}</p>
+		{:else if saveState === 'saved'}
+			<p class="hint" role="status">{t('builder.save.saved')}</p>
+		{/if}
+
+		<nav class="progress" aria-label={t('builder.steps.label')}>
+			<ol>
+				{#each STEPS as n}
+					<li>
+						<button type="button" class="step-name" aria-current={n === step ? 'step' : undefined} on:click={() => (step = n)}>
+							<span class="num" aria-hidden="true">{n}</span>
+							{t(`builder.step.${n}`)}
+						</button>
+					</li>
+				{/each}
+			</ol>
+		</nav>
+
+		{#if step === 1}
+			<h2>{t('builder.step.1')}</h2>
+			<BuilderRequests {players} links={draft.links} on:toggle={toggleLink} />
+		{:else if step === 2}
+			<h2>{t('builder.step.2')}</h2>
+			<BuilderTeams
+				{players}
+				teams={draft.teams}
+				{unplaced}
+				{result}
+				skills={builder.skills}
+				perTeam={draft.players_per_team}
+				locked={draft.locked}
+				{incomplete}
+				{notesFor}
+				{tooFew}
+				on:perTeam={setPerTeam}
+				on:propose={propose}
+				on:reroll={reroll}
+				on:placeNew={placeNew}
+				on:reset={reset}
+				on:move={move}
+				on:lock={toggleLock}
+			/>
+		{:else}
+			<h2>{t('builder.step.3')}</h2>
+			<BuilderApply
+				teamCount={draft.teams.length}
+				{placedCount}
+				unplacedCount={unplaced.length}
+				registrationOpen={builder.registration_open}
+				unmet={result?.unmet ?? []}
+				{nameOf}
+				{busy}
+				error={applyError}
+				{done}
+				on:apply={apply}
+			/>
+		{/if}
+	{/if}
+</div>
+```
+Styles: the `.page` wrapper, `.notice`, `.error`, `.hint`, `.progress` and `.step-name` blocks copy the registration form's (tokens only), including the 600px media rule for the step buttons.
+
+Remove the unused `splitNames` import from the page. The `h2` headings are « Requests », « Teams », « Apply » (the tests read both the step buttons and the headings by role, so the buttons are `button` role and the headings `heading`).
 
 `routes/+layout.svelte`: add `'/[year=year]/builder'` to `NO_TAB_BAR`.
 
-- [ ] **Step 4: Run green** (`npx vitest run src/routes/[year=year]/builder src/lib/components/builder`), fix until every test passes **without weakening the assertions**; where a test relies on a name or label the components define (e.g. `Confirm Paul Durand`, `Team 1` region names, `Incomplete profile`), keep both in step with the dictionary. Add component-level tests for `BuilderRequests` (toggle event, noMatch note, ambiguous names offer both candidates) and `BuilderApply` (disabled combinations, open-registration confirmation, `done` listing `unscheduled`) in the same style.
+- [ ] **Step 4: Run green** (`npx vitest run src/routes/[year=year]/builder src/lib/components/builder`), fix until every test passes **without weakening the assertions**; where a test relies on a name or label the components define, keep both in step with the dictionary. Add component-level tests for `BuilderRequests` (toggle event, the no-match note, an ambiguous name offering both candidates, a link added through « Autre joueur » shown as pressed) and `BuilderApply` (the disabled combinations, the open-registration confirmation, `done` listing `unscheduled`) in the same style.
 - [ ] **Step 5: Run the whole front suite and `npm run build`; commit** `[FEAT] team builder page`.
 
 ### Task 16: Entry point on the ranking page
