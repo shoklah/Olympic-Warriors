@@ -30,13 +30,22 @@ INCOMPLETE = 2  # the last players get no per-skill ratings and no frequency
 FREQUENCIES = [f.value for f in SportFrequency]
 LEVELS = ["fun", "informal", "club", "league", "regional"]
 SPORTS = ["Football", "Judo", "Tennis", "Natation", "Escalade", "Rugby", "Basket"]
-PRACTICES = ["no_longer", "occasionally", "regularly"]
+# What a player says about each sport, by sport: the position or the standing the form's notes field takes.
+NOTES = {
+    "Football": "Milieu", "Judo": "Ceinture marron", "Tennis": "Classé 30/1", "Natation": "Nage libre",
+    "Escalade": "Bloc, 6b", "Rugby": "Troisième ligne", "Basket": "Meneur",
+}
+DIETARY = ["Végétarien", "Sans gluten", "Sans porc", "Allergie aux arachides"]
 HELP = (
     "Seeds a demo edition (2040) with the real players of an existing edition (--from-year, "
     "default 2026) to try the team builder. Copied from the source: the people (same users), "
-    "rating, global level, per-skill ratings and the questionnaire skills. Generated, "
-    "deterministically: sport frequency, sports, and the team_with / team_avoid texts built "
-    "from the roster's names (two players are left incomplete)."
+    "rating, global level, per-skill ratings and the questionnaire skills; a player with no "
+    "global level (an edition imported from a CSV) gets the one the form's formula would give "
+    "for their skills and rating. Generated, deterministically and coherent with each other "
+    "and with the form's answers: sport frequency (following the rating), sports (level and "
+    "practice following the frequency, duration, notes), dietary restrictions, and the "
+    "team_with / team_avoid texts built from the roster's names (two players are left "
+    "incomplete: no per-skill ratings, frequency or sports, like a legacy import)."
 )
 
 
@@ -78,6 +87,49 @@ def read_form(path):
 
 def full_name(player):
     return f"{player.user.first_name} {player.user.last_name}"
+
+
+def global_level_for(rating, skills, weights):
+    """
+    The global answer (1..10) a player would have given: the whole number whose blend with their
+    skills, through the form's own formula, rounds to their rating (the nearest to the rating
+    when several do). Without every skill rated, the rating itself.
+    """
+    if not weights or any(key not in skills for key in weights):
+        return rating
+    return min(
+        range(1, 11),
+        key=lambda g: (abs(round(registration.rate(skills, weights, g)[1]) - rating), abs(g - rating)),
+    )
+
+
+def activity(rating, index):
+    """0 to 4, an index into FREQUENCIES: the sport a player does follows their rating, with a spread."""
+    return min(max(round((rating - 1) * 4 / 9) + index % 3 - 1, 0), len(FREQUENCIES) - 1)
+
+
+def sports_for(index, level):
+    """
+    [(sport, level, practice, duration_months, notes)] of a player of activity `level`: someone who
+    does little sport lists past sports they no longer practise, and only an active player
+    practises regularly, at the highest level reached.
+    """
+    count = index % 3 + (1 if level >= 2 else 0)
+    rows = []
+    for n in range(min(count, 3)):
+        sport = SPORTS[(index + 3 * n) % len(SPORTS)]
+        if n == 0:
+            practice = ["no_longer", "no_longer", "occasionally", "regularly", "regularly"][level]
+        else:
+            practice = "occasionally" if (index + n) % 2 == 0 else "no_longer"
+        rows.append((
+            sport,
+            LEVELS[min(max(level + index % 2 - n, 0), len(LEVELS) - 1)],
+            practice,
+            12 * (1 + (index + n) % 10) + (index + 3 * n) % 12,
+            NOTES[sport] if (index + n) % 2 == 0 else "",
+        ))
+    return rows
 
 
 def with_typo(first_name):
@@ -186,6 +238,7 @@ class Command(BaseCommand):
             raise CommandError(f"Edition {from_year} has no active players.")
         form_rows = read_form(form) if form else None
         matched = 0
+        weights = {s.identifier: s.weight for s in source.registrationskill_set.filter(is_active=True)}
         wished = {} if form else wishes(sources)
         with transaction.atomic():
             edition = Edition.objects.create(
@@ -218,7 +271,8 @@ class Command(BaseCommand):
             for index, old in enumerate(sources):
                 incomplete = not form and index >= len(sources) - INCOMPLETE
                 team_with, team_avoid = wished.get(index, ("", ""))
-                frequency = "" if incomplete else FREQUENCIES[index % len(FREQUENCIES)]
+                level = activity(old.rating, index)
+                frequency = "" if incomplete else FREQUENCIES[level]
                 history = ""
                 if form:
                     frequency = ""
@@ -226,11 +280,21 @@ class Command(BaseCommand):
                     if entry:
                         matched += 1
                         frequency, history, team_with, team_avoid = entry
+                rating, global_level = old.rating, old.global_level
+                if global_level is None:
+                    skills = {
+                        r.identifier: r.rating
+                        for r in PlayerRating.objects.filter(player=old, is_active=True)
+                    }
+                    global_level = global_level_for(rating, skills, weights)
+                    if weights and all(key in skills for key in weights):
+                        rating = round(registration.rate(skills, weights, global_level)[1])
                 player = Player.objects.create(
-                    user=old.user, edition=edition, rating=old.rating,
-                    global_level=old.global_level, attendance_confirmed=True,
+                    user=old.user, edition=edition, rating=rating,
+                    global_level=global_level, attendance_confirmed=True,
                     sport_frequency=frequency,
                     team_with=team_with, team_avoid=team_avoid,
+                    dietary_restrictions="" if form or index % 6 else DIETARY[index // 6 % len(DIETARY)],
                 )
                 if not incomplete:
                     PlayerRating.objects.bulk_create(
@@ -251,15 +315,15 @@ class Command(BaseCommand):
                         PlayerSport.objects.create(
                             player=player, sport=registration.IMPORTED_SPORT, notes=history
                         )
-                elif index % 3 == 0 and not incomplete:
+                elif not incomplete:
                     PlayerSport.objects.bulk_create(
                         PlayerSport(
-                            player=player, order=n, sport=SPORTS[(index + n) % len(SPORTS)],
-                            level=LEVELS[(index + 2 * n) % len(LEVELS)],
-                            practice=PRACTICES[(index + n) % 3],
-                            duration_months=6 + 12 * ((index + n) % 8),
+                            player=player, order=n, sport=sport, level=sport_level,
+                            practice=practice, duration_months=months, notes=notes,
                         )
-                        for n in range(1 + index % 2)
+                        for n, (sport, sport_level, practice, months, notes) in enumerate(
+                            sports_for(index, level)
+                        )
                     )
         self.stdout.write(
             f"Demo edition {DEMO_YEAR} created with the {len(sources)} players of {from_year} (no teams)."
@@ -270,7 +334,10 @@ class Command(BaseCommand):
                 "(blank frequency and wishes). Nothing generated."
             )
         else:
-            self.stdout.write("Copied: users, rating, global level, skills ratings. Generated: frequency, sports, team wishes.")
+            self.stdout.write(
+                "Copied: users, rating, global level (derived when the source has none), skills ratings. "
+                "Generated: frequency, sports, dietary restrictions, team wishes."
+            )
         self.stdout.write(f"Admin: {PREFIX}admin / {password}")
         front = (settings.PUBLIC_URL or "http://localhost:5173").rstrip("/")
         self.stdout.write(f"Team builder: {front}/{DEMO_YEAR}/builder")

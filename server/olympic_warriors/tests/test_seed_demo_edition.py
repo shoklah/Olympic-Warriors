@@ -10,10 +10,11 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import TestCase, override_settings
 
-from olympic_warriors import builder
+from olympic_warriors import builder, registration
 from olympic_warriors.models import (
     Edition, Player, PlayerRating, PlayerSport, RegistrationSkill, Team,
 )
+from olympic_warriors.models.Player import SportFrequency
 
 NAMES = [
     ("Paul", "Durand"), ("Paul", "Lefevre"), ("Lea", "Martin"), ("Ines", "Moreau"),
@@ -106,6 +107,82 @@ class TestSeedDemoEdition(TestCase):
         self.assertTrue(any(p["sports"] for p in data["players"]))
         incomplete = [p for p in data["players"] if not p["ratings"] and not p["sport_frequency"]]
         self.assertEqual(len(incomplete), 2)
+
+    def test_a_source_without_global_levels_gets_the_one_the_form_would_give(self):
+        source, _ = make_source()
+        RegistrationSkill.objects.create(
+            edition=source, identifier="STR", name_fr="Force", name_en="Strength", weight=2, order=1
+        )
+        for player in Player.objects.filter(edition=source):
+            PlayerRating.objects.create(player=player, name="Force", identifier="STR", rating=7)
+        Player.objects.filter(edition=source).update(global_level=None)
+
+        run()
+
+        weights = {"CARD": 1, "STR": 2}
+        rated = 0
+        for player in Player.objects.filter(edition__year=2040):
+            self.assertIsNotNone(player.global_level)
+            self.assertTrue(1 <= player.global_level <= 10)
+            skills = {r.identifier: r.rating for r in PlayerRating.objects.filter(player=player)}
+            if set(skills) == {"CARD", "STR"}:
+                # The stored rating is what the form's formula gives for that answer.
+                _, blended = registration.rate(skills, weights, player.global_level)
+                self.assertEqual(player.rating, round(blended))
+                rated += 1
+        self.assertGreater(rated, 0)
+
+    def test_a_player_without_every_skill_gets_the_rating_as_global_level(self):
+        source, users = make_source()
+        Player.objects.filter(edition=source).update(global_level=None)
+
+        run()
+
+        lonely = Player.objects.get(edition__year=2040, user=users[5])  # no PlayerRating at all
+        self.assertEqual(lonely.global_level, lonely.rating)
+
+    def test_a_given_global_level_is_kept(self):
+        source, users = make_source()
+
+        run()
+
+        for user in users:
+            old = Player.objects.get(edition=source, user=user)
+            new = Player.objects.get(edition__year=2040, user=user)
+            self.assertEqual((new.global_level, new.rating), (old.global_level, old.rating))
+
+    def test_generated_answers_are_coherent_like_the_form(self):
+        make_source()
+
+        run()
+
+        frequencies = list(SportFrequency.values)
+        for player in Player.objects.filter(edition__year=2040):
+            sports = list(PlayerSport.objects.filter(player=player))
+            if not player.sport_frequency:  # a legacy-style incomplete player: nothing generated
+                self.assertEqual(sports, [])
+                continue
+            active = frequencies.index(player.sport_frequency) >= frequencies.index("two_hours")
+            self.assertLessEqual(len(sports), 3)
+            self.assertEqual(len({s.sport for s in sports}), len(sports))
+            for sport in sports:
+                self.assertIn(sport.level, PlayerSport.Level.values)
+                self.assertIn(sport.practice, PlayerSport.Practice.values)
+                self.assertTrue(0 < sport.duration_months <= 1200)
+                self.assertLessEqual(len(sport.notes), 200)
+                if sport.practice == "regularly":
+                    self.assertTrue(active, "regular practice needs at least two hours a week")
+            if not active:
+                self.assertFalse(any(s.practice == "regularly" for s in sports))
+            self.assertLessEqual(len(player.dietary_restrictions), 500)
+        # The frequency follows the rating: the best-rated players do more than the worst.
+        rank = lambda p: frequencies.index(p.sport_frequency)
+        done = [p for p in Player.objects.filter(edition__year=2040) if p.sport_frequency]
+        high = [rank(p) for p in done if p.rating >= 7]
+        low = [rank(p) for p in done if p.rating <= 4]
+        self.assertTrue(high and low)
+        self.assertGreater(sum(high) / len(high), sum(low) / len(low))
+        self.assertTrue(Player.objects.filter(edition__year=2040).exclude(dietary_restrictions="").exists())
 
     def test_is_deterministic(self):
         make_source()
