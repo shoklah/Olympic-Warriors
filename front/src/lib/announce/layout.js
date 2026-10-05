@@ -132,7 +132,12 @@ export function cardLayout(team, { photos, measure, labels, size = CARD.size }) 
 				if (photos) items.push(avatar(cx, cy + (cellH - a) / 2, a, p));
 				const preferred = Math.min(photos ? 54 : 64, Math.round(cellH * 0.3));
 				const fit = fitText(measure, label, { family: 'body', weight: 700, size: preferred, min: 24, maxWidth: cellW - offset });
-				items.push(text(cx + offset, cy + cellH / 2, fit.text, { size: fit.size }, { family: 'body', weight: 700, color: 'ink', baseline: 'middle' }));
+				// Beside a portrait the name starts at the portrait's edge; alone it is centred in its cell.
+				items.push(
+					photos
+						? text(cx + offset, cy + cellH / 2, fit.text, { size: fit.size }, { family: 'body', weight: 700, color: 'ink', baseline: 'middle' })
+						: text(cx + cellW / 2, cy + cellH / 2, fit.text, { size: fit.size }, { family: 'body', weight: 700, color: 'ink', align: 'center', baseline: 'middle' })
+				);
 			}
 		});
 	}

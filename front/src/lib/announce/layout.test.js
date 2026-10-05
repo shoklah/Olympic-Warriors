@@ -181,6 +181,23 @@ describe('cardLayout', () => {
 		expect(nameSize(off)).toBeGreaterThanOrEqual(nameSize(on));
 	});
 
+	it('centres the names in their cells when photos are off, in one, two or three columns', () => {
+		for (const n of [3, 4, 8, 9]) {
+			const names = texts(card(n, false)).filter((t) => /^P\d/.test(t.text));
+
+			expect(names, `${n} players`).toHaveLength(n);
+			expect(names.every((t) => t.align === 'center'), `${n} players`).toBe(true);
+		}
+		// one column: the names sit on the square's centre line
+		expect(new Set(texts(card(3, false)).filter((t) => /^P\d/.test(t.text)).map((t) => t.x))).toEqual(new Set([540]));
+	});
+
+	it('keeps the names beside the portraits, left-aligned, when photos are on', () => {
+		const names = texts(card(4)).filter((t) => /^P\d/.test(t.text));
+
+		expect(names.every((t) => (t.align ?? 'left') === 'left')).toBe(true);
+	});
+
 	it('keeps every player inside the square', () => {
 		for (const n of [1, 3, 4, 8, 9, 12]) {
 			for (const item of card(n).items.filter((i) => i.type === 'avatar')) {
