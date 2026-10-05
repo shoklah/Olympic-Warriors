@@ -50,7 +50,8 @@ export const savedAnswers = {
 	sports: [
 		{ sport: 'Judo', level: 'amateur', practice: 'no_longer', duration_months: 30, notes: 'Ceinture orange' }
 	],
-	team_wishes: 'Avec Bob',
+	team_with: 'Avec Bob',
+	team_avoid: 'Pas Carl',
 	dietary_restrictions: 'Végane',
 	attendance_confirmed: true
 };
