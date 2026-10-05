@@ -113,7 +113,7 @@
 			<h3>{t('builder.tray')}</h3>
 			<ul>
 				{#each unplaced as id (id)}
-					<PlayerCard player={byId.get(id)} teamCount={teams.length} incomplete={incomplete.has(id)} notes={showRequests ? notesFor(byId.get(id)) : []} on:move />
+					<PlayerCard player={byId.get(id)} teamCount={teams.length} incomplete={incomplete.has(id)} notes={showRequests ? notesFor(byId.get(id)) : []} on:move on:preview />
 				{/each}
 			</ul>
 		</section>
@@ -153,6 +153,7 @@
 						notes={showRequests ? notesFor(byId.get(id)) : []}
 						on:move
 						on:lock
+						on:preview
 					/>
 				{/each}
 			</ul>
