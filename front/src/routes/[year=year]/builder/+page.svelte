@@ -6,12 +6,14 @@
 	import { emptyDraft, reconcile } from '$lib/builder/plan.js';
 	import { BuilderError, generate, placeNewcomers } from '$lib/builder/generate.js';
 	import { newSeed } from '$lib/builder/random.js';
+	import { requestRows, summarise } from '$lib/builder/requests.js';
 	import { features, makeScorer } from '$lib/builder/score.js';
 	import { createSaver } from '$lib/builder/saver.js';
 	import StepProgress from '$lib/components/StepProgress.svelte';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import BuilderRequests from '$lib/components/builder/BuilderRequests.svelte';
 	import BuilderTeams from '$lib/components/builder/BuilderTeams.svelte';
+	import PlayerSheet from '$lib/components/builder/PlayerSheet.svelte';
 	import BuilderApply from '$lib/components/builder/BuilderApply.svelte';
 
 	export let data;
@@ -115,6 +117,21 @@
 		const links = draft.links.some(same) ? draft.links.filter((l) => !same(l)) : [...draft.links, { player, kind, target }];
 		commit({ ...draft, links });
 	}
+	const linkKey = (l) => `${l.player}:${l.kind}:${l.target}`;
+	// The clear matches confirmed in one click: one change of the draft, so one save.
+	function confirmClear({ detail }) {
+		const seen = new Set(draft.links.map(linkKey));
+		const added = [];
+		for (const link of detail) {
+			if (seen.has(linkKey(link))) continue;
+			seen.add(linkKey(link));
+			added.push(link);
+		}
+		if (added.length > 0) commit({ ...draft, links: [...draft.links, ...added] });
+	}
+	// The matches depend on the roster only: a drag or a lock changes the draft, never them.
+	$: rows = requestRows(players);
+	$: requestSummary = summarise(rows, draft.links);
 	function setPerTeam({ detail }) {
 		if (draft.teams.length === 0 && Number.isInteger(detail) && detail >= 2 && detail <= 20) {
 			tooFew = false;
@@ -157,6 +174,14 @@
 		const locked = draft.locked.includes(id) ? draft.locked.filter((p) => p !== id) : [...draft.locked, id];
 		commit({ ...draft, locked });
 	}
+	let preview = null; // { id, opener } while a player's sheet is open
+	function openPreview({ detail }) {
+		preview = detail;
+	}
+	$: previewed = preview ? byId.get(preview.id) ?? null : null;
+	// A player who left the roster (a reloaded draft) closes the sheet.
+	$: if (preview && !byId.has(preview.id)) preview = null;
+	$: previewTeam = previewed ? draft.teams.findIndex((tm) => tm.players.includes(previewed.id)) : -1;
 	$: saveBlocked = saveState === 'stale' || saveState === 'error';
 	async function apply() {
 		if (saveBlocked) return;
@@ -240,7 +265,7 @@
 
 		{#if step === 1}
 			<h2>{t('builder.step.1')}</h2>
-			<BuilderRequests {players} links={draft.links} on:toggle={toggleLink} />
+			<BuilderRequests {players} links={draft.links} on:toggle={toggleLink} on:confirmClear={confirmClear} />
 		{:else if step === 2}
 			<h2>{t('builder.step.2')}</h2>
 			<BuilderTeams
@@ -260,9 +285,18 @@
 				on:placeNew={placeNew}
 				on:reset={reset}
 				on:move={move}
+				on:preview={openPreview}
 				{showRequests}
 				on:showRequests={setShowRequests}
 				on:lock={toggleLock}
+			/>
+			<PlayerSheet
+				open={previewed !== null}
+				player={previewed}
+				skills={builder.skills}
+				teamIndex={previewTeam}
+				opener={preview?.opener ?? null}
+				on:close={() => (preview = null)}
 			/>
 		{:else}
 			<h2>{t('builder.step.3')}</h2>
@@ -281,6 +315,12 @@
 				on:apply={apply}
 			/>
 		{/if}
+
+		<div aria-live="polite">
+			{#if step === 1 && requestSummary.review > 0}
+				<p class="notice">{t('builder.requests.warning', { n: requestSummary.review })}</p>
+			{/if}
+		</div>
 
 		<div class="nav-buttons">
 			{#if step > 1}

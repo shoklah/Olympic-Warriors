@@ -62,6 +62,32 @@ describe('team builder page', () => {
 		expect(button).toHaveAttribute('aria-pressed', 'true');
 	});
 
+	it('confirms every clear match with one click and keeps the count and the warning in step', async () => {
+		renderWith(Page, { data: data() });
+
+		expect(screen.getByText('4 requests · 0 confirmed · 4 to review')).toBeInTheDocument();
+		expect(screen.getByText("4 requests aren't confirmed and will be ignored.")).toBeInTheDocument();
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Confirm 4 clear matches' }));
+
+		for (const name of ['Confirm Paul Durand', 'Confirm Zoé Blanc', 'Confirm Léa Martin', 'Confirm Bob Roux']) {
+			expect(screen.getByRole('button', { name })).toHaveAttribute('aria-pressed', 'true');
+		}
+		expect(screen.getByText('4 requests · 4 confirmed · 0 to review')).toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: /clear match/ })).toBeNull();
+		expect(screen.queryByText(/will be ignored/)).toBeNull();
+	});
+
+	it('warns that unconfirmed requests are ignored only while some are left, and only on the requests step', async () => {
+		renderWith(Page, { data: data() });
+		await fireEvent.click(screen.getByRole('button', { name: 'Confirm Paul Durand' }));
+
+		expect(screen.getByText("3 requests aren't confirmed and will be ignored.")).toBeInTheDocument();
+
+		await goTo('Teams');
+		expect(screen.queryByText(/will be ignored/)).toBeNull();
+	});
+
 	it('proposes teams, placing every player and flagging an incomplete profile', async () => {
 		renderWith(Page, { data: data() });
 
@@ -327,5 +353,32 @@ describe('team builder page', () => {
 		await vi.waitFor(() => expect(status).toHaveTextContent('Draft saved'));
 		expect(screen.getByRole('status')).toBe(status);
 		vi.unstubAllGlobals();
+	});
+
+	it('opens a player sheet from the eye button and gives focus back on close', async () => {
+		renderWith(Page, { data: data() });
+		await goTo('Teams');
+
+		const eye = screen.getByRole('button', { name: 'View Léa Martin profile' });
+		await fireEvent.click(eye);
+
+		const sheet = within(screen.getByRole('dialog', { name: 'Léa Martin' }));
+		expect(sheet.getByText('To place')).toBeInTheDocument();
+		expect(sheet.getByText('Cardio')).toBeInTheDocument();
+
+		await fireEvent.click(sheet.getByRole('button', { name: 'Close' }));
+
+		expect(screen.queryByRole('dialog')).toBeNull();
+		expect(document.activeElement).toBe(eye);
+	});
+
+	it('names the team of a placed player in the sheet', async () => {
+		renderWith(Page, { data: data() });
+		await propose();
+
+		const region = teamRegions()[0];
+		await fireEvent.click(within(region).getAllByRole('button', { name: /^View .* profile$/ })[0]);
+
+		expect(within(screen.getByRole('dialog')).getByText('Team 1')).toBeInTheDocument();
 	});
 });

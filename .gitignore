@@ -180,6 +180,8 @@ graphify-out/.graphify_root
 
 # edition transfer documents contain names and emails
 server/edition-*.json
+# The demo seed holds a real form's private answers
+server/demo-seed.json
 
 # graphify extraction cache is local, machine-specific state
 graphify-out/cache/
