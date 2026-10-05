@@ -213,16 +213,22 @@
 	{:else}
 		{#if banner.joined > 0}<p class="notice">{t('builder.banner', { joined: banner.joined, n: banner.joined })}</p>{/if}
 		{#if banner.left > 0}<p class="notice">{t('builder.bannerLeft', { left: banner.left, n: banner.left })}</p>{/if}
-		{#if saveState === 'stale'}
-			<p class="error" role="alert">
-				{t('builder.stale')}
-				<button type="button" class="pill" on:click={loadTheirs}>{t('builder.stale.load')}</button>
-			</p>
-		{:else if saveState === 'error'}
-			<p class="error" role="alert">{t('builder.save.error')}</p>
-		{:else if saveState === 'saved'}
-			<p class="hint" role="status">{t('builder.save.saved')}</p>
-		{/if}
+		<!-- One slot for the save state, always there: the text switches in place, so the page below
+		     never jumps when a change is saved. -->
+		<div class="save-status">
+			{#if saveState === 'stale'}
+				<p class="error" role="alert">
+					{t('builder.stale')}
+					<button type="button" class="pill" on:click={loadTheirs}>{t('builder.stale.load')}</button>
+				</p>
+			{:else if saveState === 'error'}
+				<p class="error" role="alert">{t('builder.save.error')}</p>
+			{:else}
+				<p class="hint" role="status">
+					{saveState === 'saving' ? t('builder.save.saving') : saveState === 'saved' ? t('builder.save.saved') : ''}
+				</p>
+			{/if}
+		</div>
 
 		<StepProgress
 			steps={STEPS.map((n) => ({ n, label: t(`builder.step.${n}`) }))}
@@ -321,10 +327,16 @@
 		gap: 0.75rem;
 		align-items: center;
 	}
+	.save-status {
+		/* The height of the one-line states, so saving and saved never move what is below. */
+		min-height: 2.25rem;
+	}
 	.hint {
 		margin: 0 0 1rem;
 		color: var(--muted);
 		font-size: 0.875rem;
+		line-height: 1.25rem;
+		min-height: 1.25rem;
 	}
 	.pill {
 		padding: 0.375rem 1rem;

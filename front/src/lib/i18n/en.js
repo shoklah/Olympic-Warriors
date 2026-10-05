@@ -204,6 +204,7 @@ export default {
 	'builder.apply.button': 'Create the teams',
 	'builder.apply.done': 'Teams created.',
 	'builder.apply.unscheduled': 'Disciplines to schedule in the admin:',
+	'builder.save.saving': 'Saving…',
 	'builder.save.saved': 'Draft saved',
 	'builder.save.error': 'Saving the draft failed: try again.',
 	'builder.stale': 'Someone else changed the draft.',

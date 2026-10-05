@@ -305,4 +305,27 @@ describe('team builder page', () => {
 
 		expect(generate.mock.calls.at(-1)[3].variety).toBe(true);
 	});
+
+	it('keeps its save status in place: always there, with the text switching instead of appearing', async () => {
+		const resolvers = [];
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(() => new Promise((resolve) => resolvers.push(resolve)))
+		);
+		renderWith(Page, { data: data() });
+		const status = screen.getByRole('status');
+
+		expect(status).toBeInTheDocument();
+		expect(status).toHaveTextContent('');
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Confirm Paul Durand' }));
+		expect(screen.getByRole('status')).toBe(status);
+		expect(status).toHaveTextContent('Saving…');
+
+		await vi.waitFor(() => expect(resolvers.length).toBe(1), { timeout: 3000 });
+		resolvers[0]({ status: 200, ok: true, json: async () => ({ updated_at: 'v1' }) });
+		await vi.waitFor(() => expect(status).toHaveTextContent('Draft saved'));
+		expect(screen.getByRole('status')).toBe(status);
+		vi.unstubAllGlobals();
+	});
 });

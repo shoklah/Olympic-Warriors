@@ -210,6 +210,7 @@ export default {
 	'builder.apply.button': 'Créer les équipes',
 	'builder.apply.done': 'Équipes créées.',
 	'builder.apply.unscheduled': 'Épreuves à planifier dans l\'administration :',
+	'builder.save.saving': 'Enregistrement…',
 	'builder.save.saved': 'Brouillon enregistré',
 	'builder.save.error': "L'enregistrement du brouillon a échoué : réessayez.",
 	'builder.stale': "Quelqu'un d'autre a modifié le brouillon.",
