@@ -64,6 +64,7 @@ export default {
 	'register.latePass': 'Les organisateurs ont autorisé votre inscription tardive.',
 	'register.removed': 'Un organisateur a retiré votre inscription : contactez-le pour la rétablir.',
 	'register.registered': 'Vous êtes inscrit·e. Vous pouvez modifier vos réponses tant que les inscriptions sont ouvertes.',
+	'register.registeredClosed': 'Vous êtes inscrit·e.',
 	'register.saved': 'Inscription enregistrée',
 	'register.suggested': 'Repris de votre inscription {year} : vérifiez que tout est à jour.',
 	'register.skillsIntro':

@@ -22,8 +22,16 @@
 	$: removed = removedRow && !late;
 
 	// The model the inputs read: what was typed before a refusal, else saved, else suggested.
-	let values;
-	$: values = initialValues(registration, form?.values ?? null);
+	// It is loaded again only when `registration` or `form` is a different object (a new load
+	// or a new post result). Svelte also marks them changed whenever an input bound inside an
+	// `{#each registration.skills}` block is edited, so a plain `$: values = initialValues(...)`
+	// ran on every keystroke and put the saved answers back under the player's hands.
+	let values = initialValues(registration, form?.values ?? null);
+	let loadedFrom = [registration, form];
+	$: if (registration !== loadedFrom[0] || form !== loadedFrom[1]) {
+		loadedFrom = [registration, form];
+		values = initialValues(registration, form?.values ?? null);
+	}
 
 	// A month in the wrong language would sit oddly in a sentence: none beats the French one.
 	$: month = registration.skills_month[locale] || '';
@@ -102,7 +110,7 @@
 		<p class="notice">{t(`register.closed.${registration.state.reason === 'closed' ? 'closed' : 'not_configured'}`)}</p>
 	{/if}
 	{#if registered && saved}
-		<p class="notice">{t('register.registered')}</p>
+		<p class="notice">{t('register.registeredClosed')}</p>
 		<!-- Closed: what they submitted stays readable (the form is gone). -->
 		<section class="summary" aria-labelledby="register-summary">
 			<h2 id="register-summary">{t('register.summary.title')}</h2>
@@ -143,7 +151,8 @@
 	{/if}
 	{#if registered}
 		<p class="notice">{t('register.registered')}</p>
-	{:else if saved && !removedRow}
+	{:else if saved && !removedRow && !(form?.ok && form.action === 'withdraw')}
+		<!-- Not right after a withdrawal: the status line above already says it. -->
 		<p class="notice">{t('register.withdrawn')}</p>
 	{:else if registration.suggested}
 		<p class="notice">{t('register.suggested', { year: registration.suggested.year })}</p>
