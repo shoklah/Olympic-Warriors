@@ -92,6 +92,14 @@ All views are `IsAuthenticated`, none public, each added to the `PLAYER` list of
 - The `register` action is a plain POST/`fetch` like the account page's, with the API codes mapped to `register.error.*`. Strings in `fr.js` and `en.js` under `register.*` (parity test).
 - All read pages remain public; invited users keep full read access, and appear on the leaderboard only after registering.
 
+## Slice 2 review decisions (Hugo, 2026-10-05)
+
+- **Withdrawal:** `DELETE /registration/` is refused with 409 `has_team` once the player is in a team; the organiser removes them and grants the replacement a late pass.
+- **Organiser removal:** `Player.withdrawn_at` is set by a self-withdrawal and cleared by a registration. A save on an inactive row without it answers 409 `removed_by_organiser`, unless the person holds a late pass.
+- **Email:** an address another active account already has is refused (`email_taken`) in the placeholder-email case.
+- **Invitations:** `UserProfile.invited` is a column, a filter and editable in the profile list (unticking revokes). The paste takes an optional third column `identifiant` (the username, for two people sharing a name). A staff account is flagged invited with no claim link, ever, so an organiser who never played can register.
+- **Delivery:** slice 1 merges to `dev` first; slice 2 is rebased on it.
+
 ## Privacy
 
 - None of the new `Player` fields nor `PlayerSport` appears in the summary or any public payload; `SummaryPlayerSerializer` keeps its explicit field list and the new keys join `PRIVATE_KEYS` in `test_showcase.py`.
