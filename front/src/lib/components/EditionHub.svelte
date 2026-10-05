@@ -5,6 +5,7 @@
 	import { iconFor } from '$lib/icons';
 	import { countdownParts, editionPhase, formatDateRange } from '$lib/edition';
 	import { disciplineName, useLocale, useT } from '$lib/i18n';
+	import { useOrganiser } from '$lib/session';
 	import { parisToday, registrationLink } from '$lib/registration';
 
 	export let summary;
@@ -13,6 +14,7 @@
 
 	const locale = useLocale();
 	const t = useT();
+	const organiser = useOrganiser();
 
 	$: edition = summary.edition;
 	$: half = Math.ceil(summary.disciplines.length / 2);
@@ -24,8 +26,11 @@
 	$: phase = confirmed ? editionPhase(edition, now) : 'upcoming';
 	$: parts = countdownParts(edition, now);
 	// The latest edition only: registration targets it (the API's latest_edition()).
+	$: isLatest = editions[0]?.year === edition.year;
+	// An organiser's way into the team builder, until the edition has teams (the ranking page's rule).
+	$: builder = organiser && isLatest && summary.teams.length === 0;
 	$: registration =
-		editions[0]?.year === edition.year
+		isLatest
 			? registrationLink({ me, editions, today: parisToday(now) })
 			: null;
 
@@ -80,6 +85,9 @@
 	{/if}
 	{#if phase !== 'upcoming'}
 		<a class:secondary={registration} href="/{edition.year}/ranking">{t('hub.ranking')}</a>
+	{/if}
+	{#if builder}
+		<a class="secondary" href="/{edition.year}/builder">{t('builder.link')}</a>
 	{/if}
 	<!-- Outlined only once the ranking button is also shown: before the start it is the
 	     sole button, so it stays the filled main call. -->

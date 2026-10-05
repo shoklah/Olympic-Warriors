@@ -220,4 +220,37 @@ describe('EditionHub', () => {
 			expect(screen.getByRole('link', { name: 'Inscription 2026' })).toBeInTheDocument();
 		});
 	});
+
+	describe('team builder link', () => {
+		const empty = { ...summary, teams: [] };
+		const show = (props, locale = 'en', organiser = true) => {
+			vi.setSystemTime(new Date('2026-09-19T08:00:00Z'));
+			renderWith(EditionHub, { summary: empty, editions, ...props }, locale, organiser);
+		};
+
+		it('is offered to an organiser on the latest edition without teams', () => {
+			show({});
+			expect(screen.getByRole('link', { name: 'Build the teams' })).toHaveAttribute('href', '/2026/builder');
+		});
+
+		it('is hidden from a visitor', () => {
+			show({}, 'en', false);
+			expect(screen.queryByRole('link', { name: 'Build the teams' })).toBeNull();
+		});
+
+		it('is hidden once teams exist', () => {
+			show({ summary });
+			expect(screen.queryByRole('link', { name: 'Build the teams' })).toBeNull();
+		});
+
+		it('is hidden on an older edition', () => {
+			show({ summary: { ...empty, edition: { ...empty.edition, year: 2025 } } });
+			expect(screen.queryByRole('link', { name: 'Build the teams' })).toBeNull();
+		});
+
+		it('reads in French', () => {
+			show({}, 'fr');
+			expect(screen.getByRole('link', { name: 'Constituer les équipes' })).toHaveAttribute('href', '/2026/builder');
+		});
+	});
 });

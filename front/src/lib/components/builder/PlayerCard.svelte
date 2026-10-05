@@ -15,7 +15,9 @@
 	$: name = fullName(player);
 	$: targets = Array.from({ length: teamCount }, (_, i) => i).filter((i) => i !== index);
 
+	let dragging = false;
 	function dragStart(event) {
+		dragging = true;
 		event.dataTransfer?.setData('text/plain', String(player.id));
 		if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
 	}
@@ -27,7 +29,7 @@
 	}
 </script>
 
-<li class="card" class:locked draggable="true" on:dragstart={dragStart}>
+<li class="card" class:locked class:dragging draggable="true" on:dragstart={dragStart} on:dragend={() => (dragging = false)}>
 	<span class="top">
 		<span class="name">{name}</span>
 		<span class="rating num">{player.rating}</span>
@@ -66,6 +68,12 @@
 		border: 1px solid var(--line);
 		border-radius: var(--radius);
 		cursor: grab;
+	}
+	.card:active {
+		cursor: grabbing;
+	}
+	.card.dragging {
+		opacity: 0.45;
 	}
 	.card.locked {
 		border-color: var(--accent);
@@ -129,5 +137,38 @@
 		stroke-width: 2;
 		stroke-linecap: round;
 		stroke-linejoin: round;
+	}
+	/* With a mouse the card is dragged to its team, so the menu steps aside; it stays for touch and
+	   small screens, where dragging is hard, and for the keyboard: out of sight, but it comes back
+	   as soon as it has focus. */
+	@media (hover: hover) and (pointer: fine) and (min-width: 900px) {
+		.card {
+			position: relative;
+		}
+		/* The lock moves up beside the rating, so the row it shared with the menu goes away. */
+		.top {
+			padding-right: 2.5rem;
+		}
+		.actions {
+			position: absolute;
+			top: 0.375rem;
+			right: 0.5rem;
+		}
+		.actions:focus-within {
+			left: 0.75rem;
+			z-index: 1;
+			padding: 0.25rem 0 0.25rem 0.25rem;
+			background: var(--bg-raised);
+		}
+		select:not(:focus) {
+			position: absolute;
+			width: 1px;
+			height: 1px;
+			margin: -1px;
+			padding: 0;
+			border: 0;
+			overflow: hidden;
+			clip: rect(0 0 0 0);
+		}
 	}
 </style>

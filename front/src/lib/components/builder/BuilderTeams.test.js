@@ -77,4 +77,29 @@ describe('BuilderTeams', () => {
 		await fireEvent.change(input, { target: { value: '4' } });
 		expect(heard).toHaveBeenCalledWith(4);
 	});
+
+	it('highlights the team a card is dragged over, and clears it when it leaves or drops', async () => {
+		renderWith(BuilderTeams, proposed);
+		const team = screen.getByRole('region', { name: 'Team 1' });
+
+		await fireEvent.dragOver(team);
+		expect(team).toHaveClass('over');
+
+		await fireEvent.dragLeave(team, { relatedTarget: document.body });
+		expect(team).not.toHaveClass('over');
+
+		await fireEvent.dragOver(team);
+		await fireEvent.drop(team, { dataTransfer: { getData: () => '6' } });
+		expect(team).not.toHaveClass('over');
+	});
+
+	it('moves a card dropped on a team', async () => {
+		const { component } = renderWith(BuilderTeams, proposed);
+		const moves = [];
+		component.$on('move', (event) => moves.push(event.detail));
+
+		await fireEvent.drop(screen.getByRole('region', { name: 'Team 2' }), { dataTransfer: { getData: () => '6' } });
+
+		expect(moves).toEqual([{ id: 6, to: 1 }]);
+	});
 });

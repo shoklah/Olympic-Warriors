@@ -49,31 +49,38 @@
 				{#each card.rows as row (row.kind)}
 					<section class="kind" aria-label="{fullName(card.player)}: {t(`builder.requests.${row.kind}`)}">
 						<p class="label">{t(`builder.requests.${row.kind}`)}</p>
-						<ul>
+						<ul class="matches">
 							{#each row.matches as match}
 								<li class="match">
 									<span class="text">« {match.text} »</span>
-									{#each match.candidates as candidate}
-										<button
-											type="button"
-											class="chip"
-											aria-pressed={isOn(row.player, row.kind, candidate.id)}
-											aria-label={t('builder.requests.confirm', { name: fullName(byId.get(candidate.id)) })}
-											on:click={() => toggle(row.player, row.kind, candidate.id)}
-										>
-											{fullName(byId.get(candidate.id))}
-										</button>
-									{/each}
-									{#if match.candidates.length === 0}<span class="hint">{t('builder.requests.noMatch')}</span>{/if}
+									<span class="chips">
+										{#each match.candidates as candidate}
+											<button
+												type="button"
+												class="chip"
+												aria-pressed={isOn(row.player, row.kind, candidate.id)}
+												aria-label={t('builder.requests.confirm', { name: fullName(byId.get(candidate.id)) })}
+												on:click={() => toggle(row.player, row.kind, candidate.id)}
+											>
+												{fullName(byId.get(candidate.id))}
+											</button>
+										{/each}
+										{#if match.candidates.length === 0}<span class="hint">{t('builder.requests.noMatch')}</span>{/if}
+									</span>
 								</li>
 							{/each}
-							{#each extras(row) as link}
-								<li class="match">
-									<button type="button" class="chip" aria-pressed="true" aria-label={t('builder.requests.confirm', { name: fullName(byId.get(link.target)) })} on:click={() => toggle(row.player, row.kind, link.target)}>
-										{fullName(byId.get(link.target))}
-									</button>
+							{#if extras(row).length > 0}
+								<li class="match added">
+									<span class="text">{t('builder.requests.added')}</span>
+									<span class="chips">
+										{#each extras(row) as link}
+											<button type="button" class="chip" aria-pressed="true" aria-label={t('builder.requests.confirm', { name: fullName(byId.get(link.target)) })} on:click={() => toggle(row.player, row.kind, link.target)}>
+												{fullName(byId.get(link.target))}
+											</button>
+										{/each}
+									</span>
 								</li>
-							{/each}
+							{/if}
 						</ul>
 						<select aria-label="{t('builder.requests.other')} ({fullName(row.player)}) · {t(`builder.requests.${row.kind}`)}" on:change={(e) => other(e, row.player, row.kind)}>
 							<option value="">{t('builder.requests.other')}</option>
@@ -94,7 +101,7 @@
 	}
 	.grid {
 		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));
+		grid-template-columns: repeat(auto-fill, minmax(min(26rem, 100%), 1fr));
 		gap: 1rem;
 		align-items: stretch;
 		margin: 0;
@@ -133,12 +140,27 @@
 		list-style: none;
 	}
 	.match {
+		display: grid;
+		gap: 0.375rem;
+		padding-bottom: 0.5rem;
+		border-bottom: 1px solid var(--line);
+	}
+	.match:last-child {
+		border-bottom: 0;
+		padding-bottom: 0;
+	}
+	.match.added .text {
+		font-size: 0.75rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+	}
+	.chips {
 		display: flex;
 		flex-wrap: wrap;
 		gap: 0.5rem;
 		align-items: center;
 	}
-	.match .hint {
+	.chips .hint {
 		margin: 0;
 	}
 	.text {
