@@ -55,7 +55,7 @@ from .serializer import (
     DisciplineAllTimeSerializer,
     HeldDisciplineSerializer,
 )
-from . import accounts, enrolment
+from . import accounts, builder, enrolment
 from .enrolment import RegistrationError, WithdrawalRefused, usable_email
 from .registration_state import LATE_PASS, registration_state
 from .avatars import MAX_BYTES, PhotoError, photo_urls, remove_photo, store_photo
@@ -609,6 +609,65 @@ def myRegistration(request):
     response = Response(enrolment.form_payload(request.user, edition, state))
     response["Cache-Control"] = "private, no-store"
     return response
+
+
+def _builder_edition(year):
+    """The edition the builder may work on, or the refusing Response."""
+    edition = Edition.objects.filter(year=year, is_active=True).first()
+    if edition is None:
+        return None, Response({"error": "no_edition"}, status=404)
+    if edition != latest_edition():
+        return None, Response({"error": "not_latest"}, status=409)
+    return edition, None
+
+
+def _no_store(response):
+    response["Cache-Control"] = "private, no-store"
+    return response
+
+
+@extend_schema(summary="The team builder's roster, answers and draft (organisers)")
+@api_view(["GET"])
+def getBuilder(request, year):
+    edition, refusal = _builder_edition(year)
+    if refusal:
+        return refusal
+    return _no_store(Response(builder.payload(edition)))
+
+
+@extend_schema(summary="Save or clear the team builder's draft (organisers)")
+@api_view(["PUT", "DELETE"])
+@parser_classes([JSONParser])
+def teamDraft(request, year):
+    edition, refusal = _builder_edition(year)
+    if refusal:
+        return refusal
+    if request.method == "DELETE":
+        builder.clear_draft(edition)
+        return Response(status=204)
+    body = request.data if isinstance(request.data, dict) else {}
+    try:
+        draft = builder.save_draft(edition, request.user, body.get("document"), body.get("based_on"))
+    except builder.DraftError as error:
+        return Response({"errors": error.codes}, status=400)
+    except builder.StaleDraft as stale:
+        current = builder.draft_payload(stale.current) if stale.current else None
+        return _no_store(Response({"error": "stale_draft", "draft": current}, status=409))
+    return _no_store(Response(builder.draft_payload(draft)))
+
+
+@extend_schema(summary="Create the teams of the stored draft (organisers)")
+@api_view(["POST"])
+@parser_classes([JSONParser])
+def applyTeams(request, year):
+    edition, refusal = _builder_edition(year)
+    if refusal:
+        return refusal
+    body = request.data if isinstance(request.data, dict) else {}
+    try:
+        return _no_store(Response(builder.apply(edition, body.get("based_on"))))
+    except builder.ApplyRefused as refused:
+        return Response({"error": refused.code}, status=refused.status)
 
 
 # Users

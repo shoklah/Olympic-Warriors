@@ -337,3 +337,96 @@ class TestApply(TestCase):
         self.assertEqual((refused.exception.code, refused.exception.status), ("stale_draft", 409))
         self.assertFalse(Team.objects.exists())
         self.assertTrue(TeamDraft.objects.exists())
+
+
+from rest_framework.test import APIClient  # noqa: E402
+
+
+class TestBuilderAPI(TestCase):
+    def setUp(self):
+        self.edition = make_edition(2027)
+        self.boss = User.objects.create_user("boss", is_staff=True)
+        self.player_user = User.objects.create_user("lea")
+        self.ids = [make_player(self.edition, f"p{i}").pk for i in range(4)]
+        self.client = APIClient()
+        self.client.force_authenticate(self.boss)
+        self.url = "/builder/2027/"
+        self.document = {
+            "players_per_team": 3, "seed": 5, "links": [],
+            "teams": [{"players": self.ids[:2]}, {"players": self.ids[2:]}], "locked": [],
+        }
+
+    def test_the_routes_are_staff_only(self):
+        for client_user in (None, self.player_user):
+            client = APIClient()
+            if client_user:
+                client.force_authenticate(client_user)
+            for method, url in (("get", self.url), ("put", self.url + "draft/"), ("post", self.url + "apply/")):
+                with self.subTest(user=client_user, url=url):
+                    response = getattr(client, method)(url, {}, format="json") if method != "get" else client.get(url)
+                    self.assertEqual(response.status_code, 403 if client_user else 401)
+
+    def test_get_serves_the_payload_uncached(self):
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()["players"]), 4)
+        self.assertEqual(response["Cache-Control"], "private, no-store")
+        self.assertNotIn("username", str(response.json()))
+
+    def test_only_the_latest_edition_and_a_known_year(self):
+        make_edition(2028)
+
+        self.assertEqual(self.client.get("/builder/2027/").status_code, 409)
+        self.assertEqual(self.client.get("/builder/2027/").json(), {"error": "not_latest"})
+        self.assertEqual(self.client.get("/builder/2999/").status_code, 404)
+
+    def test_put_saves_and_returns_the_new_version(self):
+        response = self.client.put(self.url + "draft/", {"document": self.document, "based_on": None}, format="json")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["document"]["seed"], 5)
+        self.assertIn("updated_at", response.json())
+
+    def test_put_refuses_an_invalid_document_with_its_codes(self):
+        bad = {**self.document, "teams": [{"players": [999]}]}
+
+        response = self.client.put(self.url + "draft/", {"document": bad, "based_on": None}, format="json")
+
+        self.assertEqual((response.status_code, response.json()), (400, {"errors": ["unknown_player"]}))
+
+    def test_a_stale_put_is_409_with_the_stored_draft(self):
+        first = self.client.put(self.url + "draft/", {"document": self.document, "based_on": None}, format="json").json()
+        self.client.put(self.url + "draft/", {"document": {**self.document, "seed": 6}, "based_on": first["updated_at"]}, format="json")
+
+        response = self.client.put(self.url + "draft/", {"document": self.document, "based_on": first["updated_at"]}, format="json")
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()["error"], "stale_draft")
+        self.assertEqual(response.json()["draft"]["document"]["seed"], 6)
+
+    def test_delete_clears_the_draft(self):
+        self.client.put(self.url + "draft/", {"document": self.document, "based_on": None}, format="json")
+
+        self.assertEqual(self.client.delete(self.url + "draft/").status_code, 204)
+        self.assertFalse(TeamDraft.objects.exists())
+
+    def test_apply_creates_the_teams(self):
+        saved = self.client.put(self.url + "draft/", {"document": self.document, "based_on": None}, format="json").json()
+
+        response = self.client.post(self.url + "apply/", {"based_on": saved["updated_at"]}, format="json")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()["teams"]), 2)
+        self.assertEqual(response.json()["unscheduled"], [])
+
+    def test_apply_refusals_carry_their_status(self):
+        no_draft = self.client.post(self.url + "apply/", {"based_on": None}, format="json")
+        self.assertEqual((no_draft.status_code, no_draft.json()), (409, {"error": "no_draft"}))
+        saved = self.client.put(self.url + "draft/", {"document": {**self.document, "teams": [{"players": self.ids[:1]}]}, "based_on": None}, format="json").json()
+
+        response = self.client.post(self.url + "apply/", {"based_on": saved["updated_at"]}, format="json")
+        self.assertEqual((response.status_code, response.json()), (400, {"error": "bad_size"}))
+
+        stale = self.client.post(self.url + "apply/", {"based_on": "2000-01-01T00:00:00+00:00"}, format="json")
+        self.assertEqual((stale.status_code, stale.json()), (409, {"error": "stale_draft"}))
