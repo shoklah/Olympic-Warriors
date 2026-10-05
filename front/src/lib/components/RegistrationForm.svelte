@@ -409,10 +409,10 @@
 
 		<div class="nav-buttons">
 			{#if nextError}<p class="error" role="alert">{t('register.step.incomplete')}</p>{/if}
-			{#if step > 1}
+			{#if js && step > 1}
 				<button type="button" class="pill" on:click={() => goTo(step - 1)}>{t('register.step.previous')}</button>
 			{/if}
-			{#if step < STEPS.length}
+			{#if js && step < STEPS.length}
 				<button type="button" class="submit" on:click={next}>{t('register.step.next')}</button>
 			{/if}
 			<button class="submit final" hidden={js && step !== STEPS.length}>{registered ? t('register.submitEdit') : t('register.submit')}</button>
