@@ -15,13 +15,17 @@ from olympic_warriors.models import Edition, Player, Team
 CHANGELIST = "/admin/olympic_warriors/player/"
 PLAYER_ADD = "/admin/olympic_warriors/player/add/"
 
-# The Player change/add form always carries the PlayerRatingInline management form, even
-# with no rows submitted: Django raises "ManagementForm data is missing" without it.
+# The Player change/add form always carries the PlayerRatingInline and PlayerSportInline
+# management forms, even with no rows submitted: Django raises "ManagementForm data is missing" without it.
 NO_RATINGS = {
     "playerrating_set-TOTAL_FORMS": "0",
     "playerrating_set-INITIAL_FORMS": "0",
     "playerrating_set-MIN_NUM_FORMS": "0",
     "playerrating_set-MAX_NUM_FORMS": "1000",
+    "playersport_set-TOTAL_FORMS": "0",
+    "playersport_set-INITIAL_FORMS": "0",
+    "playersport_set-MIN_NUM_FORMS": "0",
+    "playersport_set-MAX_NUM_FORMS": "1000",
 }
 
 

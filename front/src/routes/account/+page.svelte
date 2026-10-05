@@ -6,6 +6,7 @@
 	import PhotoEditor from '$lib/components/PhotoEditor.svelte';
 	import { badgeCollection } from '$lib/badges';
 	import { fullName } from '$lib/players';
+	import { parisToday, registrationLink } from '$lib/registration';
 	import { useT } from '$lib/i18n';
 
 	export let data;
@@ -15,8 +16,9 @@
 
 	$: account = data.account;
 	$: profile = data.profile;
-	$: name = fullName(profile);
-	$: collection = badgeCollection(profile.badges ?? []);
+	$: name = profile ? fullName(profile) : '';
+	$: collection = profile ? badgeCollection(profile.badges ?? []) : null;
+	$: registration = registrationLink({ me: data.me, editions: data.editions ?? [], today: parisToday() });
 
 	/** The result of `action` when the last post was that action's, else null. */
 	$: resultOf = (action) => (form?.action === action ? form : null);
@@ -74,15 +76,25 @@
 
 <div class="page">
 	<Breadcrumb
-		items={[
-			{ label: t('players.title'), href: '/players' },
-			{ label: name, href: `/players/${profile.id}` },
-			{ label: t('account.title') }
-		]}
+		items={profile
+			? [
+					{ label: t('players.title'), href: '/players' },
+					{ label: name, href: `/players/${profile.id}` },
+					{ label: t('account.title') }
+				]
+			: [{ label: t('players.title'), href: '/players' }, { label: t('account.title') }]}
 	/>
 	<h1>{t('account.title')}</h1>
 	<p class="username">{t('account.username', { name: account.username })}</p>
 
+	{#if registration}
+		<section aria-labelledby="account-registration">
+			<h2 id="account-registration">{t('account.section.registration')}</h2>
+			<a class="pill" href={registration.href}>{t('account.registrationLink', { year: registration.year })}</a>
+		</section>
+	{/if}
+
+	{#if profile}
 	<section aria-labelledby="account-photo">
 		<h2 id="account-photo">{t('account.section.photo')}</h2>
 		<div class="photo">
@@ -116,6 +128,7 @@
 			heading={false}
 		/>
 	</section>
+	{/if}
 
 	<!-- Plain POSTs, never use:enhance: a password change stores a new token cookie, and a
 	     deletion clears it, so the whole page reloads as after /login. -->
@@ -389,6 +402,9 @@
 
 	/* Quiet like the header's pills. */
 	.pill {
+		display: inline-flex;
+		align-items: center;
+		text-decoration: none;
 		padding: 0 0.9em;
 		background: transparent;
 		border: 1px solid var(--line-strong);

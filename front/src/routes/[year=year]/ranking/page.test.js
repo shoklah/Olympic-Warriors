@@ -70,4 +70,35 @@ describe('ranking page', () => {
 		expect(screen.getByRole('heading', { name: 'Classement' })).toBeInTheDocument();
 		expect(screen.queryByText(/pts/)).not.toBeInTheDocument();
 	});
+
+	it('offers the team builder to an organiser of the latest edition while there is no team', () => {
+		renderWith(Page, { data: { summary: { ...summary, teams: [] }, editable: true } }, 'en', true);
+
+		expect(screen.getByRole('link', { name: 'Build the teams' })).toHaveAttribute('href', '/2026/builder');
+	});
+
+	it('hides the team builder from visitors and once teams exist', () => {
+		const { unmount } = renderWith(Page, { data: { summary: { ...summary, teams: [] }, editable: false } });
+		expect(screen.queryByRole('link', { name: 'Build the teams' })).toBeNull();
+		unmount();
+
+		renderWith(Page, { data: { summary, editable: true } }, 'en', true);
+		expect(screen.queryByRole('link', { name: 'Build the teams' })).toBeNull();
+	});
+
+	it('offers the announcement visuals to an organiser of the latest edition once there are teams', () => {
+		renderWith(Page, { data: { summary, editable: true } }, 'en', true);
+
+		expect(screen.getByRole('link', { name: 'Announce the teams' })).toHaveAttribute('href', '/2026/announce');
+	});
+
+	it('hides the announcement link from visitors and while there are no teams', () => {
+		renderWith(Page, { data: { summary, editable: false } });
+		expect(screen.queryByRole('link', { name: 'Announce the teams' })).toBeNull();
+	});
+
+	it('hides the announcement link while there are no teams', () => {
+		renderWith(Page, { data: { summary: { ...summary, teams: [], results: [] }, editable: true } }, 'en', true);
+		expect(screen.queryByRole('link', { name: 'Announce the teams' })).toBeNull();
+	});
 });

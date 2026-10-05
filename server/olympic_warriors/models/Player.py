@@ -1,7 +1,17 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
-from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.validators import MaxLengthValidator, MaxValueValidator, MinValueValidator
+
+
+class SportFrequency(models.TextChoices):
+    """How often a player does sport: the five answers of the registration form."""
+
+    RARE = "rare", "Moins d'une fois par mois"
+    MONTHLY = "monthly", "Moins d'une fois par semaine mais plusieurs fois par mois"
+    HOUR = "hour", "Environ une heure par semaine"
+    TWO_HOURS = "two_hours", "Au moins deux heures par semaine"
+    FOUR_HOURS = "four_hours", "Au moins quatre heures par semaine"
 
 
 class Player(models.Model):
@@ -14,6 +24,38 @@ class Player(models.Model):
     rating = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(10)])
     team = models.ForeignKey("Team", on_delete=models.CASCADE, null=True, blank=True)
     is_active = models.BooleanField(default=True)
+    # What the player says at registration. Private: organisers only, never in a public payload.
+    global_level = models.IntegerField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(1), MaxValueValidator(10)],
+        help_text="Raw global estimate; `rating` blends it, so it cannot be recovered from it.",
+    )
+    dietary_restrictions = models.TextField(
+        blank=True, default="", validators=[MaxLengthValidator(500)]
+    )
+    sport_frequency = models.CharField(
+        max_length=10, choices=SportFrequency.choices, blank=True, default=""
+    )
+    team_wishes = models.TextField(
+        "Souhaits d'équipe (ancien format)",
+        blank=True, default="", validators=[MaxLengthValidator(1000)],
+        help_text="Combined free text of the CSV registration (up to 2026). The form no longer writes it.",
+    )
+    team_with = models.TextField(
+        "Souhaite être avec", blank=True, default="", validators=[MaxLengthValidator(500)]
+    )
+    team_avoid = models.TextField(
+        "Préfère éviter", blank=True, default="", validators=[MaxLengthValidator(500)]
+    )
+    attendance_confirmed = models.BooleanField(
+        default=False,
+        help_text="The player's own tick: paid and will be there. Nothing checks it.",
+    )
+    # Set when the player withdrew through the app (DELETE /registration/), cleared when
+    # they register again. An inactive row WITHOUT it was removed by an organiser: only a
+    # late pass lets that person register again (enrolment.removed_by_organiser).
+    withdrawn_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self) -> str:
         return self.user.first_name + " " + self.user.last_name
@@ -61,3 +103,39 @@ class PlayerRating(models.Model):
     identifier = models.CharField(max_length=4)
     rating = models.FloatField(validators=[MinValueValidator(1), MaxValueValidator(10)])
     is_active = models.BooleanField(default=True)
+
+
+class PlayerSport(models.Model):
+    """
+    One sport a player has practised, as entered at registration. Private.
+    """
+
+    class Level(models.TextChoices):
+        # An ordered ladder of the highest level reached, so exactly one answer is true
+        # (the first version mixed skill and setting: a person could be several at once).
+        FUN = "fun", "Pour le plaisir, entre amis"
+        INFORMAL = "informal", "Régulièrement, hors club"
+        CLUB = "club", "En club, sans compétition"
+        LEAGUE = "league", "En club, avec compétitions"
+        REGIONAL = "regional", "Niveau régional ou supérieur"
+
+    class Practice(models.TextChoices):
+        NO_LONGER = "no_longer", "Ne pratique plus"
+        OCCASIONALLY = "occasionally", "Pratique occasionnelle"
+        REGULARLY = "regularly", "Pratique régulière"
+
+    player = models.ForeignKey(Player, on_delete=models.CASCADE)
+    order = models.PositiveSmallIntegerField(default=0)
+    sport = models.CharField(max_length=80)
+    level = models.CharField(max_length=12, choices=Level.choices, blank=True, default="")
+    practice = models.CharField(max_length=12, choices=Practice.choices, blank=True, default="")
+    duration_months = models.PositiveIntegerField(null=True, blank=True)
+    # A TextField so the CSV import can keep a whole imported history; the validator guards
+    # admin edits and the registration API.
+    notes = models.TextField(blank=True, default="", validators=[MaxLengthValidator(200)])
+
+    class Meta:
+        ordering = ["order", "id"]
+
+    def __str__(self) -> str:
+        return self.sport

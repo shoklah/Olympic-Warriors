@@ -146,6 +146,9 @@ PASSWORD_RESET_TIMEOUT = 7 * 24 * 3600
 # production until set, and then the admin makes no link).
 PUBLIC_URL = settings.PUBLIC_URL
 
+# Lets seed_demo_edition run without DEBUG, on the staging server only (config.STAGE_DEMO).
+STAGE_DEMO = settings.STAGE_DEMO
+
 # Outgoing mail: SMTP when EMAIL_HOST is set, else the console in dev; in prod without a host
 # the SMTP backend is kept so a reset request fails loudly in the log instead of vanishing.
 EMAIL_HOST = settings.EMAIL_HOST
@@ -277,6 +280,7 @@ REST_FRAMEWORK = {
         'photo': settings.PHOTO_THROTTLE_RATE,
         'password': settings.PASSWORD_THROTTLE_RATE,
         'reset_email': settings.RESET_EMAIL_THROTTLE_RATE,
+        'registration': settings.REGISTRATION_THROTTLE_RATE,
     },
     'NUM_PROXIES': settings.NUM_PROXIES,
 }

@@ -19,6 +19,13 @@
 	<Breadcrumb items={[{ label: String(year), href: `/${year}` }, { label: t('nav.ranking') }]} />
 	<h1>{t('ranking.title')}</h1>
 
+	{#if data.editable && teams.length === 0}
+		<a class="builder-link quiet-link" href="/{year}/builder">{t('builder.link')}</a>
+	{/if}
+	{#if data.editable && teams.length > 0}
+		<a class="builder-link quiet-link" href="/{year}/announce">{t('announce.link')}</a>
+	{/if}
+
 	<div class="rail">
 		<DisciplineRail {year} {disciplines} />
 	</div>
@@ -58,6 +65,16 @@
 <style>
 	h1 {
 		margin: 0 0 0.8rem;
+	}
+
+	.builder-link {
+		display: inline-block;
+		margin: 0 0 0.8rem;
+		padding: 0.5rem 1.25rem;
+		border: 1px solid var(--accent);
+		border-radius: 999px;
+		color: var(--accent);
+		font-weight: 600;
 	}
 
 	.rail {

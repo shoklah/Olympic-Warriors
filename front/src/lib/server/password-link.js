@@ -71,7 +71,7 @@ export function linkLoad(pathOf) {
 /**
  * The action of a link page: set the password the person chose, then log them in. The API
  * answers a fresh token (the old one and every session are gone), stored like the login's,
- * then a 303 to `landing(body)`, the API's answer. Failures come back as dictionary keys:
+ * then a 303 to `await landing(body, { fetch, token })`: the API's answer, and what the landing needs to ask more. Failures come back as dictionary keys:
  * `password` and `confirmation` for the lines under those fields, `error` for the line above
  * the form, `invalid` when the link died since the page loaded. A password is never sent back
  * to the page.
@@ -108,6 +108,6 @@ export function linkAction(pathOf, landing) {
 		cookies.set(TOKEN_COOKIE, token, tokenCookieOptions());
 		// A 303 so the browser follows with a GET, and a full page load (the form is a plain
 		// POST) so the root layout reads the new cookie and the header shows the account.
-		redirect(303, landing(body));
+		redirect(303, await landing(body, { fetch, token }));
 	};
 }

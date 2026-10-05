@@ -26,6 +26,7 @@ from .models import (
     GameEvent,
     Player,
     PlayerRating,
+    RegistrationSkill,
     Team,
     TeamResult,
     TeamSportRound,
@@ -37,6 +38,7 @@ USER_FIELDS = ("username", "first_name", "last_name", "email", "is_active")
 # Exported tables in dependency order: (name, model, lookup selecting an edition's rows).
 TABLES = (
     ("Team", Team, "edition"),
+    ("RegistrationSkill", RegistrationSkill, "edition"),
     ("Player", Player, "edition"),
     ("PlayerRating", PlayerRating, "player__edition"),
     ("Discipline", Discipline, "edition"),
@@ -52,8 +54,26 @@ TABLES = (
 # (BadgeProgress) are derived from the edition's data, and badges.refresh() rebuilds them
 # after an import (import_edition runs it). Manual badges are not transferred, and
 # --replace cascade-deletes the replaced edition's ones. A UserProfile (photo, showcase,
-# claim) is about a person, not an edition, and lives on prod only.
-NOT_EXPORTED = frozenset({"Badge", "BadgeProgress", "BadgeRefresh", "UserProfile"})
+# claim) is about a person, not an edition, and lives on prod only. PlayerSport is a
+# person's private sports history, like the Player fields in PRIVATE_FIELDS.
+# LateRegistration is an organiser's decision about a person on one database.
+NOT_EXPORTED = frozenset(
+    {
+        "Badge", "BadgeProgress", "BadgeRefresh", "UserProfile", "PlayerSport",
+        "LateRegistration", "TeamDraft",
+    }
+)
+
+# Personal answers given at registration never leave their database; an import leaves
+# them at the model default. (Player.global_level is not here: it is part of the rating.)
+PRIVATE_FIELDS = {
+    "Player": frozenset(
+        {
+            "dietary_restrictions", "sport_frequency", "team_wishes", "team_with",
+            "team_avoid", "attendance_confirmed",
+        }
+    )
+}
 
 
 class TransferError(ValueError):
@@ -88,10 +108,12 @@ def _serialize_value(field, obj):
 
 
 def _serialize_fields(obj, fields):
-    """Concrete fields of obj as a dict: no pk, no edition link, FKs as _id or username."""
+    """Concrete fields of obj as a dict: no pk, no edition link, no private answer, FKs as
+    _id or username."""
+    private = PRIVATE_FIELDS.get(type(obj).__name__, ())
     row = {}
     for field in fields:
-        if field.primary_key or field.name == "edition":
+        if field.primary_key or field.name == "edition" or field.name in private:
             continue
         if field.is_relation:
             target_id = getattr(obj, field.attname)

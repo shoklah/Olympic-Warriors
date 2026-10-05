@@ -53,4 +53,19 @@ describe('login form', () => {
 		const { container } = renderWith(Login, { form: null }, 'en');
 		expect(container.querySelector('input[name="next"]')).toHaveValue('');
 	});
+
+	it('explains that registration is by invitation when the login leads to /register', () => {
+		renderWith(Login, { form: null, next: '/register' });
+
+		expect(screen.getByText(/Registration is by invitation/)).toBeInTheDocument();
+	});
+
+	it('says nothing of it for any other destination, and words it in French', () => {
+		const other = renderWith(Login, { form: null, next: '/account' });
+		expect(screen.queryByText(/Registration is by invitation/)).toBeNull();
+		other.unmount();
+
+		renderWith(Login, { form: null, next: '/register' }, 'fr');
+		expect(screen.getByText(/Les inscriptions se font sur invitation/)).toBeInTheDocument();
+	});
 });

@@ -229,7 +229,7 @@ class ShowcaseSerializer(serializers.Serializer):
 class SummaryEditionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Edition
-        fields = ("id", "year", "host", "start_date", "end_date", "photos_url")
+        fields = ("id", "year", "host", "start_date", "end_date", "photos_url", "dates_confirmed")
 
 
 class SummaryDisciplineSerializer(serializers.ModelSerializer):
@@ -751,6 +751,9 @@ class MeSerializer(serializers.Serializer):
     is_staff = serializers.BooleanField(help_text="An organiser")
     is_person = serializers.BooleanField(
         help_text="An active player of an active edition: has a profile, a photo and a showcase"
+    )
+    can_register = serializers.BooleanField(
+        help_text="A person, or invited by an organiser: may register for the open edition"
     )
     photo = PhotoSerializer(allow_null=True)
     photo_locked = serializers.BooleanField(help_text="Uploads refused by an organiser")

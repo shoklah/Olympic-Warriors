@@ -15,6 +15,8 @@ from olympic_warriors.models import (
     GameEvent,
     Player,
     PlayerRating,
+    PlayerSport,
+    RegistrationSkill,
     Rugby,
     RugbyEvent,
     Team,
@@ -53,6 +55,22 @@ def build_edition(year=2024):
     p_bob = Player.objects.create(user=bob, edition=edition, rating=5, team=blue)
     for player in (p_alice, p_bob):
         PlayerRating.objects.create(player=player, name="Cardio", identifier="CARD", rating=6)
+    RegistrationSkill.objects.create(
+        edition=edition, name_fr="Cardio", name_en="Cardio", identifier="CARD", weight=4
+    )
+    RegistrationSkill.objects.create(
+        edition=edition, name_fr="Force", name_en="Strength", identifier="STR", weight=3, order=1
+    )
+    Player.objects.filter(pk=p_alice.pk).update(
+        global_level=8,
+        dietary_restrictions="Végétarienne",
+        sport_frequency="two_hours",
+        team_wishes="Avec Bob",
+        team_with="Avec Bob",
+        team_avoid="Pas Carl",
+        attendance_confirmed=True,
+    )
+    PlayerSport.objects.create(player=p_alice, sport="Judo", notes="Ceinture orange")
 
     rugby = Rugby.objects.create(edition=edition)  # save() creates one TeamResult per team
     round1 = TeamSportRound.objects.create(discipline=rugby, order=1)
@@ -98,12 +116,33 @@ class ExportEditionTests(TestCase):
         self.assertEqual(
             counts,
             {
-                "Team": 2, "Player": 2, "PlayerRating": 2, "Discipline": 3, "TeamResult": 6,
+                "Team": 2, "RegistrationSkill": 2, "Player": 2, "PlayerRating": 2, "Discipline": 3, "TeamResult": 6,
                 "TeamSportRound": 1, "Game": 1, "GameEvent": 1, "BlindtestRound": 10,
                 "BlindtestGuess": 20,
             },
         )
         self.assertIn(("Red", "Rugby", 3), results)
+
+    def test_personal_registration_answers_are_not_exported(self):
+        doc = export_edition(self.edition.year)
+
+        alice = next(p for p in doc["tables"]["Player"] if p["user"] == "alice")
+        for private in (
+            "dietary_restrictions", "sport_frequency", "team_wishes", "team_with", "team_avoid",
+            "attendance_confirmed",
+        ):
+            self.assertNotIn(private, alice)
+        self.assertEqual(alice["global_level"], 8)  # part of the rating, it travels
+        self.assertNotIn("PlayerSport", doc["tables"])
+        self.assertNotIn("Végétarienne", str(doc))
+        self.assertNotIn("Ceinture orange", str(doc))
+
+    def test_the_questionnaire_is_exported(self):
+        doc = export_edition(self.edition.year)
+
+        skills = doc["tables"]["RegistrationSkill"]
+        self.assertEqual([s["identifier"] for s in skills], ["CARD", "STR"])
+        self.assertNotIn("edition", skills[0])
 
     def test_document_has_no_database_ids_and_references_users_by_username(self):
         doc = export_edition(self.edition.year)
@@ -313,6 +352,26 @@ class ImportEditionTests(TestCase):
         with self.assertRaises(TransferError):
             import_edition({**self.document, "users": None})
         self.assertFalse(Edition.objects.filter(year=2024).exists())
+
+
+class TestRegistrationTransfer(TestCase):
+    def test_the_questionnaire_round_trips_and_private_answers_come_back_blank(self):
+        edition = build_edition()
+        document = export_edition(edition.year)
+        edition.delete()
+
+        import_edition(document)
+
+        edition = Edition.objects.get(year=2024)
+        self.assertEqual(
+            list(edition.registrationskill_set.values_list("identifier", "weight")),
+            [("CARD", 4), ("STR", 3)],
+        )
+        alice = Player.objects.get(edition=edition, user__username="alice")
+        self.assertEqual(alice.global_level, 8)
+        self.assertEqual(alice.dietary_restrictions, "")
+        self.assertFalse(alice.attendance_confirmed)
+        self.assertEqual(PlayerSport.objects.count(), 0)
 
 
 class TestFinalRankTransfer(TestCase):

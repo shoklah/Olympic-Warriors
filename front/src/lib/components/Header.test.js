@@ -224,6 +224,31 @@ describe('Header', () => {
 			expect(screen.getByRole('button', { name: 'Log out' })).toBeInTheDocument();
 			expect(screen.queryByRole('link', { name: 'Log in' })).toBeNull();
 		});
+
+		it('links the registration page for anyone who can register', () => {
+			renderWith(Header, { me: { ...lea, can_register: true } }, 'en');
+
+			expect(screen.getByRole('link', { name: 'Register' })).toHaveAttribute('href', '/register');
+		});
+
+		it('shows no registration link to someone who cannot register', () => {
+			renderWith(Header, { me: { ...lea, can_register: false } }, 'en');
+
+			expect(screen.queryByRole('link', { name: 'Register' })).toBeNull();
+		});
+
+		it('links the account of an invited newcomer, who has no profile page yet', () => {
+			renderWith(Header, { me: { ...lea, is_person: false, can_register: true } }, 'en');
+
+			expect(screen.getByRole('link', { name: /My account/ })).toHaveAttribute('href', '/account');
+			expect(screen.getByRole('link', { name: 'Register' })).toHaveAttribute('href', '/register');
+		});
+
+		it('words the registration link in French', () => {
+			renderWith(Header, { me: { ...lea, can_register: true } }, 'fr');
+
+			expect(screen.getByRole('link', { name: "S'inscrire" })).toHaveAttribute('href', '/register');
+		});
 	});
 
 	describe('for an organiser', () => {
@@ -286,6 +311,20 @@ describe('Header', () => {
 			expect(button).toHaveTextContent(/^Orga\s*Se déconnecter$/);
 			// Nothing to edit at /account for someone who never played.
 			expect(screen.queryByRole('link', { name: /Mon compte/ })).toBeNull();
+		});
+
+		it('shows the register link beside the ORGA pill only to an organiser who can register', () => {
+			const { unmount } = renderWith(Header, { me: { ...hugo, can_register: true } }, 'en', true);
+			expect(screen.getByRole('link', { name: 'Register' })).toHaveAttribute('href', '/register');
+			unmount();
+
+			renderWith(
+				Header,
+				{ me: { ...hugo, is_person: false, can_register: false } },
+				'en',
+				true
+			);
+			expect(screen.queryByRole('link', { name: 'Register' })).toBeNull();
 		});
 	});
 

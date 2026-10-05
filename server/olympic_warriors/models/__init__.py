@@ -1,5 +1,8 @@
-from .Player import Player, PlayerRating
+from .Player import Player, PlayerRating, PlayerSport
+from .RegistrationSkill import RegistrationSkill
+from .LateRegistration import LateRegistration
 from .Team import Team, TeamResult
+from .TeamDraft import TeamDraft
 from .Edition import Edition, latest_edition
 from .Badge import Badge, BadgeRefresh, MANUAL_CODES
 from .BadgeProgress import BadgeProgress

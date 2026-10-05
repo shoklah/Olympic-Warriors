@@ -8,10 +8,27 @@ from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils.crypto import get_random_string
 
-from ..registration import EMAIL, NAME, compute_ratings, parse_name, resolve_columns
-from .Player import Player, PlayerRating
+from ..emails import INTERNAL_DOMAIN, is_internal
+from ..registration import (
+    CONFIRMED,
+    EMAIL,
+    FREQUENCY,
+    GLOBAL_LEVEL,
+    IMPORTED_SPORT,
+    NAME,
+    SPORTS,
+    WISHES,
+    clean_text,
+    compute_ratings,
+    parse_confirmation,
+    parse_frequency,
+    parse_name,
+    resolve_columns,
+    resolve_extras,
+)
+from .Player import Player, PlayerRating, PlayerSport
 
-FALLBACK_EMAIL_DOMAIN = "olympicwarriors.com"
+FALLBACK_EMAIL_DOMAIN = INTERNAL_DOMAIN
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +46,19 @@ class Edition(models.Model):
     end_date = models.DateField()
     registration_form = models.FileField(upload_to="registration_forms/", null=True, blank=True)
     photos_url = models.URLField(blank=True, null=True)
+    # False while the dates are provisional (an edition created early so players can
+    # register): the hub then hides the date range and the countdown.
+    dates_confirmed = models.BooleanField(default=True)
+    # The in-app registration (registration_state.py): open from registration_opens, through
+    # registration_closes (the day before start_date when blank), and only with a
+    # questionnaire. The texts frame the form; the month completes « le niveau que tu auras
+    # en … ».
+    registration_opens = models.DateField(null=True, blank=True)
+    registration_closes = models.DateField(null=True, blank=True)
+    registration_intro_fr = models.TextField(blank=True, default="")
+    registration_intro_en = models.TextField(blank=True, default="")
+    skills_month_fr = models.CharField(max_length=30, blank=True, default="")
+    skills_month_en = models.CharField(max_length=30, blank=True, default="")
     is_active = models.BooleanField(default=True)
 
     def __str__(self) -> str:
@@ -60,6 +90,7 @@ class Edition(models.Model):
             registration_form.seek(0)
         df = pd.read_csv(registration_form)
         columns, ratings = resolve_columns(df)
+        extras = resolve_extras(df)
         if EMAIL not in columns:
             logger.warning(
                 "Registration form for edition %s has no email column; "
@@ -89,16 +120,42 @@ class Edition(models.Model):
                         password=get_random_string(length=8),
                         email=email or f"{username}@{FALLBACK_EMAIL_DOMAIN}",
                     )
-                elif email and user.email.endswith(f"@{FALLBACK_EMAIL_DOMAIN}"):
+                elif email and is_internal(user.email):
                     user.email = email
                     user.save(update_fields=["email"])
 
                 try:
+                    defaults = {
+                        "rating": round(row["Global_Rating"]),
+                        "global_level": round(row[GLOBAL_LEVEL]),
+                        "is_active": True,
+                        "withdrawn_at": None,
+                    }
+                    if FREQUENCY in extras:
+                        defaults["sport_frequency"] = parse_frequency(row[extras[FREQUENCY]])
+                    if WISHES in extras:
+                        defaults["team_wishes"] = clean_text(row[extras[WISHES]])
+                    if CONFIRMED in extras:
+                        defaults["attendance_confirmed"] = parse_confirmation(
+                            row[extras[CONFIRMED]]
+                        )
                     player, _ = Player.objects.update_or_create(
-                        user=user,
-                        edition=self,
-                        defaults={"rating": round(row["Global_Rating"]), "is_active": True},
+                        user=user, edition=self, defaults=defaults
                     )
+                    history = clean_text(row[extras[SPORTS]]) if SPORTS in extras else ""
+                    if history:
+                        # filter().first(), not update_or_create: an organiser may have
+                        # added a second row of that name, which is no reason to fail.
+                        imported = PlayerSport.objects.filter(
+                            player=player, sport=IMPORTED_SPORT
+                        ).first()
+                        if imported is None:
+                            PlayerSport.objects.create(
+                                player=player, sport=IMPORTED_SPORT, notes=history
+                            )
+                        else:
+                            imported.notes = history
+                            imported.save(update_fields=["notes"])
                     for name, spec in ratings.items():
                         PlayerRating.objects.update_or_create(
                             player=player,

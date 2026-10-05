@@ -122,6 +122,7 @@ class TestMe(MeSetup, APITestCase):
                 "email": "leamartin@mail.example",
                 "is_staff": False,
                 "is_person": True,
+                "can_register": True,
                 "photo": None,
                 "photo_locked": False,
                 "showcase": {"auto": True, "codes": []},

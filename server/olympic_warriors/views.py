@@ -22,6 +22,7 @@ from rest_framework import serializers
 from rest_framework.exceptions import ParseError
 from rest_framework.parsers import JSONParser, MultiPartParser
 from rest_framework.response import Response
+from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema, inline_serializer, OpenApiResponse
 
 from .serializer import (
@@ -54,7 +55,9 @@ from .serializer import (
     DisciplineAllTimeSerializer,
     HeldDisciplineSerializer,
 )
-from . import accounts
+from . import accounts, builder, enrolment
+from .enrolment import RegistrationError, WithdrawalRefused, usable_email
+from .registration_state import LATE_PASS, registration_state
 from .avatars import MAX_BYTES, PhotoError, photo_urls, remove_photo, store_photo
 from .badges import (
     SHOWCASE_SIZE,
@@ -65,7 +68,13 @@ from .badges import (
     showcase,
     valid_pins,
 )
-from .claims import check_claim, complete_claim, unclaimable_reason, unresettable_reason
+from .claims import (
+    can_register,
+    check_claim,
+    complete_claim,
+    unclaimable_reason,
+    unresettable_reason,
+)
 from .profiles import (
     discipline_table,
     held_disciplines,
@@ -81,6 +90,7 @@ from .throttling import (
     LoginRateThrottle,
     PasswordCheckThrottle,
     PhotoRateThrottle,
+    RegistrationRateThrottle,
     ResetEmailRateThrottle,
 )
 from .password_reset import send_reset
@@ -282,6 +292,7 @@ def getMe(request):
                 "email": user.email,
                 "is_staff": user.is_staff,
                 "is_person": user.is_person,
+                "can_register": user.is_person or (profile is not None and profile.invited),
                 "photo": photo_urls(profile),
                 "photo_locked": profile is not None and profile.photo_locked,
                 "showcase": {"auto": not pins, "codes": pins},
@@ -418,9 +429,11 @@ def _account_body(request):
 
 
 def _not_an_account_owner(user):
-    """404 response for anyone who is not a person, else None. An organiser who plays owns an
-    account like any player (deletion aside, see deactivateMe)."""
-    if not is_person(user):
+    """404 response for anyone who cannot register (not a person, not invited), else None.
+    An organiser who plays owns an account like any player (deletion aside, see
+    deactivateMe), and so does an invited newcomer; the photo and the showcase stay for
+    people only."""
+    if not can_register(user):
         return Response(NOT_A_PERSON, status=404)
     return None
 
@@ -526,6 +539,135 @@ def deactivateMe(request):
         return Response(WRONG_PASSWORD, status=400)
     accounts.deactivate(request.user)
     return Response(status=204)
+
+
+@extend_schema(
+    methods=["GET"],
+    summary="The registration form of the latest edition, with the caller's saved answers",
+    responses={
+        "200": OpenApiTypes.OBJECT,  # the form, its state, and the caller's answers
+        "404": OpenApiResponse(description="Not a person nor invited, or no edition"),
+    },
+)
+@extend_schema(
+    methods=["PUT"],
+    summary="Register for the latest edition, or edit the registration",
+    request=OpenApiTypes.OBJECT,  # enrolment.validate documents the body
+    responses={
+        "200": OpenApiTypes.OBJECT,  # the form as GET returns it, with the saved answers
+        "400": OpenApiResponse(description='{"errors": [codes]}, see enrolment.validate'),
+        "409": OpenApiResponse(
+            description='{"error": "closed" | "not_yet_open" | "not_configured" | "removed_by_organiser"}'
+        ),
+        "429": OpenApiResponse(description="Too many saves (REGISTRATION_THROTTLE_RATE)"),
+    },
+)
+@extend_schema(
+    methods=["DELETE"],
+    summary="Withdraw the registration (the answers are kept)",
+    responses={
+        "204": OpenApiResponse(description="Withdrawn, or there was none"),
+        "409": OpenApiResponse(
+            description='{"error": "closed" | ... | "has_team"}: an organiser must remove a placed player'
+        ),
+    },
+)
+@api_view(["GET", "PUT", "DELETE"])
+@permission_classes([IsAuthenticated])  # 404 unless a person or an invited newcomer
+@throttle_classes([RegistrationRateThrottle])  # the PUT only, per user
+@parser_classes([JSONParser])
+def myRegistration(request):
+    refusal = _not_an_account_owner(request.user)
+    if refusal:
+        return refusal
+    edition = latest_edition()
+    if edition is None:
+        return Response({"error": "no_edition"}, status=404)
+    state = registration_state(edition, request.user)
+    if request.method == "GET":
+        response = Response(enrolment.form_payload(request.user, edition, state))
+        response["Cache-Control"] = "private, no-store"
+        return response
+    if not state.is_open:
+        return Response({"error": state.reason}, status=409)
+    if request.method == "DELETE":
+        try:
+            enrolment.withdraw(request.user, edition)
+        except WithdrawalRefused:
+            return Response({"error": "has_team"}, status=409)
+        return Response(status=204)
+    if state.reason != LATE_PASS and enrolment.removed_by_organiser(request.user, edition):
+        return Response({"error": "removed_by_organiser"}, status=409)
+    skills = list(edition.registrationskill_set.filter(is_active=True))
+    try:
+        cleaned = enrolment.validate(
+            _account_body(request), skills, not usable_email(request.user.email), request.user
+        )
+    except RegistrationError as error:
+        return Response({"errors": error.codes}, status=400)
+    enrolment.save(request.user, edition, skills, cleaned)
+    response = Response(enrolment.form_payload(request.user, edition, state))
+    response["Cache-Control"] = "private, no-store"
+    return response
+
+
+def _builder_edition(year):
+    """The edition the builder may work on, or the refusing Response."""
+    edition = Edition.objects.filter(year=year, is_active=True).first()
+    if edition is None:
+        return None, Response({"error": "no_edition"}, status=404)
+    if edition != latest_edition():
+        return None, Response({"error": "not_latest"}, status=409)
+    return edition, None
+
+
+def _no_store(response):
+    response["Cache-Control"] = "private, no-store"
+    return response
+
+
+@extend_schema(summary="The team builder's roster, answers and draft (organisers)")
+@api_view(["GET"])
+def getBuilder(request, year):
+    edition, refusal = _builder_edition(year)
+    if refusal:
+        return refusal
+    return _no_store(Response(builder.payload(edition)))
+
+
+@extend_schema(summary="Save or clear the team builder's draft (organisers)")
+@api_view(["PUT", "DELETE"])
+@parser_classes([JSONParser])
+def teamDraft(request, year):
+    edition, refusal = _builder_edition(year)
+    if refusal:
+        return refusal
+    if request.method == "DELETE":
+        builder.clear_draft(edition)
+        return Response(status=204)
+    body = request.data if isinstance(request.data, dict) else {}
+    try:
+        draft = builder.save_draft(edition, request.user, body.get("document"), body.get("based_on"))
+    except builder.DraftError as error:
+        return Response({"errors": error.codes}, status=400)
+    except builder.StaleDraft as stale:
+        current = builder.draft_payload(stale.current) if stale.current else None
+        return _no_store(Response({"error": "stale_draft", "draft": current}, status=409))
+    return _no_store(Response(builder.draft_payload(draft)))
+
+
+@extend_schema(summary="Create the teams of the stored draft (organisers)")
+@api_view(["POST"])
+@parser_classes([JSONParser])
+def applyTeams(request, year):
+    edition, refusal = _builder_edition(year)
+    if refusal:
+        return refusal
+    body = request.data if isinstance(request.data, dict) else {}
+    try:
+        return _no_store(Response(builder.apply(edition, body.get("based_on"))))
+    except builder.ApplyRefused as refused:
+        return Response({"error": refused.code}, status=refused.status)
 
 
 # Users

@@ -120,4 +120,137 @@ describe('EditionHub', () => {
 
 		expect(screen.getByRole('link', { name: 'Joueurs' })).toHaveAttribute('href', '/players');
 	});
+	describe('with unconfirmed dates', () => {
+		const unconfirmed = { ...summary, edition: { ...summary.edition, dates_confirmed: false } };
+
+		it('hides the countdown and the date range', () => {
+			vi.setSystemTime(new Date('2026-09-17T07:00:00Z'));
+			renderWith(EditionHub, { summary: unconfirmed, editions });
+
+			expect(screen.getByText('Paris · Dates to be announced')).toBeInTheDocument();
+			expect(screen.queryByText('Days')).toBeNull();
+			expect(screen.queryByText(/September/)).toBeNull();
+		});
+
+		it('never offers the ranking, even once the provisional start has passed', () => {
+			vi.setSystemTime(new Date('2026-09-19T08:00:00Z'));
+			renderWith(EditionHub, { summary: unconfirmed, editions });
+
+			expect(screen.queryByRole('link', { name: 'Ranking' })).toBeNull();
+			expect(screen.getByRole('link', { name: 'Players' })).toBeInTheDocument();
+		});
+
+		it('says it in French', () => {
+			vi.setSystemTime(new Date('2026-09-17T07:00:00Z'));
+			renderWith(EditionHub, { summary: unconfirmed, editions }, 'fr');
+
+			expect(screen.getByText('Paris · Dates à venir')).toBeInTheDocument();
+		});
+
+		it('treats a payload without the flag as confirmed', () => {
+			vi.setSystemTime(new Date('2026-09-17T07:00:00Z'));
+			renderWith(EditionHub, { summary, editions });
+
+			expect(screen.getByText('Paris · 19 – 20 September 2026')).toBeInTheDocument();
+		});
+	});
+
+	describe('registration link', () => {
+		// The latest edition (2026, starting 2026-09-19) with its public window set.
+		const withWindow = [
+			{ ...editions[0], start_date: '2026-09-19', registration_opens: '2026-01-01', registration_closes: null },
+			...editions.slice(1)
+		];
+		const player = { id: 1, first_name: 'Léa', last_name: 'Martin', can_register: true };
+
+		it('sends a visitor through the login while registration is open', () => {
+			vi.setSystemTime(new Date('2026-09-17T07:00:00Z'));
+			renderWith(EditionHub, { summary, editions: withWindow, me: null });
+
+			expect(screen.getByRole('link', { name: 'Log in to register' })).toHaveAttribute(
+				'href', '/login?next=/register'
+			);
+		});
+
+		it('links someone who can register straight to the form', () => {
+			vi.setSystemTime(new Date('2026-09-17T07:00:00Z'));
+			renderWith(EditionHub, { summary, editions: withWindow, me: player });
+
+			expect(screen.getByRole('link', { name: 'Registration 2026' })).toHaveAttribute('href', '/register');
+		});
+
+		it('shows nothing to someone who cannot register', () => {
+			vi.setSystemTime(new Date('2026-09-17T07:00:00Z'));
+			renderWith(EditionHub, { summary, editions: withWindow, me: { ...player, can_register: false } });
+
+			expect(screen.queryByRole('link', { name: /Regist/ })).toBeNull();
+		});
+
+		it('shows nothing once the window has closed, before it opens, or when it is not set', () => {
+			vi.setSystemTime(new Date('2026-09-19T08:00:00Z')); // the day of the start: closed
+			const closed = renderWith(EditionHub, { summary, editions: withWindow, me: null });
+			expect(screen.queryByRole('link', { name: /Regist/ })).toBeNull();
+			closed.unmount();
+
+			vi.setSystemTime(new Date('2025-12-31T12:00:00Z'));
+			const early = renderWith(EditionHub, { summary, editions: withWindow, me: null });
+			expect(screen.queryByRole('link', { name: /Regist/ })).toBeNull();
+			early.unmount();
+
+			vi.setSystemTime(new Date('2026-09-17T07:00:00Z'));
+			renderWith(EditionHub, { summary, editions, me: null }); // no registration_opens at all
+			expect(screen.queryByRole('link', { name: /Regist/ })).toBeNull();
+		});
+
+		it('is only on the latest edition hub', () => {
+			vi.setSystemTime(new Date('2026-09-17T07:00:00Z'));
+			const older = { ...summary, edition: { ...summary.edition, year: 2025 } };
+			renderWith(EditionHub, { summary: older, editions: withWindow, me: null });
+
+			expect(screen.queryByRole('link', { name: /Regist/ })).toBeNull();
+		});
+
+		it('says it in French', () => {
+			vi.setSystemTime(new Date('2026-09-17T07:00:00Z'));
+			const visitor = renderWith(EditionHub, { summary, editions: withWindow, me: null }, 'fr');
+			expect(screen.getByRole('link', { name: "Se connecter pour s'inscrire" })).toBeInTheDocument();
+			visitor.unmount();
+
+			renderWith(EditionHub, { summary, editions: withWindow, me: player }, 'fr');
+			expect(screen.getByRole('link', { name: 'Inscription 2026' })).toBeInTheDocument();
+		});
+	});
+
+	describe('team builder link', () => {
+		const empty = { ...summary, teams: [] };
+		const show = (props, locale = 'en', organiser = true) => {
+			vi.setSystemTime(new Date('2026-09-19T08:00:00Z'));
+			renderWith(EditionHub, { summary: empty, editions, ...props }, locale, organiser);
+		};
+
+		it('is offered to an organiser on the latest edition without teams', () => {
+			show({});
+			expect(screen.getByRole('link', { name: 'Build the teams' })).toHaveAttribute('href', '/2026/builder');
+		});
+
+		it('is hidden from a visitor', () => {
+			show({}, 'en', false);
+			expect(screen.queryByRole('link', { name: 'Build the teams' })).toBeNull();
+		});
+
+		it('is hidden once teams exist', () => {
+			show({ summary });
+			expect(screen.queryByRole('link', { name: 'Build the teams' })).toBeNull();
+		});
+
+		it('is hidden on an older edition', () => {
+			show({ summary: { ...empty, edition: { ...empty.edition, year: 2025 } } });
+			expect(screen.queryByRole('link', { name: 'Build the teams' })).toBeNull();
+		});
+
+		it('reads in French', () => {
+			show({}, 'fr');
+			expect(screen.getByRole('link', { name: 'Constituer les équipes' })).toHaveAttribute('href', '/2026/builder');
+		});
+	});
 });

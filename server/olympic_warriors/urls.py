@@ -47,6 +47,11 @@ urlpatterns = [
     path("me/email/", views.myEmail),
     path("me/password/", views.myPassword),
     path("me/deactivate/", views.deactivateMe),
+    path("registration/", views.myRegistration),
+    # team builder (organisers)
+    path("builder/<int:year>/", views.getBuilder),
+    path("builder/<int:year>/draft/", views.teamDraft),
+    path("builder/<int:year>/apply/", views.applyTeams),
     # users
     path("user/<int:user_id>/", views.getUser),
     path("users/", views.getUsers),

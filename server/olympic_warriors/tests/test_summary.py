@@ -199,6 +199,7 @@ class TestEditionSummarySerializer(SummarySetup, TestCase):
                 "start_date": "2026-09-19",
                 "end_date": "2026-09-20",
                 "photos_url": "https://drive.example.com/ow-2026",
+                "dates_confirmed": True,
             },
         )
 

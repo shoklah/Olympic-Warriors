@@ -63,6 +63,9 @@ class BaseConfig(BaseSettings):
     # fails on it: without an absolute http(s) address the admin refuses to make links.
     PUBLIC_URL: str = ""
 
+    # Staging only: lets `manage.py seed_demo_edition` run with DEBUG off. Never set it in prod.
+    STAGE_DEMO: bool = False
+
     ALLOWED_HOSTS: list = ["*"]
     CSRF_TRUSTED_ORIGINS: list = ["https://*", "http://*"]
 
@@ -88,6 +91,8 @@ class BaseConfig(BaseSettings):
     # /me/deactivate/ together), and password-reset mails per address, DRF's rate format.
     PASSWORD_THROTTLE_RATE: str = "10/hour"
     RESET_EMAIL_THROTTLE_RATE: str = "3/hour"
+    # Registration saves (PUT /registration/) per user, DRF's rate format.
+    REGISTRATION_THROTTLE_RATE: str = "30/hour"
 
     @model_validator(mode="after")
     def validate_log_level(self):

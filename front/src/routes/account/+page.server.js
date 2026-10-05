@@ -13,9 +13,10 @@ const CONFIRM_WORDS = new Set(['supprimer', 'delete']);
 
 /**
  * The page is the caller's own: a visitor (or a dead token) goes to /login, and someone logged
- * in who is not a person (an organiser who never played included), with nothing to edit here,
- * goes home (so logging in through /login?next=/account never lands them on an error). An
- * organiser who plays gets the page, `is_staff` hiding the deletion the API refuses them.
+ * in who can neither play nor register (an organiser who never played included), with nothing
+ * to edit here, goes home (so logging in through /login?next=/account never lands them on an
+ * error). An invited newcomer is served too, without a profile. An organiser who plays gets the
+ * page, `is_staff` hiding the deletion the API refuses them.
  * Never cached: it shows the username and the email.
  */
 export const load = async ({ fetch, cookies, setHeaders }) => {
@@ -29,14 +30,18 @@ export const load = async ({ fetch, cookies, setHeaders }) => {
 		if (err?.status === 401 || err?.status === 403) redirect(303, LOGIN);
 		throw err;
 	}
-	if (!account.is_person) redirect(303, '/');
-	const profile = await apiGet(fetch, api(`/profile/${account.id}/`));
+	// An invited newcomer (no active player yet) has no profile page but may use the rest.
+	const canRegister = account.can_register ?? account.is_person;
+	if (!canRegister) redirect(303, '/');
+	const isPerson = account.is_person === true;
+	const profile = isPerson ? await apiGet(fetch, api(`/profile/${account.id}/`)) : null;
 	return {
 		account: {
 			id: account.id,
 			username: account.username,
 			email: account.email ?? '',
-			is_staff: account.is_staff === true
+			is_staff: account.is_staff === true,
+			is_person: isPerson
 		},
 		profile
 	};

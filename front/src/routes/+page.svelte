@@ -4,4 +4,4 @@
 	export let data;
 </script>
 
-<EditionHub summary={data.summary} editions={data.editions} />
+<EditionHub summary={data.summary} editions={data.editions} me={data.me} />

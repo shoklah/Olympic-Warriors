@@ -5,20 +5,34 @@
 	import { iconFor } from '$lib/icons';
 	import { countdownParts, editionPhase, formatDateRange } from '$lib/edition';
 	import { disciplineName, useLocale, useT } from '$lib/i18n';
+	import { useOrganiser } from '$lib/session';
+	import { parisToday, registrationLink } from '$lib/registration';
 
 	export let summary;
 	export let editions;
+	export let me = null;
 
 	const locale = useLocale();
 	const t = useT();
+	const organiser = useOrganiser();
 
 	$: edition = summary.edition;
 	$: half = Math.ceil(summary.disciplines.length / 2);
 	$: columns = [summary.disciplines.slice(0, half), summary.disciplines.slice(half)];
 
 	let now = new Date();
-	$: phase = editionPhase(edition, now);
+	// An explicit false only: a server that predates the flag sends none.
+	$: confirmed = edition.dates_confirmed !== false;
+	$: phase = confirmed ? editionPhase(edition, now) : 'upcoming';
 	$: parts = countdownParts(edition, now);
+	// The latest edition only: registration targets it (the API's latest_edition()).
+	$: isLatest = editions[0]?.year === edition.year;
+	// An organiser's way into the team builder, until the edition has teams (the ranking page's rule).
+	$: builder = organiser && isLatest && summary.teams.length === 0;
+	$: registration =
+		isLatest
+			? registrationLink({ me, editions, today: parisToday(now) })
+			: null;
 
 	onMount(() => {
 		const interval = setInterval(() => (now = new Date()), 1000);
@@ -46,9 +60,13 @@
 	{/each}
 </div>
 
-<p class="where">{edition.host} · {formatDateRange(edition.start_date, edition.end_date, locale)}</p>
+<p class="where">
+	{edition.host} · {confirmed
+		? formatDateRange(edition.start_date, edition.end_date, locale)
+		: t('hub.datesTbc')}
+</p>
 
-{#if phase === 'upcoming'}
+{#if confirmed && phase === 'upcoming'}
 	<div id="countdown">
 		<div class="label"><span class="num">{parts.days}</span>{t('hub.days')}</div>
 		<div class="label"><span class="num">{parts.hours}</span>{t('hub.hours')}</div>
@@ -60,12 +78,20 @@
 <!-- The leaderboard covers past editions, so its link shows before the start too; on a
      phone the hub has no tab bar, and this is the way in. -->
 <div class="actions">
+	{#if registration}
+		<a class="register" href={registration.href}>
+			{registration.visitor ? t('hub.register') : t('hub.registration', { year: registration.year })}
+		</a>
+	{/if}
 	{#if phase !== 'upcoming'}
-		<a href="/{edition.year}/ranking">{t('hub.ranking')}</a>
+		<a class:secondary={registration} href="/{edition.year}/ranking">{t('hub.ranking')}</a>
+	{/if}
+	{#if builder}
+		<a class="secondary" href="/{edition.year}/builder">{t('builder.link')}</a>
 	{/if}
 	<!-- Outlined only once the ranking button is also shown: before the start it is the
 	     sole button, so it stays the filled main call. -->
-	<a class:secondary={phase !== 'upcoming'} href="/players">{t('hub.players')}</a>
+	<a class:secondary={phase !== 'upcoming' || registration} href="/players">{t('hub.players')}</a>
 </div>
 
 {#if editions.length > 1}

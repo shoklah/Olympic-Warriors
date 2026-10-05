@@ -1,0 +1,12 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+<div id="content-main">
+  <p>Crée un compte (ou réutilise celui d'un joueur existant) et fournit un lien d'activation à envoyer à la personne. Les liens ne sont affichés qu'ici, une seule fois.</p>
+  <form method="post">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    {{ form.as_p }}
+    <input type="submit" value="Inviter" class="default">
+  </form>
+</div>
+{% endblock %}

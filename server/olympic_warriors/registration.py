@@ -17,6 +17,23 @@ NAME_HEADER = "Prénom et Nom"
 EMAIL_HEADER = "Adresse e-mail"
 GLOBAL_LEVEL_PREFIX = "Sur une échelle de 1 à 10, comment estimes-tu ton niveau global"
 
+# Optional columns that rode along in every form but were never stored: how often the
+# person does sport, their sports history, who they want (or not) in their team, and the
+# "I will be there" confirmation. Matched like the others, by a stable fragment; a form
+# without one simply leaves the answer blank.
+FREQUENCY = "Frequency"
+SPORTS = "Sports"
+WISHES = "Wishes"
+CONFIRMED = "Confirmed"
+
+FREQUENCY_HEADER_PREFIX = "A quelle fréquence pratiques-tu du sport"
+SPORTS_HEADER_PREFIX = "Quels sont les sports que tu as pratiqué"
+WISHES_FRAGMENT = "souhaiterais-tu être ou ne pas être en équipe"
+CONFIRMATION_PREFIXES = ("Je confirme que je serai là", "J'ai payé mon inscription")
+
+# What the sports history of an imported row is filed under (PlayerSport.sport).
+IMPORTED_SPORT = "Historique (import)"
+
 # Skill name -> PlayerRating identifier, weighting coefficient, and the French
 # criterion that appears between brackets in the form header. One dict per
 # form generation; profiles are tried in FORM_PROFILES order.
@@ -167,6 +184,86 @@ def parse_name(raw):
     return first_name, last_name, username
 
 
+# A weak self-assessment on the skills but a confident global estimate is treated as
+# under-reporting: the weighted rating is multiplied by 2.5 (historical rule).
+BOOST_BELOW = 4
+BOOST_GLOBAL_ABOVE = 4
+BOOST_FACTOR = 2.5
+
+
+def _normalise(text):
+    """Lower-case, single-spaced, straight apostrophes: how answers are compared."""
+    return " ".join(str(text).replace("’", "'").lower().split())
+
+
+# Normalised form answer -> SportFrequency value (a test keeps the values equal).
+FREQUENCIES = {
+    "moins d'une fois par mois": "rare",
+    "moins d'une fois par semaine mais plusieurs fois par mois": "monthly",
+    "environ une heure par semaine": "hour",
+    "au moins deux heures par semaine": "two_hours",
+    "au moins quatre heures par semaine": "four_hours",
+}
+
+
+def parse_frequency(raw):
+    """The SportFrequency value of a form answer, "" for a blank or unknown one."""
+    return FREQUENCIES.get(_normalise(raw), "") if isinstance(raw, str) else ""
+
+
+def parse_confirmation(raw):
+    """True for a "Oui" in the confirmation column."""
+    return isinstance(raw, str) and _normalise(raw) in {"oui", "yes"}
+
+
+def clean_text(raw):
+    """A free-text cell, stripped; "" for a blank one (pandas NaN)."""
+    return raw.strip() if isinstance(raw, str) else ""
+
+
+def resolve_extras(df):
+    """
+    Map the optional answers to the DataFrame's actual headers.
+
+    :return: {FREQUENCY | SPORTS | WISHES | CONFIRMED: header} for the columns present.
+    :raises ValueError: if a fragment matches two headers.
+    """
+    headers = list(df.columns)
+    wanted = {
+        FREQUENCY: lambda h: str(h).strip().startswith(FREQUENCY_HEADER_PREFIX),
+        SPORTS: lambda h: str(h).strip().startswith(SPORTS_HEADER_PREFIX),
+        WISHES: lambda h: WISHES_FRAGMENT in str(h),
+        CONFIRMED: lambda h: str(h).strip().startswith(CONFIRMATION_PREFIXES),
+    }
+    extras = {}
+    for key, predicate in wanted.items():
+        header = _find_column(headers, predicate, key)
+        if header is not None:
+            extras[key] = header
+    return extras
+
+
+def rate(skills, weights, global_level):
+    """
+    The one rating formula, for one player. The CSV import, the in-app registration and
+    the "recalculate ratings" admin action all go through it, so they cannot drift.
+
+    :param skills: {key: 1..10 rating} holding at least every key of weights.
+    :param weights: {key: positive weight}.
+    :param global_level: the player's own global estimate, 1..10.
+    :return: (weighted, global_rating): the weights-averaged skills clipped to 1..10 and
+             boosted when under-reported, then the blend with the global level, clipped
+             to 1..10 and rounded to two decimals. Player.rating is round(global_rating).
+    """
+    total = sum(weights.values())
+    weighted = sum(skills[key] * weight for key, weight in weights.items()) / total
+    weighted = min(max(weighted, 1), 10)
+    if weighted < BOOST_BELOW and global_level > BOOST_GLOBAL_ABOVE:
+        weighted *= BOOST_FACTOR
+    global_rating = round(min(max((weighted + global_level * 4) / 5, 1), 10), 2)
+    return weighted, global_rating
+
+
 def compute_ratings(df, columns, ratings=RATINGS):
     """
     Rename resolved columns to internal names and add Weighted_Rating and
@@ -194,15 +291,11 @@ def compute_ratings(df, columns, ratings=RATINGS):
     if problems:
         raise ValueError("Invalid ratings in registration form: " + "; ".join(problems))
 
-    total_coef = sum(spec["coef"] for spec in ratings.values())
-    weighted = sum(df[name] * spec["coef"] for name, spec in ratings.items()) / total_coef
-    weighted = weighted.clip(lower=1, upper=10)
-
-    # A weak self-assessment on the skills but a confident global estimate is
-    # treated as under-reporting: multiply by 2.5 (historical rule).
-    boost = (weighted < 4) & (df[GLOBAL_LEVEL] > 4)
-    weighted = weighted.where(~boost, weighted * 2.5)
-    df["Weighted_Rating"] = weighted
-
-    df["Global_Rating"] = ((weighted + df[GLOBAL_LEVEL] * 4) / 5).clip(lower=1, upper=10).round(2)
+    weights = {name: spec["coef"] for name, spec in ratings.items()}
+    results = [
+        rate({name: row[name] for name in weights}, weights, row[GLOBAL_LEVEL])
+        for _, row in df.iterrows()
+    ]
+    df["Weighted_Rating"] = [weighted for weighted, _ in results]
+    df["Global_Rating"] = [global_rating for _, global_rating in results]
     return df

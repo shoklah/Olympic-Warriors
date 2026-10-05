@@ -28,6 +28,8 @@ C = Badge.Codes
 # lock and the stored pins (`codes`), to their owner; the rest never leaves the admin.
 PRIVATE_KEYS = {
     "username", "email", "photo_locked", "claimed_at", "updated_at", "codes", "pins",
+    "global_level", "dietary_restrictions", "sport_frequency", "team_wishes",
+    "team_with", "team_avoid", "attendance_confirmed",
 }
 
 

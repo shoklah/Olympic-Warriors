@@ -13,7 +13,7 @@ from django.views.decorators.debug import sensitive_variables
 from rest_framework.authtoken.models import Token
 
 from .avatars import remove_photo
-from .models import UserProfile
+from .models import Player, PlayerSport, UserProfile
 
 
 @sensitive_variables("password")
@@ -47,8 +47,9 @@ def change_password(user, password):
 
 
 def deactivate(user):
-    """Turn the account off and mask the person: no login, no photo, no pins, anonymized.
-    Player rows stay, so places and badges remain on the public site."""
+    """Turn the account off and mask the person: no login, no photo, no pins, anonymized,
+    and the private registration answers cleared. Player rows stay, so places and badges
+    remain on the public site."""
     with transaction.atomic():
         locked = get_user_model().objects.select_for_update().get(pk=user.pk)
         profile, _ = UserProfile.objects.get_or_create(user=locked)
@@ -63,3 +64,15 @@ def deactivate(user):
         locked.set_unusable_password()
         locked.save(update_fields=["is_active", "password"])
         Token.objects.filter(user=locked).delete()
+        # The registration answers are private personal data: they go with the account. The
+        # Player rows stay (rating, team), so places and badges remain.
+        Player.objects.filter(user=locked).update(
+            global_level=None,
+            dietary_restrictions="",
+            sport_frequency="",
+            team_wishes="",
+            team_with="",
+            team_avoid="",
+            attendance_confirmed=False,
+        )
+        PlayerSport.objects.filter(player__user=locked).delete()
