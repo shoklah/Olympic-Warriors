@@ -10,6 +10,8 @@
 
 Spec: `docs/superpowers/specs/2026-10-05-team-builder-design.md`.
 
+**Two PRs** (decided in the grilling): **PR A, server**: Tasks 1–6 on `feat/team-builder-server`, from `dev` once #122 is merged. **PR B, front**: Tasks 7–17 on `feat/team-builder`, from `dev` once PR A is merged; its tests need no server, and the browser walk (Task 17) runs when both are on `dev`.
+
 **Prerequisite:** PR #122 (registration wizard) must be merged into `dev` first: the builder reads `Player.team_with` / `team_avoid` and the sports level ladder (`fun` … `regional`). Branch `feat/team-builder` from the updated `dev`.
 
 **Rules for every implementer** (from CLAUDE.md and past slices):
@@ -546,10 +548,14 @@ class TestApply(TestCase):
         document = {"players_per_team": 3, "seed": 1, "links": [], "teams": teams, "locked": [], **extra}
         return builder.save_draft(self.edition, self.boss, document, None)
 
+    def apply(self):
+        """Apply the stored draft as a page that has just saved it would."""
+        return builder.apply(self.edition, TeamDraft.objects.get().updated_at.isoformat())
+
     def test_creates_the_teams_sets_the_players_and_deletes_the_draft(self):
         self.store([{"players": self.ids[:3]}, {"players": self.ids[3:]}])
 
-        result = builder.apply(self.edition)
+        result = self.apply()
 
         self.assertEqual([t["name"] for t in result["teams"]], ["Équipe 1", "Équipe 2"])
         teams = list(Team.objects.filter(edition=self.edition).order_by("id"))
@@ -566,7 +572,7 @@ class TestApply(TestCase):
         darts = Darts.objects.create(edition=self.edition)
         self.store([{"players": self.ids[:3]}, {"players": self.ids[3:]}])
 
-        builder.apply(self.edition)
+        self.apply()
 
         for discipline in (relay, darts):
             self.assertEqual(TeamResult.objects.filter(discipline=discipline).count(), 2)
@@ -577,18 +583,18 @@ class TestApply(TestCase):
         Relay.objects.create(edition=self.edition)
         self.store([{"players": self.ids[:3]}, {"players": self.ids[3:]}])
 
-        result = builder.apply(self.edition)
+        result = self.apply()
 
         self.assertEqual([d["id"] for d in result["unscheduled"]], [scheduled.pk])
 
     def test_refusals(self):
         with self.assertRaises(builder.ApplyRefused) as refused:
-            builder.apply(self.edition)
+            builder.apply(self.edition, None)
         self.assertEqual((refused.exception.code, refused.exception.status), ("no_draft", 409))
 
         self.store([{"players": self.ids[:3]}])  # one team, two players unplaced
         with self.assertRaises(builder.ApplyRefused) as refused:
-            builder.apply(self.edition)
+            self.apply()
         self.assertEqual((refused.exception.code, refused.exception.status), ("bad_size", 400))
 
         builder.save_draft(
@@ -597,14 +603,14 @@ class TestApply(TestCase):
             TeamDraft.objects.get().updated_at.isoformat(),
         )  # one player missing
         with self.assertRaises(builder.ApplyRefused) as refused:
-            builder.apply(self.edition)
+            self.apply()
         self.assertEqual((refused.exception.code, refused.exception.status), ("incomplete", 400))
 
     def test_unbalanced_sizes_are_refused(self):
         self.store([{"players": self.ids[:4]}, {"players": self.ids[4:]}])
 
         with self.assertRaises(builder.ApplyRefused) as refused:
-            builder.apply(self.edition)
+            self.apply()
 
         self.assertEqual(refused.exception.code, "bad_size")
         self.assertFalse(Team.objects.exists())
@@ -614,7 +620,7 @@ class TestApply(TestCase):
         Team.objects.create(name="Red", edition=self.edition)
 
         with self.assertRaises(builder.ApplyRefused) as refused:
-            builder.apply(self.edition)
+            self.apply()
 
         self.assertEqual((refused.exception.code, refused.exception.status), ("teams_exist", 409))
 
@@ -623,9 +629,25 @@ class TestApply(TestCase):
         Player.objects.filter(pk=self.ids[0]).update(is_active=False)
 
         with self.assertRaises(builder.ApplyRefused) as refused:
-            builder.apply(self.edition)
+            self.apply()
 
         self.assertEqual(refused.exception.code, "incomplete")
+
+    def test_a_draft_saved_by_someone_else_since_is_refused_and_nothing_is_created(self):
+        first = self.store([{"players": self.ids[:3]}, {"players": self.ids[3:]}])
+        seen = first.updated_at.isoformat()
+        builder.save_draft(
+            self.edition, self.boss,
+            {"players_per_team": 3, "seed": 2, "links": [], "teams": [{"players": self.ids[:2]}, {"players": self.ids[2:]}], "locked": []},
+            seen,
+        )
+
+        with self.assertRaises(builder.ApplyRefused) as refused:
+            builder.apply(self.edition, seen)
+
+        self.assertEqual((refused.exception.code, refused.exception.status), ("stale_draft", 409))
+        self.assertFalse(Team.objects.exists())
+        self.assertTrue(TeamDraft.objects.exists())
 ```
 
 (`Discipline.PairingSystem.ROUND_ROBIN`: check the enum's real member names in `models/Discipline.py` and use them; `Darts` needs the edition's teams only at scheduling, none exist yet so setting the pairing system through `update()` skips scheduling on purpose.)
@@ -649,8 +671,9 @@ def sizes_are_even(teams):
     return len(sizes) >= 2 and min(sizes) >= 1 and max(sizes) - min(sizes) <= 1
 
 
-def apply(edition):
-    """Create the teams of the stored draft and place every player, in one transaction under
+def apply(edition, based_on):
+    """Create the teams of the stored draft (the version `based_on`, the `updated_at` the
+    caller saw: any other is refused) and place every player, in one transaction under
     the edition's row lock. Existing disciplines get a result per new team (the base
     `Discipline.register_teams`); their games are not scheduled, the reply lists them."""
     from .models import Discipline
@@ -660,6 +683,8 @@ def apply(edition):
         draft = TeamDraft.objects.filter(edition=edition).first()
         if draft is None:
             raise ApplyRefused("no_draft", 409)
+        if based_on != draft.updated_at.isoformat():
+            raise ApplyRefused("stale_draft", 409)
         if Team.objects.filter(edition=edition, is_active=True).exists():
             raise ApplyRefused("teams_exist", 409)
         placed = [pid for team in draft.document.get("teams", []) for pid in team["players"]]
@@ -775,21 +800,24 @@ class TestBuilderAPI(TestCase):
         self.assertFalse(TeamDraft.objects.exists())
 
     def test_apply_creates_the_teams(self):
-        self.client.put(self.url + "draft/", {"document": self.document, "based_on": None}, format="json")
+        saved = self.client.put(self.url + "draft/", {"document": self.document, "based_on": None}, format="json").json()
 
-        response = self.client.post(self.url + "apply/")
+        response = self.client.post(self.url + "apply/", {"based_on": saved["updated_at"]}, format="json")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()["teams"]), 2)
         self.assertEqual(response.json()["unscheduled"], [])
 
     def test_apply_refusals_carry_their_status(self):
-        self.assertEqual((self.client.post(self.url + "apply/").status_code, self.client.post(self.url + "apply/").json()), (409, {"error": "no_draft"}))
-        self.client.put(self.url + "draft/", {"document": {**self.document, "teams": [{"players": self.ids[:1]}]}, "based_on": None}, format="json")
+        no_draft = self.client.post(self.url + "apply/", {"based_on": None}, format="json")
+        self.assertEqual((no_draft.status_code, no_draft.json()), (409, {"error": "no_draft"}))
+        saved = self.client.put(self.url + "draft/", {"document": {**self.document, "teams": [{"players": self.ids[:1]}]}, "based_on": None}, format="json").json()
 
-        response = self.client.post(self.url + "apply/")
-
+        response = self.client.post(self.url + "apply/", {"based_on": saved["updated_at"]}, format="json")
         self.assertEqual((response.status_code, response.json()), (400, {"error": "bad_size"}))
+
+        stale = self.client.post(self.url + "apply/", {"based_on": "2000-01-01T00:00:00+00:00"}, format="json")
+        self.assertEqual((stale.status_code, stale.json()), (409, {"error": "stale_draft"}))
 ```
 
 - [ ] **Step 2: Run red** (404 on the routes).
@@ -843,12 +871,14 @@ def teamDraft(request, year):
 
 @extend_schema(summary="Create the teams of the stored draft (organisers)")
 @api_view(["POST"])
+@parser_classes([JSONParser])
 def applyTeams(request, year):
     edition, refusal = _builder_edition(year)
     if refusal:
         return refusal
+    body = request.data if isinstance(request.data, dict) else {}
     try:
-        return _no_store(Response(builder.apply(edition)))
+        return _no_store(Response(builder.apply(edition, body.get("based_on"))))
     except builder.ApplyRefused as refused:
         return Response({"error": refused.code}, status=refused.status)
 ```
@@ -1840,6 +1870,16 @@ describe('createSaver', () => {
 		expect(fetch).toHaveBeenCalledTimes(2);
 	});
 
+	it('exposes the version it holds, for an apply to name', async () => {
+		const fetch = vi.fn(() => reply(200, { document: {}, updated_at: 'v2' }));
+		const saver = createSaver({ url: '/x', fetch, based_on: 'v1' });
+
+		expect(saver.version()).toBe('v1');
+		saver.save({ a: 1 });
+		await vi.advanceTimersByTimeAsync(900);
+		expect(saver.version()).toBe('v2');
+	});
+
 	it('flush saves a pending change at once', async () => {
 		const fetch = vi.fn(() => reply(200, { document: {}, updated_at: 'v2' }));
 		const saver = createSaver({ url: '/x', fetch, based_on: null });
@@ -1896,6 +1936,7 @@ export function createSaver({ url, fetch = globalThis.fetch, based_on = null, on
 	}
 
 	return {
+		version: () => version,
 		save(document) {
 			pending = document;
 			clearTimeout(timer);
@@ -2022,12 +2063,13 @@ describe('builder endpoints', () => {
 		expect((await call(POST, { cookies: { get: () => undefined } })).status).toBe(401);
 	});
 
-	it('delete and apply go to their API routes', async () => {
+	it('delete and apply go to their API routes, apply with its body', async () => {
 		const fetch = vi.fn(async () => new Response(null, { status: 204 }));
 
 		await call(DELETE, { fetch });
 		await call(POST, { fetch });
 
+		expect(JSON.parse(fetch.mock.calls[1][1].body)).toEqual({ document: { a: 1 }, based_on: null });
 		expect(fetch.mock.calls.map((c) => [c[0], c[1].method])).toEqual([
 			['http://api/builder/2029/draft/', 'DELETE'],
 			['http://api/builder/2029/apply/', 'POST']
@@ -2088,7 +2130,7 @@ export const DELETE = (event) => forward(event, 'DELETE', '/draft/');
 ```js
 import { forward } from '$lib/server/builder-proxy';
 
-export const POST = (event) => forward(event, 'POST', '/apply/');
+export const POST = (event) => forward(event, 'POST', '/apply/', true);
 ```
 
 `+page.server.js`:
@@ -2143,6 +2185,8 @@ export const load = async ({ params, cookies, fetch, parent, setHeaders }) => {
 	'builder.reroll': 'Relancer',
 	'builder.placeNew': 'Placer les nouveaux',
 	'builder.moveToTray': "Retirer de l'équipe",
+	'builder.showRequests': 'Afficher les demandes sur les cartes',
+	'builder.error.stale_draft': 'Le brouillon a changé depuis votre dernier enregistrement : rechargez la page.',
 	'builder.apply.public': 'Les équipes seront visibles publiquement dès leur création.',
 	'builder.reset': 'Tout réinitialiser',
 	'builder.resetConfirm': { one: 'Effacer {n} placement ou verrou ? Les liens confirmés sont gardés.', other: 'Effacer {n} placements et verrous ? Les liens confirmés sont gardés.' },
@@ -2180,7 +2224,7 @@ export const load = async ({ params, cookies, fetch, parent, setHeaders }) => {
 	'builder.error.failed': "L'action a échoué : réessayez.",
 ```
 
-English equivalents under the same keys (« Place the newcomers », « Take out of the team », « The teams will be public as soon as they are created », « Build the teams », « Requests », « Teams », « Apply », « Link each name … », « wants to be with », « would rather avoid », « Players per team », « Propose teams », « Re-roll », « Reset everything », « To place », « Team {n} », « Incomplete profile », « Create the teams », and so on, same plural shapes).
+English equivalents under the same keys (« Show the requests on the cards », « The draft changed since you last saved: reload the page », « Place the newcomers », « Take out of the team », « The teams will be public as soon as they are created », « Build the teams », « Requests », « Teams », « Apply », « Link each name … », « wants to be with », « would rather avoid », « Players per team », « Propose teams », « Re-roll », « Reset everything », « To place », « Team {n} », « Incomplete profile », « Create the teams », and so on, same plural shapes).
 
 - [ ] **Step 2:** `npx vitest run src/lib/i18n` → parity PASS. **Step 3: Commit** `[FEAT] builder dictionaries (fr, en)`.
 
@@ -2198,6 +2242,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { renderWith } from '$lib/test-utils';
 import { builderPayload } from '$lib/fixtures/builder.js';
 import Page from './+page.svelte';
+
+vi.mock('$app/navigation', () => ({ invalidateAll: vi.fn() }));
 
 const data = (over = {}) => ({ builder: { ...builderPayload, ...over } });
 const goTo = (name) => fireEvent.click(screen.getByRole('button', { name }));
@@ -2314,6 +2360,59 @@ describe('team builder page', () => {
 		expect(fetch.mock.calls.at(-1)[0]).toBe('/2029/builder/apply');
 		expect(screen.getByText('Darts')).toBeInTheDocument();
 		vi.unstubAllGlobals();
+	});
+
+	it('sends the version it saved with the apply, and refreshes the layout data', async () => {
+		const { invalidateAll } = await import('$app/navigation');
+		const fetch = vi.fn(async (url) =>
+			new Response(JSON.stringify(url.endsWith('/apply') ? { teams: [], unscheduled: [] } : { updated_at: 'v7' }), { status: 200, headers: { 'content-type': 'application/json' } })
+		);
+		vi.stubGlobal('fetch', fetch);
+		renderWith(Page, { data: data() });
+		await propose();
+		await goTo('Apply');
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Create the teams' }));
+		await vi.waitFor(() => expect(screen.getByText('Teams created.')).toBeInTheDocument());
+
+		const call = fetch.mock.calls.find(([url]) => url.endsWith('/apply'));
+		expect(JSON.parse(call[1].body)).toEqual({ based_on: 'v7' });
+		expect(invalidateAll).toHaveBeenCalled();
+		vi.unstubAllGlobals();
+	});
+
+	it('disables Apply while the draft is stale', async () => {
+		vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ error: 'stale_draft', draft: null }), { status: 409, headers: { 'content-type': 'application/json' } })));
+		renderWith(Page, { data: data() });
+		await propose();
+		await vi.waitFor(() => expect(screen.getByText("Someone else changed the draft.")).toBeInTheDocument(), { timeout: 3000 });
+		await goTo('Apply');
+
+		expect(screen.getByRole('button', { name: 'Create the teams' })).toBeDisabled();
+		vi.unstubAllGlobals();
+	});
+
+	it('shows the request notes by default and hides them from the switch, remembering it', async () => {
+		localStorage.clear();
+		renderWith(Page, { data: data() });
+		await propose();
+
+		expect(screen.getAllByText('+ Paul Durand').length).toBeGreaterThan(0);
+
+		await fireEvent.click(screen.getByLabelText('Show the requests on the cards'));
+
+		expect(screen.queryByText('+ Paul Durand')).toBeNull();
+		expect(localStorage.getItem('builder.showRequests')).toBe('off');
+	});
+
+	it('starts with the notes hidden when the browser remembers that', async () => {
+		localStorage.setItem('builder.showRequests', 'off');
+		renderWith(Page, { data: data() });
+		await propose();
+
+		expect(screen.queryByText('+ Paul Durand')).toBeNull();
+		expect(screen.getByLabelText('Show the requests on the cards')).not.toBeChecked();
+		localStorage.clear();
 	});
 
 	it('words an apply refusal', async () => {
@@ -2526,6 +2625,7 @@ describe('team builder page', () => {
 	export let incomplete;
 	export let notesFor;
 	export let tooFew = false;
+	export let showRequests = true;
 
 	const t = useT();
 	const dispatch = createEventDispatcher();
@@ -2560,6 +2660,10 @@ describe('team builder page', () => {
 		{#if proposed}<p class="hint" id="per-team-hint">{t('builder.perTeamLocked')}</p>{/if}
 	</div>
 	<p class="count num">{t('builder.counts', { n: count })}</p>
+	<label class="check">
+		<input type="checkbox" checked={showRequests} on:change={(e) => dispatch('showRequests', e.currentTarget.checked)} />
+		{t('builder.showRequests')}
+	</label>
 	<div class="buttons">
 		{#if !proposed}
 			<button type="button" class="submit" disabled={players.length === 0} on:click={() => dispatch('propose')}>{t('builder.propose')}</button>
@@ -2597,7 +2701,7 @@ describe('team builder page', () => {
 			<h3>{t('builder.tray')}</h3>
 			<ul>
 				{#each unplaced as id (id)}
-					<PlayerCard player={byId.get(id)} teamCount={teams.length || count} incomplete={incomplete.has(id)} notes={notesFor(byId.get(id))} on:move />
+					<PlayerCard player={byId.get(id)} teamCount={teams.length || count} incomplete={incomplete.has(id)} notes={showRequests ? notesFor(byId.get(id)) : []} on:move />
 				{/each}
 			</ul>
 		</section>
@@ -2626,7 +2730,7 @@ describe('team builder page', () => {
 						index={i}
 						locked={locked.includes(id)}
 						incomplete={incomplete.has(id)}
-						notes={notesFor(byId.get(id))}
+						notes={showRequests ? notesFor(byId.get(id)) : []}
 						on:move
 						on:lock
 					/>
@@ -2738,11 +2842,12 @@ Styles in tokens: `.chip` pill with `aria-pressed='true'` filled with `--accent`
 	export let busy = false;
 	export let error = '';
 	export let done = null;
+	export let saveBlocked = false;
 
 	const t = useT();
 	const dispatch = createEventDispatcher();
 	let confirmedOpen = false;
-	$: blocked = busy || done !== null || teamCount === 0 || unplacedCount > 0 || (registrationOpen && !confirmedOpen);
+	$: blocked = busy || saveBlocked || done !== null || teamCount === 0 || unplacedCount > 0 || (registrationOpen && !confirmedOpen);
 </script>
 
 {#if done}
@@ -2775,7 +2880,8 @@ Styles in tokens: `.chip` pill with `aria-pressed='true'` filled with `--accent`
 
 ```svelte
 <script>
-	import { onDestroy } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
+	import { invalidateAll } from '$app/navigation';
 	import { useT } from '$lib/i18n';
 	import { fullName } from '$lib/players';
 	import { emptyDraft, reconcile } from '$lib/builder/plan.js';
@@ -2808,6 +2914,24 @@ Styles in tokens: `.chip` pill with `aria-pressed='true'` filled with `--accent`
 	let applyError = '';
 	let done = null;
 	let saver;
+	let showRequests = true;
+
+	const NOTES_KEY = 'builder.showRequests';
+	onMount(() => {
+		try {
+			showRequests = localStorage.getItem(NOTES_KEY) !== 'off';
+		} catch {
+			// private mode or blocked storage: the default stands
+		}
+	});
+	function setShowRequests({ detail }) {
+		showRequests = detail;
+		try {
+			localStorage.setItem(NOTES_KEY, detail ? 'on' : 'off');
+		} catch {
+			// not remembered, still applied
+		}
+	}
 
 	function load(saved) {
 		const out = reconcile(saved ? saved.document : emptyDraft(), players);
@@ -2900,15 +3024,26 @@ Styles in tokens: `.chip` pill with `aria-pressed='true'` filled with `--accent`
 		const locked = draft.locked.includes(id) ? draft.locked.filter((p) => p !== id) : [...draft.locked, id];
 		commit({ ...draft, locked });
 	}
+	$: saveBlocked = saveState === 'stale' || saveState === 'error';
 	async function apply() {
+		if (saveBlocked) return;
 		busy = true;
 		applyError = '';
 		try {
 			await saver.flush();
-			const response = await fetch(`/${year}/builder/apply`, { method: 'POST' });
+			if (saveBlocked) return;
+			const response = await fetch(`/${year}/builder/apply`, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ based_on: saver.version() })
+			});
 			const body = await response.json().catch(() => ({}));
-			if (response.ok) done = body;
-			else applyError = `builder.error.${['no_draft', 'teams_exist', 'incomplete', 'bad_size'].includes(body.error) ? body.error : 'failed'}`;
+			if (response.ok) {
+				done = body;
+				await invalidateAll(); // the layout's summary now has the teams
+			} else {
+				applyError = `builder.error.${['no_draft', 'teams_exist', 'incomplete', 'bad_size', 'stale_draft'].includes(body.error) ? body.error : 'failed'}`;
+			}
 		} catch {
 			applyError = 'builder.error.failed';
 		} finally {
@@ -2926,7 +3061,10 @@ Styles in tokens: `.chip` pill with `aria-pressed='true'` filled with `--accent`
 	<Breadcrumb items={[{ label: String(year), href: `/${year}` }, { label: t('builder.title') }]} />
 	<h1>{t('builder.title')}</h1>
 
-	{#if builder.teams_exist}
+	{#if done}
+		<h2>{t('builder.step.3')}</h2>
+		<BuilderApply {done} teamCount={done.teams.length} placedCount={0} unplacedCount={0} registrationOpen={false} nameOf={() => ''} />
+	{:else if builder.teams_exist}
 		<p class="notice">{t('builder.exists')}</p>
 	{:else if players.length === 0}
 		<p class="notice">{t('builder.noPlayers')}</p>
@@ -2979,6 +3117,8 @@ Styles in tokens: `.chip` pill with `aria-pressed='true'` filled with `--accent`
 				on:placeNew={placeNew}
 				on:reset={reset}
 				on:move={move}
+				{showRequests}
+				on:showRequests={setShowRequests}
 				on:lock={toggleLock}
 			/>
 		{:else}
@@ -2993,6 +3133,7 @@ Styles in tokens: `.chip` pill with `aria-pressed='true'` filled with `--accent`
 				{busy}
 				error={applyError}
 				{done}
+				{saveBlocked}
 				on:apply={apply}
 			/>
 		{/if}
@@ -3001,7 +3142,7 @@ Styles in tokens: `.chip` pill with `aria-pressed='true'` filled with `--accent`
 ```
 Styles: the `.page` wrapper, `.notice`, `.error`, `.hint`, `.progress` and `.step-name` blocks copy the registration form's (tokens only), including the 600px media rule for the step buttons.
 
-Remove the unused `splitNames` import from the page. The `h2` headings are « Requests », « Teams », « Apply » (the tests read both the step buttons and the headings by role, so the buttons are `button` role and the headings `heading`).
+Remove the unused `splitNames` import from the page. The saver's `onError` also sets `saveState = 'error'`, which disables Apply until a later save succeeds. The `h2` headings are « Requests », « Teams », « Apply » (the tests read both the step buttons and the headings by role, so the buttons are `button` role and the headings `heading`).
 
 `routes/+layout.svelte`: add `'/[year=year]/builder'` to `NO_TAB_BAR`.
 
@@ -3040,7 +3181,7 @@ it('hides it from visitors and once teams exist', () => {
 
 - [ ] **Step 1:** Extend the **Team builder** paragraph added in Task 6 with the front half: route and its guards, `$lib/builder/` (modules and what each is for: `names.js`, `plan.js` with `reconcile`, `score.js` with `WEIGHTS` and the fallbacks, `generate.js`, `random.js`, `saver.js`), the JSON endpoints and why they are not form actions, the panels, the existing-teams message, the ranking-page link, `NO_TAB_BAR`, the tests. Then `git grep -n "team builder\|Team builder" CLAUDE.md` once to check there is a single paragraph.
 - [ ] **Step 2: Commit** `[DOCS] CLAUDE.md: the team builder`.
-- [ ] **Step 3 (controller only, with Hugo's yes; subagents never touch the dev DB):** on the dev stack (`migrate` first for the new migration), seed or reuse the smoke edition 2029 (about ten registered players; give a few of them `team_with`/`team_avoid` texts and a skills set), log in as `smoke-admin` and walk `/2029/builder`: the requests panel matches, the generator output, a drag and the menu move, a lock then a re-roll, a reload mid-draft (the draft comes back), a second browser tab making a stale save (the notice), a roster change (register someone) giving the tray and the banner, Apply with registration open (the confirmation), the result (teams, results backfilled, `unscheduled`), then the page for an edition that now has teams, at 375px and in French. Clean up afterwards only when Hugo says so.
+- [ ] **Step 3 (controller only, after both PRs are on `dev`, with Hugo's yes; subagents never touch the dev DB):** on the dev stack (`migrate` first for the new migration), seed or reuse the smoke edition 2029 (about ten registered players; give a few of them `team_with`/`team_avoid` texts and a skills set), log in as `smoke-admin` and walk `/2029/builder`: the requests panel matches, the generator output, a drag and the menu move, a lock then a re-roll, a reload mid-draft (the draft comes back), a second browser tab making a stale save (the notice), a roster change (register someone) giving the tray and the banner, Apply with registration open (the confirmation), the result (teams, results backfilled, `unscheduled`), then the page for an edition that now has teams, at 375px and in French. Clean up afterwards only when Hugo says so.
 
 ---
 
