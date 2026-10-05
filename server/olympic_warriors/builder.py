@@ -193,3 +193,62 @@ def save_draft(edition, user, document, based_on):
 
 def clear_draft(edition):
     TeamDraft.objects.filter(edition=edition).delete()
+
+
+class ApplyRefused(Exception):
+    """Apply refused: `code` is the API's, `status` 409 for a state conflict, 400 for a draft that cannot be applied."""
+
+    def __init__(self, code, status):
+        super().__init__(code)
+        self.code = code
+        self.status = status
+
+
+def sizes_are_even(teams):
+    """At least two teams, sizes differing by at most one."""
+    sizes = [len(t["players"]) for t in teams]
+    return len(sizes) >= 2 and min(sizes) >= 1 and max(sizes) - min(sizes) <= 1
+
+
+def apply(edition, based_on):
+    """Create the teams of the stored draft (the version `based_on`, the `updated_at` the
+    caller saw: any other is refused) and place every player, in one transaction under
+    the edition's row lock. Existing disciplines get a result per new team (the base
+    `Discipline.register_teams`); their games are not scheduled, the reply lists them."""
+    from .models import Discipline
+
+    with transaction.atomic():
+        Edition.objects.select_for_update().get(pk=edition.pk)
+        draft = TeamDraft.objects.filter(edition=edition).first()
+        if draft is None:
+            raise ApplyRefused("no_draft", 409)
+        if based_on != draft.updated_at.isoformat():
+            raise ApplyRefused("stale_draft", 409)
+        if Team.objects.filter(edition=edition, is_active=True).exists():
+            raise ApplyRefused("teams_exist", 409)
+        if not sizes_are_even(draft.document["teams"]):
+            raise ApplyRefused("bad_size", 400)
+        placed = [pid for team in draft.document["teams"] for pid in team["players"]]
+        players = {p.pk: p for p in roster(edition)}
+        if len(placed) != len(set(placed)) or set(placed) != set(players):
+            raise ApplyRefused("incomplete", 400)
+
+        teams = []
+        for index, entry in enumerate(draft.document["teams"], start=1):
+            team = Team.objects.create(name=f"Équipe {index}", edition=edition)
+            for pid in entry["players"]:
+                player = players[pid]
+                player.team = team
+                player.save()
+            teams.append({"id": team.pk, "name": team.name, "players": entry["players"]})
+
+        unscheduled = []
+        for discipline in Discipline.objects.filter(edition=edition, is_active=True).order_by("id"):
+            discipline.register_teams()
+            if (
+                discipline.pairing_system != Discipline.PairingSystem.NONE
+                and not discipline.rounds.filter(is_active=True).exists()
+            ):
+                unscheduled.append({"id": discipline.pk, "name": discipline.name})
+        draft.delete()
+        return {"teams": teams, "unscheduled": unscheduled}

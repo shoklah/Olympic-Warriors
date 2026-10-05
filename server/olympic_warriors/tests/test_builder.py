@@ -221,3 +221,119 @@ class TestSaveDraft(TestCase):
     def test_an_invalid_document_is_refused(self):
         with self.assertRaises(DraftError):
             builder.save_draft(self.edition, self.boss, {**self.document, "teams": [{"players": [999]}]}, None)
+
+
+from olympic_warriors.models import Darts, Discipline, Relay, TeamResult  # noqa: E402
+
+
+class TestApply(TestCase):
+    def setUp(self):
+        self.edition = make_edition()
+        self.boss = User.objects.create_user("boss", is_staff=True)
+        self.players = [make_player(self.edition, f"p{i}") for i in range(5)]
+        self.ids = [p.pk for p in self.players]
+
+    def store(self, teams, **extra):
+        document = {"players_per_team": 3, "seed": 1, "links": [], "teams": teams, "locked": [], **extra}
+        return builder.save_draft(self.edition, self.boss, document, None)
+
+    def apply(self):
+        """Apply the stored draft as a page that has just saved it would."""
+        return builder.apply(self.edition, TeamDraft.objects.get().updated_at.isoformat())
+
+    def test_creates_the_teams_sets_the_players_and_deletes_the_draft(self):
+        self.store([{"players": self.ids[:3]}, {"players": self.ids[3:]}])
+
+        result = self.apply()
+
+        self.assertEqual([t["name"] for t in result["teams"]], ["Équipe 1", "Équipe 2"])
+        teams = list(Team.objects.filter(edition=self.edition).order_by("id"))
+        self.assertEqual([t.name for t in teams], ["Équipe 1", "Équipe 2"])
+        for player in self.players[:3]:
+            player.refresh_from_db()
+            self.assertEqual(player.team, teams[0])
+        self.players[4].refresh_from_db()
+        self.assertEqual(self.players[4].team, teams[1])
+        self.assertFalse(TeamDraft.objects.exists())
+
+    def test_backfills_a_result_per_team_in_every_existing_discipline(self):
+        relay = Relay.objects.create(edition=self.edition)
+        darts = Darts.objects.create(edition=self.edition)
+        self.store([{"players": self.ids[:3]}, {"players": self.ids[3:]}])
+
+        self.apply()
+
+        for discipline in (relay, darts):
+            self.assertEqual(TeamResult.objects.filter(discipline=discipline).count(), 2)
+
+    def test_reports_the_disciplines_with_a_pairing_system_and_no_round(self):
+        scheduled = Darts.objects.create(edition=self.edition)
+        Discipline.objects.filter(pk=scheduled.pk).update(pairing_system=Discipline.PairingSystem.ROUND_ROBIN)
+        Relay.objects.create(edition=self.edition)
+        self.store([{"players": self.ids[:3]}, {"players": self.ids[3:]}])
+
+        result = self.apply()
+
+        self.assertEqual([d["id"] for d in result["unscheduled"]], [scheduled.pk])
+
+    def test_refusals(self):
+        with self.assertRaises(builder.ApplyRefused) as refused:
+            builder.apply(self.edition, None)
+        self.assertEqual((refused.exception.code, refused.exception.status), ("no_draft", 409))
+
+        self.store([{"players": self.ids[:3]}])  # one team, two players unplaced
+        with self.assertRaises(builder.ApplyRefused) as refused:
+            self.apply()
+        self.assertEqual((refused.exception.code, refused.exception.status), ("bad_size", 400))
+
+        builder.save_draft(
+            self.edition, self.boss,
+            {"players_per_team": 3, "seed": 1, "links": [], "teams": [{"players": self.ids[:2]}, {"players": self.ids[2:4]}], "locked": []},
+            TeamDraft.objects.get().updated_at.isoformat(),
+        )  # one player missing
+        with self.assertRaises(builder.ApplyRefused) as refused:
+            self.apply()
+        self.assertEqual((refused.exception.code, refused.exception.status), ("incomplete", 400))
+
+    def test_unbalanced_sizes_are_refused(self):
+        self.store([{"players": self.ids[:4]}, {"players": self.ids[4:]}])
+
+        with self.assertRaises(builder.ApplyRefused) as refused:
+            self.apply()
+
+        self.assertEqual(refused.exception.code, "bad_size")
+        self.assertFalse(Team.objects.exists())
+
+    def test_existing_teams_refuse_the_apply(self):
+        self.store([{"players": self.ids[:3]}, {"players": self.ids[3:]}])
+        Team.objects.create(name="Red", edition=self.edition)
+
+        with self.assertRaises(builder.ApplyRefused) as refused:
+            self.apply()
+
+        self.assertEqual((refused.exception.code, refused.exception.status), ("teams_exist", 409))
+
+    def test_a_player_who_left_since_the_draft_makes_it_incomplete(self):
+        self.store([{"players": self.ids[:3]}, {"players": self.ids[3:]}])
+        Player.objects.filter(pk=self.ids[0]).update(is_active=False)
+
+        with self.assertRaises(builder.ApplyRefused) as refused:
+            self.apply()
+
+        self.assertEqual(refused.exception.code, "incomplete")
+
+    def test_a_draft_saved_by_someone_else_since_is_refused_and_nothing_is_created(self):
+        first = self.store([{"players": self.ids[:3]}, {"players": self.ids[3:]}])
+        seen = first.updated_at.isoformat()
+        builder.save_draft(
+            self.edition, self.boss,
+            {"players_per_team": 3, "seed": 2, "links": [], "teams": [{"players": self.ids[:2]}, {"players": self.ids[2:]}], "locked": []},
+            seen,
+        )
+
+        with self.assertRaises(builder.ApplyRefused) as refused:
+            builder.apply(self.edition, seen)
+
+        self.assertEqual((refused.exception.code, refused.exception.status), ("stale_draft", 409))
+        self.assertFalse(Team.objects.exists())
+        self.assertTrue(TeamDraft.objects.exists())
