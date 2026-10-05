@@ -41,7 +41,7 @@ The sheet renders only while open, like the other dialogs. A player who leaves t
 
 ### i18n
 
-New keys in `fr.js` and `en.js` (parity-tested): `builder.preview` (« Voir le profil de {name} »), `builder.preview.title`, `builder.preview.tray`, `builder.preview.estimated`, `builder.preview.noSports`, `builder.preview.globalLevel`, `builder.preview.frequency`, `builder.preview.sports`. Reused: `builder.team`, `builder.incomplete`, `register.frequency.*`, `register.level.*`.
+New keys in `fr.js` and `en.js` (parity-tested): `builder.preview` (« Voir le profil de {name} »), `builder.preview.tray`, `.rating`, `.frequency`, `.skills`, `.estimated`, `.sports`, `.noSports`, `.close`. Reused: `builder.team`, `builder.incomplete`, `register.globalLevel`, `register.frequency.*`, `register.level.*`.
 
 ## Tests
 
