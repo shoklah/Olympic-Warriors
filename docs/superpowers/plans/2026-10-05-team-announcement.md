@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** An organiser-only page, `/<year>/announce`, that draws a poster of every team and one square card per team on a canvas, with a photos switch, PNG downloads and a one-click ZIP.
+**Goal:** An organiser-only page, `/<year>/announce`, that draws a poster of every team and one square card per team on a canvas, with a photos switch (off by default), a language selector (French by default), PNG downloads and a one-click ZIP.
 
 **Architecture:** Front only. A pure layout module turns the edition summary's teams into plain drawing instructions (rectangles, texts, avatars, logo); a small canvas painter executes them; export helpers produce PNGs and a store-only ZIP. The page reads `summary` from the year layout, so there is no server, API or migration change.
 
@@ -19,6 +19,10 @@ Spec: `docs/superpowers/specs/2026-10-05-team-announcement-visuals-design.md`.
 ## Deviation from the spec (decided while planning)
 
 The spec says the painter reads the colours from the page's computed style. That would follow the viewer's theme: an organiser in light mode would download a light poster. The announcement is always the dark brand image, so the painter uses a fixed palette (`palette.js`) whose values are pinned by a test against the dark tokens in `routes/styles.css`; a palette change in the CSS fails that test.
+
+## Decisions from the grilling (all in the spec)
+
+Photos are **off by default** with a one-line notice when switched on (players agreed to show their photo on the site only); the image text is **French by default with a selector** (« Langue des images »), independent of the site's language; the text is **fixed** (no custom line); **no warning** for provisional team names.
 
 ## File structure
 
@@ -984,6 +988,8 @@ export async function downloadZip(entries, zipName) {
 	'announce.link': 'Annoncer les équipes',
 	'announce.empty': "Il n'y a pas encore d'équipes à annoncer.",
 	'announce.photos': 'Afficher les photos',
+	'announce.photos.notice': 'Les photos ont été ajoutées pour le site : vérifiez que vous pouvez les diffuser ailleurs.',
+	'announce.lang': 'Langue des images',
 	'announce.loading': 'Préparation des images…',
 	'announce.failed': "La préparation de l'image a échoué : réessayez.",
 	'announce.poster.heading': "L'affiche",
@@ -996,7 +1002,7 @@ export async function downloadZip(entries, zipName) {
 	'announce.draw.title': 'Les équipes {year}',
 	'announce.draw.event': 'Olympic Warriors {year}',
 ```
-English: « Announce the teams », « Announce the teams », « There are no teams to announce yet. », « Show photos », « Preparing the images… », « Preparing the image failed: try again. », « The poster », « Preview of the teams poster », « Download the poster », « The team cards », « Preview of the card of {name} », « Download the card of {name} », « Download everything (ZIP) », « The {year} teams », « Olympic Warriors {year} ».
+English: « Announce the teams », « Announce the teams », « There are no teams to announce yet. », « Show photos », « Photos were added for the site: check you can share them elsewhere. », « Image language », « Preparing the images… », « Preparing the image failed: try again. », « The poster », « Preview of the teams poster », « Download the poster », « The team cards », « Preview of the card of {name} », « Download the card of {name} », « Download everything (ZIP) », « The {year} teams », « Olympic Warriors {year} ».
 
 `routes/+layout.svelte`: add `'/[year=year]/announce'` to `NO_TAB_BAR`. Run `npx vitest run src/lib/i18n`.
 
@@ -1074,30 +1080,56 @@ const data = (teams = summary.teams) => ({ summary: { ...summary, teams }, edita
 const filled = (name) => calls.filter(([k, text]) => k === 'fillText' && text === name);
 
 describe('announce page', () => {
-	it('draws the poster and a card per team, with the photos switch on', async () => {
+	it('draws the poster and a card per team, in French, with the photos off', async () => {
 		renderWith(Page, { data: data() });
 
 		await waitFor(() => expect(screen.queryByText('Preparing the images…')).toBeNull());
 		expect(screen.getByRole('img', { name: 'Preview of the teams poster' })).toBeInTheDocument();
 		expect(screen.getAllByRole('img', { name: /^Preview of the card of / })).toHaveLength(3);
 		expect(filled('Aigles').length).toBeGreaterThanOrEqual(2); // on the poster and on its card
-		expect(screen.getByLabelText('Show photos')).toBeChecked();
+		// the page is in English, the images are not: French unless the organiser picks another
+		expect(filled('Les équipes 2026').length).toBeGreaterThan(0);
+		expect(screen.getByLabelText('Show photos')).not.toBeChecked();
+		expect(screen.queryByText(/Photos were added for the site/)).toBeNull();
 	});
 
-	it('asks for the photos of the players when the switch is on and not when it is off', async () => {
+	it('shows the photos, with the reminder, when the switch is turned on, and remembers it', async () => {
 		renderWith(Page, { data: data() });
 		await waitFor(() => expect(loadImages).toHaveBeenCalled());
 		expect(vi.mocked(loadImages).mock.calls[0][0]).toContain('/media/avatars/11-7c3e9a1f5b2d-sm.webp');
 
 		await fireEvent.click(screen.getByLabelText('Show photos'));
-		await waitFor(() => expect(localStorage.getItem('announce.photos')).toBe('off'));
+
+		expect(screen.getByLabelText('Show photos')).toBeChecked();
+		expect(screen.getByText(/Photos were added for the site/)).toBeInTheDocument();
+		expect(localStorage.getItem('announce.photos')).toBe('on');
+		await waitFor(() => expect(calls.some(([k]) => k === 'clip' || k === 'drawImage')).toBe(true));
 	});
 
-	it('remembers the switch', async () => {
-		localStorage.setItem('announce.photos', 'off');
+	it('starts with the photos on when the browser remembers that', async () => {
+		localStorage.setItem('announce.photos', 'on');
 		renderWith(Page, { data: data() });
 
-		await waitFor(() => expect(screen.getByLabelText('Show photos')).not.toBeChecked());
+		await waitFor(() => expect(screen.getByLabelText('Show photos')).toBeChecked());
+	});
+
+	it('writes the images in the language picked on the page, and remembers it', async () => {
+		renderWith(Page, { data: data() });
+		await waitFor(() => expect(screen.queryByText('Preparing the images…')).toBeNull());
+		expect(screen.getByLabelText('Image language')).toHaveValue('fr');
+
+		await fireEvent.change(screen.getByLabelText('Image language'), { target: { value: 'en' } });
+
+		await waitFor(() => expect(filled('The 2026 teams').length).toBeGreaterThan(0));
+		expect(localStorage.getItem('announce.lang')).toBe('en');
+	});
+
+	it('starts in the remembered language', async () => {
+		localStorage.setItem('announce.lang', 'en');
+		renderWith(Page, { data: data() });
+
+		await waitFor(() => expect(screen.getByLabelText('Image language')).toHaveValue('en'));
+		await waitFor(() => expect(filled('The 2026 teams').length).toBeGreaterThan(0));
 	});
 
 	it('downloads the poster, one card and everything', async () => {
@@ -1174,7 +1206,7 @@ export const load = async ({ params, cookies, parent, setHeaders }) => {
 ```svelte
 <script>
 	import { onMount, tick } from 'svelte';
-	import { useLocale, useT } from '$lib/i18n';
+	import { t as translate, useT } from '$lib/i18n';
 	import { formatDateRange } from '$lib/edition';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import logo from '$lib/img/logo.svg';
@@ -1187,15 +1219,18 @@ export const load = async ({ params, cookies, parent, setHeaders }) => {
 	export let data;
 
 	const t = useT();
-	const locale = useLocale();
 	const PHOTOS_KEY = 'announce.photos';
+	const LANG_KEY = 'announce.lang';
 
 	$: edition = data.summary.edition;
 	$: year = edition.year;
 	$: teams = [...data.summary.teams].sort((a, b) => a.id - b.id);
 	$: photoUrls = teams.flatMap((team) => team.players.map((p) => p.photo)).filter(Boolean);
 
-	let photos = true;
+	// Photos start off (players agreed to the site only) and the images start in French, whatever
+	// the site's language: what an organiser chose is remembered, nothing else is.
+	let photos = false;
+	let lang = 'fr';
 	let ready = false;
 	let images = new Map();
 	let failed = false;
@@ -1204,9 +1239,11 @@ export const load = async ({ params, cookies, parent, setHeaders }) => {
 
 	onMount(async () => {
 		try {
-			photos = localStorage.getItem(PHOTOS_KEY) !== 'off';
+			photos = localStorage.getItem(PHOTOS_KEY) === 'on';
+			const saved = localStorage.getItem(LANG_KEY);
+			if (saved === 'fr' || saved === 'en') lang = saved;
 		} catch {
-			// storage blocked: the default stands
+			// storage blocked: the defaults stand
 		}
 		await fontsReady();
 		images = await loadImages([logo, title, ...photoUrls]);
@@ -1231,10 +1268,11 @@ export const load = async ({ params, cookies, parent, setHeaders }) => {
 		drawLayout(canvas.getContext('2d'), layout, { images });
 	}
 
+	// The text of the images, in the language chosen on the page (not the site's).
 	$: labels = {
-		title: t('announce.draw.title', { year }),
-		subtitle: [edition.host, formatDateRange(edition.start_date, edition.end_date, locale)].filter(Boolean).join(' · '),
-		event: t('announce.draw.event', { year })
+		title: translate(lang, 'announce.draw.title', { year }),
+		subtitle: [edition.host, formatDateRange(edition.start_date, edition.end_date, lang)].filter(Boolean).join(' · '),
+		event: translate(lang, 'announce.draw.event', { year })
 	};
 	// Redraw whenever the data, the switch or the images change.
 	$: if (ready && teams.length > 0) draw(teams, photos, labels, images);
@@ -1249,6 +1287,14 @@ export const load = async ({ params, cookies, parent, setHeaders }) => {
 		photos = event.currentTarget.checked;
 		try {
 			localStorage.setItem(PHOTOS_KEY, photos ? 'on' : 'off');
+		} catch {
+			// not remembered, still applied
+		}
+	}
+	function setLang(event) {
+		lang = event.currentTarget.value;
+		try {
+			localStorage.setItem(LANG_KEY, lang);
 		} catch {
 			// not remembered, still applied
 		}
@@ -1282,8 +1328,16 @@ export const load = async ({ params, cookies, parent, setHeaders }) => {
 	{:else}
 		<div class="controls">
 			<label class="check"><input type="checkbox" checked={photos} on:change={setPhotos} /> {t('announce.photos')}</label>
+			<label class="check">
+				{t('announce.lang')}
+				<select value={lang} on:change={setLang}>
+					<option value="fr">Français</option>
+					<option value="en">English</option>
+				</select>
+			</label>
 			<button type="button" class="submit" disabled={!ready} on:click={downloadAll}>{t('announce.all')}</button>
 		</div>
+		{#if photos}<p class="hint" role="note">{t('announce.photos.notice')}</p>{/if}
 		{#if failed}<p class="error" role="alert">{t('announce.failed')}</p>{/if}
 		{#if !ready}<p class="hint" role="status">{t('announce.loading')}</p>{/if}
 
@@ -1334,6 +1388,14 @@ export const load = async ({ params, cookies, parent, setHeaders }) => {
 		display: flex;
 		gap: 0.5rem;
 		align-items: center;
+	}
+	select {
+		padding: 0.375rem 0.5rem;
+		background: var(--bg-sunken);
+		color: var(--ink);
+		border: 1px solid var(--line-strong);
+		border-radius: var(--radius);
+		font: inherit;
 	}
 	.preview {
 		display: block;
@@ -1394,7 +1456,7 @@ export const load = async ({ params, cookies, parent, setHeaders }) => {
 </style>
 ```
 
-Notes: (a) a canvas only shows what is drawn at its real pixel size and is scaled by the CSS `width: 100%; height: auto`; (b) the page keeps no state in derived props: `draw` reads `data` and the switch only; (c) `images.get(logo)` may be `undefined` when the logo fails, and a map entry `undefined` is skipped by the painter's `if (image)`; (d) `localStorage` and `canvas` access happen only in `onMount`/handlers, so the server render does not touch them (the canvases render empty). In the page test the first render has `ready` false, so the previews exist but are blank, and the buttons are disabled until the images are ready.
+Notes: (a) the previews follow `photos` and `lang`, whatever the site's language; (a2) a canvas only shows what is drawn at its real pixel size and is scaled by the CSS `width: 100%; height: auto`; (b) the page keeps no state in derived props: `draw` reads `data` and the switch only; (c) `images.get(logo)` may be `undefined` when the logo fails, and a map entry `undefined` is skipped by the painter's `if (image)`; (d) `localStorage` and `canvas` access happen only in `onMount`/handlers, so the server render does not touch them (the canvases render empty). In the page test the first render has `ready` false, so the previews exist but are blank, and the buttons are disabled until the images are ready.
 
 - [ ] **Step 5: Run green** (`npx vitest run "src/routes/[year=year]/announce" src/lib/i18n src/lib/announce`), then the whole front suite and `npm run build`. Fix tests that rely on a label the page words differently by fixing the page or the dictionary, never by weakening an assertion.
 - [ ] **Step 6: Commit** `[FEAT] announce page: previews, photos switch, PNG and ZIP downloads`.
