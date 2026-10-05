@@ -207,6 +207,19 @@ describe('RegistrationForm', () => {
 		expect(within(summary).getByText('Attendance confirmed')).toBeInTheDocument();
 		expect(screen.queryByRole('spinbutton')).toBeNull();
 		expect(screen.queryByRole('button')).toBeNull();
+		// Closed: it must not promise an edit.
+		expect(screen.getByText('You are registered.')).toBeInTheDocument();
+		expect(screen.queryByText(/edit your answers/)).toBeNull();
+	});
+
+	it('says a withdrawal once, not as a status and again as a notice', () => {
+		renderWith(RegistrationForm, {
+			registration: { ...registered, registration: { ...savedAnswers, registered: false } },
+			form: { ok: true, action: 'withdraw' }
+		});
+
+		expect(screen.getAllByText('You are withdrawn. Your answers are kept.')).toHaveLength(1);
+		expect(screen.getByRole('status')).toHaveTextContent('You are withdrawn');
 	});
 
 	it('shows no summary to someone who is not registered, withdrew, or was removed', () => {

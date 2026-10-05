@@ -110,7 +110,7 @@
 		<p class="notice">{t(`register.closed.${registration.state.reason === 'closed' ? 'closed' : 'not_configured'}`)}</p>
 	{/if}
 	{#if registered && saved}
-		<p class="notice">{t('register.registered')}</p>
+		<p class="notice">{t('register.registeredClosed')}</p>
 		<!-- Closed: what they submitted stays readable (the form is gone). -->
 		<section class="summary" aria-labelledby="register-summary">
 			<h2 id="register-summary">{t('register.summary.title')}</h2>
@@ -151,7 +151,8 @@
 	{/if}
 	{#if registered}
 		<p class="notice">{t('register.registered')}</p>
-	{:else if saved && !removedRow}
+	{:else if saved && !removedRow && !(form?.ok && form.action === 'withdraw')}
+		<!-- Not right after a withdrawal: the status line above already says it. -->
 		<p class="notice">{t('register.withdrawn')}</p>
 	{:else if registration.suggested}
 		<p class="notice">{t('register.suggested', { year: registration.suggested.year })}</p>

@@ -59,6 +59,7 @@ export default {
 	'register.latePass': 'The organisers have allowed your late registration.',
 	'register.removed': 'An organiser removed your registration: contact them to restore it.',
 	'register.registered': 'You are registered. You can edit your answers while registration is open.',
+	'register.registeredClosed': 'You are registered.',
 	'register.saved': 'Registration saved',
 	'register.suggested': 'Taken from your {year} registration: check that everything is up to date.',
 	'register.skillsIntro':
