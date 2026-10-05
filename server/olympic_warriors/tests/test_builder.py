@@ -1,5 +1,6 @@
 """The team builder: draft rules, the payload, the stale check and Apply."""
 from datetime import date
+from unittest.mock import MagicMock, patch
 
 from django.contrib.auth.models import User
 from django.test import TestCase
@@ -74,6 +75,12 @@ class TestValidateDraft(TestCase):
         self.assertEqual(self.codes(doc(links=[{"player": 1, "kind": "love", "target": 2}])), ["invalid_draft"])
         self.assertEqual(self.codes(doc(links=[{"player": 1, "kind": "with", "target": 1}])), ["invalid_draft"])
 
+    def test_an_unhashable_or_missing_link_kind_is_invalid_not_a_crash(self):
+        for kind in ([], {}, None, 3):
+            with self.subTest(kind=kind):
+                links = [{"player": 1, "kind": kind, "target": 2}]
+                self.assertEqual(self.codes(doc(links=links)), ["invalid_draft"])
+
     def test_players_per_team_is_two_to_twenty(self):
         for bad in (1, 21, "3", None, True):
             with self.subTest(bad=bad):
@@ -137,6 +144,13 @@ class TestPayload(TestCase):
                 "team_avoid": "Carl", "team": None,
             },
         )
+
+    def test_registration_open_follows_the_window(self):
+        self.assertFalse(builder.payload(self.edition)["registration_open"])
+        Edition.objects.filter(pk=self.edition.pk).update(registration_opens=date(2026, 1, 1))
+        self.edition.refresh_from_db()
+
+        self.assertTrue(builder.payload(self.edition)["registration_open"])
 
     def test_only_active_players_of_active_users_are_listed(self):
         gone = make_player(self.edition, "gone")
@@ -217,6 +231,31 @@ class TestSaveDraft(TestCase):
             builder.save_draft(self.edition, self.boss, self.document, "2027-01-01T00:00:00+00:00")
 
         self.assertIsNone(stale.exception.current)
+
+    def test_save_and_apply_both_lock_the_edition_row_first(self):
+        with CaptureQueriesContext(connection) as saving:
+            builder.save_draft(self.edition, self.boss, self.document, None)
+        edition_table = Edition._meta.db_table
+        locks = [q["sql"] for q in saving if "FOR UPDATE" in q["sql"]]
+        self.assertTrue(locks and edition_table in locks[0], locks)
+
+        with CaptureQueriesContext(connection) as applying:
+            with self.assertRaises(builder.ApplyRefused):
+                builder.apply(self.edition, "x")
+        locks = [q["sql"] for q in applying if "FOR UPDATE" in q["sql"]]
+        self.assertTrue(locks and edition_table in locks[0], locks)
+
+    def test_a_lost_first_save_race_is_stale_with_the_stored_draft(self):
+        # The winner's row exists but this save's read did not see it (it read before the winner committed).
+        TeamDraft.objects.create(edition=self.edition, document={**self.document, "seed": 9}, updated_by=self.boss)
+        blind = MagicMock()
+        blind.filter.return_value.first.return_value = None
+
+        with patch.object(TeamDraft.objects, "select_for_update", return_value=blind):
+            with self.assertRaises(builder.StaleDraft) as stale:
+                builder.save_draft(self.edition, self.boss, self.document, None)
+
+        self.assertEqual(stale.exception.current.document["seed"], 9)
 
     def test_an_invalid_document_is_refused(self):
         with self.assertRaises(DraftError):
