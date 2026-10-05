@@ -54,4 +54,18 @@ describe('BuilderRequests', () => {
 
 		expect(screen.getByText('No requests to review.')).toBeInTheDocument();
 	});
+
+	it('groups both kinds of request of a player in one card', () => {
+		const both = [
+			{ id: 1, first_name: 'Léa', last_name: 'Martin', team_with: 'Paul Durand', team_avoid: 'Bob Roux' },
+			{ id: 2, first_name: 'Paul', last_name: 'Durand', team_with: '', team_avoid: '' },
+			{ id: 5, first_name: 'Bob', last_name: 'Roux', team_with: '', team_avoid: '' }
+		];
+		renderWith(BuilderRequests, { players: both, links: [] });
+
+		const cards = screen.getAllByRole('heading', { level: 3 });
+		expect(cards.map((h) => h.textContent)).toEqual(['Léa Martin']);
+		expect(screen.getByRole('region', { name: 'Léa Martin: wants to be with' })).toBeInTheDocument();
+		expect(screen.getByRole('region', { name: 'Léa Martin: would rather avoid' })).toBeInTheDocument();
+	});
 });

@@ -226,8 +226,10 @@
 	.board {
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+		/* Every team card the same size: the tallest row sets the height of them all. */
+		grid-auto-rows: 1fr;
 		gap: 1rem;
-		align-items: start;
+		align-items: stretch;
 	}
 	.column {
 		display: grid;

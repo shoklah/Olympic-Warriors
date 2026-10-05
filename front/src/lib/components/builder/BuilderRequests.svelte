@@ -18,6 +18,10 @@
 			player[field]?.trim() ? [{ player, kind, matches: matchNames(player[field], players, player.id) }] : []
 		)
 	);
+	// One card per player, holding the « avec » and the « à éviter » requests they wrote.
+	$: cards = players
+		.map((player) => ({ player, rows: rows.filter((row) => row.player.id === player.id) }))
+		.filter((card) => card.rows.length > 0);
 	$: confirmed = new Set(links.map((l) => `${l.player}:${l.kind}:${l.target}`));
 	$: isOn = (player, kind, target) => confirmed.has(`${player.id}:${kind}:${target}`);
 	const toggle = (player, kind, target) => dispatch('toggle', { player: player.id, kind, target });
@@ -35,43 +39,48 @@
 </script>
 
 <p class="hint">{t('builder.requests.intro')}</p>
-{#if rows.length === 0}
+{#if cards.length === 0}
 	<p>{t('builder.requests.none')}</p>
 {:else}
-	<ul class="rows">
-		{#each rows as row (`${row.player.id}-${row.kind}`)}
-			<li class="row">
-				<p class="who"><strong>{fullName(row.player)}</strong> {t(`builder.requests.${row.kind}`)}</p>
-				<ul>
-					{#each row.matches as match}
-						<li class="match">
-							<span class="text">« {match.text} »</span>
-							{#each match.candidates as candidate}
-								<button
-									type="button"
-									class="chip"
-									aria-pressed={isOn(row.player, row.kind, candidate.id)}
-									aria-label={t('builder.requests.confirm', { name: fullName(byId.get(candidate.id)) })}
-									on:click={() => toggle(row.player, row.kind, candidate.id)}
-								>
-									{fullName(byId.get(candidate.id))}
-								</button>
+	<ul class="grid">
+		{#each cards as card (card.player.id)}
+			<li class="card">
+				<h3 class="who">{fullName(card.player)}</h3>
+				{#each card.rows as row (row.kind)}
+					<section class="kind" aria-label="{fullName(card.player)}: {t(`builder.requests.${row.kind}`)}">
+						<p class="label">{t(`builder.requests.${row.kind}`)}</p>
+						<ul>
+							{#each row.matches as match}
+								<li class="match">
+									<span class="text">« {match.text} »</span>
+									{#each match.candidates as candidate}
+										<button
+											type="button"
+											class="chip"
+											aria-pressed={isOn(row.player, row.kind, candidate.id)}
+											aria-label={t('builder.requests.confirm', { name: fullName(byId.get(candidate.id)) })}
+											on:click={() => toggle(row.player, row.kind, candidate.id)}
+										>
+											{fullName(byId.get(candidate.id))}
+										</button>
+									{/each}
+									{#if match.candidates.length === 0}<span class="hint">{t('builder.requests.noMatch')}</span>{/if}
+								</li>
 							{/each}
-							{#if match.candidates.length === 0}<span class="hint">{t('builder.requests.noMatch')}</span>{/if}
-						</li>
-					{/each}
-					{#each extras(row) as link}
-						<li class="match">
-							<button type="button" class="chip" aria-pressed="true" aria-label={t('builder.requests.confirm', { name: fullName(byId.get(link.target)) })} on:click={() => toggle(row.player, row.kind, link.target)}>
-								{fullName(byId.get(link.target))}
-							</button>
-						</li>
-					{/each}
-				</ul>
-				<select aria-label="{t('builder.requests.other')} ({fullName(row.player)})" on:change={(e) => other(e, row.player, row.kind)}>
-					<option value="">{t('builder.requests.other')}</option>
-					{#each players.filter((p) => p.id !== row.player.id) as p}<option value={p.id}>{fullName(p)}</option>{/each}
-				</select>
+							{#each extras(row) as link}
+								<li class="match">
+									<button type="button" class="chip" aria-pressed="true" aria-label={t('builder.requests.confirm', { name: fullName(byId.get(link.target)) })} on:click={() => toggle(row.player, row.kind, link.target)}>
+										{fullName(byId.get(link.target))}
+									</button>
+								</li>
+							{/each}
+						</ul>
+						<select aria-label="{t('builder.requests.other')} ({fullName(row.player)}) · {t(`builder.requests.${row.kind}`)}" on:change={(e) => other(e, row.player, row.kind)}>
+							<option value="">{t('builder.requests.other')}</option>
+							{#each players.filter((p) => p.id !== row.player.id) as p}<option value={p.id}>{fullName(p)}</option>{/each}
+						</select>
+					</section>
+				{/each}
 			</li>
 		{/each}
 	</ul>
@@ -83,16 +92,20 @@
 		font-size: 0.875rem;
 		margin: 0 0 1rem;
 	}
-	.rows {
+	.grid {
 		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));
+		grid-auto-rows: 1fr;
 		gap: 1rem;
+		align-items: stretch;
 		margin: 0;
 		padding: 0;
 		list-style: none;
 	}
-	.row {
+	.card {
 		display: grid;
-		gap: 0.5rem;
+		align-content: start;
+		gap: 0.75rem;
 		padding: 0.75rem 1rem;
 		background: var(--bg-raised);
 		border: 1px solid var(--line);
@@ -100,8 +113,20 @@
 	}
 	.who {
 		margin: 0;
+		font-size: 1.125rem;
 	}
-	.row ul {
+	.kind {
+		display: grid;
+		gap: 0.5rem;
+	}
+	.label {
+		margin: 0;
+		font-size: 0.75rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--muted);
+	}
+	.kind ul {
 		display: grid;
 		gap: 0.375rem;
 		margin: 0;
