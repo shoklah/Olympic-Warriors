@@ -86,8 +86,9 @@ def is_claimable(user):
 def unresettable_reason(user):
     """INACTIVE or NOT_A_PERSON, or None for a user who may reset their password by mail:
     an active organiser (staff or superuser), who has no profile and never plays, or an
-    active person or invited newcomer. Unlike a claim link, which an organiser hands to someone else and so must
-    never carry admin rights, a reset link goes only to the address on the account itself."""
+    active person or invited newcomer. Unlike a claim link, which an organiser hands to
+    someone else and so must never carry admin rights, a reset link goes only to the
+    address on the account itself."""
     if not user.is_active:
         return INACTIVE
     if user.is_staff or user.is_superuser:

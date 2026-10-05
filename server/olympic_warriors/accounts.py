@@ -48,7 +48,8 @@ def change_password(user, password):
 
 def deactivate(user):
     """Turn the account off and mask the person: no login, no photo, no pins, anonymized,
-    and the private registration answers cleared. Player rows stay, so places and badges remain on the public site."""
+    and the private registration answers cleared. Player rows stay, so places and badges
+    remain on the public site."""
     with transaction.atomic():
         locked = get_user_model().objects.select_for_update().get(pk=user.pk)
         profile, _ = UserProfile.objects.get_or_create(user=locked)
