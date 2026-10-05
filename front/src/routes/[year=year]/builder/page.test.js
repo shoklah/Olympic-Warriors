@@ -62,6 +62,32 @@ describe('team builder page', () => {
 		expect(button).toHaveAttribute('aria-pressed', 'true');
 	});
 
+	it('confirms every clear match with one click and keeps the count and the warning in step', async () => {
+		renderWith(Page, { data: data() });
+
+		expect(screen.getByText('4 requests · 0 confirmed · 4 to review')).toBeInTheDocument();
+		expect(screen.getByText("4 requests aren't confirmed and will be ignored.")).toBeInTheDocument();
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Confirm 4 clear matches' }));
+
+		for (const name of ['Confirm Paul Durand', 'Confirm Zoé Blanc', 'Confirm Léa Martin', 'Confirm Bob Roux']) {
+			expect(screen.getByRole('button', { name })).toHaveAttribute('aria-pressed', 'true');
+		}
+		expect(screen.getByText('4 requests · 4 confirmed · 0 to review')).toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: /clear match/ })).toBeNull();
+		expect(screen.queryByText(/will be ignored/)).toBeNull();
+	});
+
+	it('warns that unconfirmed requests are ignored only while some are left, and only on the requests step', async () => {
+		renderWith(Page, { data: data() });
+		await fireEvent.click(screen.getByRole('button', { name: 'Confirm Paul Durand' }));
+
+		expect(screen.getByText("3 requests aren't confirmed and will be ignored.")).toBeInTheDocument();
+
+		await goTo('Teams');
+		expect(screen.queryByText(/will be ignored/)).toBeNull();
+	});
+
 	it('proposes teams, placing every player and flagging an incomplete profile', async () => {
 		renderWith(Page, { data: data() });
 

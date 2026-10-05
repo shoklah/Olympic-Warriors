@@ -6,6 +6,7 @@
 	import { emptyDraft, reconcile } from '$lib/builder/plan.js';
 	import { BuilderError, generate, placeNewcomers } from '$lib/builder/generate.js';
 	import { newSeed } from '$lib/builder/random.js';
+	import { requestRows, summarise } from '$lib/builder/requests.js';
 	import { features, makeScorer } from '$lib/builder/score.js';
 	import { createSaver } from '$lib/builder/saver.js';
 	import StepProgress from '$lib/components/StepProgress.svelte';
@@ -115,6 +116,19 @@
 		const links = draft.links.some(same) ? draft.links.filter((l) => !same(l)) : [...draft.links, { player, kind, target }];
 		commit({ ...draft, links });
 	}
+	const linkKey = (l) => `${l.player}:${l.kind}:${l.target}`;
+	// The clear matches confirmed in one click: one change of the draft, so one save.
+	function confirmClear({ detail }) {
+		const seen = new Set(draft.links.map(linkKey));
+		const added = [];
+		for (const link of detail) {
+			if (seen.has(linkKey(link))) continue;
+			seen.add(linkKey(link));
+			added.push(link);
+		}
+		if (added.length > 0) commit({ ...draft, links: [...draft.links, ...added] });
+	}
+	$: requestSummary = summarise(requestRows(players), draft.links);
 	function setPerTeam({ detail }) {
 		if (draft.teams.length === 0 && Number.isInteger(detail) && detail >= 2 && detail <= 20) {
 			tooFew = false;
@@ -240,7 +254,7 @@
 
 		{#if step === 1}
 			<h2>{t('builder.step.1')}</h2>
-			<BuilderRequests {players} links={draft.links} on:toggle={toggleLink} />
+			<BuilderRequests {players} links={draft.links} on:toggle={toggleLink} on:confirmClear={confirmClear} />
 		{:else if step === 2}
 			<h2>{t('builder.step.2')}</h2>
 			<BuilderTeams
@@ -281,6 +295,12 @@
 				on:apply={apply}
 			/>
 		{/if}
+
+		<div aria-live="polite">
+			{#if step === 1 && requestSummary.review > 0}
+				<p class="notice">{t('builder.requests.warning', { n: requestSummary.review })}</p>
+			{/if}
+		</div>
 
 		<div class="nav-buttons">
 			{#if step > 1}
