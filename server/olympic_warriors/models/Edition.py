@@ -48,6 +48,16 @@ class Edition(models.Model):
     # False while the dates are provisional (an edition created early so players can
     # register): the hub then hides the date range and the countdown.
     dates_confirmed = models.BooleanField(default=True)
+    # The in-app registration (registration_state.py): open from registration_opens, through
+    # registration_closes (the day before start_date when blank), and only with a
+    # questionnaire. The texts frame the form; the month completes « le niveau que tu auras
+    # en … ».
+    registration_opens = models.DateField(null=True, blank=True)
+    registration_closes = models.DateField(null=True, blank=True)
+    registration_intro_fr = models.TextField(blank=True, default="")
+    registration_intro_en = models.TextField(blank=True, default="")
+    skills_month_fr = models.CharField(max_length=30, blank=True, default="")
+    skills_month_en = models.CharField(max_length=30, blank=True, default="")
     is_active = models.BooleanField(default=True)
 
     def __str__(self) -> str:

@@ -40,6 +40,10 @@ class UserProfile(models.Model):
     # an anonymous name (anonymity.shown_names) while places and badges stay. An organiser
     # reverses it by unticking this and reactivating the user.
     anonymized = models.BooleanField(default=False)
+    # Set by an organiser's invitation: a newcomer with no Player yet may claim an account
+    # and register (claims.can_register). Nothing else treats them as a person: that is
+    # still someone who played.
+    invited = models.BooleanField(default=False)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
