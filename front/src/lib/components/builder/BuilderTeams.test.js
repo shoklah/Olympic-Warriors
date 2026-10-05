@@ -44,6 +44,15 @@ describe('BuilderTeams', () => {
 		expect(options).toEqual(['Move to…', 'Team 1', 'Team 2']);
 	});
 
+	it('tags each skill bar with its short identifier', () => {
+		renderWith(BuilderTeams, proposed);
+
+		const first = screen.getByRole('region', { name: 'Team 1' });
+		expect([...first.querySelectorAll('.bars .tag')].map((t) => t.textContent)).toEqual(['CARD', 'STR']);
+		const second = screen.getByRole('region', { name: 'Team 2' });
+		expect([...second.querySelectorAll('.bars .tag')].map((t) => t.textContent)).toEqual(['CARD', 'STR']);
+	});
+
 	it.each([
 		['en', 'Strength 7.0'],
 		['fr', 'Force 7.0']

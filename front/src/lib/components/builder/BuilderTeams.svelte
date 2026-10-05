@@ -112,7 +112,8 @@
 				<ul class="bars" aria-hidden="true">
 					{#each skills as s}
 						<li title="{skillName(s)} {result.teams[i].skills[s.identifier].toFixed(1)}">
-							<span class="fill" style="width: {result.teams[i].skills[s.identifier] * 10}%"></span>
+							<span class="tag">{s.identifier}</span>
+							<span class="track"><span class="fill" style="width: {result.teams[i].skills[s.identifier] * 10}%"></span></span>
 						</li>
 					{/each}
 				</ul>
@@ -226,7 +227,7 @@
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
 		gap: 1rem;
-		align-items: start;
+		align-items: stretch;
 	}
 	.column {
 		display: grid;
@@ -262,8 +263,24 @@
 		gap: 0.25rem;
 	}
 	.bars li {
-		height: 0.375rem;
+		display: grid;
+		grid-template-columns: 2.75rem 1fr;
+		gap: 0.5rem;
+		align-items: center;
 		list-style: none;
+	}
+	.tag {
+		font-size: 0.6875rem;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+		color: var(--muted);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.track {
+		display: block;
+		height: 0.375rem;
 		background: var(--bg);
 		border: 1px solid var(--line);
 		border-radius: 999px;
@@ -273,5 +290,12 @@
 		display: block;
 		height: 100%;
 		background: var(--accent);
+	}
+	/* Side by side, every card the same size (the tallest row sets the height); one column on a
+	   phone keeps each card as tall as its content. */
+	@media (min-width: 600px) {
+		.board {
+			grid-auto-rows: 1fr;
+		}
 	}
 </style>

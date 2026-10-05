@@ -22,6 +22,16 @@ describe('splitNames', () => {
 		]);
 	});
 
+	it('drops the filler real answers put before a name, and trailing punctuation or emoji', () => {
+		expect(splitNames('Ne pas être avec Marie')).toEqual(['Marie']);
+		expect(splitNames('Être en équipe avec Thomas ')).toEqual(['Thomas']);
+		expect(splitNames('Je souhaite être avec Adrien !')).toEqual(['Adrien']);
+		expect(splitNames('Idéalement, je souhaiterai être avec Victor')).toEqual(['Victor']);
+		expect(splitNames('Je voudrais être avec Margot si possible svp 😁')).toEqual(['Margot']);
+		expect(splitNames('Avec Emma et/ou Thomas')).toEqual(['Emma', 'Thomas']);
+		expect(splitNames('Alexandre ou Paul')).toEqual(['Alexandre', 'Paul']);
+	});
+
 	it('drops a leading "avec" and blanks', () => {
 		expect(splitNames('Avec Léa,  , with Paul')).toEqual(['Léa', 'Paul']);
 	});
