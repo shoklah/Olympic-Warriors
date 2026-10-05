@@ -128,6 +128,7 @@ class Edition(models.Model):
                         "rating": round(row["Global_Rating"]),
                         "global_level": round(row[GLOBAL_LEVEL]),
                         "is_active": True,
+                        "withdrawn_at": None,
                     }
                     if FREQUENCY in extras:
                         defaults["sport_frequency"] = parse_frequency(row[extras[FREQUENCY]])

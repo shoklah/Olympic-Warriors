@@ -5,6 +5,7 @@ from pathlib import Path
 from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
+from django.utils import timezone
 
 from olympic_warriors.models import Edition, Player, PlayerRating, PlayerSport
 
@@ -40,6 +41,16 @@ class EditionImportTests(TestCase):
             end_date="2026-08-02",
             registration_form=upload(),
         )
+
+    def test_a_reimport_reactivates_a_withdrawn_player_and_clears_the_mark(self):
+        alice = Player.objects.get(user__username="alicemartin", edition=self.edition)
+        Player.objects.filter(pk=alice.pk).update(is_active=False, withdrawn_at=timezone.now())
+        self.edition.registration_form = upload()
+        self.edition.save()
+
+        alice.refresh_from_db()
+        self.assertTrue(alice.is_active)
+        self.assertIsNone(alice.withdrawn_at)
 
     def test_creates_users_players_and_ratings(self):
         self.assertEqual(User.objects.count(), 4)
