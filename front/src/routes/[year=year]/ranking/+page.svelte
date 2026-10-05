@@ -22,6 +22,9 @@
 	{#if data.editable && teams.length === 0}
 		<a class="builder-link quiet-link" href="/{year}/builder">{t('builder.link')}</a>
 	{/if}
+	{#if data.editable && teams.length > 0}
+		<a class="builder-link quiet-link" href="/{year}/announce">{t('announce.link')}</a>
+	{/if}
 
 	<div class="rail">
 		<DisciplineRail {year} {disciplines} />
