@@ -40,6 +40,7 @@ function drawText(ctx, item) {
 /** A player's round: the photo clipped to a circle, else their initials on a plain round. */
 function drawAvatar(ctx, item, images) {
 	const { x, y, size, player } = item;
+	if (!(size > 0)) return;
 	const cx = x + size / 2;
 	const cy = y + size / 2;
 	const photo = player.photo ? images.get(player.photo) : null;

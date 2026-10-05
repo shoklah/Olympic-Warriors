@@ -8,7 +8,14 @@ function fakeContext() {
 	const ctx = new Proxy(
 		{ font: '', fillStyle: '', strokeStyle: '', lineWidth: 0, textAlign: '', textBaseline: '' },
 		{
-			get: (target, key) => (key in target ? target[key] : (...args) => calls.push([key, ...args])),
+			get: (target, key) =>
+				key in target
+					? target[key]
+					: (...args) => {
+							// a real canvas throws on a negative radius
+							if (key === 'arc' && args[2] < 0) throw new DOMException('negative radius', 'IndexSizeError');
+							calls.push([key, ...args]);
+						},
 			set: (target, key, value) => ((target[key] = value), calls.push(['set', key, value]), true)
 		}
 	);
@@ -73,6 +80,14 @@ describe('drawLayout', () => {
 			expect(drawn('fillText').map(([, t]) => t)).toEqual(['AL']);
 			expect(drawn('arc').length).toBeGreaterThan(0);
 		}
+	});
+
+	it('skips an avatar of size 0 or less instead of throwing', () => {
+		const { ctx, drawn } = fakeContext();
+		const items = [0, -5].map((size) => ({ ...avatarItem(null), size }));
+
+		expect(() => drawLayout(ctx, layout(items), { images: new Map() })).not.toThrow();
+		expect(drawn('arc')).toHaveLength(0);
 	});
 
 	it('does not throw on an empty layout', () => {

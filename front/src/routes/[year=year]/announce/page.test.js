@@ -24,7 +24,8 @@ beforeEach(() => {
 	localStorage.clear();
 	const ctx = new Proxy({}, { get: (_, key) => (key === 'measureText' ? (t) => ({ width: String(t).length * 10 }) : (...args) => calls.push([key, ...args])), set: () => true });
 	vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(ctx);
-	vi.mocked(loadImages).mockClear();
+	vi.mocked(loadImages).mockReset();
+	vi.mocked(loadImages).mockImplementation(async () => new Map());
 	vi.mocked(download).mockReset();
 	vi.mocked(downloadZip).mockClear();
 });
@@ -47,12 +48,38 @@ describe('announce page', () => {
 		expect(screen.queryByText(/Photos were added for the site/)).toBeNull();
 	});
 
+	it('loads the logo at mount and the photos only once the switch is on', async () => {
+		const PHOTO = '/media/avatars/11-7c3e9a1f5b2d-sm.webp';
+		renderWith(Page, { data: data() });
+		await waitFor(() => expect(screen.queryByText('Preparing the images…')).toBeNull());
+		const requested = () => vi.mocked(loadImages).mock.calls.flatMap(([urls]) => urls);
+		expect(requested()).toHaveLength(1); // the brand logo alone
+		expect(requested()).not.toContain(PHOTO);
+
+		await fireEvent.click(screen.getByLabelText('Show photos'));
+
+		await waitFor(() => expect(requested()).toContain(PHOTO));
+	});
+
+	it('loads a photo that appears in the data afterwards, once', async () => {
+		localStorage.setItem('announce.photos', 'on');
+		const { component } = renderWith(Page, { data: data() });
+		await waitFor(() => expect(loadImages).toHaveBeenCalledTimes(2));
+		const requested = () => vi.mocked(loadImages).mock.calls.flatMap(([urls]) => urls);
+
+		const teams = structuredClone(summary.teams);
+		teams[0].players[1].photo = '/media/avatars/12-new-sm.webp';
+		component.$set({ data: data(teams) });
+
+		await waitFor(() => expect(requested()).toContain('/media/avatars/12-new-sm.webp'));
+		expect(requested().filter((u) => u === '/media/avatars/11-7c3e9a1f5b2d-sm.webp')).toHaveLength(1);
+	});
+
 	it('shows the photos, with the reminder, when the switch is turned on, and remembers it', async () => {
 		// the photo is loaded: without one in the map the avatar falls back to initials
-		vi.mocked(loadImages).mockResolvedValueOnce(new Map([['/media/avatars/11-7c3e9a1f5b2d-sm.webp', {}]]));
+		vi.mocked(loadImages).mockImplementation(async (urls) => new Map(urls.filter((u) => u.includes('avatars')).map((u) => [u, {}])));
 		renderWith(Page, { data: data() });
-		await waitFor(() => expect(loadImages).toHaveBeenCalled());
-		expect(vi.mocked(loadImages).mock.calls[0][0]).toContain('/media/avatars/11-7c3e9a1f5b2d-sm.webp');
+		await waitFor(() => expect(screen.queryByText('Preparing the images…')).toBeNull());
 
 		await fireEvent.click(screen.getByLabelText('Show photos'));
 
@@ -103,6 +130,25 @@ describe('announce page', () => {
 		const [entries, zipName] = vi.mocked(downloadZip).mock.calls[0];
 		expect(zipName).toBe('equipes-2026.zip');
 		expect(entries.map((e) => e.name)).toEqual(['equipes-2026.png', 'equipe-01-aigles.png', 'equipe-02-bisons.png', 'equipe-03-cerfs.png']);
+	});
+
+	it('disables the downloads while one is under way, so a double click downloads once', async () => {
+		let release;
+		vi.mocked(download).mockImplementation(() => {});
+		const { toPng } = await import('$lib/announce/export.js');
+		vi.mocked(toPng).mockImplementationOnce(() => new Promise((resolve) => (release = () => resolve(new Blob(['png'])))));
+		renderWith(Page, { data: data() });
+		await waitFor(() => expect(screen.queryByText('Preparing the images…')).toBeNull());
+		const button = screen.getByRole('button', { name: 'Download the poster' });
+
+		await fireEvent.click(button);
+		await fireEvent.click(button);
+		expect(button).toBeDisabled();
+		expect(screen.getByRole('button', { name: 'Download everything (ZIP)' })).toBeDisabled();
+		release();
+
+		await waitFor(() => expect(download).toHaveBeenCalledTimes(1));
+		await waitFor(() => expect(button).not.toBeDisabled());
 	});
 
 	it('words a failed download', async () => {

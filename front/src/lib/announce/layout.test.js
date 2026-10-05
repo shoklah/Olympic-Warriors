@@ -56,6 +56,21 @@ describe('fitText', () => {
 		expect(out.text.endsWith('…')).toBe(true);
 		expect(measure(out.text, fontString({ ...base, size: 20 }))).toBeLessThanOrEqual(120);
 	});
+
+	it('never splits a surrogate pair when cutting', () => {
+		const out = fitText(measure, '😀😀😀😀😀😀😀😀😀😀', { ...base, maxWidth: 120 });
+
+		expect(out.text.endsWith('…')).toBe(true);
+		expect(out.text).not.toMatch(/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/);
+	});
+
+	it('never returns a text wider than the room, even a single character', () => {
+		const font = fontString({ ...base, size: 20 });
+		for (const maxWidth of [5, 15, 25]) {
+			const out = fitText(measure, 'Maximilien', { ...base, maxWidth });
+			expect(measure(out.text, font)).toBeLessThanOrEqual(maxWidth);
+		}
+	});
 });
 
 describe('posterLayout', () => {
@@ -181,5 +196,25 @@ describe('cardLayout', () => {
 
 		expect(measure(name.text, fontString(name))).toBeLessThanOrEqual(1080 - 2 * 72);
 		expect(avatars(long)).toHaveLength(0);
+	});
+
+	it('falls back to names only on a card too crowded for a 24px portrait', () => {
+		const players = Array.from({ length: 30 }, (_, i) => player(i + 1, `P${i}`, `Nom${String(i).padStart(2, '0')}`, `/media/${i}.webp`));
+		const out = cardLayout(team(1, 'Aigles', players), { photos: true, measure, labels });
+
+		expect(avatars(out).filter((a) => a.size < 24)).toEqual([]);
+		for (const item of out.items) expect(item.size ?? 0).toBeGreaterThanOrEqual(0);
+		const names = texts(out).filter((t) => t.text.startsWith('P'));
+		expect(names).toHaveLength(30);
+		for (const n of names) {
+			expect(n.x).toBeGreaterThanOrEqual(0);
+			expect(n.y).toBeLessThanOrEqual(1080);
+		}
+		const byColumn = {};
+		for (const n of names) (byColumn[n.x] ??= []).push(n.y);
+		for (const ys of Object.values(byColumn)) {
+			const sorted = [...ys].sort((a, b) => a - b);
+			sorted.slice(1).forEach((y, i) => expect(y - sorted[i]).toBeGreaterThanOrEqual(32));
+		}
 	});
 });

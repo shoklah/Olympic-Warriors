@@ -4,7 +4,6 @@
 	import { formatDateRange } from '$lib/edition';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import logo from '$lib/img/logo.svg';
-	import title from '$lib/img/title.svg';
 	import { cardLayout, posterLayout } from '$lib/announce/layout.js';
 	import { drawLayout } from '$lib/announce/draw.js';
 	import { fontsReady, loadImages } from '$lib/announce/images.js';
@@ -40,12 +39,25 @@
 			// storage blocked: the defaults stand
 		}
 		await fontsReady();
-		images = await loadImages([logo, title, ...photoUrls]);
-		// `loadImages` keys the brand images by url; the painter looks them up by role.
-		images.set('logo', images.get(logo));
-		images.set('title', images.get(title));
+		// `loadImages` keys the images by url; the painter looks the logo up by role.
+		const brand = await loadImages([logo]);
+		addImages(brand.has(logo) ? new Map([['logo', brand.get(logo)]]) : new Map());
 		ready = true;
 	});
+
+	// A new map each time, so the canvases repaint when images arrive.
+	function addImages(more) {
+		if (more.size > 0) images = new Map([...images, ...more]);
+	}
+	// Photos are fetched the first time they are wanted, and each url once.
+	const requested = new Set();
+	async function loadPhotos(urls) {
+		const missing = [...new Set(urls)].filter((url) => !requested.has(url));
+		if (missing.length === 0) return;
+		missing.forEach((url) => requested.add(url));
+		addImages(await loadImages(missing));
+	}
+	$: if (ready && photos) loadPhotos(photoUrls);
 
 	const measurer = () => {
 		const ctx = document.createElement('canvas').getContext('2d');
@@ -99,12 +111,17 @@
 		}
 	}
 
+	let busy = false;
 	async function attempt(action) {
+		if (busy) return;
+		busy = true;
 		failed = false;
 		try {
 			await action();
 		} catch {
 			failed = true;
+		} finally {
+			busy = false;
 		}
 	}
 	const downloadPoster = () => attempt(async () => download(await toPng(posterCanvas), posterFileName(year)));
@@ -137,7 +154,7 @@
 					<option value="en">English</option>
 				</select>
 			</label>
-			<button type="button" class="submit" disabled={!ready} on:click={downloadAll}>{t('announce.all')}</button>
+			<button type="button" class="submit" disabled={!ready || busy} on:click={downloadAll}>{t('announce.all')}</button>
 		</div>
 		{#if photos}<p class="hint" role="note">{t('announce.photos.notice')}</p>{/if}
 		{#if failed}<p class="error" role="alert">{t('announce.failed')}</p>{/if}
@@ -147,7 +164,7 @@
 			<h2 id="poster-title">{t('announce.poster.heading')}</h2>
 			<!-- svelte-ignore a11y-no-interactive-element-to-noninteractive-role -->
 			<canvas class="preview" bind:this={posterCanvas} role="img" aria-label={t('announce.poster.alt')}></canvas>
-			<button type="button" class="pill" disabled={!ready} on:click={downloadPoster}>{t('announce.poster.download')}</button>
+			<button type="button" class="pill" disabled={!ready || busy} on:click={downloadPoster}>{t('announce.poster.download')}</button>
 		</section>
 
 		<section aria-labelledby="cards-title">
@@ -157,7 +174,7 @@
 					<li>
 						<!-- svelte-ignore a11y-no-interactive-element-to-noninteractive-role -->
 						<canvas class="preview" bind:this={cardCanvases[i]} role="img" aria-label={t('announce.card.alt', { name: team.name })}></canvas>
-						<button type="button" class="pill" disabled={!ready} on:click={() => downloadCard(i)}>{t('announce.card.download', { name: team.name })}</button>
+						<button type="button" class="pill" disabled={!ready || busy} on:click={() => downloadCard(i)}>{t('announce.card.download', { name: team.name })}</button>
 					</li>
 				{/each}
 			</ul>

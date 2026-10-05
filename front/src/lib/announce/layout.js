@@ -28,9 +28,13 @@ export function fitText(measure, text, { family, weight, size, min, maxWidth }) 
 	let current = size;
 	while (current > min && width(current, text) > maxWidth) current = Math.max(min, current - 2);
 	if (width(current, text) <= maxWidth) return { text, size: current };
-	let cut = text;
-	while (cut.length > 1 && width(current, `${cut}…`) > maxWidth) cut = cut.slice(0, -1);
-	return { text: `${cut.trimEnd()}…`, size: current };
+	// Cut by code points so an emoji is never split. When even one character plus the ellipsis is
+	// too wide the ellipsis alone is returned, and nothing at all if that is too wide too.
+	const chars = Array.from(text);
+	while (chars.length > 1 && width(current, `${chars.join('')}…`) > maxWidth) chars.pop();
+	const cut = `${chars.join('').trimEnd()}…`;
+	if (width(current, cut) <= maxWidth) return { text: cut, size: current };
+	return { text: width(current, '…') <= maxWidth ? '…' : '', size: current };
 }
 
 const text = (x, y, value, fit, extra) => ({ type: 'text', x, y, text: value, ...fit, ...extra });
@@ -116,10 +120,12 @@ export function cardLayout(team, { photos, measure, labels, size = CARD.size }) 
 			const cy = top0 + Math.floor(i / cols) * cellH;
 			const label = fullName(p);
 			if (stacked) {
-				const a = photos ? Math.min(cellH - 56, 110) : 0;
-				if (photos) items.push(avatar(cx + (cellW - a) / 2, cy + 4, a, p));
+				// A portrait under 24px is not worth drawing: a crowded card falls back to names only.
+				const a = photos ? Math.max(0, Math.min(cellH - 56, 110)) : 0;
+				const withPortrait = a >= 24;
+				if (withPortrait) items.push(avatar(cx + (cellW - a) / 2, cy + 4, a, p));
 				const fit = fitText(measure, label, { family: 'body', weight: 700, size: 32, min: 20, maxWidth: cellW });
-				items.push(text(cx + cellW / 2, cy + (photos ? a + 36 : cellH / 2), fit.text, { size: fit.size }, { family: 'body', weight: 700, color: 'ink', align: 'center', baseline: photos ? 'alphabetic' : 'middle' }));
+				items.push(text(cx + cellW / 2, cy + (withPortrait ? a + 36 : cellH / 2), fit.text, { size: fit.size }, { family: 'body', weight: 700, color: 'ink', align: 'center', baseline: withPortrait ? 'alphabetic' : 'middle' }));
 			} else {
 				const a = photos ? Math.min(cellH - 20, 150, cellW * 0.4) : 0;
 				const offset = photos ? a + 28 : 0;

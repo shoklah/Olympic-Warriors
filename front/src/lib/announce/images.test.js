@@ -48,3 +48,41 @@ describe('fontsReady', () => {
 		await expect(fontsReady()).resolves.toBeUndefined();
 	});
 });
+
+describe('timeouts', () => {
+	afterEach(() => vi.useRealTimers());
+
+	it('gives up on an image that never answers', async () => {
+		vi.useFakeTimers();
+		vi.stubGlobal('Image', class { set src(_) {} });
+
+		const pending = loadImage('/media/hang.webp');
+		await vi.advanceTimersByTimeAsync(10000);
+
+		expect(await pending).toBeNull();
+	});
+
+	it('loadImages leaves out the hanging one and keeps the others', async () => {
+		vi.useFakeTimers();
+		vi.stubGlobal('Image', class extends FakeImage { set src(url) { if (!url.includes('hang')) super.src = url; } get src() { return super.src; } });
+
+		const pending = loadImages(['/a.webp', '/hang.webp']);
+		await vi.advanceTimersByTimeAsync(10000);
+
+		expect([...(await pending).keys()]).toEqual(['/a.webp']);
+	});
+
+	it('fontsReady resolves after the timeout when a face never loads', async () => {
+		vi.useFakeTimers();
+		vi.stubGlobal('document', { fonts: { load: () => new Promise(() => {}) } });
+		let done = false;
+
+		const pending = fontsReady().then(() => (done = true));
+		await vi.advanceTimersByTimeAsync(9999);
+		expect(done).toBe(false);
+		await vi.advanceTimersByTimeAsync(1);
+		await pending;
+
+		expect(done).toBe(true);
+	});
+});
