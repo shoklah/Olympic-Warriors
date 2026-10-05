@@ -294,13 +294,15 @@
 								{/each}
 							</select>
 						</div>
-						<div class="field short">
-							<label for="sport-{i}-years">{t('register.sports.years')}</label>
-							<input id="sport-{i}-years" type="number" name="sport.{i}.years" min="0" step="1" bind:value={row.years} />
-						</div>
-						<div class="field short">
-							<label for="sport-{i}-months">{t('register.sports.months')}</label>
-							<input id="sport-{i}-months" type="number" name="sport.{i}.months" min="0" max="11" step="1" bind:value={row.months} />
+						<div class="duration">
+							<div class="field short">
+								<label for="sport-{i}-years">{t('register.sports.years')}</label>
+								<input id="sport-{i}-years" type="number" name="sport.{i}.years" min="0" step="1" bind:value={row.years} />
+							</div>
+							<div class="field short">
+								<label for="sport-{i}-months">{t('register.sports.months')}</label>
+								<input id="sport-{i}-months" type="number" name="sport.{i}.months" min="0" max="11" step="1" bind:value={row.months} />
+							</div>
 						</div>
 						<div class="field wide">
 							<label for="sport-{i}-notes">{t('register.sports.notes')}</label>
@@ -656,6 +658,14 @@
 	}
 	.field.wide {
 		grid-column: 1 / -1;
+	}
+	.duration {
+		display: flex;
+		gap: 0.5rem;
+		align-items: end;
+	}
+	.duration .field {
+		margin-bottom: 0;
 	}
 	.field.short input {
 		max-width: 5rem;
