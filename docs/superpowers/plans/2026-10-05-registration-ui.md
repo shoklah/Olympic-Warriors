@@ -63,12 +63,12 @@ Expected: all test files pass (about 70 files).
 - Modify: `front/src/routes/+layout.server.js`, `front/src/lib/components/Header.svelte`
 - Test: `front/src/routes/layout.server.test.js`, `front/src/lib/components/Header.test.js`
 
-`resolveViewer` keeps only a few `/me/` fields in `me`; `can_register` joins them (an older server sends none: fall back to `is_person`). `loadEditions` also keeps the public fields a visitor's call to action needs (`start_date`, `registration_opens`, `registration_closes`).
+`resolveViewer` keeps only a few `/me/` fields in `me`; `can_register` joins them (an older server sends none and has no `/registration/` either: it reads as false, so no link leads to a page that cannot work). `loadEditions` also keeps the public fields a visitor's call to action needs (`start_date`, `registration_opens`, `registration_closes`).
 
 - [ ] **Step 1: Write the failing tests.** In `routes/layout.server.test.js`, `meBody` gains `can_register: true`; add inside `describe('root layout load', ...)`:
 
 ```js
-	it('keeps can_register, falling back to is_person for a server that predates it', async () => {
+	it('keeps can_register, reading its absence (an older server) as false', async () => {
 		const invited = await run({
 			token: 'abc',
 			user: json(200, meBody({ is_person: false, can_register: true }))
@@ -84,7 +84,7 @@ Expected: all test files pass (about 70 files).
 		const body = meBody({ is_person: true });
 		delete body.can_register;
 		const old = await run({ token: 'abc', user: json(200, body) });
-		expect(old.data.me.can_register).toBe(true);
+		expect(old.data.me.can_register).toBe(false); // no link to a page that server cannot serve
 	});
 
 	it('keeps the registration window of each edition for the visitor call to action', async () => {
@@ -147,8 +147,8 @@ Expected: the new tests fail (`can_register` undefined, no Register link).
 				last_name: last_name ?? '',
 				photo: photo ?? null,
 				is_person: Boolean(is_person),
-				// A person, or invited: an older server sends none, and a person can always register.
-				can_register: can_register === undefined ? Boolean(is_person) : Boolean(can_register),
+				// A person, or invited. An older server sends none and cannot serve /registration/.
+				can_register: can_register === true,
 				photo_locked: Boolean(photo_locked)
 			}
 		};
@@ -1599,6 +1599,7 @@ Expected: FAIL (components missing).
 						max="10"
 						step="1"
 						inputmode="numeric"
+						required
 						bind:value={values.ratings[skill.identifier]}
 					/>
 				</div>
@@ -1618,6 +1619,7 @@ Expected: FAIL (components missing).
 					max="10"
 					step="1"
 					inputmode="numeric"
+					required
 					bind:value={values.global_level}
 				/>
 			</div>
@@ -1627,7 +1629,7 @@ Expected: FAIL (components missing).
 			<legend>{t('register.frequency.legend')}</legend>
 			{#each registration.choices.frequency as choice}
 				<label class="radio">
-					<input type="radio" name="sport_frequency" value={choice.value} bind:group={values.sport_frequency} />
+					<input type="radio" name="sport_frequency" value={choice.value} required bind:group={values.sport_frequency} />
 					{choiceLabel(t, 'frequency', choice)}
 				</label>
 			{/each}
@@ -2381,7 +2383,7 @@ The claim endpoint answers `{token, user_id}` and cannot say whether the person 
 	});
 ```
 
-(`runClaim` is the file's helper that posts a valid password pair to the `claim` action with the given `fetch`; if it has another name or signature, use that and say so.) In `password-link.test.js`, add a test that `linkAction` awaits an async `landing` and hands it the body and `{ fetch, token }`:
+(The file's helper is `claim({ response, fields, getClientAddress, linkParams })`: it builds one `fetch` answering the SAME canned `response` to every call, which cannot serve the claim POST and then `/me/`. Extend it with an optional `fetch` parameter (`claim({ fetch })` uses it instead of the canned one) and use that in the three new tests; existing tests keep working through the try/catch fallback, but any that asserts `fetch` was called once must be updated to expect the extra `/me/` call (add, never loosen). Rename `runClaim` in the snippets above to this helper.) In `password-link.test.js`, add a test that `linkAction` awaits an async `landing` and hands it the body and `{ fetch, token }`:
 
 ```js
 	it('awaits an async landing and gives it the answer, the fetch and the new token', async () => {
@@ -2467,7 +2469,7 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 - [ ] **Step 1: Document slice 3.** In `CLAUDE.md`, in the paragraph beginning `**In-app registration**` replace `Not built yet (slice 3): ...` (end of the « Registration questionnaire » paragraph) with `Slice 3 built the pages (see the front paragraph on registration).` and add, after the « Player accounts on the front » paragraph, a paragraph:
 
 ```markdown
-**Registration on the front** (spec `2026-10-04-in-app-registration-design.md`, slice 3, plan `2026-10-05-registration-ui.md`): the root layout's `me` carries `can_register` (a person or an invited newcomer; a server without it falls back to `is_person`) and `editions` keep `start_date`, `registration_opens` and `registration_closes` for a visitor's call to action. `Header` links `/register` (`nav.register`) for anyone who can register and links `/account` for an invited newcomer too. `/register` (`routes/register`, no tab bar) is the caller's own form: its load sends a visitor or dead token to `/login?next=/register`, someone who cannot register home (the API's 404 `not_a_person`) and lets any other failure reach the error page, `private, no-store`; the `save` and `withdraw` actions are plain POSTs (the page reloads with the saved answers) that map the API's codes to `register.error.*` (`errors` list of keys, or one `error` key from a status or an `{error}` code such as `closed`, `removed_by_organiser`, `has_team`) and return the form model as typed (`values`) so a refusal keeps what was written. `$lib/registration.js` is the pure core (`initialValues`: posted over saved over suggested over blank; `valuesFromForm`: the hidden `skill` fields, `rating.<id>`, `sport.<i>.<field>` rows with blank ones dropped; `bodyFromValues`: a blank rating is left out and a bad value passed on for the API to refuse; `errorKeys`; `ctaKind`; `visitorCta` and `parisToday`), `RegistrationForm.svelte` renders it (ratings 1 to 10, the global question built from the edition's disciplines, five frequency radios, a sports table with add and remove rows up to 15 and years plus months, wishes, dietary restrictions, the email read-only with a link to `/account` or an editable required field, the required presence tick, the visibility and retention notices, and the notices for a closed, not yet open, late-pass, withdrawn and organiser-removed registration). The hub and `/account` get the call to action from `hubRegistration` (`$lib/server/registration.js`: only the latest edition; a visitor is sent through the login while the public window `visitorCta` is open, someone who can register is asked `/registration/` through `loadRegistrationStatus`, which never throws): `EditionHub` takes `registration` (`{kind: register | edit, href, year}`), and the account page of an invited newcomer has no photo, showcase or profile crumb (`/profile/<id>/` would 404) but gains the registration section. A claim lands a person on their profile and an invited newcomer on `/register`: `linkAction` awaits its `landing(body, {fetch, token})`, and the claim page asks `/me/` with the fresh token. The strings are `register.*`, `nav.register`, `hub.register*` and `account.register*` in both dictionaries, worded « vous ».
+**Registration on the front** (spec `2026-10-04-in-app-registration-design.md`, slice 3, plan `2026-10-05-registration-ui.md`): the root layout's `me` carries `can_register` (a person or an invited newcomer; a server without it reads as false) and `editions` keep `start_date`, `registration_opens` and `registration_closes` for a visitor's call to action. `Header` links `/register` (`nav.register`) for anyone who can register and links `/account` for an invited newcomer too. `/register` (`routes/register`, no tab bar) is the caller's own form: its load sends a visitor or dead token to `/login?next=/register`, someone who cannot register home (the API's 404 `not_a_person`) and lets any other failure reach the error page, `private, no-store`; the `save` and `withdraw` actions are plain POSTs (the page reloads with the saved answers) that map the API's codes to `register.error.*` (`errors` list of keys, or one `error` key from a status or an `{error}` code such as `closed`, `removed_by_organiser`, `has_team`) and return the form model as typed (`values`) so a refusal keeps what was written. `$lib/registration.js` is the pure core (`initialValues`: posted over saved over suggested over blank; `valuesFromForm`: the hidden `skill` fields, `rating.<id>`, `sport.<i>.<field>` rows with blank ones dropped; `bodyFromValues`: a blank rating is left out and a bad value passed on for the API to refuse; `errorKeys`; `ctaKind`; `visitorCta` and `parisToday`), `RegistrationForm.svelte` renders it (ratings 1 to 10, the global question built from the edition's disciplines, five frequency radios, a sports table with add and remove rows up to 15 and years plus months, wishes, dietary restrictions, the email read-only with a link to `/account` or an editable required field, the required presence tick, the visibility and retention notices, and the notices for a closed, not yet open, late-pass, withdrawn and organiser-removed registration). The hub and `/account` get the call to action from `hubRegistration` (`$lib/server/registration.js`: only the latest edition; a visitor is sent through the login while the public window `visitorCta` is open, someone who can register is asked `/registration/` through `loadRegistrationStatus`, which never throws): `EditionHub` takes `registration` (`{kind: register | edit, href, year}`), and the account page of an invited newcomer has no photo, showcase or profile crumb (`/profile/<id>/` would 404) but gains the registration section. A claim lands a person on their profile and an invited newcomer on `/register`: `linkAction` awaits its `landing(body, {fetch, token})`, and the claim page asks `/me/` with the fresh token. The strings are `register.*`, `nav.register`, `hub.register*` and `account.register*` in both dictionaries, worded « vous ».
 ```
 
 - [ ] **Step 2: Run every check CI runs**
@@ -2487,7 +2489,7 @@ git commit -m "[DOCS] document the registration pages
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 ```
 
-- [ ] **Step 4: Hand over.** Report the branch (`feat/registration-ui`), the test and build results, and the deploy note: the front needs the slice 2 API (`/registration/`, `can_register` on `/me/`), so deploy the server before the front; an old server degrades safely (no registration link, no call to action). Do not open the PR or touch `dev` unasked.
+- [ ] **Step 4: Hand over.** Report the branch (`feat/registration-ui`), the test and build results, and the deploy note: the front needs the slice 2 API (`/registration/`, `can_register` on `/me/`), so deploy the server before the front; against an old server nothing shows (no `can_register`, so no registration link and no call to action). Do not open the PR or touch `dev` unasked.
 
 ---
 
