@@ -52,10 +52,30 @@ def make_source(year=2026, inactive_user=False):
 class TestSeedDemoEdition(TestCase):
     def test_refuses_without_debug(self):
         make_source()
-        with override_settings(DEBUG=False):
+        with override_settings(DEBUG=False, STAGE_DEMO=False):
             with self.assertRaises(CommandError):
                 run()
+            with self.assertRaises(CommandError):
+                run("--remove")
         self.assertFalse(Edition.objects.filter(year=2040).exists())
+
+    def test_stage_demo_runs_without_debug_with_a_random_admin_password(self):
+        make_source()
+        with override_settings(DEBUG=False, STAGE_DEMO=True, PUBLIC_URL="https://stage.example.org/"):
+            out = run()
+            admin = User.objects.get(username="demo-admin")
+            self.assertTrue(admin.is_superuser)
+            self.assertFalse(admin.check_password("demo-password"))
+            self.assertRegex(out, r"Admin: demo-admin / \S{16,}")
+            self.assertIn("https://stage.example.org/2040/builder", out)
+            run("--remove")
+        self.assertFalse(Edition.objects.filter(year=2040).exists())
+        self.assertFalse(User.objects.filter(username="demo-admin").exists())
+
+    def test_debug_keeps_the_fixed_local_password(self):
+        make_source()
+        run()
+        self.assertTrue(User.objects.get(username="demo-admin").check_password("demo-password"))
 
     def test_copies_the_real_players_with_generated_extras(self):
         _, users = make_source()

@@ -63,6 +63,9 @@ class BaseConfig(BaseSettings):
     # fails on it: without an absolute http(s) address the admin refuses to make links.
     PUBLIC_URL: str = ""
 
+    # Staging only: lets `manage.py seed_demo_edition` run with DEBUG off. Never set it in prod.
+    STAGE_DEMO: bool = False
+
     ALLOWED_HOSTS: list = ["*"]
     CSRF_TRUSTED_ORIGINS: list = ["https://*", "http://*"]
 
