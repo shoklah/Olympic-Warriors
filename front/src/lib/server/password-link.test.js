@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { linkPath, passwordErrors } from './password-link.js';
+import { linkAction, linkPath, passwordErrors } from './password-link.js';
 
 vi.mock('$lib/server/urls', () => ({ api: (path) => `http://api${path}` }));
 
@@ -34,5 +34,33 @@ describe('passwordErrors', () => {
 	it('words no code at all as the generic refusal', () => {
 		expect(passwordErrors(undefined)).toEqual(['claim.error.invalid']);
 		expect(passwordErrors([])).toEqual(['claim.error.invalid']);
+	});
+});
+
+describe('linkAction', () => {
+	it('awaits an async landing and gives it the answer, the fetch and the new token', async () => {
+		const landing = vi.fn(async (body, context) => `/after/${body.user_id}/${context.token}`);
+		const action = linkAction(() => '/claim/u/t/', landing);
+		const form = new FormData();
+		form.append('password', 'x');
+		form.append('confirmation', 'x');
+		const fetch = vi.fn(
+			async () =>
+				new Response(JSON.stringify({ token: 'fresh', user_id: 9 }), {
+					status: 200,
+					headers: { 'content-type': 'application/json' }
+				})
+		);
+		const event = {
+			params: {},
+			request: new Request('http://localhost/x', { method: 'POST', body: form }),
+			fetch,
+			cookies: { set: vi.fn() },
+			getClientAddress: () => '203.0.113.7'
+		};
+
+		await expect(action(event)).rejects.toMatchObject({ status: 303, location: '/after/9/fresh' });
+		expect(landing.mock.calls[0][1].fetch).toBe(event.fetch);
+		expect(landing.mock.calls[0][1].token).toBe('fresh');
 	});
 });

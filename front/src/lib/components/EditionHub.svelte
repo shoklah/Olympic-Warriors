@@ -5,9 +5,11 @@
 	import { iconFor } from '$lib/icons';
 	import { countdownParts, editionPhase, formatDateRange } from '$lib/edition';
 	import { disciplineName, useLocale, useT } from '$lib/i18n';
+	import { parisToday, registrationLink } from '$lib/registration';
 
 	export let summary;
 	export let editions;
+	export let me = null;
 
 	const locale = useLocale();
 	const t = useT();
@@ -21,6 +23,11 @@
 	$: confirmed = edition.dates_confirmed !== false;
 	$: phase = confirmed ? editionPhase(edition, now) : 'upcoming';
 	$: parts = countdownParts(edition, now);
+	// The latest edition only: registration targets it (the API's latest_edition()).
+	$: registration =
+		editions[0]?.year === edition.year
+			? registrationLink({ me, editions, today: parisToday(now) })
+			: null;
 
 	onMount(() => {
 		const interval = setInterval(() => (now = new Date()), 1000);
@@ -66,12 +73,17 @@
 <!-- The leaderboard covers past editions, so its link shows before the start too; on a
      phone the hub has no tab bar, and this is the way in. -->
 <div class="actions">
+	{#if registration}
+		<a class="register" href={registration.href}>
+			{registration.visitor ? t('hub.register') : t('hub.registration', { year: registration.year })}
+		</a>
+	{/if}
 	{#if phase !== 'upcoming'}
-		<a href="/{edition.year}/ranking">{t('hub.ranking')}</a>
+		<a class:secondary={registration} href="/{edition.year}/ranking">{t('hub.ranking')}</a>
 	{/if}
 	<!-- Outlined only once the ranking button is also shown: before the start it is the
 	     sole button, so it stays the filled main call. -->
-	<a class:secondary={phase !== 'upcoming'} href="/players">{t('hub.players')}</a>
+	<a class:secondary={phase !== 'upcoming' || registration} href="/players">{t('hub.players')}</a>
 </div>
 
 {#if editions.length > 1}

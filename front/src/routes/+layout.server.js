@@ -8,8 +8,8 @@ const VISITOR = { organiser: false, me: null };
 /**
  * Who the token cookie belongs to, from `/me/`: whether they are an organiser (`is_staff`)
  * and `me`, the few fields the pages need (`id`, `first_name`, `last_name`, for the initials
- * of an avatar without a photo, `photo` as `{ large, small }` or null, `is_person`, and
- * `photo_locked` for the viewer's own photo editor). The rest of `/me/` (the username, the
+ * of an avatar without a photo, `photo` as `{ large, small }` or null, `is_person`,
+ * `can_register` for the registration link, and `photo_locked` for the viewer's own photo editor). The rest of `/me/` (the username, the
  * pins) stays here: no page needs it, and layout data is serialised into every page. A dead
  * token (401/403) is dropped; any other failure (API down, a body that is not the expected
  * object) keeps it and counts as a visitor for this request.
@@ -20,7 +20,7 @@ async function resolveViewer(fetch, cookies) {
 	try {
 		const user = await apiGet(fetch, api('/me/'), token);
 		if (typeof user !== 'object' || user === null || user.id == null) return VISITOR;
-		const { id, first_name, last_name, photo, is_person, photo_locked } = user;
+		const { id, first_name, last_name, photo, is_person, can_register, photo_locked } = user;
 		return {
 			organiser: Boolean(user.is_staff),
 			me: {
@@ -29,6 +29,8 @@ async function resolveViewer(fetch, cookies) {
 				last_name: last_name ?? '',
 				photo: photo ?? null,
 				is_person: Boolean(is_person),
+				// A person, or invited. An older server sends none and cannot serve /registration/.
+				can_register: can_register === true,
 				photo_locked: Boolean(photo_locked)
 			}
 		};
@@ -41,7 +43,13 @@ async function resolveViewer(fetch, cookies) {
 /** Every active edition, newest first, with only the fields the nav and hub need. */
 async function loadEditions(fetch) {
 	return (await apiGet(fetch, api('/editions/')))
-		.map(({ id, year, host, photos_url }) => ({ id, year, host, photos_url }))
+		.map(({ id, year, host, photos_url, start_date, registration_opens, registration_closes }) => ({
+			id, year, host, photos_url,
+			// Public, for a visitor's registration call to action (the hub, lib/registration.js).
+			start_date: start_date ?? null,
+			registration_opens: registration_opens ?? null,
+			registration_closes: registration_closes ?? null
+		}))
 		.sort((a, b) => b.year - a.year);
 }
 

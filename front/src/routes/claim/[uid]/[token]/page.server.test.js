@@ -25,9 +25,9 @@ const claim = ({
 	response = json(200, { token: 'fresh', user_id: 34 }),
 	fields = { password: 'x', confirmation: 'x' },
 	getClientAddress = address,
-	linkParams = params
+	linkParams = params,
+	fetch = vi.fn().mockResolvedValue(response)
 } = {}) => {
-	const fetch = vi.fn().mockResolvedValue(response);
 	const cookies = { set: vi.fn() };
 	const result = actions.claim({ params: linkParams, request: post(fields), fetch, cookies, getClientAddress });
 	return { result, fetch, cookies };
@@ -111,6 +111,28 @@ describe('claim load', () => {
 });
 
 describe('claim action', () => {
+	const meOr = (me) =>
+		vi.fn(async (url) => (url.endsWith('/me/') ? me : json(200, { token: 'fresh', user_id: 7 })));
+
+	it('lands a person on their profile', async () => {
+		const fetch = meOr(json(200, { id: 7, is_person: true, can_register: true }));
+
+		await expect(claim({ fetch }).result).rejects.toMatchObject({ status: 303, location: '/players/7' });
+		expect(fetch.mock.calls.find(([url]) => url.endsWith('/me/'))[1].headers).toEqual({ authorization: 'Token fresh' });
+	});
+
+	it('lands an invited newcomer, who has no profile yet, on the registration', async () => {
+		const fetch = meOr(json(200, { id: 7, is_person: false, can_register: true }));
+
+		await expect(claim({ fetch }).result).rejects.toMatchObject({ status: 303, location: '/register' });
+	});
+
+	it('falls back to the profile when /me/ cannot be read', async () => {
+		const fetch = meOr(json(500, { detail: 'boom' }));
+
+		await expect(claim({ fetch }).result).rejects.toMatchObject({ status: 303, location: '/players/7' });
+	});
+
 	it('posts the password with the visitor address, stores the token and opens the profile', async () => {
 		const { result, fetch, cookies } = claim();
 

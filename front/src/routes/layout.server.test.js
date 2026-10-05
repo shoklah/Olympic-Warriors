@@ -6,7 +6,9 @@ vi.mock('$lib/server/urls', () => ({ api: (path) => `http://api${path}` }));
 const json = (status, body) =>
 	new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
-const editions = [{ id: 1, year: 2026, host: 'Paris', photos_url: null }];
+const editions = [
+	{ id: 1, year: 2026, host: 'Paris', photos_url: null, start_date: '2026-09-19', registration_opens: '2026-01-01', registration_closes: null }
+];
 
 // The whole /me/ payload (spec §5): the layout keeps only what the pages need.
 const meBody = (overrides = {}) => ({
@@ -16,6 +18,7 @@ const meBody = (overrides = {}) => ({
 	username: 'leamartin',
 	is_staff: false,
 	is_person: true,
+	can_register: true,
 	photo: { large: '/media/avatars/7-abc.webp', small: '/media/avatars/7-abc-sm.webp' },
 	photo_locked: false,
 	showcase: { auto: true, codes: [] },
@@ -60,6 +63,7 @@ describe('root layout load', () => {
 			last_name: 'Martin',
 			photo: { large: '/media/avatars/7-abc.webp', small: '/media/avatars/7-abc-sm.webp' },
 			is_person: true,
+			can_register: true,
 			photo_locked: false
 		});
 	});
@@ -75,6 +79,7 @@ describe('root layout load', () => {
 			last_name: 'Martin',
 			photo: null,
 			is_person: true,
+			can_register: true,
 			photo_locked: false
 		});
 		expect(cookies.delete).not.toHaveBeenCalled();
@@ -100,7 +105,36 @@ describe('root layout load', () => {
 			last_name: 'Martin',
 			photo: null,
 			is_person: false,
+			can_register: true,
 			photo_locked: false
+		});
+	});
+
+	it('keeps can_register, reading its absence (an older server) as false', async () => {
+		const invited = await run({
+			token: 'abc',
+			user: json(200, meBody({ is_person: false, can_register: true }))
+		});
+		expect(invited.data.me).toMatchObject({ is_person: false, can_register: true });
+
+		const plain = await run({
+			token: 'abc',
+			user: json(200, meBody({ is_person: false, can_register: false }))
+		});
+		expect(plain.data.me.can_register).toBe(false);
+
+		const body = meBody({ is_person: true });
+		delete body.can_register;
+		const old = await run({ token: 'abc', user: json(200, body) });
+		expect(old.data.me.can_register).toBe(false); // no link to a page that server cannot serve
+	});
+
+	it('keeps the registration window of each edition for the visitor call to action', async () => {
+		const { data } = await run({ token: undefined });
+
+		expect(data.editions[0]).toEqual({
+			id: 1, year: 2026, host: 'Paris', photos_url: null,
+			start_date: '2026-09-19', registration_opens: '2026-01-01', registration_closes: null
 		});
 	});
 
