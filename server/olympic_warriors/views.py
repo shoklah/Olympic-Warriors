@@ -22,6 +22,7 @@ from rest_framework import serializers
 from rest_framework.exceptions import ParseError
 from rest_framework.parsers import JSONParser, MultiPartParser
 from rest_framework.response import Response
+from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema, inline_serializer, OpenApiResponse
 
 from .serializer import (
@@ -544,15 +545,16 @@ def deactivateMe(request):
     methods=["GET"],
     summary="The registration form of the latest edition, with the caller's saved answers",
     responses={
-        "200": OpenApiResponse(description="The form, its state, and the caller's answers"),
+        "200": OpenApiTypes.OBJECT,  # the form, its state, and the caller's answers
         "404": OpenApiResponse(description="Not a person nor invited, or no edition"),
     },
 )
 @extend_schema(
     methods=["PUT"],
     summary="Register for the latest edition, or edit the registration",
+    request=OpenApiTypes.OBJECT,  # enrolment.validate documents the body
     responses={
-        "200": OpenApiResponse(description="The form as GET returns it, with the saved answers"),
+        "200": OpenApiTypes.OBJECT,  # the form as GET returns it, with the saved answers
         "400": OpenApiResponse(description='{"errors": [codes]}, see enrolment.validate'),
         "409": OpenApiResponse(
             description='{"error": "closed" | "not_yet_open" | "not_configured" | "removed_by_organiser"}'
