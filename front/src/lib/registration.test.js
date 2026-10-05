@@ -338,6 +338,13 @@ describe('stepOfErrors', () => {
 		expect(stepOfErrors(codes)).toBe(step);
 	});
 
+	it('reads the dictionary keys the route returns as well as raw codes', () => {
+		expect(stepOfErrors(['register.error.missing_frequency'])).toBe(1);
+		expect(stepOfErrors(['register.error.invalid_rating', 'register.error.too_long'])).toBe(2);
+		expect(stepOfErrors(['register.error.too_long'])).toBe(3);
+		expect(stepOfErrors(['register.error.invalid'])).toBe(3);
+	});
+
 	it('goes by the first error', () => {
 		expect(stepOfErrors(['invalid_rating', 'missing_frequency'])).toBe(2);
 		expect(stepOfErrors(['too_long', 'missing_frequency'])).toBe(3);
@@ -354,6 +361,9 @@ describe('stepOfForm', () => {
 	it('goes to the step of the first refusal, a refused withdrawal to step 3', () => {
 		expect(stepOfForm({ action: 'save', errors: ['missing_rating'] })).toBe(2);
 		expect(stepOfForm({ action: 'save', errors: ['invalid_sport', 'too_long'] })).toBe(1);
+		expect(stepOfForm({ action: 'save', errors: ['register.error.missing_rating'] })).toBe(2);
+		expect(stepOfForm({ action: 'save', errors: ['register.error.invalid_sport'] })).toBe(1);
+		expect(stepOfForm({ action: 'save', error: 'register.error.closed' })).toBe(3);
 		expect(stepOfForm({ action: 'save', error: 'closed' })).toBe(3);
 		expect(stepOfForm({ action: 'withdraw', error: 'register.error.has_team' })).toBe(3);
 	});

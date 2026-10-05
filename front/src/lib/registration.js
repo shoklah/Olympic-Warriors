@@ -195,7 +195,9 @@ const STEP_TWO = new Set(['missing_rating', 'invalid_rating', 'invalid_global_le
  * for every other code (texts, email, the tick, a closed or throttled form) and for none.
  */
 export function stepOfErrors(codes) {
-	const first = Array.isArray(codes) ? codes[0] : undefined;
+	const raw = Array.isArray(codes) ? codes[0] : undefined;
+	// the route hands over dictionary keys (`register.error.missing_rating`), the API raw codes
+	const first = typeof raw === 'string' ? raw.replace(/^register\.error\./, '') : raw;
 	if (STEP_ONE.has(first)) return 1;
 	if (STEP_TWO.has(first)) return 2;
 	return 3;
