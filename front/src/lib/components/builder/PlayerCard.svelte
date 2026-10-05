@@ -27,9 +27,13 @@
 		if (value === '') return;
 		dispatch('move', { id: player.id, to: value === 'tray' ? null : Number(value) });
 	}
+
+	function preview(event) {
+		dispatch('preview', { id: player.id, opener: event.currentTarget });
+	}
 </script>
 
-<li class="card" class:locked class:dragging draggable="true" on:dragstart={dragStart} on:dragend={() => (dragging = false)}>
+<li class="card" class:locked class:placed={index !== -1} class:dragging draggable="true" on:dragstart={dragStart} on:dragend={() => (dragging = false)}>
 	<span class="top">
 		<span class="name">{name}</span>
 		<span class="rating num">{player.rating}</span>
@@ -44,6 +48,9 @@
 			{#if index !== -1}<option value="tray">{t('builder.moveToTray')}</option>{/if}
 		</select>
 		{/if}
+		<button type="button" class="icon-button" aria-label={t('builder.preview', { name })} on:click={preview}>
+			<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></svg>
+		</button>
 		{#if index !== -1}
 			<button
 				type="button"
@@ -145,9 +152,12 @@
 		.card {
 			position: relative;
 		}
-		/* The lock moves up beside the rating, so the row it shared with the menu goes away. */
+		/* The eye (and the lock, on a placed card) move up beside the rating, so the row they shared with the menu goes away. */
 		.top {
 			padding-right: 2.5rem;
+		}
+		.card.placed .top {
+			padding-right: 5rem;
 		}
 		.actions {
 			position: absolute;

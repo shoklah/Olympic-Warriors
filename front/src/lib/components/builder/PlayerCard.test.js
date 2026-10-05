@@ -34,4 +34,18 @@ describe('PlayerCard', () => {
 		await fireEvent.dragEnd(card);
 		expect(card).not.toHaveClass('dragging');
 	});
+
+	it('has an eye button, in the tray as in a team, that asks to preview the player', async () => {
+		for (const index of [-1, 0]) {
+			const { component, unmount } = renderWith(PlayerCard, { player, teamCount: 2, index });
+			const seen = [];
+			component.$on('preview', (e) => seen.push(e.detail));
+
+			const button = screen.getByRole('button', { name: 'View Léa Martin profile' });
+			await fireEvent.click(button);
+
+			expect(seen).toEqual([{ id: 1, opener: button }]);
+			unmount();
+		}
+	});
 });
