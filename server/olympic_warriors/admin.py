@@ -206,6 +206,14 @@ class PlayerInline(TabularInline):
     model = Player
     form = PlayerInlineForm
     extra = 1
+    # The registration answers are edited on the Player page, not once per roster row.
+    exclude = (
+        "global_level",
+        "dietary_restrictions",
+        "sport_frequency",
+        "team_wishes",
+        "attendance_confirmed",
+    )
 
 
 class RugbyEventInline(TabularInline):

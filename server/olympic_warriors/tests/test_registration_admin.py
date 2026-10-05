@@ -5,7 +5,14 @@ from django.forms import inlineformset_factory
 from django.test import TestCase, override_settings
 
 from olympic_warriors.admin import LockedSkillFormSet
-from olympic_warriors.models import Edition, Player, PlayerRating, PlayerSport, RegistrationSkill
+from olympic_warriors.models import (
+    Edition,
+    Player,
+    PlayerRating,
+    PlayerSport,
+    RegistrationSkill,
+    Team,
+)
 
 EDITIONS = "/admin/olympic_warriors/edition/"
 PLAYERS = "/admin/olympic_warriors/player/"
@@ -232,3 +239,26 @@ class TestPlayerAdminRegistration(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "playersport_set-TOTAL_FORMS")
         self.assertContains(response, "Judo")
+
+
+@override_settings(STATICFILES_STORAGE="django.contrib.staticfiles.storage.StaticFilesStorage")
+class TestTeamPageRoster(TestCase):
+    def test_the_roster_rows_do_not_carry_the_private_registration_answers(self):
+        self.client.force_login(User.objects.create_superuser("admin", "a@b.c", "pw"))
+        edition = make_edition(2027)
+        team = Team.objects.create(name="MxM", edition=edition)
+        Player.objects.create(
+            user=User.objects.create(username="ana"), edition=edition, rating=5, team=team,
+            dietary_restrictions="Végane", team_wishes="Avec Bob",
+        )
+
+        response = self.client.get(f"/admin/olympic_warriors/team/{team.pk}/change/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "player_set-0-rating")
+        for private in (
+            "global_level", "dietary_restrictions", "sport_frequency", "team_wishes",
+            "attendance_confirmed",
+        ):
+            self.assertNotContains(response, f"player_set-0-{private}")
+        self.assertNotContains(response, "Végane")

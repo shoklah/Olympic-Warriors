@@ -177,6 +177,20 @@ class EditionImportTests(TestCase):
         self.assertEqual([s.sport for s in sports], ["Historique (import)"])
         self.assertEqual(sports[0].notes, "Escalade - 10 ans - amateur")
 
+    def test_a_duplicated_imported_sports_row_does_not_fail_the_reimport(self):
+        alice = Player.objects.get(user__username="alicemartin", edition=self.edition)
+        PlayerSport.objects.create(player=alice, sport="Historique (import)", notes="Ajouté à la main")
+        original = FIXTURE.read_text(encoding="utf-8")
+        changed = original.replace("Escalade - 10 ans - amateur", "Escalade - 12 ans - amateur")
+        self.assertNotEqual(changed, original)
+        self.edition.registration_form = SimpleUploadedFile("changed.csv", changed.encode("utf-8"))
+
+        self.edition.save()
+
+        notes = sorted(alice.playersport_set.values_list("notes", flat=True))
+        self.assertEqual(len(notes), 2)
+        self.assertIn("Escalade - 12 ans - amateur", notes)
+
     def test_reimport_replaces_the_answers_without_duplicating_the_sports_row(self):
         original = FIXTURE.read_text(encoding="utf-8")
         changed = original.replace("Avec Bob", "Plutôt avec Thomas")

@@ -132,9 +132,18 @@ class Edition(models.Model):
                     )
                     history = clean_text(row[extras[SPORTS]]) if SPORTS in extras else ""
                     if history:
-                        PlayerSport.objects.update_or_create(
-                            player=player, sport=IMPORTED_SPORT, defaults={"notes": history}
-                        )
+                        # filter().first(), not update_or_create: an organiser may have
+                        # added a second row of that name, which is no reason to fail.
+                        imported = PlayerSport.objects.filter(
+                            player=player, sport=IMPORTED_SPORT
+                        ).first()
+                        if imported is None:
+                            PlayerSport.objects.create(
+                                player=player, sport=IMPORTED_SPORT, notes=history
+                            )
+                        else:
+                            imported.notes = history
+                            imported.save(update_fields=["notes"])
                     for name, spec in ratings.items():
                         PlayerRating.objects.update_or_create(
                             player=player,
