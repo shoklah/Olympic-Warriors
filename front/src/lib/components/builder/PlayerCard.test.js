@@ -34,4 +34,32 @@ describe('PlayerCard', () => {
 		await fireEvent.dragEnd(card);
 		expect(card).not.toHaveClass('dragging');
 	});
+
+	it('only widens the action row for the move menu, never when a button is pressed', async () => {
+		renderWith(PlayerCard, { player, teamCount: 2, index: 0 });
+		const actions = screen.getByRole('combobox').parentElement;
+
+		await fireEvent.focus(screen.getByRole('button', { name: 'View Léa Martin profile' }));
+		expect(actions).not.toHaveClass('menu-focused');
+
+		await fireEvent.focus(screen.getByRole('combobox'));
+		expect(actions).toHaveClass('menu-focused');
+
+		await fireEvent.blur(screen.getByRole('combobox'));
+		expect(actions).not.toHaveClass('menu-focused');
+	});
+
+	it('has an info button, in the tray as in a team, that asks to preview the player', async () => {
+		for (const index of [-1, 0]) {
+			const { component, unmount } = renderWith(PlayerCard, { player, teamCount: 2, index });
+			const seen = [];
+			component.$on('preview', (e) => seen.push(e.detail));
+
+			const button = screen.getByRole('button', { name: 'View Léa Martin profile' });
+			await fireEvent.click(button);
+
+			expect(seen).toEqual([{ id: 1, opener: button }]);
+			unmount();
+		}
+	});
 });

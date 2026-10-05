@@ -328,4 +328,31 @@ describe('team builder page', () => {
 		expect(screen.getByRole('status')).toBe(status);
 		vi.unstubAllGlobals();
 	});
+
+	it('opens a player sheet from the eye button and gives focus back on close', async () => {
+		renderWith(Page, { data: data() });
+		await goTo('Teams');
+
+		const eye = screen.getByRole('button', { name: 'View Léa Martin profile' });
+		await fireEvent.click(eye);
+
+		const sheet = within(screen.getByRole('dialog', { name: 'Léa Martin' }));
+		expect(sheet.getByText('To place')).toBeInTheDocument();
+		expect(sheet.getByText('Cardio')).toBeInTheDocument();
+
+		await fireEvent.click(sheet.getByRole('button', { name: 'Close' }));
+
+		expect(screen.queryByRole('dialog')).toBeNull();
+		expect(document.activeElement).toBe(eye);
+	});
+
+	it('names the team of a placed player in the sheet', async () => {
+		renderWith(Page, { data: data() });
+		await propose();
+
+		const region = teamRegions()[0];
+		await fireEvent.click(within(region).getAllByRole('button', { name: /^View .* profile$/ })[0]);
+
+		expect(within(screen.getByRole('dialog')).getByText('Team 1')).toBeInTheDocument();
+	});
 });
