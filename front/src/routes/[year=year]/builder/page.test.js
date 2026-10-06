@@ -528,5 +528,27 @@ describe('team builder page', () => {
 			expect(undoButton()).toBeEnabled();
 			expect(screen.getByRole('dialog')).toBeInTheDocument();
 		});
+
+		it('does nothing once the teams are applied, so no draft is saved again', async () => {
+			const fetchMock = vi.fn(async (url) =>
+				String(url).endsWith('/apply')
+					? { status: 200, ok: true, json: async () => ({ teams: [], unscheduled: [] }) }
+					: { status: 200, ok: true, json: async () => ({ updated_at: 'v1' }) }
+			);
+			vi.stubGlobal('fetch', fetchMock);
+			renderWith(Page, { data: data() });
+			await propose();
+			await goTo('Apply');
+			await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Create the teams' })).toBeEnabled(), { timeout: 3000 });
+			await fireEvent.click(screen.getByRole('button', { name: 'Create the teams' }));
+			await vi.waitFor(() => expect(fetchMock.mock.calls.some(([u]) => String(u).endsWith('/apply'))).toBe(true), { timeout: 3000 });
+			const calls = fetchMock.mock.calls.length;
+
+			await fireEvent.keyDown(window, { key: 'z', ctrlKey: true });
+			await new Promise((resolve) => setTimeout(resolve, 1500)); // past the saver's debounce
+
+			expect(fetchMock.mock.calls.length).toBe(calls);
+			vi.unstubAllGlobals();
+		});
 	});
 });

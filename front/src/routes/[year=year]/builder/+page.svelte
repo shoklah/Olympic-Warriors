@@ -193,8 +193,10 @@
 	$: previewTeam = previewed ? draft.teams.findIndex((tm) => tm.players.includes(previewed.id)) : -1;
 	$: saveBlocked = saveState === 'stale' || saveState === 'error';
 
-	$: canUndo = history.past.length > 0 && !saveBlocked;
-	$: canRedo = history.future.length > 0 && !saveBlocked;
+	// Not while Apply runs or after it succeeded: the draft is then the server's to delete, not ours to save again.
+	$: editable = !saveBlocked && !busy && !done;
+	$: canUndo = history.past.length > 0 && editable;
+	$: canRedo = history.future.length > 0 && editable;
 	function undo() {
 		const out = canUndo && undoStep(history, draft);
 		if (!out) return;
