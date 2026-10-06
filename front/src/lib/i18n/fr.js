@@ -167,7 +167,7 @@ export default {
 	'builder.noPlayers': "Aucun joueur inscrit pour l'instant.",
 	'builder.banner': { one: '{joined} nouvel inscrit à placer', other: '{joined} nouveaux inscrits à placer' },
 	'builder.bannerLeft': { one: '{left} désistement retiré des équipes', other: '{left} désistements retirés des équipes' },
-	'builder.requests.intro': 'Associez chaque nom des demandes à un joueur inscrit. Seules les demandes confirmées sont prises en compte, et uniquement par la constitution automatique des équipes.',
+	'builder.requests.intro': 'Associez chaque nom des demandes à un joueur inscrit. Seules les demandes confirmées sont prises en compte pour la constitution automatique des équipes.',
 	'builder.requests.none': 'Aucune demande à examiner.',
 	'builder.requests.with': 'veut être avec',
 	'builder.requests.avoid': 'préfère éviter',

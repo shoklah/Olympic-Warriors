@@ -161,7 +161,7 @@ export default {
 	'builder.noPlayers': 'No registered players yet.',
 	'builder.banner': { one: '{joined} new registrant to place', other: '{joined} new registrants to place' },
 	'builder.bannerLeft': { one: '{left} withdrawal removed from the teams', other: '{left} withdrawals removed from the teams' },
-	'builder.requests.intro': 'Link each name in the requests to a registered player. Only confirmed requests are taken into account, and only by the automatic team assignment.',
+	'builder.requests.intro': 'Link each name in the requests to a registered player. Only confirmed requests are taken into account for the automatic team assignment.',
 	'builder.requests.none': 'No requests to review.',
 	'builder.requests.with': 'wants to be with',
 	'builder.requests.avoid': 'would rather avoid',
