@@ -46,3 +46,21 @@ export function reconcile(draft, players) {
 		unplaced
 	};
 }
+
+const teamIndexOf = (draft, id) => draft.teams.findIndex((t) => t.players.includes(id));
+
+/** Why a and b cannot be swapped, or null: locked first, then the same team, then both in the tray. */
+export function swapBlock(draft, a, b) {
+	if (draft.locked.includes(a) || draft.locked.includes(b)) return 'locked';
+	const ta = teamIndexOf(draft, a);
+	const tb = teamIndexOf(draft, b);
+	if (ta === tb) return ta === -1 ? 'bothTray' : 'sameTeam';
+	return null;
+}
+
+/** The draft with a and b exchanged, each taking the other's slot; null when the swap is blocked. */
+export function swapPlayers(draft, a, b) {
+	if (swapBlock(draft, a, b)) return null;
+	const swap = (id) => (id === a ? b : id === b ? a : id);
+	return { ...draft, teams: draft.teams.map((t) => ({ players: t.players.map(swap) })) };
+}

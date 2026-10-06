@@ -69,3 +69,39 @@ describe('reconcile', () => {
 		expect(reconcile(proposed, roster(1, 2, 3, 4)).unplaced).toEqual([1, 3]);
 	});
 });
+
+import { swapBlock, swapPlayers } from './plan.js';
+
+describe('swapPlayers', () => {
+	const draft = draftOf({ teams: [{ players: [1, 2] }, { players: [3, 4] }], locked: [] });
+
+	it('exchanges two teams, each player taking the other slot', () => {
+		expect(swapPlayers(draft, 1, 4).teams).toEqual([{ players: [4, 2] }, { players: [3, 1] }]);
+	});
+
+	it('puts a tray player in the team and sends the other to the tray, either way round', () => {
+		expect(swapPlayers(draft, 2, 9).teams).toEqual([{ players: [1, 9] }, { players: [3, 4] }]);
+		expect(swapPlayers(draft, 9, 2).teams).toEqual([{ players: [1, 9] }, { players: [3, 4] }]);
+	});
+
+	it('is its own undo and leaves the draft it was given alone', () => {
+		const once = swapPlayers(draft, 1, 4);
+		expect(swapPlayers(once, 1, 4)).toEqual(draft);
+		expect(draft.teams[0].players).toEqual([1, 2]);
+	});
+
+	it('refuses the same team, the tray with the tray, and a locked player', () => {
+		expect(swapPlayers(draft, 1, 2)).toBeNull();
+		expect(swapPlayers(draft, 8, 9)).toBeNull();
+		expect(swapPlayers({ ...draft, locked: [1] }, 1, 4)).toBeNull();
+		expect(swapPlayers({ ...draft, locked: [4] }, 1, 4)).toBeNull();
+	});
+
+	it('names the reason, locked before the placement', () => {
+		expect(swapBlock({ ...draft, locked: [1] }, 1, 2)).toBe('locked');
+		expect(swapBlock(draft, 1, 2)).toBe('sameTeam');
+		expect(swapBlock(draft, 8, 9)).toBe('bothTray');
+		expect(swapBlock(draft, 1, 4)).toBeNull();
+		expect(swapBlock(emptyDraft(), 1, 2)).toBe('bothTray');
+	});
+});
