@@ -42,12 +42,36 @@ describe('BuilderRequests', () => {
 		const { component } = renderWith(BuilderRequests, { players, links: [] });
 		component.$on('toggle', (e) => component.$set({ links: [{ player: e.detail.player, kind: e.detail.kind, target: e.detail.target }] }));
 
-		const select = screen.getAllByRole('combobox', { name: /Another player… \(Paul Durand\)/ })[0];
+		const select = screen.getAllByRole('combobox', { name: /Add a player… \(Paul Durand\)/ })[0];
 		await fireEvent.change(select, { target: { value: '5' } });
 
 		const pressed = screen.getAllByRole('button', { name: 'Confirm Bob Roux' }).filter((b) => b.getAttribute('aria-pressed') === 'true');
 
 		expect(pressed).toHaveLength(1);
+	});
+
+	it('lets a link be added for a kind the player wrote nothing for', async () => {
+		const only = players.map((p) => (p.id === 1 ? { ...p, team_with: '', team_avoid: 'Paul Durand' } : p));
+		const { component } = renderWith(BuilderRequests, { players: only, links: [] });
+		const events = [];
+		component.$on('toggle', (e) => events.push(e.detail));
+
+		const select = screen.getByRole('combobox', { name: /Add a player… \(Léa Martin\) · wants to be with/ });
+		await fireEvent.change(select, { target: { value: '5' } });
+
+		expect(events).toEqual([{ player: 1, kind: 'with', target: 5 }]);
+	});
+
+	it('shows a card with both sections for a player who wrote nothing', async () => {
+		const bare = players.map((p) => ({ ...p, team_with: '', team_avoid: '' }));
+		const { component } = renderWith(BuilderRequests, { players: bare, links: [] });
+		const events = [];
+		component.$on('toggle', (e) => events.push(e.detail));
+
+		await fireEvent.change(screen.getByRole('combobox', { name: /Add a player… \(Léa Martin\) · wants to be with/ }), { target: { value: '5' } });
+
+		expect(screen.getAllByText('No request.').length).toBeGreaterThan(0);
+		expect(events).toEqual([{ player: 1, kind: 'with', target: 5 }]);
 	});
 
 	it('says so when nobody wrote a request', () => {
@@ -65,7 +89,8 @@ describe('BuilderRequests', () => {
 		renderWith(BuilderRequests, { players: both, links: [] });
 
 		const cards = screen.getAllByRole('heading', { level: 3 });
-		expect(cards.map((h) => h.textContent)).toEqual(['Léa Martin']);
+		expect(cards.map((h) => h.textContent)).toContain('Léa Martin');
+		expect(cards).toHaveLength(both.length);
 		expect(screen.getByRole('region', { name: 'Léa Martin: wants to be with' })).toBeInTheDocument();
 		expect(screen.getByRole('region', { name: 'Léa Martin: would rather avoid' })).toBeInTheDocument();
 	});

@@ -21,10 +21,13 @@
 	$: byId = new Map(players.map((p) => [p.id, p]));
 	// The matches depend on the roster only, so confirming a link never recomputes them.
 	$: rows = requestRows(players);
-	// One card per player, holding the « avec » and the « à éviter » requests they wrote.
-	$: cards = players
-		.map((player) => ({ player, rows: rows.filter((row) => row.player.id === player.id) }))
-		.filter((card) => card.rows.length > 0);
+	// One card per player, whoever wrote something: both kinds always show, and a kind with no written request is an empty row,
+	// so an organiser can still add a link by hand.
+	const KINDS = ['with', 'avoid'];
+	$: cards = players.map((player) => ({
+		player,
+		rows: KINDS.map((kind) => rows.find((r) => r.player.id === player.id && r.kind === kind) ?? { player, kind, matches: [] })
+	}));
 	$: confirmed = new Set(links.map((l) => `${l.player}:${l.kind}:${l.target}`));
 	$: isOn = (player, kind, target) => confirmed.has(`${player.id}:${kind}:${target}`);
 	$: stateOf = (row, match) => lineState(match, links, row.player, row.kind, ignored);
@@ -89,9 +92,10 @@
 </script>
 
 <p class="hint">{t('builder.requests.intro')}</p>
-{#if cards.length === 0}
+{#if rows.length === 0}
 	<p>{t('builder.requests.none')}</p>
-{:else}
+{/if}
+{#if cards.length > 0}
 	<div class="toolbar" bind:this={toolbarEl}>
 		<div class="actions">
 			<HistoryButtons {canUndo} {canRedo} on:undo on:redo />
@@ -129,8 +133,11 @@
 			<li class="card">
 				<h3 class="who">{fullName(card.player)}</h3>
 				{#each card.rows as row (row.kind)}
-					<section class="kind" aria-label="{fullName(card.player)}: {t(`builder.requests.${row.kind}`)}">
-						<p class="label">{t(`builder.requests.${row.kind}`)}</p>
+					<section class="kind {row.kind}" aria-label="{fullName(card.player)}: {t(`builder.requests.${row.kind}`)}">
+						<p class="label {row.kind}">{t(`builder.requests.${row.kind}`)}</p>
+						{#if row.matches.length === 0 && extras(row).length === 0}
+							<p class="empty">{t('builder.requests.empty')}</p>
+						{/if}
 						<ul class="matches">
 							{#each row.matches as match}
 								{@const state = stateOf(row, match)}
@@ -270,7 +277,7 @@
 	.card {
 		display: grid;
 		align-content: start;
-		gap: 0.75rem;
+		gap: 1rem;
 		padding: 0.75rem 1rem;
 		background: var(--bg-raised);
 		border: 1px solid var(--line);
@@ -280,16 +287,39 @@
 		margin: 0;
 		font-size: 1.125rem;
 	}
+	/* Each kind is an inset block with a coloured rule, so « avec » and « à éviter » never read as one list. */
 	.kind {
 		display: grid;
 		gap: 0.5rem;
+		padding: 0.625rem 0.75rem;
+		background: var(--bg-sunken);
+		border-left: 3px solid var(--muted);
+		border-radius: 0;
+	}
+	.kind.with {
+		border-left-color: var(--win);
+	}
+	.kind.avoid {
+		border-left-color: var(--loss);
 	}
 	.label {
 		margin: 0;
 		font-size: 0.75rem;
+		font-weight: 600;
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		color: var(--muted);
+	}
+	.label.with {
+		color: var(--win);
+	}
+	.label.avoid {
+		color: var(--loss);
+	}
+	.empty {
+		margin: 0;
+		font-size: 0.8125rem;
+		color: var(--faint);
 	}
 	.kind ul {
 		display: grid;
