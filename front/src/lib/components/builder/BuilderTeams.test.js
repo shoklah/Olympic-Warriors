@@ -102,4 +102,54 @@ describe('BuilderTeams', () => {
 
 		expect(moves).toEqual([{ id: 6, to: 1 }]);
 	});
+
+	describe('toolbar and unmet requests', () => {
+		const unmetResult = {
+			...proposed.result,
+			unmet: [
+				{ kind: 'with', player: 1, target: 4, mutual: false },
+				{ kind: 'avoid', player: 2, target: 3, mutual: false }
+			]
+		};
+
+		it('says in one line that every request is met, with nothing to expand', () => {
+			renderWith(BuilderTeams, proposed);
+
+			expect(screen.getByText('Every confirmed request is met.')).toBeInTheDocument();
+			expect(screen.queryByRole('button', { name: /unmet request/ })).toBeNull();
+		});
+
+		it('counts the unmet requests and shows them on demand', async () => {
+			renderWith(BuilderTeams, { ...proposed, result: unmetResult });
+
+			const head = screen.getByRole('button', { name: /2 unmet requests/ });
+			expect(head).toHaveAttribute('aria-expanded', 'false');
+			expect(screen.getByText(/Léa Martin wanted to be with Inès Moreau/)).not.toBeVisible();
+
+			await fireEvent.click(head);
+
+			expect(head).toHaveAttribute('aria-expanded', 'true');
+			expect(screen.getByText(/Léa Martin wanted to be with Inès Moreau/)).toBeVisible();
+		});
+
+		it('sends undo, redo and the reset, and disables undo and redo when there is nothing to do', async () => {
+			const { component } = renderWith(BuilderTeams, { ...proposed, canUndo: true, canRedo: false });
+			const events = [];
+			for (const name of ['undo', 'redo', 'reset']) component.$on(name, () => events.push(name));
+
+			await fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+			await fireEvent.click(screen.getByRole('button', { name: 'Reset everything' }));
+
+			expect(screen.getByRole('button', { name: 'Redo' })).toBeDisabled();
+			expect(events).toEqual(['undo', 'reset']);
+		});
+
+		it('keeps the locked-size explanation for the screen reader and as a tooltip', () => {
+			renderWith(BuilderTeams, proposed);
+
+			const field = screen.getByLabelText('Players per team');
+			expect(field).toBeDisabled();
+			expect(field).toHaveAccessibleDescription('Reset everything to change this number.');
+		});
+	});
 });

@@ -299,10 +299,6 @@
 		<!-- One slot for the save state, always there: the text switches in place, so the page below
 		     never jumps when a change is saved. -->
 		<div class="save-status">
-			<div class="history">
-				<button type="button" class="icon" disabled={!canUndo} aria-label={t('builder.undo')} title={t('builder.undo.hint')} on:click={undo}><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" /></svg></button>
-				<button type="button" class="icon" disabled={!canRedo} aria-label={t('builder.redo')} title={t('builder.redo.hint')} on:click={redo}><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 14 5-5-5-5" /><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" /></svg></button>
-			</div>
 			{#if saveState === 'stale'}
 				<p class="error" role="alert">
 					{t('builder.stale')}
@@ -351,6 +347,10 @@
 				{showRequests}
 				on:showRequests={setShowRequests}
 				on:lock={toggleLock}
+				{canUndo}
+				{canRedo}
+				on:undo={undo}
+				on:redo={redo}
 			/>
 			<PlayerSheet
 				open={previewed !== null}
@@ -449,31 +449,6 @@
 	}
 	.save-status :global(.hint) {
 		margin: 0;
-	}
-	.history {
-		display: flex;
-		gap: 0.5rem;
-	}
-	.history .icon {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		width: 2.25rem;
-		height: 2.25rem;
-		padding: 0;
-		border-radius: 999px;
-		border: 1px solid var(--accent);
-		background: transparent;
-		color: var(--accent);
-		cursor: pointer;
-	}
-	.history .icon:disabled {
-		opacity: 0.4;
-		cursor: not-allowed;
-	}
-	.history .icon:focus-visible {
-		outline: 2px solid var(--accent);
-		outline-offset: 2px;
 	}
 	.hint {
 		margin: 0 0 1rem;

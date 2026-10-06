@@ -14,7 +14,7 @@ Every change an organiser makes to the draft can be undone and redone, so a misp
 - **Limit:** the latest `LIMIT = 50` steps; the oldest are dropped.
 - **Lifetime:** in memory for the page visit, never saved. `load()` (the first load, « load theirs », a new roster) starts an empty history, so a snapshot of another draft or roster never comes back.
 - **Saving:** undo and redo restore a snapshot through the same `show` as a commit, so they are saved by the debounced saver like any edit and show « Enregistrement… ».
-- **Controls:** « Annuler » and « Rétablir » pills beside the save status (one flex row in the `.save-status` slot, so nothing below moves), disabled when the stack is empty or the draft cannot be saved (`saveBlocked`). Cmd/Ctrl+Z undoes, Cmd/Ctrl+Shift+Z (or Ctrl+Y) redoes; the shortcut is left alone in an input, textarea, select or contenteditable, which have their own undo, and while the player sheet is open (the sheet's swap is its own undo).
+- **Controls:** Undo and redo curved-arrow icon buttons (named « Annuler » and « Rétablir ») in the Teams step's toolbar (`BuilderTeams`, props `canUndo`/`canRedo`, events `undo`/`redo`), disabled when the stack is empty or the draft cannot be saved (`saveBlocked`). Cmd/Ctrl+Z undoes, Cmd/Ctrl+Shift+Z (or Ctrl+Y) redoes; the shortcut is left alone in an input, textarea, select or contenteditable, which have their own undo, and while the player sheet is open (the sheet's swap is its own undo).
 - **i18n:** `builder.undo`, `.undo.hint`, `.redo`, `.redo.hint` (the hint names the shortcut).
 
 ## Tests

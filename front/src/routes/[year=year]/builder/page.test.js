@@ -451,8 +451,9 @@ describe('team builder page', () => {
 		const redoButton = () => screen.getByRole('button', { name: 'Redo' });
 		const names = () => teamRegions().map((r) => [...r.querySelectorAll('.name')].map((n) => n.textContent));
 
-		it('starts with both buttons disabled', () => {
+		it('starts with both buttons disabled', async () => {
 			renderWith(Page, { data: data() });
+			await goTo('Teams');
 
 			expect(undoButton()).toBeDisabled();
 			expect(redoButton()).toBeDisabled();
