@@ -100,8 +100,8 @@
 	</section>
 {/if}
 
-<div class="board">
-	{#if unplaced.length > 0}
+{#if unplaced.length > 0}
+	<div class="trayrow">
 		<section
 			class="column tray"
 			class:over={over === 'tray'}
@@ -117,7 +117,9 @@
 				{/each}
 			</ul>
 		</section>
-	{/if}
+	</div>
+{/if}
+<div class="board">
 	{#each teams as team, i}
 		<section
 			class="column"
@@ -247,6 +249,13 @@
 	.unmet ul {
 		margin: 0;
 		padding-left: 1.25rem;
+	}
+	.trayrow {
+		margin-bottom: 1rem;
+	}
+	.tray ul {
+		grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+		align-items: start;
 	}
 	.board {
 		display: grid;
