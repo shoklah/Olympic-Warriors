@@ -69,16 +69,16 @@
 		<span class="sep" aria-hidden="true"></span>
 		<ToolSwitch checked={reviewOnly} on:change={(e) => (reviewOnly = e.detail)}>{t('builder.requests.reviewOnly')}</ToolSwitch>
 	</div>
-	<div class="status" aria-live="polite">
-		<span class="total">{t('builder.requests.count.total', { n: summary.total })}</span>
-		<span class="chip good">
+	<div class="tally" aria-live="polite">
+		<span class="tally-total">{t('builder.requests.count.total', { n: summary.total })}</span>
+		<span class="tag good">
 			<RequestIcon name="check" />{t('builder.requests.count.confirmed', { n: summary.confirmed })}
 		</span>
-		<span class="chip warn">
+		<span class="tag warn">
 			<RequestIcon name="question" />{t('builder.requests.count.review', { n: summary.review })}
 		</span>
 		{#if summary.none > 0}
-			<span class="chip none">
+			<span class="tag none">
 				<RequestIcon name="minus" />{t('builder.requests.count.none', { n: summary.none })}
 			</span>
 		{/if}
@@ -174,7 +174,7 @@
 		align-items: center;
 		gap: 0.5rem;
 	}
-	.status {
+	.tally {
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
@@ -186,22 +186,22 @@
 		border-radius: var(--radius);
 		font-size: 0.875rem;
 	}
-	.total {
+	.tally-total {
 		color: var(--muted);
 	}
-	.chip {
+	.tag {
 		display: inline-flex;
 		align-items: center;
 		gap: 0.375rem;
 		font-weight: 600;
 	}
-	.chip.good {
+	.tag.good {
 		color: var(--win);
 	}
-	.chip.warn {
+	.tag.warn {
 		color: var(--todo);
 	}
-	.chip.none {
+	.tag.none {
 		color: var(--muted);
 	}
 	.submit {
