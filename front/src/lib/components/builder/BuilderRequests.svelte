@@ -9,12 +9,14 @@
 
 	export let players;
 	export let links;
+	/** The lines set aside by the organisers: `{ player, kind, text }`. */
+	export let ignored = [];
 	export let canUndo = false;
 	export let canRedo = false;
 
 	const t = useT();
 	const dispatch = createEventDispatcher();
-	const STATE_ICON = { confirmed: 'check', clear: 'question', choose: 'question', check: 'question', none: 'minus' };
+	const STATE_ICON = { confirmed: 'check', clear: 'question', choose: 'question', check: 'question', none: 'minus', ignored: 'minus' };
 
 	$: byId = new Map(players.map((p) => [p.id, p]));
 	// The matches depend on the roster only, so confirming a link never recomputes them.
@@ -25,13 +27,15 @@
 		.filter((card) => card.rows.length > 0);
 	$: confirmed = new Set(links.map((l) => `${l.player}:${l.kind}:${l.target}`));
 	$: isOn = (player, kind, target) => confirmed.has(`${player.id}:${kind}:${target}`);
-	$: stateOf = (row, match) => lineState(match, links, row.player, row.kind);
-	$: summary = summarise(rows, links);
-	// « À examiner seulement »: the lines already confirmed leave the cards (the ones with no match stay: they need a hand).
+	$: stateOf = (row, match) => lineState(match, links, row.player, row.kind, ignored);
+	$: summary = summarise(rows, links, ignored);
+	// « À examiner seulement »: the lines already confirmed or ignored leave the cards (the ones with no match stay: they need a hand).
 	// A line still to review when the filter turned on, or at any point since, stays until the filter is switched off and on
 	// again: confirming it must not pull the button under the keyboard focus out of the page.
 	let reviewOnly = false;
 	let kept = new Set();
+	// What is no longer to be decided on: confirmed, or set aside.
+	const settled = (state) => state === 'confirmed' || state === 'ignored';
 	const lineKey = (row, match) => `${row.player.id}:${row.kind}:${match.text}`;
 	function setReviewOnly(on) {
 		kept = new Set();
@@ -41,7 +45,7 @@
 		let grew = false;
 		for (const row of rows) {
 			for (const match of row.matches) {
-				if (stateOf(row, match) !== 'confirmed' && !kept.has(lineKey(row, match))) {
+				if (!settled(stateOf(row, match)) && !kept.has(lineKey(row, match))) {
 					kept.add(lineKey(row, match));
 					grew = true;
 				}
@@ -54,16 +58,19 @@
 				.map((card) => ({
 					player: card.player,
 					rows: card.rows
-						.map((row) => ({ ...row, matches: row.matches.filter((m) => stateOf(row, m) !== 'confirmed' || kept.has(lineKey(row, m))) }))
+						.map((row) => ({ ...row, matches: row.matches.filter((m) => !settled(stateOf(row, m)) || kept.has(lineKey(row, m))) }))
 						.filter((row) => row.matches.length > 0)
 				}))
 				.filter((card) => card.rows.length > 0)
 		: cards;
+	// `drop`: the candidates of the line, whose confirmed links go with it when it is set aside.
+	const setAside = (row, match, on) =>
+		dispatch('ignore', { player: row.player.id, kind: row.kind, text: match.text, on, drop: match.candidates.map((c) => c.id) });
 	const toggle = (player, kind, target) => dispatch('toggle', { player: player.id, kind, target });
 	let toolbarEl;
 	// The button that did it is gone once nothing is left to confirm: focus moves to the next control of the toolbar.
 	async function confirmClear() {
-		dispatch('confirmClear', clearLinks(rows, links));
+		dispatch('confirmClear', clearLinks(rows, links, ignored));
 		await tick();
 		toolbarEl?.querySelector('button:not(:disabled)')?.focus();
 	}
@@ -103,6 +110,11 @@
 		<span class="tag warn">
 			<RequestIcon name="question" />{t('builder.requests.count.review', { n: summary.review })}
 		</span>
+		{#if summary.ignored > 0}
+			<span class="tag none">
+				<RequestIcon name="minus" />{t('builder.requests.count.ignored', { n: summary.ignored })}
+			</span>
+		{/if}
 		{#if summary.none > 0}
 			<span class="tag none">
 				<RequestIcon name="minus" />{t('builder.requests.count.none', { n: summary.none })}
@@ -122,12 +134,12 @@
 						<ul class="matches">
 							{#each row.matches as match}
 								{@const state = stateOf(row, match)}
-								<li class="match">
+								<li class="match" class:ignored={state === 'ignored'}>
 									<span class="line">
 										<span class="text">« {match.text} »</span>
 										<span class="status {state}"><RequestIcon name={STATE_ICON[state]} />{t(`builder.requests.state.${state}`)}</span>
 									</span>
-									{#if match.candidates.length > 0}
+									{#if match.candidates.length > 0 && state !== 'ignored'}
 										<span class="chips">
 											{#each match.candidates as candidate}
 												<button
@@ -144,7 +156,13 @@
 											{/each}
 										</span>
 									{/if}
-									<span class="why">{why(match)}</span>
+									<span class="why">{state === 'ignored' ? t('builder.requests.ignoredWhy') : why(match)}</span>
+									<button
+										type="button"
+										class="ignore"
+										aria-label={t(state === 'ignored' ? 'builder.requests.unignoreLine' : 'builder.requests.ignoreLine', { text: match.text })}
+										on:click={() => setAside(row, match, state !== 'ignored')}
+									>{t(state === 'ignored' ? 'builder.requests.unignore' : 'builder.requests.ignore')}</button>
 								</li>
 							{/each}
 							{#if !reviewOnly && extras(row).length > 0}
@@ -324,8 +342,36 @@
 	.status.check {
 		color: var(--todo);
 	}
-	.status.none {
+	.status.none,
+	.status.ignored {
 		color: var(--muted);
+	}
+	.match.ignored .text,
+	.match.ignored .why {
+		opacity: 0.6;
+	}
+	.match.ignored .text {
+		text-decoration: line-through;
+	}
+	.ignore {
+		justify-self: start;
+		align-self: start;
+		padding: 0.125rem 0;
+		background: none;
+		border: 0;
+		color: var(--muted);
+		font: inherit;
+		font-size: 0.8125rem;
+		text-decoration: underline;
+		cursor: pointer;
+		border-radius: var(--radius);
+	}
+	.ignore:hover {
+		color: var(--ink);
+	}
+	.ignore:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
 	}
 	.why {
 		font-size: 0.8125rem;

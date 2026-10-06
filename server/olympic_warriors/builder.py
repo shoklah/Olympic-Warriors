@@ -9,12 +9,14 @@ from .registration_state import registration_state
 MIN_PER_TEAM = 2
 MAX_PER_TEAM = 20
 MAX_LINKS = 200
+MAX_IGNORED = 400
+MAX_IGNORED_TEXT = 500
 KINDS = {"with", "avoid"}
 SEED_LIMIT = 2**31
 
 
 class DraftError(Exception):
-    """A draft refused: `codes` are the API's (`invalid_draft`, `unknown_player`, `bad_size`, `too_many_links`)."""
+    """A draft refused: `codes` are the API's (`invalid_draft`, `unknown_player`, `bad_size`, `too_many_links`, `too_many_ignored`)."""
 
     def __init__(self, codes):
         super().__init__(codes)
@@ -26,7 +28,7 @@ def _is_int(value):
 
 
 def validate_draft(document, player_ids):
-    """The cleaned draft (only the five known keys) or a DraftError listing every problem."""
+    """The cleaned draft (only the six known keys) or a DraftError listing every problem."""
     ids = set(player_ids)
     errors = []
 
@@ -64,6 +66,29 @@ def validate_draft(document, player_ids):
             else:
                 cleaned_links.append({"player": player, "kind": link["kind"], "target": target})
 
+    # The requests the organisers set aside on the Requests step: a written part of a player's
+    # `team_with` / `team_avoid` text, which then shows nowhere on the Teams step.
+    ignored = document.get("ignored", [])
+    cleaned_ignored = []
+    if not isinstance(ignored, list):
+        fail("invalid_draft")
+    elif len(ignored) > MAX_IGNORED:
+        fail("too_many_ignored")
+    else:
+        seen = set()
+        for entry in ignored:
+            kind = entry.get("kind") if isinstance(entry, dict) else None
+            player, text = (entry.get("player"), entry.get("text")) if isinstance(entry, dict) else (None, None)
+            if not isinstance(kind, str) or kind not in KINDS or not _is_int(player):
+                fail("invalid_draft")
+            elif not isinstance(text, str) or not text.strip() or len(text) > MAX_IGNORED_TEXT:
+                fail("invalid_draft")
+            elif player not in ids:
+                fail("unknown_player")
+            elif (player, kind, text) not in seen:
+                seen.add((player, kind, text))
+                cleaned_ignored.append({"player": player, "kind": kind, "text": text})
+
     teams = document.get("teams", [])
     cleaned_teams = []
     placed = set()
@@ -94,6 +119,7 @@ def validate_draft(document, player_ids):
         "players_per_team": per_team,
         "seed": seed,
         "links": cleaned_links,
+        "ignored": cleaned_ignored,
         "teams": cleaned_teams,
         "locked": list(locked),
     }

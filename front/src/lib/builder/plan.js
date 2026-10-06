@@ -17,6 +17,7 @@ export const emptyDraft = (perTeam = 3) => ({
 	players_per_team: perTeam,
 	seed: newSeed(),
 	links: [],
+	ignored: [],
 	teams: [],
 	locked: []
 });
@@ -39,6 +40,7 @@ export function reconcile(draft, players) {
 			...draft,
 			teams,
 			links: draft.links.filter((l) => ids.has(l.player) && ids.has(l.target)),
+			ignored: (draft.ignored ?? []).filter((i) => ids.has(i.player)),
 			locked: draft.locked.filter((id) => ids.has(id))
 		},
 		left,

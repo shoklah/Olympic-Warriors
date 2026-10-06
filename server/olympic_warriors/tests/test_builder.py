@@ -58,7 +58,7 @@ class TestValidateDraft(TestCase):
     def test_a_good_draft_is_returned_with_exactly_its_keys(self):
         cleaned = validate_draft(doc(extra="ignored"), IDS)
 
-        self.assertEqual(set(cleaned), {"players_per_team", "seed", "links", "teams", "locked"})
+        self.assertEqual(set(cleaned), {"players_per_team", "seed", "links", "ignored", "teams", "locked"})
         self.assertEqual(cleaned["teams"], [{"players": [1, 2, 3]}, {"players": [4, 5]}])
 
     def test_a_draft_before_any_proposal_is_valid(self):
@@ -95,6 +95,33 @@ class TestValidateDraft(TestCase):
 
     def test_a_locked_player_must_be_placed(self):
         self.assertEqual(self.codes(doc(locked=[6])), ["invalid_draft"])
+
+    def test_ignored_requests_are_kept_and_a_draft_without_any_is_valid(self):
+        entry = {"player": 1, "kind": "with", "text": "Emma"}
+
+        self.assertEqual(validate_draft(doc(ignored=[entry, dict(entry)]), IDS)["ignored"], [entry])
+        self.assertEqual(validate_draft(doc(), IDS)["ignored"], [])
+
+    def test_ignored_requests_are_checked(self):
+        good = {"player": 1, "kind": "with", "text": "Emma"}
+        for bad in (
+            {**good, "kind": "love"},
+            {**good, "text": ""},
+            {**good, "text": "   "},
+            {**good, "text": 3},
+            {**good, "text": "x" * 501},
+            {**good, "player": "1"},
+            {**good, "player": True},
+            "Emma",
+        ):
+            with self.subTest(bad=bad):
+                self.assertEqual(self.codes(doc(ignored=[bad])), ["invalid_draft"])
+        self.assertEqual(self.codes(doc(ignored="Emma")), ["invalid_draft"])
+        self.assertEqual(self.codes(doc(ignored=[{**good, "player": 99}])), ["unknown_player"])
+
+    def test_too_many_ignored(self):
+        ignored = [{"player": 1, "kind": "with", "text": f"p{i}"} for i in range(401)]
+        self.assertEqual(self.codes(doc(ignored=ignored)), ["too_many_ignored"])
 
     def test_too_many_links(self):
         links = [{"player": 1, "kind": "with", "target": 2}] * 201

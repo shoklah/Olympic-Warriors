@@ -6,7 +6,7 @@
 	import { emptyDraft, reconcile, swapBlock, swapPlayers } from '$lib/builder/plan.js';
 	import { BuilderError, generate, placeNewcomers } from '$lib/builder/generate.js';
 	import { newSeed } from '$lib/builder/random.js';
-	import { requestRows, summarise } from '$lib/builder/requests.js';
+	import { requestRows, shownText, summarise } from '$lib/builder/requests.js';
 	import { features, makeScorer } from '$lib/builder/score.js';
 	import { swapPreview } from '$lib/builder/compare.js';
 	import { emptyHistory, record, redo as redoStep, undo as undoStep } from '$lib/builder/history.js';
@@ -106,7 +106,10 @@
 
 	/** What the cards show of a player's requests: the texts no confirmed link explains stay as notes. */
 	$: notesFor = (player) =>
-		[player.team_with && `+ ${player.team_with}`, player.team_avoid && `− ${player.team_avoid}`].filter(Boolean);
+		[['with', '+'], ['avoid', '−']]
+			.map(([kind, sign]) => [shownText(player, kind, draft.ignored), sign])
+			.filter(([text]) => text)
+			.map(([text, sign]) => `${sign} ${text}`);
 
 	// `key` makes consecutive edits of one field a single undo step.
 	function commit(next, key = null) {
@@ -140,7 +143,15 @@
 	}
 	// The matches depend on the roster only: a drag or a lock changes the draft, never them.
 	$: rows = requestRows(players);
-	$: requestSummary = summarise(rows, draft.links);
+	$: requestSummary = summarise(rows, draft.links, draft.ignored);
+	// Set a written request aside, or take it back: it then shows on no card. A confirmed link of that
+	// line goes with it (`drop`, the line's candidates), since ignoring means it should not count at all.
+	function setAside({ detail: { player, kind, text, on, drop } }) {
+		const same = (i) => i.player === player && i.kind === kind && i.text === text;
+		const ignored = on ? (draft.ignored.some(same) ? draft.ignored : [...draft.ignored, { player, kind, text }]) : draft.ignored.filter((i) => !same(i));
+		const links = on ? draft.links.filter((l) => !(l.player === player && l.kind === kind && drop.includes(l.target))) : draft.links;
+		if (ignored !== draft.ignored || links !== draft.links) commit({ ...draft, ignored, links });
+	}
 	function setPerTeam({ detail }) {
 		if (draft.teams.length === 0 && Number.isInteger(detail) && detail >= 2 && detail <= 20) {
 			tooFew = false;
@@ -325,7 +336,7 @@
 
 		{#if step === 1}
 			<h2>{t('builder.step.1')}</h2>
-			<BuilderRequests {players} links={draft.links} {canUndo} {canRedo} on:undo={undo} on:redo={redo} on:toggle={toggleLink} on:confirmClear={confirmClear} />
+			<BuilderRequests {players} links={draft.links} ignored={draft.ignored} on:ignore={setAside} {canUndo} {canRedo} on:undo={undo} on:redo={redo} on:toggle={toggleLink} on:confirmClear={confirmClear} />
 		{:else if step === 2}
 			<h2>{t('builder.step.2')}</h2>
 			<BuilderTeams

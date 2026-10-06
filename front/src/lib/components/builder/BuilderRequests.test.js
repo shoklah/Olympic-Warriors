@@ -244,4 +244,53 @@ describe('BuilderRequests', () => {
 			expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Undo' }));
 		});
 	});
+
+	describe('ignoring a request', () => {
+		it('offers an Ignore button per line that sends the line and its candidates', async () => {
+			const { component } = renderWith(BuilderRequests, { players, links: [] });
+			const events = [];
+			component.$on('ignore', (e) => events.push(e.detail));
+
+			await fireEvent.click(screen.getByRole('button', { name: 'Ignore « Paul Durand »' }));
+
+			expect(events).toEqual([{ player: 1, kind: 'with', text: 'Paul Durand', on: true, drop: [2] }]);
+		});
+
+		it('greys an ignored line, takes its candidates off, offers to take it back and counts it apart', async () => {
+			const ignored = [{ player: 1, kind: 'with', text: 'Paul Durand' }];
+			const { component } = renderWith(BuilderRequests, { players, links: [], ignored });
+			const events = [];
+			component.$on('ignore', (e) => events.push(e.detail));
+
+			expect(screen.queryByRole('button', { name: 'Confirm Paul Durand' })).toBeNull();
+			expect(screen.getByText('Ignored')).toBeInTheDocument();
+			expect(screen.getByText('Ignored: shown on no card')).toBeInTheDocument();
+			expect(screen.getByText('1 ignored')).toBeInTheDocument();
+
+			await fireEvent.click(screen.getByRole('button', { name: 'Stop ignoring « Paul Durand »' }));
+
+			expect(events).toEqual([{ player: 1, kind: 'with', text: 'Paul Durand', on: false, drop: [2] }]);
+		});
+
+		it('leaves an ignored line out of the bulk confirm and out of « to review only »', async () => {
+			const ignored = [{ player: 1, kind: 'with', text: 'Paul Durand' }];
+			const { component } = renderWith(BuilderRequests, { players, links: [], ignored });
+			const confirmed = [];
+			component.$on('confirmClear', (e) => confirmed.push(...e.detail));
+
+			await fireEvent.click(screen.getByRole('button', { name: 'Confirm 3 clear matches' }));
+			expect(confirmed.some((l) => l.player === 1 && l.kind === 'with')).toBe(false);
+
+			await fireEvent.click(screen.getByLabelText('To review only'));
+			expect(screen.queryByRole('button', { name: 'Stop ignoring « Paul Durand »' })).toBeNull();
+		});
+
+		it('speaks French', () => {
+			renderWith(BuilderRequests, { players, links: [], ignored: [{ player: 1, kind: 'with', text: 'Paul Durand' }] }, 'fr');
+
+			expect(screen.getByRole('button', { name: 'Ne plus ignorer « Paul Durand »' })).toBeInTheDocument();
+			expect(screen.getByText('Ignorée')).toBeInTheDocument();
+			expect(screen.getByText('1 ignorée')).toBeInTheDocument();
+		});
+	});
 });

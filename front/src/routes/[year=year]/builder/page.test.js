@@ -551,4 +551,52 @@ describe('team builder page', () => {
 			vi.unstubAllGlobals();
 		});
 	});
+
+	describe('ignoring a request', () => {
+		it('removes the ignored part from the card notes, with its confirmed link, and undo brings both back', async () => {
+			renderWith(Page, { data: data() });
+			await fireEvent.click(screen.getByRole('button', { name: 'Confirm Paul Durand' }));
+			expect(screen.getByRole('button', { name: 'Confirm Paul Durand' })).toHaveAttribute('aria-pressed', 'true');
+
+			await fireEvent.click(screen.getByRole('button', { name: 'Ignore « Paul Durand »' }));
+
+			expect(screen.queryByRole('button', { name: 'Confirm Paul Durand' })).toBeNull();
+			expect(screen.getByText('1 ignored')).toBeInTheDocument();
+			await goTo('Teams');
+			expect(screen.queryByText('+ Paul Durand')).toBeNull();
+			expect(screen.getByText('− Zoé')).toBeInTheDocument();
+
+			await fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+			expect(screen.getByText('+ Paul Durand')).toBeInTheDocument();
+			await goTo('Requests');
+			expect(screen.getByRole('button', { name: 'Confirm Paul Durand' })).toHaveAttribute('aria-pressed', 'true');
+		});
+
+		it('saves the ignored requests with the draft, and takes one back', async () => {
+			const fetchMock = vi.fn(async () => ({ status: 200, ok: true, json: async () => ({ updated_at: 'v1' }) }));
+			vi.stubGlobal('fetch', fetchMock);
+			renderWith(Page, { data: data() });
+
+			await fireEvent.click(screen.getByRole('button', { name: 'Ignore « Zoé »' }));
+			await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled(), { timeout: 3000 });
+			expect(JSON.parse(fetchMock.mock.calls[0][1].body).document.ignored).toEqual([{ player: 1, kind: 'avoid', text: 'Zoé' }]);
+
+			await fireEvent.click(screen.getByRole('button', { name: 'Stop ignoring « Zoé »' }));
+			expect(screen.queryByText('1 ignored')).toBeNull();
+			vi.unstubAllGlobals();
+		});
+
+		it('opens a draft saved before the feature, and drops the entries of players who left', () => {
+			const document = { players_per_team: 3, seed: 1, links: [], locked: [], teams: [] };
+			const { unmount } = renderWith(Page, { data: data({ draft: { updated_at: 'v0', document } }) });
+			expect(screen.getByRole('heading', { name: 'Requests' })).toBeInTheDocument();
+			expect(screen.queryByText('1 ignored')).toBeNull();
+			unmount();
+
+			const left = { ...document, ignored: [{ player: 99, kind: 'with', text: 'Paul Durand' }] };
+			renderWith(Page, { data: data({ draft: { updated_at: 'v0', document: left } }) });
+			expect(screen.queryByText('1 ignored')).toBeNull();
+			expect(screen.getByRole('button', { name: 'Ignore « Paul Durand »' })).toBeInTheDocument();
+		});
+	});
 });
