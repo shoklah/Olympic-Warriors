@@ -381,4 +381,68 @@ describe('team builder page', () => {
 
 		expect(within(screen.getByRole('dialog')).getByText('Team 1')).toBeInTheDocument();
 	});
+
+	describe('compare and swap', () => {
+		const openCompare = async (first, second) => {
+			const region = teamRegions().find((r) => within(r).queryByText(first));
+			await fireEvent.click(within(region).getByRole('button', { name: `View ${first} profile` }));
+			await fireEvent.click(screen.getByRole('button', { name: 'Compare with…' }));
+			await fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: new RegExp(second) }));
+		};
+
+		it('swaps two players in one save, keeps the sheet on the pair, and a second swap undoes it', async () => {
+			const fetchMock = vi.fn(async () => ({ status: 200, ok: true, json: async () => ({ updated_at: 'v1' }) }));
+			vi.stubGlobal('fetch', fetchMock);
+			renderWith(Page, { data: data() });
+			await propose();
+			const teams = () => teamRegions().map((r) => [...r.querySelectorAll('.name')].map((n) => n.textContent));
+			const before = teams();
+			const first = before[0][0];
+			const second = before[1][0];
+
+			await openCompare(first, second);
+			const dialog = within(screen.getByRole('dialog'));
+			expect(dialog.getByRole('table')).toBeInTheDocument();
+			await fireEvent.click(dialog.getByRole('button', { name: 'Swap' }));
+
+			const after = teams();
+			expect(after[0]).toContain(second);
+			expect(after[1]).toContain(first);
+			expect(screen.getByRole('dialog', { name: first })).toBeInTheDocument();
+			expect(dialog.getByRole('table')).toBeInTheDocument();
+
+			await fireEvent.click(dialog.getByRole('button', { name: 'Swap' }));
+			expect(teams()).toEqual(before);
+			await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled(), { timeout: 3000 });
+			expect(fetchMock).toHaveBeenCalledTimes(1);
+			vi.unstubAllGlobals();
+		});
+
+		it('refuses to swap a locked player and says why', async () => {
+			renderWith(Page, { data: data() });
+			await propose();
+			const region = teamRegions()[0];
+			const first = region.querySelector('.name').textContent;
+			const second = teamRegions()[1].querySelector('.name').textContent;
+			await fireEvent.click(within(region).getAllByRole('button', { name: /^Lock / })[0]);
+
+			await openCompare(first, second);
+
+			const dialog = within(screen.getByRole('dialog'));
+			expect(dialog.getByRole('button', { name: 'Swap' })).toBeDisabled();
+			expect(dialog.getByText('A locked player cannot be swapped.')).toBeInTheDocument();
+		});
+
+		it('forgets the comparison when the sheet closes', async () => {
+			renderWith(Page, { data: data() });
+			await propose();
+			const first = teamRegions()[0].querySelector('.name').textContent;
+			await openCompare(first, teamRegions()[1].querySelector('.name').textContent);
+
+			await fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Close' }));
+			await fireEvent.click(within(teamRegions()[0]).getByRole('button', { name: `View ${first} profile` }));
+
+			expect(within(screen.getByRole('dialog')).queryByRole('table')).toBeNull();
+		});
+	});
 });

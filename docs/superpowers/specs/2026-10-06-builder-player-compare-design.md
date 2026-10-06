@@ -70,7 +70,7 @@ An unchanged value prints « inchangé ». The words always accompany any colour
 
 ### i18n
 
-New keys in `fr.js` and `en.js` (parity-tested): `builder.compare.open`, `.pick`, `.search`, `.change`, `.close`, `.swap`, `.locked`, `.sameTeam`, `.bothTray`, `.average`, `.unmet`, `.better`, `.worse`, `.same`, `.noResults`. Reused: `builder.team`, `builder.preview.*`, `builder.incomplete`.
+New keys in `fr.js` and `en.js` (parity-tested): `builder.compare.open`, `.pick`, `.search`, `.change`, `.close`, `.swap`, `.locked`, `.sameTeam`, `.bothTray`, `.average`, `.unmet`, `.up`, `.down`, `.better`, `.worse`, `.same`, `.noResults`, `.blocked`, `.rating`, `.lead`, `.preview`. A team's average gets « en hausse » / « en baisse » (`.up` / `.down`), since a higher average is not better in itself; only the unmet count gets « mieux » / « moins bien ». Reused: `builder.team`, `builder.preview.*`, `builder.incomplete`.
 
 ## Tests
 

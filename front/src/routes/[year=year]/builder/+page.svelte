@@ -3,11 +3,12 @@
 	import { invalidateAll } from '$app/navigation';
 	import { useT } from '$lib/i18n';
 	import { fullName } from '$lib/players';
-	import { emptyDraft, reconcile } from '$lib/builder/plan.js';
+	import { emptyDraft, reconcile, swapBlock, swapPlayers } from '$lib/builder/plan.js';
 	import { BuilderError, generate, placeNewcomers } from '$lib/builder/generate.js';
 	import { newSeed } from '$lib/builder/random.js';
 	import { requestRows, summarise } from '$lib/builder/requests.js';
 	import { features, makeScorer } from '$lib/builder/score.js';
+	import { swapPreview } from '$lib/builder/compare.js';
 	import { createSaver } from '$lib/builder/saver.js';
 	import StepProgress from '$lib/components/StepProgress.svelte';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
@@ -183,6 +184,28 @@
 	$: if (preview && !byId.has(preview.id)) preview = null;
 	$: previewTeam = previewed ? draft.teams.findIndex((tm) => tm.players.includes(previewed.id)) : -1;
 	$: saveBlocked = saveState === 'stale' || saveState === 'error';
+
+	// The player compared with in the open sheet; it never outlives the sheet, a change of
+	// previewed player, or its own place on the roster.
+	let compareId = null;
+	$: if (!preview || compareId === preview.id || (compareId !== null && !byId.has(compareId))) compareId = null;
+	$: other = compareId !== null ? byId.get(compareId) ?? null : null;
+	const teamOfId = (id) => draft.teams.findIndex((tm) => tm.players.includes(id));
+	$: otherTeam = other ? teamOfId(other.id) : -1;
+	$: swapReason = previewed && other ? (saveBlocked ? 'blocked' : swapBlock(draft, previewed.id, other.id)) : null;
+	$: swapView = previewed && other && !swapReason ? swapPreview(draft, previewed.id, other.id, scorer) : null;
+	$: candidates = previewed
+		? players
+				.filter((p) => p.id !== previewed.id)
+				.map((p) => ({ id: p.id, name: fullName(p), teamIndex: teamOfId(p.id), rating: p.rating }))
+				.sort((x, y) => x.name.localeCompare(y.name))
+		: [];
+	// One update of the draft, so one save: the sheet stays on the pair, and a second swap undoes it.
+	function swap({ detail: { a, b } }) {
+		if (saveBlocked) return;
+		const next = swapPlayers(draft, a, b);
+		if (next) commit(next);
+	}
 	async function apply() {
 		if (saveBlocked) return;
 		busy = true;
@@ -295,6 +318,14 @@
 				player={previewed}
 				skills={builder.skills}
 				teamIndex={previewTeam}
+				{candidates}
+				{other}
+				otherTeamIndex={otherTeam}
+				{swapReason}
+				{swapView}
+				on:compare={({ detail }) => (compareId = detail.id)}
+				on:uncompare={() => (compareId = null)}
+				on:swap={swap}
 				opener={preview?.opener ?? null}
 				on:close={() => (preview = null)}
 			/>
