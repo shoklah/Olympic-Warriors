@@ -3,6 +3,8 @@
 	import { useLocale, useT } from '$lib/i18n';
 	import { fullName } from '$lib/players';
 	import PlayerCard from './PlayerCard.svelte';
+	import HistoryButtons from './HistoryButtons.svelte';
+	import ToolSwitch from './ToolSwitch.svelte';
 
 	export let players;
 	export let teams;
@@ -15,6 +17,8 @@
 	export let notesFor;
 	export let tooFew = false;
 	export let showRequests = true;
+	export let canUndo = false;
+	export let canRedo = false;
 
 	const t = useT();
 	const locale = useLocale();
@@ -23,6 +27,8 @@
 	$: proposed = teams.length > 0;
 	$: count = proposed ? teams.length : Math.ceil(players.length / perTeam);
 	$: unmet = result?.unmet ?? [];
+	let unmetOpen = false;
+	$: if (unmet.length === 0) unmetOpen = false;
 	const skillName = (s) => (locale === 'en' ? s.name_en : s.name_fr);
 
 	// The column a card is being dragged over: 'tray' or the team's index.
@@ -48,28 +54,29 @@
 	const nameOf = (id) => (byId.has(id) ? fullName(byId.get(id)) : '');
 </script>
 
-<div class="controls">
+<div class="toolbar">
 	<div class="field">
 		<label for="per-team">{t('builder.perTeam')}</label>
-		<input
-			id="per-team"
-			type="number"
-			min="2"
-			max="20"
-			step="1"
-			value={perTeam}
-			disabled={proposed}
-			aria-describedby={proposed ? 'per-team-hint' : undefined}
-			on:change={setPerTeam}
-		/>
-		{#if proposed}<p class="hint" id="per-team-hint">{t('builder.perTeamLocked')}</p>{/if}
+		<div class="size">
+			<input
+				id="per-team"
+				type="number"
+				min="2"
+				max="20"
+				step="1"
+				value={perTeam}
+				disabled={proposed}
+				title={proposed ? t('builder.perTeamLocked') : undefined}
+				aria-describedby={proposed ? 'per-team-hint' : undefined}
+				on:change={setPerTeam}
+			/>
+			<span class="count num">{t('builder.counts', { n: count })}</span>
+		</div>
+		{#if proposed}<p class="visually-hidden" id="per-team-hint">{t('builder.perTeamLocked')}</p>{/if}
 	</div>
-	<p class="count num">{t('builder.counts', { n: count })}</p>
-	<label class="check">
-		<input type="checkbox" checked={showRequests} on:change={(e) => dispatch('showRequests', e.currentTarget.checked)} />
-		{t('builder.showRequests')}
-	</label>
-	<div class="buttons">
+	<span class="sep" aria-hidden="true"></span>
+	<div class="actions">
+		<HistoryButtons {canUndo} {canRedo} on:undo on:redo />
 		{#if !proposed}
 			<button type="button" class="submit" disabled={players.length === 0} on:click={() => dispatch('propose')}>{t('builder.propose')}</button>
 		{:else}
@@ -77,19 +84,33 @@
 			{#if unplaced.length > 0}
 				<button type="button" class="pill" on:click={() => dispatch('placeNew')}>{t('builder.placeNew')}</button>
 			{/if}
-			<button type="button" class="pill" on:click={() => dispatch('reset')}>{t('builder.reset')}</button>
+			<button type="button" class="danger" on:click={() => dispatch('reset')}>{t('builder.reset')}</button>
 		{/if}
 	</div>
+	<span class="sep" aria-hidden="true"></span>
+	<ToolSwitch checked={showRequests} on:change={(e) => dispatch('showRequests', e.detail)}>{t('builder.showRequests')}</ToolSwitch>
 </div>
 {#if tooFew}<p class="error" role="alert">{t('builder.tooFew')}</p>{/if}
 
 {#if proposed}
-	<section class="unmet" aria-labelledby="unmet-title">
-		<h3 id="unmet-title">{t('builder.unmet')}</h3>
+	<section class="status" class:met={unmet.length === 0} aria-labelledby="unmet-title">
+		<h3 id="unmet-title" class="visually-hidden">{t('builder.unmet')}</h3>
 		{#if unmet.length === 0}
-			<p class="hint">{t('builder.unmetNone')}</p>
+			<p class="chip good">
+				<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5L20 7" /></svg>
+				{t('builder.unmetNone')}
+			</p>
 		{:else}
-			<ul>
+			<button type="button" class="head" aria-expanded={unmetOpen} aria-controls="unmet-list" on:click={() => (unmetOpen = !unmetOpen)}>
+				<span class="chip warn">
+					<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4M12 17h.01" /><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" /></svg>
+					{t('builder.unmetCount', { n: unmet.length })}
+				</span>
+				<span class="toggle">{unmetOpen ? t('builder.unmetHide') : t('builder.unmetShow')}
+					<svg class="chev" class:open={unmetOpen} viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+				</span>
+			</button>
+			<ul id="unmet-list" hidden={!unmetOpen}>
 				{#each unmet as u}
 					<li>
 						{t(`builder.unmet.${u.kind}`, { player: nameOf(u.player), target: nameOf(u.target) })}{u.mutual ? t('builder.unmet.mutual') : ''}
@@ -100,8 +121,8 @@
 	</section>
 {/if}
 
-<div class="board">
-	{#if unplaced.length > 0}
+{#if unplaced.length > 0}
+	<div class="trayrow">
 		<section
 			class="column tray"
 			class:over={over === 'tray'}
@@ -117,7 +138,9 @@
 				{/each}
 			</ul>
 		</section>
-	{/if}
+	</div>
+{/if}
+<div class="board">
 	{#each teams as team, i}
 		<section
 			class="column"
@@ -162,12 +185,21 @@
 </div>
 
 <style>
-	.controls {
+	.toolbar {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 0.75rem 1.5rem;
-		align-items: end;
-		margin-bottom: 1rem;
+		align-items: center;
+		gap: 0.75rem 1.25rem;
+		margin-bottom: 0.5rem;
+		padding: 0.75rem 1rem;
+		background: var(--bg-raised);
+		border: 1px solid var(--line);
+		border-radius: var(--radius);
+	}
+	.sep {
+		align-self: stretch;
+		width: 1px;
+		background: var(--line);
 	}
 	.field {
 		display: grid;
@@ -176,8 +208,13 @@
 	.field label {
 		font-weight: 600;
 	}
+	.size {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+	}
 	input[type='number'] {
-		width: 6rem;
+		width: 5rem;
 		padding: 0.5rem 0.625rem;
 		background: var(--bg-sunken);
 		color: var(--ink);
@@ -192,19 +229,20 @@
 		margin: 0;
 		color: var(--muted);
 	}
-	.check {
-		display: flex;
-		gap: 0.5rem;
-		align-items: center;
-	}
-	.buttons {
+	.actions {
 		display: flex;
 		flex-wrap: wrap;
+		align-items: center;
 		gap: 0.5rem;
+	}
+	.danger:focus-visible,
+	.head:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
 	}
 	.submit,
 	.pill {
-		padding: 0.625rem 1.25rem;
+		padding: 0.5rem 1.125rem;
 		border-radius: 999px;
 		border: 1px solid var(--accent);
 		background: transparent;
@@ -222,10 +260,81 @@
 		opacity: 0.4;
 		cursor: not-allowed;
 	}
-	.hint {
+	/* The risky one reads as such: no fill, the loss colour. */
+	.danger {
+		padding: 0.5rem 0.5rem;
+		border: 0;
+		background: none;
+		color: var(--loss);
+		font: inherit;
+		font-weight: 600;
+		cursor: pointer;
+		border-radius: var(--radius);
+	}
+	.visually-hidden {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+		white-space: nowrap;
+	}
+	.status {
+		margin: 0 0 1rem;
+		padding: 0.5rem 1rem;
+		background: var(--bg-raised);
+		border: 1px solid var(--line);
+		border-radius: var(--radius);
+	}
+	.head {
+		display: flex;
+		width: 100%;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		padding: 0.25rem 0;
+		background: none;
+		border: 0;
 		color: var(--muted);
+		font: inherit;
+		cursor: pointer;
+		border-radius: var(--radius);
+	}
+	.toggle {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.25rem;
 		font-size: 0.875rem;
+	}
+	.chev {
+		transition: transform 0.15s;
+	}
+	.chev.open {
+		transform: rotate(180deg);
+	}
+	.chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.375rem;
 		margin: 0;
+		font-size: 0.875rem;
+		font-weight: 600;
+	}
+	.chip.good {
+		color: var(--win);
+	}
+	.chip.warn {
+		color: var(--todo);
+	}
+	.status ul {
+		margin: 0.5rem 0 0.25rem;
+		padding-left: 1.25rem;
+		display: grid;
+		gap: 0.25rem;
+		font-size: 0.875rem;
+	}
+	.status ul[hidden] {
+		display: none;
 	}
 	.error {
 		margin: 0;
@@ -247,6 +356,13 @@
 	.unmet ul {
 		margin: 0;
 		padding-left: 1.25rem;
+	}
+	.trayrow {
+		margin-bottom: 1rem;
+	}
+	.tray ul {
+		grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+		align-items: start;
 	}
 	.board {
 		display: grid;
@@ -328,6 +444,32 @@
 	@media (min-width: 600px) {
 		.board {
 			grid-auto-rows: 1fr;
+		}
+	}
+	/* On a phone the clusters stack, split by horizontal hairlines, and the actions fall on one grid:
+	   the history icons, then the main button filling the row, then the rest each on a line of their own. */
+	@media (max-width: 599px) {
+		.toolbar {
+			flex-direction: column;
+			align-items: stretch;
+		}
+		.sep {
+			align-self: auto;
+			width: auto;
+			height: 1px;
+		}
+		.actions {
+			display: grid;
+			grid-template-columns: auto auto 1fr;
+			gap: 0.5rem;
+		}
+		.actions > .submit {
+			grid-column: 3;
+		}
+		.actions > .pill,
+		.actions > .danger {
+			grid-column: 1 / -1;
+			text-align: center;
 		}
 	}
 </style>

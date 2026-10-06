@@ -65,7 +65,8 @@ describe('team builder page', () => {
 	it('confirms every clear match with one click and keeps the count and the warning in step', async () => {
 		renderWith(Page, { data: data() });
 
-		expect(screen.getByText('4 requests · 0 confirmed · 4 to review')).toBeInTheDocument();
+		expect(screen.getByText('0 confirmed')).toBeInTheDocument();
+		expect(screen.getByText('4 to review')).toBeInTheDocument();
 		expect(screen.getByText("4 requests aren't confirmed and will be ignored.")).toBeInTheDocument();
 
 		await fireEvent.click(screen.getByRole('button', { name: 'Confirm 4 clear matches' }));
@@ -73,7 +74,8 @@ describe('team builder page', () => {
 		for (const name of ['Confirm Paul Durand', 'Confirm Zoé Blanc', 'Confirm Léa Martin', 'Confirm Bob Roux']) {
 			expect(screen.getByRole('button', { name })).toHaveAttribute('aria-pressed', 'true');
 		}
-		expect(screen.getByText('4 requests · 4 confirmed · 0 to review')).toBeInTheDocument();
+		expect(screen.getByText('4 confirmed')).toBeInTheDocument();
+		expect(screen.getByText('0 to review')).toBeInTheDocument();
 		expect(screen.queryByRole('button', { name: /clear match/ })).toBeNull();
 		expect(screen.queryByText(/will be ignored/)).toBeNull();
 	});
@@ -380,5 +382,221 @@ describe('team builder page', () => {
 		await fireEvent.click(within(region).getAllByRole('button', { name: /^View .* profile$/ })[0]);
 
 		expect(within(screen.getByRole('dialog')).getByText('Team 1')).toBeInTheDocument();
+	});
+
+	describe('compare and swap', () => {
+		const openCompare = async (first, second) => {
+			const region = teamRegions().find((r) => within(r).queryByText(first));
+			await fireEvent.click(within(region).getByRole('button', { name: `View ${first} profile` }));
+			await fireEvent.click(screen.getByRole('button', { name: 'Compare with…' }));
+			await fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: new RegExp(second) }));
+		};
+
+		it('swaps two players in one save, keeps the sheet on the pair, and a second swap undoes it', async () => {
+			const fetchMock = vi.fn(async () => ({ status: 200, ok: true, json: async () => ({ updated_at: 'v1' }) }));
+			vi.stubGlobal('fetch', fetchMock);
+			renderWith(Page, { data: data() });
+			await propose();
+			const teams = () => teamRegions().map((r) => [...r.querySelectorAll('.name')].map((n) => n.textContent));
+			const before = teams();
+			const first = before[0][0];
+			const second = before[1][0];
+
+			await openCompare(first, second);
+			const dialog = within(screen.getByRole('dialog'));
+			expect(dialog.getByRole('table')).toBeInTheDocument();
+			await fireEvent.click(dialog.getByRole('button', { name: 'Swap' }));
+
+			const after = teams();
+			expect(after[0]).toContain(second);
+			expect(after[1]).toContain(first);
+			expect(screen.getByRole('dialog', { name: first })).toBeInTheDocument();
+			expect(dialog.getByRole('table')).toBeInTheDocument();
+
+			await fireEvent.click(dialog.getByRole('button', { name: 'Swap' }));
+			expect(teams()).toEqual(before);
+			await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled(), { timeout: 3000 });
+			expect(fetchMock).toHaveBeenCalledTimes(1);
+			vi.unstubAllGlobals();
+		});
+
+		it('refuses to swap a locked player and says why', async () => {
+			renderWith(Page, { data: data() });
+			await propose();
+			const region = teamRegions()[0];
+			const first = region.querySelector('.name').textContent;
+			const second = teamRegions()[1].querySelector('.name').textContent;
+			await fireEvent.click(within(region).getAllByRole('button', { name: /^Lock / })[0]);
+
+			await openCompare(first, second);
+
+			const dialog = within(screen.getByRole('dialog'));
+			expect(dialog.getByRole('button', { name: 'Swap' })).toBeDisabled();
+			expect(dialog.getByText('A locked player cannot be swapped.')).toBeInTheDocument();
+		});
+
+		it('forgets the comparison when the sheet closes', async () => {
+			renderWith(Page, { data: data() });
+			await propose();
+			const first = teamRegions()[0].querySelector('.name').textContent;
+			await openCompare(first, teamRegions()[1].querySelector('.name').textContent);
+
+			await fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Close' }));
+			await fireEvent.click(within(teamRegions()[0]).getByRole('button', { name: `View ${first} profile` }));
+
+			expect(within(screen.getByRole('dialog')).queryByRole('table')).toBeNull();
+		});
+	});
+
+	describe('undo and redo', () => {
+		const undoButton = () => screen.getByRole('button', { name: 'Undo' });
+		const redoButton = () => screen.getByRole('button', { name: 'Redo' });
+		const names = () => teamRegions().map((r) => [...r.querySelectorAll('.name')].map((n) => n.textContent));
+
+		it('starts with both buttons disabled', async () => {
+			renderWith(Page, { data: data() });
+			await goTo('Teams');
+
+			expect(undoButton()).toBeDisabled();
+			expect(redoButton()).toBeDisabled();
+		});
+
+		it('undoes and redoes a proposal and a move', async () => {
+			renderWith(Page, { data: data() });
+			await propose();
+			const proposed = names();
+			const card = within(teamRegions()[0]).getAllByRole('listitem')[0];
+			await fireEvent.change(within(card).getByRole('combobox'), { target: { value: '1' } });
+			const moved = names();
+			expect(moved).not.toEqual(proposed);
+
+			await fireEvent.click(undoButton());
+			expect(names()).toEqual(proposed);
+			expect(redoButton()).toBeEnabled();
+
+			await fireEvent.click(undoButton());
+			expect(screen.queryAllByRole('region', { name: /^Team \d/ })).toHaveLength(0);
+			expect(undoButton()).toBeDisabled();
+
+			await fireEvent.click(redoButton());
+			await fireEvent.click(redoButton());
+			expect(names()).toEqual(moved);
+			expect(redoButton()).toBeDisabled();
+		});
+
+		it('forgets what can be redone after a new edit', async () => {
+			renderWith(Page, { data: data() });
+			await propose();
+			await fireEvent.click(undoButton());
+			await propose();
+
+			expect(redoButton()).toBeDisabled();
+		});
+
+		it('answers Ctrl+Z and Ctrl+Shift+Z, but not inside a text field', async () => {
+			renderWith(Page, { data: data() });
+			await propose();
+
+			const field = screen.getByLabelText('Players per team');
+			await fireEvent.keyDown(field, { key: 'z', ctrlKey: true });
+			expect(teamRegions().length).toBeGreaterThan(0);
+
+			await fireEvent.keyDown(window, { key: 'z', ctrlKey: true });
+			expect(screen.queryAllByRole('region', { name: /^Team \d/ })).toHaveLength(0);
+			await fireEvent.keyDown(window, { key: 'z', metaKey: true, shiftKey: true });
+			expect(teamRegions().length).toBeGreaterThan(0);
+		});
+
+		it('makes the team-size field one step however many keystrokes it took', async () => {
+			renderWith(Page, { data: data() });
+			await goTo('Teams');
+			const field = screen.getByLabelText('Players per team');
+
+			for (const value of ['4', '5']) await fireEvent.change(field, { target: { value } });
+			await fireEvent.click(undoButton());
+
+			expect(screen.getByLabelText('Players per team')).toHaveValue(3);
+			expect(undoButton()).toBeDisabled();
+		});
+
+		it('ignores the shortcut while the player sheet is open', async () => {
+			renderWith(Page, { data: data() });
+			await propose();
+			await fireEvent.click(within(teamRegions()[0]).getAllByRole('button', { name: /^View .* profile$/ })[0]);
+
+			await fireEvent.keyDown(window, { key: 'z', ctrlKey: true });
+			expect(undoButton()).toBeEnabled();
+			expect(screen.getByRole('dialog')).toBeInTheDocument();
+		});
+
+		it('does nothing once the teams are applied, so no draft is saved again', async () => {
+			const fetchMock = vi.fn(async (url) =>
+				String(url).endsWith('/apply')
+					? { status: 200, ok: true, json: async () => ({ teams: [], unscheduled: [] }) }
+					: { status: 200, ok: true, json: async () => ({ updated_at: 'v1' }) }
+			);
+			vi.stubGlobal('fetch', fetchMock);
+			renderWith(Page, { data: data() });
+			await propose();
+			await goTo('Apply');
+			await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Create the teams' })).toBeEnabled(), { timeout: 3000 });
+			await fireEvent.click(screen.getByRole('button', { name: 'Create the teams' }));
+			await vi.waitFor(() => expect(fetchMock.mock.calls.some(([u]) => String(u).endsWith('/apply'))).toBe(true), { timeout: 3000 });
+			const calls = fetchMock.mock.calls.length;
+
+			await fireEvent.keyDown(window, { key: 'z', ctrlKey: true });
+			await new Promise((resolve) => setTimeout(resolve, 1500)); // past the saver's debounce
+
+			expect(fetchMock.mock.calls.length).toBe(calls);
+			vi.unstubAllGlobals();
+		});
+	});
+
+	describe('ignoring a request', () => {
+		it('removes the ignored part from the card notes, with its confirmed link, and undo brings both back', async () => {
+			renderWith(Page, { data: data() });
+			await fireEvent.click(screen.getByRole('button', { name: 'Confirm Paul Durand' }));
+			expect(screen.getByRole('button', { name: 'Confirm Paul Durand' })).toHaveAttribute('aria-pressed', 'true');
+
+			await fireEvent.click(screen.getByRole('button', { name: 'Ignore « Paul Durand »' }));
+
+			expect(screen.queryByRole('button', { name: 'Confirm Paul Durand' })).toBeNull();
+			expect(screen.getByText('1 ignored')).toBeInTheDocument();
+			await goTo('Teams');
+			expect(screen.queryByText('+ Paul Durand')).toBeNull();
+			expect(screen.getByText('− Zoé')).toBeInTheDocument();
+
+			await fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+			expect(screen.getByText('+ Paul Durand')).toBeInTheDocument();
+			await goTo('Requests');
+			expect(screen.getByRole('button', { name: 'Confirm Paul Durand' })).toHaveAttribute('aria-pressed', 'true');
+		});
+
+		it('saves the ignored requests with the draft, and takes one back', async () => {
+			const fetchMock = vi.fn(async () => ({ status: 200, ok: true, json: async () => ({ updated_at: 'v1' }) }));
+			vi.stubGlobal('fetch', fetchMock);
+			renderWith(Page, { data: data() });
+
+			await fireEvent.click(screen.getByRole('button', { name: 'Ignore « Zoé »' }));
+			await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled(), { timeout: 3000 });
+			expect(JSON.parse(fetchMock.mock.calls[0][1].body).document.ignored).toEqual([{ player: 1, kind: 'avoid', text: 'Zoé' }]);
+
+			await fireEvent.click(screen.getByRole('button', { name: 'Stop ignoring « Zoé »' }));
+			expect(screen.queryByText('1 ignored')).toBeNull();
+			vi.unstubAllGlobals();
+		});
+
+		it('opens a draft saved before the feature, and drops the entries of players who left', () => {
+			const document = { players_per_team: 3, seed: 1, links: [], locked: [], teams: [] };
+			const { unmount } = renderWith(Page, { data: data({ draft: { updated_at: 'v0', document } }) });
+			expect(screen.getByRole('heading', { name: 'Requests' })).toBeInTheDocument();
+			expect(screen.queryByText('1 ignored')).toBeNull();
+			unmount();
+
+			const left = { ...document, ignored: [{ player: 99, kind: 'with', text: 'Paul Durand' }] };
+			renderWith(Page, { data: data({ draft: { updated_at: 'v0', document: left } }) });
+			expect(screen.queryByText('1 ignored')).toBeNull();
+			expect(screen.getByRole('button', { name: 'Ignore « Paul Durand »' })).toBeInTheDocument();
+		});
 	});
 });

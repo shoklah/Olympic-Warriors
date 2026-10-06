@@ -103,6 +103,9 @@
 	@media (min-width: 600px) {
 		.step-name {
 			flex-direction: row;
+			/* On the text baseline, not centred: the display face's line box sits differently from the body's,
+			   so centring the two boxes lifts the number above the label. */
+			align-items: baseline;
 			gap: 0.5rem;
 		}
 	}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { builderPayload } from '$lib/fixtures/builder.js';
-import { clearLinks, lineState, reasonKey, requestRows, summarise } from './requests.js';
+import { clearLinks, isIgnored, lineState, reasonKey, requestRows, shownText, summarise } from './requests.js';
 
 // A clear match, an ambiguous one, a typo and noise.
 const roster = [
@@ -67,19 +67,19 @@ describe('summarise', () => {
 	it('counts the lines by what remains to be done', () => {
 		const rows = requestRows(roster);
 
-		expect(summarise(rows, [])).toEqual({ total: 3, confirmed: 0, review: 2, none: 1, clear: 0 });
-		expect(summarise(rows, [{ player: 1, kind: 'avoid', target: 4 }])).toEqual({ total: 3, confirmed: 1, review: 1, none: 1, clear: 0 });
+		expect(summarise(rows, [])).toEqual({ total: 3, confirmed: 0, review: 2, none: 1, clear: 0, ignored: 0 });
+		expect(summarise(rows, [{ player: 1, kind: 'avoid', target: 4 }])).toEqual({ total: 3, confirmed: 1, review: 1, none: 1, clear: 0, ignored: 0 });
 	});
 
 	it('counts the clear lines of the fixture and lets confirming one take it out', () => {
 		const rows = requestRows(builderPayload.players);
 
-		expect(summarise(rows, [])).toEqual({ total: 4, confirmed: 0, review: 4, none: 0, clear: 4 });
-		expect(summarise(rows, [{ player: 1, kind: 'with', target: 2 }])).toEqual({ total: 4, confirmed: 1, review: 3, none: 0, clear: 3 });
+		expect(summarise(rows, [])).toEqual({ total: 4, confirmed: 0, review: 4, none: 0, clear: 4, ignored: 0 });
+		expect(summarise(rows, [{ player: 1, kind: 'with', target: 2 }])).toEqual({ total: 4, confirmed: 1, review: 3, none: 0, clear: 3, ignored: 0 });
 	});
 
 	it('is all zeros without any request', () => {
-		expect(summarise([], [])).toEqual({ total: 0, confirmed: 0, review: 0, none: 0, clear: 0 });
+		expect(summarise([], [])).toEqual({ total: 0, confirmed: 0, review: 0, none: 0, clear: 0, ignored: 0 });
 	});
 });
 
@@ -98,5 +98,46 @@ describe('clearLinks', () => {
 		const links = [{ player: 1, kind: 'with', target: 2 }];
 
 		expect(clearLinks(requestRows(builderPayload.players), links)).toHaveLength(3);
+	});
+});
+
+describe('ignored requests', () => {
+	const rows = requestRows(roster);
+	const lea = roster[0];
+	const ignoring = (player, kind, text) => [{ player: player.id, kind, text }];
+
+	it('puts a line out of the way whatever else it is, and takes it out of the confirm-clear set', () => {
+		const ignored = ignoring(lea, 'with', 'Paul');
+		const links = [{ player: 1, kind: 'with', target: 2 }];
+
+		expect(isIgnored(ignored, lea, 'with', 'Paul')).toBe(true);
+		expect(isIgnored(ignored, lea, 'avoid', 'Paul')).toBe(false);
+		expect(lineState(rows[0].matches[0], links, lea, 'with', ignored)).toBe('ignored');
+		expect(lineState(rows[0].matches[0], links, lea, 'with')).toBe('confirmed');
+	});
+
+	it('is not confirmed by the confirm-clear button', () => {
+		const clearRows = requestRows(builderPayload.players);
+		const first = clearRows.find((r) => r.matches.some((m) => lineState(m, [], r.player, r.kind) === 'clear'));
+		const match = first.matches.find((m) => lineState(m, [], first.player, first.kind) === 'clear');
+		const all = clearLinks(clearRows, []);
+
+		expect(clearLinks(clearRows, [], [{ player: first.player.id, kind: first.kind, text: match.text }])).toHaveLength(all.length - 1);
+	});
+
+	it('counts an ignored line apart from confirmed, review and no match', () => {
+		const counts = summarise(rows, [], ignoring(lea, 'with', 'Paul'));
+
+		expect(counts).toEqual({ total: 3, confirmed: 0, review: 1, none: 1, clear: 0, ignored: 1 });
+	});
+
+	it('shows a card the text as written, or the parts that are left', () => {
+		const player = { id: 9, team_with: 'Emma, Paul et Zoé', team_avoid: 'Bob' };
+
+		expect(shownText(player, 'with', [])).toBe('Emma, Paul et Zoé');
+		expect(shownText(player, 'with', ignoring(player, 'avoid', 'Bob'))).toBe('Emma, Paul et Zoé');
+		expect(shownText(player, 'with', ignoring(player, 'with', 'Paul'))).toBe('Emma, Zoé');
+		expect(shownText(player, 'avoid', ignoring(player, 'avoid', 'Bob'))).toBe('');
+		expect(shownText({ id: 9, team_with: '', team_avoid: '' }, 'with', [])).toBe('');
 	});
 });
