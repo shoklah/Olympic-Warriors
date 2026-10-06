@@ -1,5 +1,5 @@
 <script>
-	import { createEventDispatcher } from 'svelte';
+	import { createEventDispatcher, tick } from 'svelte';
 	import { useT } from '$lib/i18n';
 	import { fullName } from '$lib/players';
 	import { clearLinks, lineState, reasonKey, requestRows, summarise } from '$lib/builder/requests.js';
@@ -28,19 +28,45 @@
 	$: stateOf = (row, match) => lineState(match, links, row.player, row.kind);
 	$: summary = summarise(rows, links);
 	// « À examiner seulement »: the lines already confirmed leave the cards (the ones with no match stay: they need a hand).
+	// A line still to review when the filter turned on, or at any point since, stays until the filter is switched off and on
+	// again: confirming it must not pull the button under the keyboard focus out of the page.
 	let reviewOnly = false;
+	let kept = new Set();
+	const lineKey = (row, match) => `${row.player.id}:${row.kind}:${match.text}`;
+	function setReviewOnly(on) {
+		kept = new Set();
+		reviewOnly = on;
+	}
+	$: if (reviewOnly) {
+		let grew = false;
+		for (const row of rows) {
+			for (const match of row.matches) {
+				if (stateOf(row, match) !== 'confirmed' && !kept.has(lineKey(row, match))) {
+					kept.add(lineKey(row, match));
+					grew = true;
+				}
+			}
+		}
+		if (grew) kept = kept;
+	}
 	$: shown = reviewOnly
 		? cards
 				.map((card) => ({
 					player: card.player,
 					rows: card.rows
-						.map((row) => ({ ...row, matches: row.matches.filter((m) => stateOf(row, m) !== 'confirmed') }))
+						.map((row) => ({ ...row, matches: row.matches.filter((m) => stateOf(row, m) !== 'confirmed' || kept.has(lineKey(row, m))) }))
 						.filter((row) => row.matches.length > 0)
 				}))
 				.filter((card) => card.rows.length > 0)
 		: cards;
 	const toggle = (player, kind, target) => dispatch('toggle', { player: player.id, kind, target });
-	const confirmClear = () => dispatch('confirmClear', clearLinks(rows, links));
+	let toolbarEl;
+	// The button that did it is gone once nothing is left to confirm: focus moves to the next control of the toolbar.
+	async function confirmClear() {
+		dispatch('confirmClear', clearLinks(rows, links));
+		await tick();
+		toolbarEl?.querySelector('button:not(:disabled)')?.focus();
+	}
 	const why = (match) => t(reasonKey(match), { n: match.candidates.length });
 
 	/** Confirmed links of this player and kind that no name of their text suggested (added through « Autre joueur »). */
@@ -59,7 +85,7 @@
 {#if cards.length === 0}
 	<p>{t('builder.requests.none')}</p>
 {:else}
-	<div class="toolbar">
+	<div class="toolbar" bind:this={toolbarEl}>
 		<div class="actions">
 			<HistoryButtons {canUndo} {canRedo} on:undo on:redo />
 			{#if summary.clear > 0}
@@ -67,7 +93,7 @@
 			{/if}
 		</div>
 		<span class="sep" aria-hidden="true"></span>
-		<ToolSwitch checked={reviewOnly} on:change={(e) => (reviewOnly = e.detail)}>{t('builder.requests.reviewOnly')}</ToolSwitch>
+		<ToolSwitch checked={reviewOnly} on:change={(e) => setReviewOnly(e.detail)}>{t('builder.requests.reviewOnly')}</ToolSwitch>
 	</div>
 	<div class="tally" aria-live="polite">
 		<span class="tally-total">{t('builder.requests.count.total', { n: summary.total })}</span>
@@ -352,6 +378,27 @@
 	@media (min-width: 600px) {
 		.grid {
 			grid-auto-rows: 1fr;
+		}
+	}
+	/* On a phone the clusters stack, split by horizontal hairlines, and the actions fall on one grid:
+	   the history icons, then the main button filling the row, then the rest each on a line of their own. */
+	@media (max-width: 599px) {
+		.toolbar {
+			flex-direction: column;
+			align-items: stretch;
+		}
+		.sep {
+			align-self: auto;
+			width: auto;
+			height: 1px;
+		}
+		.actions {
+			display: grid;
+			grid-template-columns: auto auto 1fr;
+			gap: 0.5rem;
+		}
+		.actions > .submit {
+			grid-column: 3;
 		}
 	}
 </style>

@@ -446,4 +446,30 @@
 			grid-auto-rows: 1fr;
 		}
 	}
+	/* On a phone the clusters stack, split by horizontal hairlines, and the actions fall on one grid:
+	   the history icons, then the main button filling the row, then the rest each on a line of their own. */
+	@media (max-width: 599px) {
+		.toolbar {
+			flex-direction: column;
+			align-items: stretch;
+		}
+		.sep {
+			align-self: auto;
+			width: auto;
+			height: 1px;
+		}
+		.actions {
+			display: grid;
+			grid-template-columns: auto auto 1fr;
+			gap: 0.5rem;
+		}
+		.actions > .submit {
+			grid-column: 3;
+		}
+		.actions > .pill,
+		.actions > .danger {
+			grid-column: 1 / -1;
+			text-align: center;
+		}
+	}
 </style>

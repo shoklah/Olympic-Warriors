@@ -1,3 +1,4 @@
+import { tick } from 'svelte';
 import { fireEvent, screen, within } from '@testing-library/svelte';
 import { describe, expect, it, vi } from 'vitest';
 import { renderWith } from '$lib/test-utils';
@@ -211,6 +212,36 @@ describe('BuilderRequests', () => {
 			await fireEvent.click(screen.getByLabelText('To review only'));
 
 			expect(screen.getByText('Everything is confirmed.')).toBeInTheDocument();
+		});
+
+		it('keeps a line in view once it is confirmed, until the filter is switched off and on again', async () => {
+			const { component } = renderWith(BuilderRequests, { players, links: [] });
+			component.$on('toggle', ({ detail }) => component.$set({ links: [{ player: detail.player, kind: detail.kind, target: detail.target }] }));
+			await fireEvent.click(screen.getByLabelText('To review only'));
+			const chip = screen.getByRole('button', { name: 'Confirm Paul Durand' });
+			chip.focus();
+
+			await fireEvent.click(chip);
+
+			expect(chip).toHaveAttribute('aria-pressed', 'true');
+			expect(document.activeElement).toBe(chip);
+
+			await fireEvent.click(screen.getByLabelText('To review only'));
+			await fireEvent.click(screen.getByLabelText('To review only'));
+			expect(screen.queryByRole('button', { name: 'Confirm Paul Durand' })).toBeNull();
+		});
+
+		it('moves focus to the toolbar when the bulk confirm button has done its job', async () => {
+			const { component } = renderWith(BuilderRequests, { players, links: [], canUndo: true });
+			component.$on('confirmClear', ({ detail }) => component.$set({ links: detail }));
+			const button = screen.getByRole('button', { name: 'Confirm 4 clear matches' });
+			button.focus();
+
+			await fireEvent.click(button);
+			await tick();
+
+			expect(screen.queryByRole('button', { name: /clear match/ })).toBeNull();
+			expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Undo' }));
 		});
 	});
 });
