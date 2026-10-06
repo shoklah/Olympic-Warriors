@@ -123,7 +123,9 @@ describe('BuilderRequests', () => {
 	it('counts the requests and tells the review apart from what is confirmed', () => {
 		renderWith(BuilderRequests, { players, links: [{ player: 1, kind: 'with', target: 2 }] });
 
-		expect(screen.getByText('4 requests · 1 confirmed · 3 to review')).toBeInTheDocument();
+		expect(screen.getByText('4 requests')).toBeInTheDocument();
+		expect(screen.getByText('1 confirmed')).toBeInTheDocument();
+		expect(screen.getByText('3 to review')).toBeInTheDocument();
 	});
 
 	it('mentions the requests with no match in the count only when there are some', () => {
@@ -165,10 +167,50 @@ describe('BuilderRequests', () => {
 	it('speaks French', () => {
 		renderWith(BuilderRequests, { players, links: [{ player: 1, kind: 'with', target: 2 }] }, 'fr');
 
-		expect(screen.getByText('4 demandes · 1 confirmée · 3 à examiner')).toBeInTheDocument();
+		for (const text of ['4 demandes', '1 confirmée', '3 à examiner']) expect(screen.getByText(text)).toBeInTheDocument();
+		expect(screen.getByLabelText('À examiner seulement')).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Confirmer 3 correspondances sûres' })).toBeInTheDocument();
 		expect(screen.getAllByText('Correspondance sûre')).toHaveLength(3);
 		expect(screen.getByText('Confirmé')).toBeInTheDocument();
 		expect(screen.getAllByText('Prénom · un seul joueur', { exact: false }).length).toBeGreaterThan(0);
+	});
+
+	describe('toolbar', () => {
+		it('sends undo and redo, and disables them when there is nothing to do', async () => {
+			const { component } = renderWith(BuilderRequests, { players, links: [], canUndo: true, canRedo: false });
+			const events = [];
+			component.$on('undo', () => events.push('undo'));
+
+			await fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+
+			expect(events).toEqual(['undo']);
+			expect(screen.getByRole('button', { name: 'Redo' })).toBeDisabled();
+		});
+
+		it('hides the confirmed lines on demand and says so when nothing is left to review', async () => {
+			const links = [{ player: 1, kind: 'with', target: 2 }];
+			renderWith(BuilderRequests, { players, links });
+			expect(screen.getByRole('button', { name: 'Confirm Paul Durand' })).toBeInTheDocument();
+
+			await fireEvent.click(screen.getByLabelText('To review only'));
+
+			expect(screen.queryByRole('button', { name: 'Confirm Paul Durand' })).toBeNull();
+			expect(screen.getByRole('button', { name: 'Confirm Zoé Blanc' })).toBeInTheDocument();
+			expect(screen.queryByText('Everything is confirmed.')).toBeNull();
+		});
+
+		it('says everything is confirmed when the filter leaves no line', async () => {
+			const all = [
+				{ player: 1, kind: 'with', target: 2 },
+				{ player: 1, kind: 'avoid', target: 6 },
+				{ player: 2, kind: 'with', target: 1 },
+				{ player: 4, kind: 'avoid', target: 5 }
+			];
+			renderWith(BuilderRequests, { players, links: all });
+
+			await fireEvent.click(screen.getByLabelText('To review only'));
+
+			expect(screen.getByText('Everything is confirmed.')).toBeInTheDocument();
+		});
 	});
 });

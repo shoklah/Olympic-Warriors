@@ -169,6 +169,8 @@ export default {
 	'builder.requests.noMatch': 'No matching player',
 	'builder.requests.added': 'Added by hand',
 	'builder.requests.confirm': 'Confirm {name}',
+	'builder.requests.reviewOnly': 'To review only',
+	'builder.requests.allDone': 'Everything is confirmed.',
 	'builder.requests.count.total': { one: '{n} request', other: '{n} requests' },
 	'builder.requests.count.confirmed': { one: '{n} confirmed', other: '{n} confirmed' },
 	'builder.requests.count.review': '{n} to review',

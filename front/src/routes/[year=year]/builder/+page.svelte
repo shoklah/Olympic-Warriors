@@ -323,7 +323,7 @@
 
 		{#if step === 1}
 			<h2>{t('builder.step.1')}</h2>
-			<BuilderRequests {players} links={draft.links} on:toggle={toggleLink} on:confirmClear={confirmClear} />
+			<BuilderRequests {players} links={draft.links} {canUndo} {canRedo} on:undo={undo} on:redo={redo} on:toggle={toggleLink} on:confirmClear={confirmClear} />
 		{:else if step === 2}
 			<h2>{t('builder.step.2')}</h2>
 			<BuilderTeams

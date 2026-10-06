@@ -175,6 +175,8 @@ export default {
 	'builder.requests.noMatch': 'Aucun joueur correspondant',
 	'builder.requests.added': 'Ajoutés à la main',
 	'builder.requests.confirm': 'Confirmer {name}',
+	'builder.requests.reviewOnly': 'À examiner seulement',
+	'builder.requests.allDone': 'Tout est confirmé.',
 	'builder.requests.count.total': { one: '{n} demande', other: '{n} demandes' },
 	'builder.requests.count.confirmed': { one: '{n} confirmée', other: '{n} confirmées' },
 	'builder.requests.count.review': '{n} à examiner',

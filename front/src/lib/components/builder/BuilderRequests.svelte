@@ -4,9 +4,13 @@
 	import { fullName } from '$lib/players';
 	import { clearLinks, lineState, reasonKey, requestRows, summarise } from '$lib/builder/requests.js';
 	import RequestIcon from './RequestIcon.svelte';
+	import HistoryButtons from './HistoryButtons.svelte';
+	import ToolSwitch from './ToolSwitch.svelte';
 
 	export let players;
 	export let links;
+	export let canUndo = false;
+	export let canRedo = false;
 
 	const t = useT();
 	const dispatch = createEventDispatcher();
@@ -23,12 +27,18 @@
 	$: isOn = (player, kind, target) => confirmed.has(`${player.id}:${kind}:${target}`);
 	$: stateOf = (row, match) => lineState(match, links, row.player, row.kind);
 	$: summary = summarise(rows, links);
-	$: counter = [
-		t('builder.requests.count.total', { n: summary.total }),
-		t('builder.requests.count.confirmed', { n: summary.confirmed }),
-		t('builder.requests.count.review', { n: summary.review }),
-		...(summary.none > 0 ? [t('builder.requests.count.none', { n: summary.none })] : [])
-	].join(' · ');
+	// « À examiner seulement »: the lines already confirmed leave the cards (the ones with no match stay: they need a hand).
+	let reviewOnly = false;
+	$: shown = reviewOnly
+		? cards
+				.map((card) => ({
+					player: card.player,
+					rows: card.rows
+						.map((row) => ({ ...row, matches: row.matches.filter((m) => stateOf(row, m) !== 'confirmed') }))
+						.filter((row) => row.matches.length > 0)
+				}))
+				.filter((card) => card.rows.length > 0)
+		: cards;
 	const toggle = (player, kind, target) => dispatch('toggle', { player: player.id, kind, target });
 	const confirmClear = () => dispatch('confirmClear', clearLinks(rows, links));
 	const why = (match) => t(reasonKey(match), { n: match.candidates.length });
@@ -49,14 +59,35 @@
 {#if cards.length === 0}
 	<p>{t('builder.requests.none')}</p>
 {:else}
-	<div class="bar">
-		<p class="counter" aria-live="polite">{counter}</p>
-		{#if summary.clear > 0}
-			<button type="button" class="pill" on:click={confirmClear}>{t('builder.requests.confirmClear', { n: summary.clear })}</button>
+	<div class="toolbar">
+		<div class="actions">
+			<HistoryButtons {canUndo} {canRedo} on:undo on:redo />
+			{#if summary.clear > 0}
+				<button type="button" class="submit" on:click={confirmClear}>{t('builder.requests.confirmClear', { n: summary.clear })}</button>
+			{/if}
+		</div>
+		<span class="sep" aria-hidden="true"></span>
+		<ToolSwitch checked={reviewOnly} on:change={(e) => (reviewOnly = e.detail)}>{t('builder.requests.reviewOnly')}</ToolSwitch>
+	</div>
+	<div class="status" aria-live="polite">
+		<span class="total">{t('builder.requests.count.total', { n: summary.total })}</span>
+		<span class="chip good">
+			<RequestIcon name="check" />{t('builder.requests.count.confirmed', { n: summary.confirmed })}
+		</span>
+		<span class="chip warn">
+			<RequestIcon name="question" />{t('builder.requests.count.review', { n: summary.review })}
+		</span>
+		{#if summary.none > 0}
+			<span class="chip none">
+				<RequestIcon name="minus" />{t('builder.requests.count.none', { n: summary.none })}
+			</span>
 		{/if}
 	</div>
+	{#if shown.length === 0}
+		<p class="hint">{t('builder.requests.allDone')}</p>
+	{/if}
 	<ul class="grid">
-		{#each cards as card (card.player.id)}
+		{#each shown as card (card.player.id)}
 			<li class="card">
 				<h3 class="who">{fullName(card.player)}</h3>
 				{#each card.rows as row (row.kind)}
@@ -90,7 +121,7 @@
 									<span class="why">{why(match)}</span>
 								</li>
 							{/each}
-							{#if extras(row).length > 0}
+							{#if !reviewOnly && extras(row).length > 0}
 								<li class="match added">
 									<span class="text">{t('builder.requests.added')}</span>
 									<span class="chips">
@@ -121,25 +152,64 @@
 		font-size: 0.875rem;
 		margin: 0 0 1rem;
 	}
-	.bar {
+	.toolbar {
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
-		justify-content: space-between;
-		gap: 0.5rem 1rem;
-		margin-bottom: 1rem;
+		gap: 0.75rem 1.25rem;
+		margin-bottom: 0.5rem;
+		padding: 0.75rem 1rem;
+		background: var(--bg-raised);
+		border: 1px solid var(--line);
+		border-radius: var(--radius);
 	}
-	.counter {
-		margin: 0;
-		color: var(--muted);
+	.sep {
+		align-self: stretch;
+		width: 1px;
+		background: var(--line);
+	}
+	.actions {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem;
+	}
+	.status {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem 0.75rem;
+		margin: 0 0 1rem;
+		padding: 0.5rem 1rem;
+		background: var(--bg-raised);
+		border: 1px solid var(--line);
+		border-radius: var(--radius);
 		font-size: 0.875rem;
 	}
-	.pill {
+	.total {
+		color: var(--muted);
+	}
+	.chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.375rem;
+		font-weight: 600;
+	}
+	.chip.good {
+		color: var(--win);
+	}
+	.chip.warn {
+		color: var(--todo);
+	}
+	.chip.none {
+		color: var(--muted);
+	}
+	.submit {
 		padding: 0.5rem 1.125rem;
 		border-radius: 999px;
 		border: 1px solid var(--accent);
-		background: transparent;
-		color: var(--accent);
+		background: var(--accent);
+		color: var(--bg);
 		font: inherit;
 		font-weight: 600;
 		cursor: pointer;

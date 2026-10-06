@@ -3,6 +3,8 @@
 	import { useLocale, useT } from '$lib/i18n';
 	import { fullName } from '$lib/players';
 	import PlayerCard from './PlayerCard.svelte';
+	import HistoryButtons from './HistoryButtons.svelte';
+	import ToolSwitch from './ToolSwitch.svelte';
 
 	export let players;
 	export let teams;
@@ -74,12 +76,7 @@
 	</div>
 	<span class="sep" aria-hidden="true"></span>
 	<div class="actions">
-		<button type="button" class="icon" disabled={!canUndo} aria-label={t('builder.undo')} title={t('builder.undo.hint')} on:click={() => dispatch('undo')}>
-			<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" /></svg>
-		</button>
-		<button type="button" class="icon" disabled={!canRedo} aria-label={t('builder.redo')} title={t('builder.redo.hint')} on:click={() => dispatch('redo')}>
-			<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 14 5-5-5-5" /><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" /></svg>
-		</button>
+		<HistoryButtons {canUndo} {canRedo} on:undo on:redo />
 		{#if !proposed}
 			<button type="button" class="submit" disabled={players.length === 0} on:click={() => dispatch('propose')}>{t('builder.propose')}</button>
 		{:else}
@@ -91,11 +88,7 @@
 		{/if}
 	</div>
 	<span class="sep" aria-hidden="true"></span>
-	<label class="switch">
-		<input type="checkbox" checked={showRequests} on:change={(e) => dispatch('showRequests', e.currentTarget.checked)} />
-		<span class="knob" aria-hidden="true"></span>
-		{t('builder.showRequests')}
-	</label>
+	<ToolSwitch checked={showRequests} on:change={(e) => dispatch('showRequests', e.detail)}>{t('builder.showRequests')}</ToolSwitch>
 </div>
 {#if tooFew}<p class="error" role="alert">{t('builder.tooFew')}</p>{/if}
 
@@ -242,27 +235,8 @@
 		align-items: center;
 		gap: 0.5rem;
 	}
-	.icon {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		width: 2.25rem;
-		height: 2.25rem;
-		padding: 0;
-		border-radius: 999px;
-		border: 1px solid var(--accent);
-		background: transparent;
-		color: var(--accent);
-		cursor: pointer;
-	}
-	.icon:disabled {
-		opacity: 0.4;
-		cursor: not-allowed;
-	}
-	.icon:focus-visible,
 	.danger:focus-visible,
-	.head:focus-visible,
-	.switch:focus-within {
+	.head:focus-visible {
 		outline: 2px solid var(--accent);
 		outline-offset: 2px;
 	}
@@ -296,45 +270,6 @@
 		font-weight: 600;
 		cursor: pointer;
 		border-radius: var(--radius);
-	}
-	.switch {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.5rem;
-		cursor: pointer;
-		border-radius: var(--radius);
-	}
-	.switch input {
-		position: absolute;
-		opacity: 0;
-		width: 1px;
-		height: 1px;
-	}
-	.knob {
-		position: relative;
-		flex: none;
-		width: 2rem;
-		height: 1.125rem;
-		border-radius: 999px;
-		background: var(--line-strong);
-		transition: background 0.15s;
-	}
-	.knob::after {
-		content: '';
-		position: absolute;
-		top: 0.125rem;
-		left: 0.125rem;
-		width: 0.875rem;
-		height: 0.875rem;
-		border-radius: 50%;
-		background: var(--bg);
-		transition: transform 0.15s;
-	}
-	.switch input:checked + .knob {
-		background: var(--accent);
-	}
-	.switch input:checked + .knob::after {
-		transform: translateX(0.875rem);
 	}
 	.visually-hidden {
 		position: absolute;
