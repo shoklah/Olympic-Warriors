@@ -46,8 +46,15 @@
 	}
 	// Escape closes the picker first, the sheet only when none is open.
 	function escape() {
-		if (picking) picking = false;
-		else close();
+		if (picking) {
+			picking = false;
+			focusAction();
+		} else close();
+	}
+	// The button that opened the picker is back after it closes: focus goes to it, not to the page.
+	async function focusAction() {
+		await tick();
+		sheetEl?.querySelector('[data-compare-action]')?.focus();
 	}
 	function openPicker() {
 		query = '';
@@ -56,6 +63,7 @@
 	function choose(id) {
 		picking = false;
 		dispatch('compare', { id });
+		focusAction();
 	}
 	const focusNow = (node) => node.focus();
 
@@ -257,10 +265,10 @@
 
 		<div class="actions">
 			{#if comparing}
-				<button type="button" class="ghost" on:click={openPicker}>{t('builder.compare.change')}</button>
+				<button type="button" class="ghost" data-compare-action on:click={openPicker}>{t('builder.compare.change')}</button>
 				<button type="button" class="ghost" on:click={() => dispatch('uncompare')}>{t('builder.compare.close')}</button>
 			{:else if !picking}
-				<button type="button" class="ghost" on:click={openPicker}>{t('builder.compare.open')}</button>
+				<button type="button" class="ghost" data-compare-action on:click={openPicker}>{t('builder.compare.open')}</button>
 			{/if}
 			<button type="button" on:click={close}>{t('builder.preview.close')}</button>
 		</div>

@@ -24,8 +24,9 @@ describe('compareProfiles', () => {
 });
 
 describe('swapPreview', () => {
-	const draft = { ...emptyDraft(), teams: [{ players: [1, 5] }, { players: [2, 3] }, { players: [4, 6] }] };
-	const scorer = makeScorer(players, [{ player: 1, kind: 'with', target: 2 }], skills);
+	const links = [{ player: 1, kind: 'with', target: 2 }];
+	const draft = { ...emptyDraft(), links, teams: [{ players: [1, 5] }, { players: [2, 3] }, { players: [4, 6] }] };
+	const scorer = makeScorer(players, links, skills);
 
 	it('shows the two teams a swap touches and the unmet requests before and after', () => {
 		const preview = swapPreview(draft, 5, 2, scorer);
@@ -47,5 +48,15 @@ describe('swapPreview', () => {
 	it('is null when the swap is blocked', () => {
 		expect(swapPreview(draft, 1, 5, scorer)).toBeNull();
 		expect(swapPreview({ ...draft, locked: [1] }, 1, 2, scorer)).toBeNull();
+	});
+
+	it('does not count a wish as fixed because its player went to the tray', () => {
+		const wish = makeScorer(players, [{ player: 1, kind: 'with', target: 2 }], skills);
+		const drafted = { ...emptyDraft(), links: [{ player: 1, kind: 'with', target: 2 }], teams: [{ players: [1, 5] }, { players: [2, 3] }] };
+
+		// 1 leaves for the tray (swapped with 6): the wish is as unmet as before, not gone.
+		expect(swapPreview(drafted, 1, 6, wish).unmet).toEqual({ before: 1, after: 1 });
+		// 5 and 2 swap: 1 and 2 now share a team.
+		expect(swapPreview(drafted, 5, 2, wish).unmet).toEqual({ before: 1, after: 0 });
 	});
 });

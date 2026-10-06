@@ -205,5 +205,20 @@ describe('PlayerSheet', () => {
 			expect(screen.getByText('Un joueur verrouillé ne peut pas être échangé.')).toBeInTheDocument();
 			expect(screen.getByRole('button', { name: 'Fermer la comparaison' })).toBeInTheDocument();
 		});
+
+		it('keeps focus in the sheet when the picker closes or a player is chosen', async () => {
+			renderWith(PlayerSheet, compareProps());
+
+			await fireEvent.click(screen.getByRole('button', { name: 'Compare with…' }));
+			await fireEvent.keyDown(window, { key: 'Escape' });
+			await tick();
+			expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Compare with…' }));
+
+			await fireEvent.click(screen.getByRole('button', { name: 'Compare with…' }));
+			await fireEvent.click(screen.getByRole('button', { name: /Paul Durand/ }));
+			await tick();
+			expect(dialog().contains(document.activeElement)).toBe(true);
+			expect(document.activeElement).not.toBe(document.body);
+		});
 	});
 });

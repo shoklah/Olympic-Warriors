@@ -28,8 +28,24 @@ export function compareProfiles(pa, pb, skills, locale) {
 }
 
 /**
+ * How many requests a draft leaves unmet, counting a player in the tray as apart from everyone
+ * (the scorer skips them, which would make sending a player to the tray look like a fix). A pair
+ * that asked for each other counts once, as in the scorer.
+ */
+function unmetCount(draft) {
+	const teamOf = new Map();
+	draft.teams.forEach((t, i) => t.players.forEach((id) => teamOf.set(id, i)));
+	const together = (l) => teamOf.has(l.player) && teamOf.get(l.player) === teamOf.get(l.target);
+	const pair = (l) => [l.player, l.target].sort().join('-');
+	const withs = new Set(draft.links.filter((l) => l.kind === 'with' && !together(l)).map(pair));
+	const avoids = new Set(draft.links.filter((l) => l.kind === 'avoid' && together(l)).map(pair));
+	return withs.size + avoids.size;
+}
+
+/**
  * What swapping a and b would change, from the real `scorer` run on both drafts: the average
- * rating of each team the swap touches and the draft's number of unmet requests. null when blocked.
+ * rating of each team the swap touches and the draft's number of unmet requests (the scorer's count
+ * before, moved by the change `unmetCount` sees, so the figure matches the panel). null when blocked.
  */
 export function swapPreview(draft, a, b, scorer) {
 	const swapped = swapPlayers(draft, a, b);
@@ -40,5 +56,5 @@ export function swapPreview(draft, a, b, scorer) {
 		.map((t, index) => ({ index, touched: t.players.includes(a) !== t.players.includes(b) }))
 		.filter((t) => t.touched)
 		.map(({ index }) => ({ index, before: before.teams[index].rating, after: after.teams[index].rating }));
-	return { teams, unmet: { before: before.unmet.length, after: after.unmet.length } };
+	return { teams, unmet: { before: before.unmet.length, after: before.unmet.length + unmetCount(swapped) - unmetCount(draft) } };
 }
