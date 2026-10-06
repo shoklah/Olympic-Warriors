@@ -445,4 +445,85 @@ describe('team builder page', () => {
 			expect(within(screen.getByRole('dialog')).queryByRole('table')).toBeNull();
 		});
 	});
+
+	describe('undo and redo', () => {
+		const undoButton = () => screen.getByRole('button', { name: 'Undo' });
+		const redoButton = () => screen.getByRole('button', { name: 'Redo' });
+		const names = () => teamRegions().map((r) => [...r.querySelectorAll('.name')].map((n) => n.textContent));
+
+		it('starts with both buttons disabled', () => {
+			renderWith(Page, { data: data() });
+
+			expect(undoButton()).toBeDisabled();
+			expect(redoButton()).toBeDisabled();
+		});
+
+		it('undoes and redoes a proposal and a move', async () => {
+			renderWith(Page, { data: data() });
+			await propose();
+			const proposed = names();
+			const card = within(teamRegions()[0]).getAllByRole('listitem')[0];
+			await fireEvent.change(within(card).getByRole('combobox'), { target: { value: '1' } });
+			const moved = names();
+			expect(moved).not.toEqual(proposed);
+
+			await fireEvent.click(undoButton());
+			expect(names()).toEqual(proposed);
+			expect(redoButton()).toBeEnabled();
+
+			await fireEvent.click(undoButton());
+			expect(screen.queryAllByRole('region', { name: /^Team \d/ })).toHaveLength(0);
+			expect(undoButton()).toBeDisabled();
+
+			await fireEvent.click(redoButton());
+			await fireEvent.click(redoButton());
+			expect(names()).toEqual(moved);
+			expect(redoButton()).toBeDisabled();
+		});
+
+		it('forgets what can be redone after a new edit', async () => {
+			renderWith(Page, { data: data() });
+			await propose();
+			await fireEvent.click(undoButton());
+			await propose();
+
+			expect(redoButton()).toBeDisabled();
+		});
+
+		it('answers Ctrl+Z and Ctrl+Shift+Z, but not inside a text field', async () => {
+			renderWith(Page, { data: data() });
+			await propose();
+
+			const field = screen.getByLabelText('Players per team');
+			await fireEvent.keyDown(field, { key: 'z', ctrlKey: true });
+			expect(teamRegions().length).toBeGreaterThan(0);
+
+			await fireEvent.keyDown(window, { key: 'z', ctrlKey: true });
+			expect(screen.queryAllByRole('region', { name: /^Team \d/ })).toHaveLength(0);
+			await fireEvent.keyDown(window, { key: 'z', metaKey: true, shiftKey: true });
+			expect(teamRegions().length).toBeGreaterThan(0);
+		});
+
+		it('makes the team-size field one step however many keystrokes it took', async () => {
+			renderWith(Page, { data: data() });
+			await goTo('Teams');
+			const field = screen.getByLabelText('Players per team');
+
+			for (const value of ['4', '5']) await fireEvent.change(field, { target: { value } });
+			await fireEvent.click(undoButton());
+
+			expect(screen.getByLabelText('Players per team')).toHaveValue(3);
+			expect(undoButton()).toBeDisabled();
+		});
+
+		it('ignores the shortcut while the player sheet is open', async () => {
+			renderWith(Page, { data: data() });
+			await propose();
+			await fireEvent.click(within(teamRegions()[0]).getAllByRole('button', { name: /^View .* profile$/ })[0]);
+
+			await fireEvent.keyDown(window, { key: 'z', ctrlKey: true });
+			expect(undoButton()).toBeEnabled();
+			expect(screen.getByRole('dialog')).toBeInTheDocument();
+		});
+	});
 });

@@ -9,6 +9,7 @@
 	import { requestRows, summarise } from '$lib/builder/requests.js';
 	import { features, makeScorer } from '$lib/builder/score.js';
 	import { swapPreview } from '$lib/builder/compare.js';
+	import { emptyHistory, record, redo as redoStep, undo as undoStep } from '$lib/builder/history.js';
 	import { createSaver } from '$lib/builder/saver.js';
 	import StepProgress from '$lib/components/StepProgress.svelte';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
@@ -55,10 +56,12 @@
 		}
 	}
 
+	let history = emptyHistory();
 	function load(saved) {
 		saver?.flush(); // a pending edit of the draft being replaced is not lost, nor sent twice
 		const out = reconcile(saved ? saved.document : emptyDraft(), players);
 		draft = out.draft;
+		history = emptyHistory(); // a snapshot of another draft or roster must never come back
 		unplaced = out.unplaced;
 		banner = { joined: out.joined, left: out.left };
 		stale = undefined;
@@ -105,7 +108,12 @@
 	$: notesFor = (player) =>
 		[player.team_with && `+ ${player.team_with}`, player.team_avoid && `− ${player.team_avoid}`].filter(Boolean);
 
-	function commit(next) {
+	// `key` makes consecutive edits of one field a single undo step.
+	function commit(next, key = null) {
+		history = record(history, draft, key);
+		show(next);
+	}
+	function show(next) {
 		draft = next;
 		const placed = new Set(draft.teams.flatMap((tm) => tm.players));
 		unplaced = players.map((p) => p.id).filter((id) => !placed.has(id));
@@ -136,7 +144,7 @@
 	function setPerTeam({ detail }) {
 		if (draft.teams.length === 0 && Number.isInteger(detail) && detail >= 2 && detail <= 20) {
 			tooFew = false;
-			commit({ ...draft, players_per_team: detail });
+			commit({ ...draft, players_per_team: detail }, 'perTeam');
 		}
 	}
 	function run(seed, variety = false) {
@@ -184,6 +192,31 @@
 	$: if (preview && !byId.has(preview.id)) preview = null;
 	$: previewTeam = previewed ? draft.teams.findIndex((tm) => tm.players.includes(previewed.id)) : -1;
 	$: saveBlocked = saveState === 'stale' || saveState === 'error';
+
+	$: canUndo = history.past.length > 0 && !saveBlocked;
+	$: canRedo = history.future.length > 0 && !saveBlocked;
+	function undo() {
+		const out = canUndo && undoStep(history, draft);
+		if (!out) return;
+		history = out.history;
+		show(out.draft);
+	}
+	function redo() {
+		const out = canRedo && redoStep(history, draft);
+		if (!out) return;
+		history = out.history;
+		show(out.draft);
+	}
+	const typing = (el) => el instanceof HTMLElement && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName));
+	// Cmd/Ctrl+Z and Shift+Z (or Ctrl+Y); left alone in a text field, which has its own, and behind the sheet.
+	function onKeydown(event) {
+		if (!(event.metaKey || event.ctrlKey) || event.altKey || typing(event.target) || preview) return;
+		const key = event.key.toLowerCase();
+		if (key === 'z' && !event.shiftKey) undo();
+		else if ((key === 'z' && event.shiftKey) || (key === 'y' && event.ctrlKey)) redo();
+		else return;
+		event.preventDefault();
+	}
 
 	// The player compared with in the open sheet; it never outlives the sheet, a change of
 	// previewed player, or its own place on the roster.
@@ -247,6 +280,8 @@
 	const STEPS = [1, 2, 3];
 </script>
 
+<svelte:window on:keydown={onKeydown} />
+
 <div class="page">
 	<Breadcrumb items={[{ label: String(year), href: `/${year}` }, { label: t('builder.title') }]} />
 	<h1>{t('builder.title')}</h1>
@@ -264,6 +299,10 @@
 		<!-- One slot for the save state, always there: the text switches in place, so the page below
 		     never jumps when a change is saved. -->
 		<div class="save-status">
+			<div class="history">
+				<button type="button" class="pill" disabled={!canUndo} title={t('builder.undo.hint')} on:click={undo}>{t('builder.undo')}</button>
+				<button type="button" class="pill" disabled={!canRedo} title={t('builder.redo.hint')} on:click={redo}>{t('builder.redo')}</button>
+			</div>
 			{#if saveState === 'stale'}
 				<p class="error" role="alert">
 					{t('builder.stale')}
@@ -402,6 +441,22 @@
 	.save-status {
 		/* The height of the one-line states, so saving and saved never move what is below. */
 		min-height: 2.25rem;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.25rem 1rem;
+		margin-bottom: 1rem;
+	}
+	.save-status :global(.hint) {
+		margin: 0;
+	}
+	.history {
+		display: flex;
+		gap: 0.5rem;
+	}
+	.history .pill:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
 	}
 	.hint {
 		margin: 0 0 1rem;
