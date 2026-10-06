@@ -3,11 +3,13 @@
 	import { invalidateAll } from '$app/navigation';
 	import { useT } from '$lib/i18n';
 	import { fullName } from '$lib/players';
-	import { emptyDraft, reconcile } from '$lib/builder/plan.js';
+	import { emptyDraft, reconcile, swapBlock, swapPlayers } from '$lib/builder/plan.js';
 	import { BuilderError, generate, placeNewcomers } from '$lib/builder/generate.js';
 	import { newSeed } from '$lib/builder/random.js';
-	import { requestRows, summarise } from '$lib/builder/requests.js';
+	import { requestRows, shownText, summarise } from '$lib/builder/requests.js';
 	import { features, makeScorer } from '$lib/builder/score.js';
+	import { swapPreview } from '$lib/builder/compare.js';
+	import { emptyHistory, record, redo as redoStep, undo as undoStep } from '$lib/builder/history.js';
 	import { createSaver } from '$lib/builder/saver.js';
 	import StepProgress from '$lib/components/StepProgress.svelte';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
@@ -54,10 +56,12 @@
 		}
 	}
 
+	let history = emptyHistory();
 	function load(saved) {
 		saver?.flush(); // a pending edit of the draft being replaced is not lost, nor sent twice
 		const out = reconcile(saved ? saved.document : emptyDraft(), players);
 		draft = out.draft;
+		history = emptyHistory(); // a snapshot of another draft or roster must never come back
 		unplaced = out.unplaced;
 		banner = { joined: out.joined, left: out.left };
 		stale = undefined;
@@ -102,9 +106,17 @@
 
 	/** What the cards show of a player's requests: the texts no confirmed link explains stay as notes. */
 	$: notesFor = (player) =>
-		[player.team_with && `+ ${player.team_with}`, player.team_avoid && `− ${player.team_avoid}`].filter(Boolean);
+		[['with', '+'], ['avoid', '−']]
+			.map(([kind, sign]) => [shownText(player, kind, draft.ignored), sign])
+			.filter(([text]) => text)
+			.map(([text, sign]) => `${sign} ${text}`);
 
-	function commit(next) {
+	// `key` makes consecutive edits of one field a single undo step.
+	function commit(next, key = null) {
+		history = record(history, draft, key);
+		show(next);
+	}
+	function show(next) {
 		draft = next;
 		const placed = new Set(draft.teams.flatMap((tm) => tm.players));
 		unplaced = players.map((p) => p.id).filter((id) => !placed.has(id));
@@ -131,11 +143,19 @@
 	}
 	// The matches depend on the roster only: a drag or a lock changes the draft, never them.
 	$: rows = requestRows(players);
-	$: requestSummary = summarise(rows, draft.links);
+	$: requestSummary = summarise(rows, draft.links, draft.ignored);
+	// Set a written request aside, or take it back: it then shows on no card. A confirmed link of that
+	// line goes with it (`drop`, the line's candidates), since ignoring means it should not count at all.
+	function setAside({ detail: { player, kind, text, on, drop } }) {
+		const same = (i) => i.player === player && i.kind === kind && i.text === text;
+		const ignored = on ? (draft.ignored.some(same) ? draft.ignored : [...draft.ignored, { player, kind, text }]) : draft.ignored.filter((i) => !same(i));
+		const links = on ? draft.links.filter((l) => !(l.player === player && l.kind === kind && drop.includes(l.target))) : draft.links;
+		if (ignored !== draft.ignored || links !== draft.links) commit({ ...draft, ignored, links });
+	}
 	function setPerTeam({ detail }) {
 		if (draft.teams.length === 0 && Number.isInteger(detail) && detail >= 2 && detail <= 20) {
 			tooFew = false;
-			commit({ ...draft, players_per_team: detail });
+			commit({ ...draft, players_per_team: detail }, 'perTeam');
 		}
 	}
 	function run(seed, variety = false) {
@@ -183,6 +203,55 @@
 	$: if (preview && !byId.has(preview.id)) preview = null;
 	$: previewTeam = previewed ? draft.teams.findIndex((tm) => tm.players.includes(previewed.id)) : -1;
 	$: saveBlocked = saveState === 'stale' || saveState === 'error';
+
+	// Not while Apply runs or after it succeeded: the draft is then the server's to delete, not ours to save again.
+	$: editable = !saveBlocked && !busy && !done;
+	$: canUndo = history.past.length > 0 && editable;
+	$: canRedo = history.future.length > 0 && editable;
+	function undo() {
+		const out = canUndo && undoStep(history, draft);
+		if (!out) return;
+		history = out.history;
+		show(out.draft);
+	}
+	function redo() {
+		const out = canRedo && redoStep(history, draft);
+		if (!out) return;
+		history = out.history;
+		show(out.draft);
+	}
+	const typing = (el) => el instanceof HTMLElement && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName));
+	// Cmd/Ctrl+Z and Shift+Z (or Ctrl+Y); left alone in a text field, which has its own, and behind the sheet.
+	function onKeydown(event) {
+		if (!(event.metaKey || event.ctrlKey) || event.altKey || typing(event.target) || preview) return;
+		const key = event.key.toLowerCase();
+		if (key === 'z' && !event.shiftKey) undo();
+		else if ((key === 'z' && event.shiftKey) || (key === 'y' && event.ctrlKey)) redo();
+		else return;
+		event.preventDefault();
+	}
+
+	// The player compared with in the open sheet; it never outlives the sheet, a change of
+	// previewed player, or its own place on the roster.
+	let compareId = null;
+	$: if (!preview || compareId === preview.id || (compareId !== null && !byId.has(compareId))) compareId = null;
+	$: other = compareId !== null ? byId.get(compareId) ?? null : null;
+	const teamOfId = (id) => draft.teams.findIndex((tm) => tm.players.includes(id));
+	$: otherTeam = other ? teamOfId(other.id) : -1;
+	$: swapReason = previewed && other ? (saveBlocked ? 'blocked' : swapBlock(draft, previewed.id, other.id)) : null;
+	$: swapView = previewed && other && !swapReason ? swapPreview(draft, previewed.id, other.id, scorer) : null;
+	$: candidates = previewed
+		? players
+				.filter((p) => p.id !== previewed.id)
+				.map((p) => ({ id: p.id, name: fullName(p), teamIndex: teamOfId(p.id), rating: p.rating }))
+				.sort((x, y) => x.name.localeCompare(y.name))
+		: [];
+	// One update of the draft, so one save: the sheet stays on the pair, and a second swap undoes it.
+	function swap({ detail: { a, b } }) {
+		if (saveBlocked) return;
+		const next = swapPlayers(draft, a, b);
+		if (next) commit(next);
+	}
 	async function apply() {
 		if (saveBlocked) return;
 		busy = true;
@@ -223,6 +292,8 @@
 	const nameOf = (id) => (byId.has(id) ? fullName(byId.get(id)) : '');
 	const STEPS = [1, 2, 3];
 </script>
+
+<svelte:window on:keydown={onKeydown} />
 
 <div class="page">
 	<Breadcrumb items={[{ label: String(year), href: `/${year}` }, { label: t('builder.title') }]} />
@@ -265,7 +336,7 @@
 
 		{#if step === 1}
 			<h2>{t('builder.step.1')}</h2>
-			<BuilderRequests {players} links={draft.links} on:toggle={toggleLink} on:confirmClear={confirmClear} />
+			<BuilderRequests {players} links={draft.links} ignored={draft.ignored} on:ignore={setAside} {canUndo} {canRedo} on:undo={undo} on:redo={redo} on:toggle={toggleLink} on:confirmClear={confirmClear} />
 		{:else if step === 2}
 			<h2>{t('builder.step.2')}</h2>
 			<BuilderTeams
@@ -289,12 +360,24 @@
 				{showRequests}
 				on:showRequests={setShowRequests}
 				on:lock={toggleLock}
+				{canUndo}
+				{canRedo}
+				on:undo={undo}
+				on:redo={redo}
 			/>
 			<PlayerSheet
 				open={previewed !== null}
 				player={previewed}
 				skills={builder.skills}
 				teamIndex={previewTeam}
+				{candidates}
+				{other}
+				otherTeamIndex={otherTeam}
+				{swapReason}
+				{swapView}
+				on:compare={({ detail }) => (compareId = detail.id)}
+				on:uncompare={() => (compareId = null)}
+				on:swap={swap}
 				opener={preview?.opener ?? null}
 				on:close={() => (preview = null)}
 			/>
@@ -371,6 +454,14 @@
 	.save-status {
 		/* The height of the one-line states, so saving and saved never move what is below. */
 		min-height: 2.25rem;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.25rem 1rem;
+		margin-bottom: 1rem;
+	}
+	.save-status :global(.hint) {
+		margin: 0;
 	}
 	.hint {
 		margin: 0 0 1rem;

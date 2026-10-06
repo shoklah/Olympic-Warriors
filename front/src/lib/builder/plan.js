@@ -17,6 +17,7 @@ export const emptyDraft = (perTeam = 3) => ({
 	players_per_team: perTeam,
 	seed: newSeed(),
 	links: [],
+	ignored: [],
 	teams: [],
 	locked: []
 });
@@ -39,10 +40,29 @@ export function reconcile(draft, players) {
 			...draft,
 			teams,
 			links: draft.links.filter((l) => ids.has(l.player) && ids.has(l.target)),
+			ignored: (draft.ignored ?? []).filter((i) => ids.has(i.player)),
 			locked: draft.locked.filter((id) => ids.has(id))
 		},
 		left,
 		joined: draft.teams.length > 0 ? unplaced.length : 0,
 		unplaced
 	};
+}
+
+const teamIndexOf = (draft, id) => draft.teams.findIndex((t) => t.players.includes(id));
+
+/** Why a and b cannot be swapped, or null: locked first, then the same team, then both in the tray. */
+export function swapBlock(draft, a, b) {
+	if (draft.locked.includes(a) || draft.locked.includes(b)) return 'locked';
+	const ta = teamIndexOf(draft, a);
+	const tb = teamIndexOf(draft, b);
+	if (ta === tb) return ta === -1 ? 'bothTray' : 'sameTeam';
+	return null;
+}
+
+/** The draft with a and b exchanged, each taking the other's slot; null when the swap is blocked. */
+export function swapPlayers(draft, a, b) {
+	if (swapBlock(draft, a, b)) return null;
+	const swap = (id) => (id === a ? b : id === b ? a : id);
+	return { ...draft, teams: draft.teams.map((t) => ({ players: t.players.map(swap) })) };
 }

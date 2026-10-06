@@ -102,4 +102,123 @@ describe('PlayerSheet', () => {
 		expect(sheet.getByText('Force')).toBeInTheDocument();
 		expect(sheet.getByRole('button', { name: 'Fermer' })).toBeInTheDocument();
 	});
+
+	describe('compare', () => {
+		const candidates = players.filter((p) => p.id !== 1).map((p) => ({ id: p.id, name: `${p.first_name} ${p.last_name}`, teamIndex: p.id === 2 ? 1 : -1, rating: p.rating }));
+		const compareProps = (over = {}) => props(1, { teamIndex: 0, candidates, ...over });
+
+		it('opens a picker listing everyone else with their team, and filters without accents', async () => {
+			renderWith(PlayerSheet, compareProps());
+
+			await fireEvent.click(screen.getByRole('button', { name: 'Compare with…' }));
+			const sheet = within(dialog());
+			expect(sheet.getAllByRole('button', { name: /\d$/ })).toHaveLength(5);
+			expect(sheet.getByRole('button', { name: /Paul Durand.*Team 2/ })).toBeInTheDocument();
+
+			await fireEvent.input(sheet.getByRole('searchbox'), { target: { value: 'ines' } });
+			expect(sheet.getAllByRole('button', { name: /\d$/ })).toHaveLength(1);
+			expect(sheet.getByRole('button', { name: /Inès Moreau/ })).toBeInTheDocument();
+
+			await fireEvent.input(sheet.getByRole('searchbox'), { target: { value: 'zzz' } });
+			expect(sheet.getByText('No player found')).toBeInTheDocument();
+		});
+
+		it('dispatches the chosen player, and Escape closes the picker before the sheet', async () => {
+			const { component } = renderWith(PlayerSheet, compareProps());
+			const events = [];
+			component.$on('compare', (e) => events.push(['compare', e.detail.id]));
+			component.$on('close', () => events.push(['close']));
+
+			await fireEvent.click(screen.getByRole('button', { name: 'Compare with…' }));
+			await fireEvent.keyDown(window, { key: 'Escape' });
+			expect(screen.queryByRole('searchbox')).toBeNull();
+			expect(events).toEqual([]);
+
+			await fireEvent.click(screen.getByRole('button', { name: 'Compare with…' }));
+			await fireEvent.click(screen.getByRole('button', { name: /Paul Durand/ }));
+			expect(events).toEqual([['compare', 2]]);
+
+			await fireEvent.keyDown(window, { key: 'Escape' });
+			expect(events.at(-1)).toEqual(['close']);
+		});
+
+		it('draws the butterfly table: both values per skill, the leader, the estimated side', () => {
+			renderWith(PlayerSheet, compareProps({ other: byId(5), otherTeamIndex: 1, swapReason: null }));
+
+			const table = within(screen.getByRole('table'));
+			expect(table.getByRole('columnheader', { name: /Léa Martin/ })).toBeInTheDocument();
+			expect(table.getByRole('columnheader', { name: /Bob Roux/ })).toBeInTheDocument();
+			const row = table.getByRole('row', { name: /Cardio/ });
+			expect(row).toHaveTextContent(/9.*Cardio.*3/);
+			expect(within(row).getByText('+6')).toBeInTheDocument();
+			expect(table.getAllByText('estimated')).toHaveLength(2);
+			expect(table.getByText('Incomplete profile')).toBeInTheDocument();
+		});
+
+		it('swaps with the ids, or says why it cannot', async () => {
+			const { component, unmount } = renderWith(PlayerSheet, compareProps({ other: byId(2), otherTeamIndex: 1 }));
+			const swaps = [];
+			component.$on('swap', (e) => swaps.push(e.detail));
+
+			await fireEvent.click(screen.getByRole('button', { name: 'Swap' }));
+			expect(swaps).toEqual([{ a: 1, b: 2 }]);
+			unmount();
+
+			for (const [reason, text] of [
+				['locked', 'A locked player cannot be swapped.'],
+				['sameTeam', 'Both players are in the same team.'],
+				['bothTray', 'Both players are still to place.']
+			]) {
+				const r = renderWith(PlayerSheet, compareProps({ other: byId(2), swapReason: reason }));
+				const button = screen.getByRole('button', { name: 'Swap' });
+				expect(button).toBeDisabled();
+				expect(button).toHaveAccessibleDescription(text);
+				r.unmount();
+			}
+		});
+
+		it('previews the swap with a word beside each change', () => {
+			const swapView = { teams: [{ index: 0, before: 6.44, after: 6.7 }, { index: 1, before: 5, after: 4.2 }], unmet: { before: 5, after: 3 } };
+			renderWith(PlayerSheet, compareProps({ other: byId(2), otherTeamIndex: 1, swapView }));
+
+			expect(screen.getByText('Team 1: 6.4 → 6.7 (up)')).toBeInTheDocument();
+			expect(screen.getByText('Team 2: 5.0 → 4.2 (down)')).toBeInTheDocument();
+			expect(screen.getByText('Unmet requests: 5 → 3 (better)')).toBeInTheDocument();
+		});
+
+		it('goes back to the picker and closes the comparison', async () => {
+			const { component } = renderWith(PlayerSheet, compareProps({ other: byId(2) }));
+			let closed = 0;
+			component.$on('uncompare', () => closed++);
+
+			await fireEvent.click(screen.getByRole('button', { name: 'Close comparison' }));
+			expect(closed).toBe(1);
+
+			await fireEvent.click(screen.getByRole('button', { name: 'Change' }));
+			expect(screen.getByRole('searchbox')).toBeInTheDocument();
+		});
+
+		it('speaks French', async () => {
+			renderWith(PlayerSheet, compareProps({ other: byId(2), swapReason: 'locked' }), 'fr');
+
+			expect(screen.getByRole('button', { name: 'Échanger' })).toBeDisabled();
+			expect(screen.getByText('Un joueur verrouillé ne peut pas être échangé.')).toBeInTheDocument();
+			expect(screen.getByRole('button', { name: 'Fermer la comparaison' })).toBeInTheDocument();
+		});
+
+		it('keeps focus in the sheet when the picker closes or a player is chosen', async () => {
+			renderWith(PlayerSheet, compareProps());
+
+			await fireEvent.click(screen.getByRole('button', { name: 'Compare with…' }));
+			await fireEvent.keyDown(window, { key: 'Escape' });
+			await tick();
+			expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Compare with…' }));
+
+			await fireEvent.click(screen.getByRole('button', { name: 'Compare with…' }));
+			await fireEvent.click(screen.getByRole('button', { name: /Paul Durand/ }));
+			await tick();
+			expect(dialog().contains(document.activeElement)).toBe(true);
+			expect(document.activeElement).not.toBe(document.body);
+		});
+	});
 });
