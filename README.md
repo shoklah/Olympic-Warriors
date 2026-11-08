@@ -142,7 +142,7 @@ Any failing job fails the workflow. None is a required status check, so look at 
 
 Before the first deploy, work through these points:
 
-- **Fill in the template.** The database settings and `ports` are blank, and so is `CERTBOT_EMAIL`. Adjust the absolute `/opt/OW_stage/...` paths of the stage stack as well.
+- **Fill in the template.** The database settings are blank, and so is `CERTBOT_EMAIL`. Adjust the absolute `/opt/OW_stage/...` paths of the stage stack as well.
 - **Server config.** Create `server/prod.env`: `ENV=prod` reads it instead of `dev.env`. The image build needs it too, because it runs `collectstatic` with `ENV=prod`, so it must hold at least `SECRET_KEY`, `DEBUG` and the `DB_*` keys. It is copied into the image at build time, so after editing `prod.env`, rebuild `server` rather than restarting it.
 - **Migrations.** Nothing runs them in production. After each deploy that adds migrations, run `migrate`. After the first deploy, also run `createsu`.
 - **Admin credentials.** Before that first `createsu`, set your own `SU_USERNAME` and a strong `SU_PASSWORD` in `prod.env`. Without them, `createsu` creates a superuser named `admin` with the password `password`. Changing them later does not update an account that already exists: use `manage.py changepassword` for that.
